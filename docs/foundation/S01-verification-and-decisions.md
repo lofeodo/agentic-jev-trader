@@ -1,6 +1,6 @@
 # S01. Verification and developer decisions
 
-**Status:** todo
+**Status:** in progress
 
 **Summary:** Every VERIFY item that shapes a shared contract checked against official documentation, and the developer decisions from the spec settled and logged.
 
@@ -14,8 +14,90 @@ Spec: [project breakdown](../project-breakdown.md). Feature index: [ROADMAP.md](
 
 ## Detailed plan
 
-Not written yet. It is filled in when the step starts, in plan mode, and opens with the
-behaviour agreed in the planning interview.
+### Agreed behaviour (planning interview, 2026-11-10)
+
+**Scope and depth**
+
+- Official docs plus free local checks. Nothing paid, no account created in this step.
+- Anything that needs an account or money is recorded as "open, owned by step X".
+- Author facts: based in Canada; has a LangSmith account; no Snowflake account yet; will
+  create a TypeSafe (Jev) key before the Jev work needs it.
+- The documentation research ran during planning (author's choice), so execution writes
+  the findings down, runs the local checks and replaces S0's placeholders.
+
+**The four developer decisions (spec section 22)**
+
+1. **LLM:** DeepSeek, default model `deepseek-flash`, through `langchain-deepseek`;
+   `deepseek-v4-pro` is one config value away. DeepSeek stores API data in China and
+   training use of API inputs is unconfirmed: accepted, because only masked data
+   reaches a model.
+2. **Market data and budget:** stocks from Alpaca's free plan (IEX feed only; the paid
+   feed is not sold in Canada); BTC from Coinbase Exchange's public candles API; futures
+   later on Databento's $125 new-account credit. $0 spent now. The options source is
+   decided at the dataset builder's options step, ceiling one month of Massive at $199.
+   Greeks and implied volatility are computed in code.
+3. **Assumptions:** all 16 in spec section 6 kept as written (#16 is now resolved).
+4. **First dataset:** SPY, QQQ, AAPL, NVDA + BTC.
+
+**Choices forced by the findings**
+
+- **Jev access:** direct TypeSafe API with the official `typesafe-sdk`; base URL and key
+  are config, so OpenRouter (no waitlist, same price) stays a documented fallback.
+- **MCP stack:** `langchain[mcp]` (`langchain.mcp.MCPAdapter`, beta) plus MCP SDK 2.x
+  (`MCPServer`, Streamable HTTP), replacing the archived `langchain-mcp-adapters` and
+  MCP SDK 1.30 that S0 pinned. Proven by a local smoke test before S1 closes; if it
+  fails, stop and go back to the author.
+- **Tracing:** LangSmith free plan (5,000 traces a month) with a tracing level in the
+  config model (off / sampled / full evaluations only / everything). Per-call metrics
+  go to Snowflake regardless.
+- **Snowflake:** AWS US West (Oregon), Standard edition; the account is created when S4
+  starts.
+- **S0 placeholders:** S1 updates `requirements.txt`, `.env.example` and
+  `docs/configuration.md` to match.
+
+**Agent's calls, confirmed with the plan**
+
+- Text embeddings: `AI_EMBED` with `snowflake-arctic-embed-m-v1.5`,
+  `VECTOR(FLOAT, 768)`, `VECTOR_COSINE_SIMILARITY`.
+- Jev model pinned to `jev-1.14.0`, not the moving `jev-latest` alias; the response's
+  model field is logged.
+- Env variable names stay provider-neutral; S2 confirms names. Alpaca gets a key and
+  secret pair; the crypto key is removed (Coinbase's public API needs none).
+- `alpaca-py` is pinned only if it resolves with the stack.
+- S0's step file is not rewritten; its open issues get a "resolved by S1" note.
+
+**Out of scope:** product code, the config model and contracts (S2), Terraform (S4),
+creating any account or key, paid calls, the frontend check (web-app S2).
+
+### What gets written
+
+- `docs/verification.md` (new): one section per VERIFY item, each finding with source,
+  date, confidence, status and contract impact; ends with an open-items table.
+- `docs/assumptions.md` (new): the 16 assumptions confirmed, plus ambiguities found.
+- `docs/DECISIONS.md` (shared): FND-007 onward.
+- S0 placeholders (shared): `requirements.txt`, `.env.example`, `docs/configuration.md`,
+  any file naming the old adapter or "chosen in S1", `CLAUDE.md` current state.
+- Roadmap files: this step file, the foundation index, `docs/ROADMAP.md`, S0's open
+  issues annotated.
+
+### Steps (one commit each)
+
+1. Branch, plan saved, S1 in progress.
+2. Local checks in a throwaway Python 3.12 env: resolve the new requirement set, MCP
+   smoke test (server with a structured tool and a health route over Streamable HTTP,
+   called through `MCPAdapter`), DeepSeek model construction, `typesafe-sdk` question
+   objects, `alpaca-py` resolution.
+3. `docs/verification.md`.
+4. `docs/assumptions.md` and the FND entries.
+5. S0 placeholders, then the project env reinstalled and checked.
+6. Step file, index, top-level roadmap; PR into `foundation`, merge on green CI.
+
+### Verification
+
+- Throwaway env: `pip check` clean; MCP smoke test passes.
+- Project env: `pip check` clean; pytest 13 passed, 1 skipped; ruff clean.
+- Every VERIFY item in spec section 22 has a recorded answer or an owned open item.
+- CI green before merge.
 
 ## What was done
 
@@ -27,10 +109,6 @@ None yet.
 
 ## Open issues
 
-To settle in the planning interview:
-
-- All four developer decisions in spec section 22 need the author.
-- Deep provider detail (history depth, rate limits, licence terms) can stay with the dataset-builder steps; only the choice of provider and budget is needed here.
 - What the `editorial-ui` skill specifies for the frontend is checked in web-app S2, not here.
 
 ## Decisions
