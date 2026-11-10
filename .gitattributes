@@ -1,0 +1,5 @@
+# Store text files with LF line endings so Windows and Linux checkouts match
+# and the formatting check in CI sees the same bytes as local runs.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
