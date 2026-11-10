@@ -69,7 +69,7 @@ Progress (2026-11-10): nothing done. S0, S1 are ready.
 
 | Step | Status | File | Summary |
 | --- | --- | --- | --- |
-| S0 Repo scaffold | todo | [S00-repo-scaffold.md](S00-repo-scaffold.md) | Repo layout, a conda env with pinned dependencies, pytest, a CI workflow that runs an empty suite, the project CLAUDE.md and the docs skeleton. |
+| S0 Repo scaffold | in progress | [S00-repo-scaffold.md](S00-repo-scaffold.md) | Repo layout, a conda env with pinned dependencies, pytest, a CI workflow that runs an empty suite, the project CLAUDE.md and the docs skeleton. |
 | S1 Verification and developer decisions | todo | [S01-verification-and-decisions.md](S01-verification-and-decisions.md) | Every VERIFY item that shapes a shared contract checked against official documentation, and the developer decisions from the spec settled and logged. |
 | S2 Shared contracts | todo | [S02-shared-contracts.md](S02-shared-contracts.md) | Pydantic schemas for every table and tool payload, typed interfaces for the four tool servers, storage, job launching and run execution, the shared step clock and one config model. |
 | S3 Fakes and fixture dataset | todo | [S03-fakes-and-fixture-dataset.md](S03-fakes-and-fixture-dataset.md) | In-memory implementations of every interface, scripted fake LLM and Jev responders, and a small deterministic synthetic dataset, so each feature can be tested without Snowflake, the cluster or paid APIs. |
