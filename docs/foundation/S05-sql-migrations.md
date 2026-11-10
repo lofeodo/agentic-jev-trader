@@ -30,7 +30,7 @@ None yet.
 To settle in the planning interview:
 
 - Applying migrations to the real account is a deploy and needs the author's go-ahead.
-- Vector dimensions depend on the embedding function chosen in S1.
+- Vector dimensions: S1 chose `snowflake-arctic-embed-m-v1.5`, so the situation embedding is `VECTOR(FLOAT, 768)`; the numeric feature vector's length is fixed by S2 (FND-013). Vectors cannot be bound as parameters: inserts cast an array in SQL.
 - Whether schema-versus-table drift is checked in CI or only on demand, since CI has no Snowflake access by default.
 
 ## Decisions

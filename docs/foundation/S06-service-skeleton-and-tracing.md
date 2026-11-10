@@ -6,7 +6,7 @@
 
 ## Goal
 
-Build the common server factory (transport, health check, tool registration from the S2 interfaces, trace-context intake) and give each of the four servers an entry point that serves its fake. Prove the agent side: connect through the LangChain MCP adapter and call one tool on each server. Add the tracing helper used by the agent and the servers; it becomes a no-op without LangSmith keys.
+Build the common server factory (transport, health check, tool registration from the S2 interfaces, trace-context intake) and give each of the four servers an entry point that serves its fake. Prove the agent side: connect through LangChain's MCP adapter (`langchain.mcp.MCPAdapter`, FND-011) and call one tool on each server. Add the tracing helper used by the agent and the servers; it becomes a no-op without LangSmith keys.
 
 **Done when:** All four stub servers start locally with one command each, the client check calls a tool on each, and the test suite passes with no LangSmith key set.
 

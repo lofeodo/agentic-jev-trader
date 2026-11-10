@@ -5,13 +5,20 @@
 
 # Agent orchestration, tracing and the model interface
 langgraph==1.2.20
-langchain==1.4.9
 langsmith==0.14.17
-# LLM provider package: added in foundation S1 once the provider is chosen
+# LLM provider: DeepSeek (decision FND-007)
+langchain-deepseek==1.1.1
 
-# MCP servers and the MCP-to-LangGraph bridge
-mcp==1.30.0
-langchain-mcp-adapters==0.3.2
+# MCP servers and the MCP-to-LangGraph bridge (decision FND-011).
+# The [mcp] extra provides langchain.mcp.MCPAdapter and pulls in fastmcp.
+langchain[mcp]==1.4.9
+mcp==2.3.0
+
+# Jev decision model, TypeSafe AI (decision FND-008)
+typesafe-sdk==0.7.5
+
+# Market data: stocks and funds from Alpaca (decision FND-009)
+alpaca-py==0.45.0
 
 # Contracts and data handling
 pydantic==2.14.3

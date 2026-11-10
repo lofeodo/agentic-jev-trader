@@ -137,10 +137,15 @@ content; repo root on the path; known env variables under provisional names.
 
 - S1 confirms the Snowflake authentication method for service users (key pair
   assumed); S4 creates the users to match and S2 confirms the variable names.
+  **Resolved by S1:** key pair confirmed (FND-013); S4 and S2 parts still stand.
 - S1 chooses the LLM provider and adds its package to `requirements.txt`, and the data
-  providers and their SDKs if any.
+  providers and their SDKs if any. **Resolved by S1:** DeepSeek, Jev SDK and Alpaca
+  pinned (FND-007 to FND-009); S1 also replaced the archived `langchain-mcp-adapters`
+  and `mcp` 1.30.0 with `langchain[mcp]` and `mcp` 2.3.0 (FND-011).
 - TA-Lib on Linux is first installed by CI on this step's PR; container images (platform
-  S1) depend on the same wheel.
+  S1) depend on the same wheel. **S1:** PyPI ships glibc and musl wheels for Linux
+  x86_64 and aarch64 with the C library built in; a slim-image check stays with
+  platform S1.
 - The `readme-writing` skill is to be offered again once something runs (end of
   foundation or integration).
 

@@ -60,11 +60,19 @@ Details: [docs/development.md](docs/development.md).
   file names may repeat across folders.
 - `eval` is a package name here; it shadows nothing (the builtin is a function, not a
   module), but never `from eval import *`.
+- Before relying on a library API, version, price or limit, check
+  [docs/verification.md](docs/verification.md): several spec assumptions were wrong
+  (archived MCP adapter, MCP SDK 2.x renames, Jev limits).
+- MCP SDK 2.x: `from mcp.server.mcpserver import MCPServer`; the README's
+  `from mcp.server import MCPServer` fails in 2.3.0. Agent side:
+  `from langchain.mcp import MCPAdapter` (beta).
 - Background agents in a worktree: `git` commands are checked to stay inside the
   worktree, so keep them simple and separate.
 
 ## Current state
 
-Foundation S0 (scaffold) is done: layout, env, CI and docs exist, with no product code.
-Next is foundation S1 (verification and developer decisions); S2 then defines the
-contracts in `shared/`.
+Foundation S0 (scaffold) and S1 (verification and developer decisions) are done:
+layout, env, CI and docs exist, with no product code; every spec VERIFY item is
+answered in [docs/verification.md](docs/verification.md) and the technology choices are
+FND-007 to FND-013. Next are foundation S2 (contracts in `shared/`) and S4 (Snowflake
+Terraform), which can run in parallel.
