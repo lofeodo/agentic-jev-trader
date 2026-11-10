@@ -45,11 +45,11 @@ graph LR
     S3 --> S6
     classDef done fill:#d4edda,stroke:#2e7d32,color:#1b5e20
     classDef ready fill:#fff3cd,stroke:#b8860b,color:#5c4400
-    %% class <steps> done   (none yet)
-    class S0,S1 ready
+    class S0 done
+    class S1 ready
 ```
 
-Progress (2026-11-10): nothing done. S0, S1 are ready.
+Progress (2026-11-10): S0 done. S1 is ready; S2 and S4 wait on S1.
 
 ## Dependency table
 
@@ -69,7 +69,7 @@ Progress (2026-11-10): nothing done. S0, S1 are ready.
 
 | Step | Status | File | Summary |
 | --- | --- | --- | --- |
-| S0 Repo scaffold | in progress | [S00-repo-scaffold.md](S00-repo-scaffold.md) | Repo layout, a conda env with pinned dependencies, pytest, a CI workflow that runs an empty suite, the project CLAUDE.md and the docs skeleton. |
+| S0 Repo scaffold | done | [S00-repo-scaffold.md](S00-repo-scaffold.md) | Spec layout as importable packages, a Python 3.12 conda env with every spec-named dependency pinned, pytest with paid tests skipped by default, a Linux CI job for lint and tests, the project CLAUDE.md, a short README and three docs topic files. |
 | S1 Verification and developer decisions | todo | [S01-verification-and-decisions.md](S01-verification-and-decisions.md) | Every VERIFY item that shapes a shared contract checked against official documentation, and the developer decisions from the spec settled and logged. |
 | S2 Shared contracts | todo | [S02-shared-contracts.md](S02-shared-contracts.md) | Pydantic schemas for every table and tool payload, typed interfaces for the four tool servers, storage, job launching and run execution, the shared step clock and one config model. |
 | S3 Fakes and fixture dataset | todo | [S03-fakes-and-fixture-dataset.md](S03-fakes-and-fixture-dataset.md) | In-memory implementations of every interface, scripted fake LLM and Jev responders, and a small deterministic synthetic dataset, so each feature can be tested without Snowflake, the cluster or paid APIs. |

@@ -1,8 +1,8 @@
 # S00. Repo scaffold
 
-**Status:** in progress
+**Status:** done
 
-**Summary:** Repo layout, a conda env with pinned dependencies, pytest, a CI workflow that runs an empty suite, the project CLAUDE.md and the docs skeleton.
+**Summary:** Spec layout as importable packages, a Python 3.12 conda env with every spec-named dependency pinned, pytest with paid tests skipped by default, a Linux CI job for lint and tests, the project CLAUDE.md, a short README and three docs topic files.
 
 ## Goal
 
@@ -91,16 +91,59 @@ content; repo root on the path; known env variables under provisional names.
 
 ## What was done
 
-Nothing yet.
+- **Branches:** `foundation` created off `main` and pushed; this step on
+  `step-00-repo-scaffold`.
+- **Layout:** empty packages (`__init__.py`) `agent`, `agent.nodes`, `mcp_servers` with
+  `market_data`, `broker_sim`, `memory`, `jev_decision`, `dataset_builder`,
+  `dataset_builder.providers`, `eval`, `eval.baselines`, `api`, `shared`. Placeholder
+  folders: `prompts/`, `playbook/`, `web/`, `infra/terraform/snowflake/`,
+  `infra/terraform/kubernetes/`, `infra/sql/migrations/`, `infra/docker/`, `scripts/`,
+  `tests/replay/`. No module files: each belongs to the feature that owns it.
+- **Environment:** conda env `agentic-jev-trader`, Python 3.12.16, created on the
+  author's machine. `requirements.txt` (shared file, created here) pins langgraph
+  1.2.20, langchain 1.4.9, langsmith 0.14.17, mcp 1.30.0, langchain-mcp-adapters 0.3.2,
+  pydantic 2.14.3, pandas 3.1.1, TA-Lib 0.8.3, snowflake-connector-python[pandas]
+  5.2.0, fastapi 0.162.3, uvicorn 0.54.0, httpx 0.28.1, kubernetes 37.0.2, pytest 9.2.0,
+  pytest-asyncio 1.4.1.post1, ruff 0.17.4. TA-Lib installed from a prebuilt wheel on
+  Windows, with no C library setup. `pip check` is clean.
+- **Test setup:** `pyproject.toml` holds pytest settings (repo root on `pythonpath`,
+  `testpaths = tests`, importlib import mode, strict markers, asyncio auto mode, the
+  `paid` marker) and ruff settings (py312, line length 100, rules E, F, I, UP, B).
+  Root `conftest.py` adds `--run-paid` and skips `paid` tests without it.
+  `tests/unit/test_smoke.py` imports all 13 packages; `tests/behavior/test_paid_marker.py`
+  checks the switch. Result: 13 passed, 1 skipped; with `--run-paid`, 14 passed.
+- **CI:** `.github/workflows/ci.yml`, one `ubuntu-latest` job on every pull request and
+  on pushes to `main` and the eleven feature branches: install, `ruff check`,
+  `ruff format --check`, `pytest`. Concurrency cancels superseded runs.
+- **Config and docs:** `.gitignore` (Python, secrets, Terraform state, web build output,
+  editors, Claude worktrees), `.gitattributes` (LF), `.env.example` (shared file,
+  created here; names provisional), `CLAUDE.md`, `README.md` (shared file, created
+  here), `docs/development.md`, `docs/architecture.md`, `docs/configuration.md`.
+- **Checked:** the install and test commands ran through `cmd` and through bash with
+  the same results; ruff lint and format check are clean.
 
 ## Deviations from plan
 
-None yet.
+- Added `.gitattributes` to normalise line endings to LF (FND-006); not in the plan.
+  Git warned about CRLF conversion on the first commit, and the CI format check
+  compares bytes.
+- Snowflake credentials in `.env.example` are key-pair paths
+  (`SNOWFLAKE_<ROLE>_PRIVATE_KEY_PATH`), not passwords, because Snowflake service users
+  cannot sign in with a password. Still provisional (see open issues).
+- The smoke test is parametrised per package, so the default run reports 13 passed and
+  1 skipped rather than the plan's 1 and 1.
 
 ## Open issues
 
-None yet.
+- S1 confirms the Snowflake authentication method for service users (key pair
+  assumed); S4 creates the users to match and S2 confirms the variable names.
+- S1 chooses the LLM provider and adds its package to `requirements.txt`, and the data
+  providers and their SDKs if any.
+- TA-Lib on Linux is first installed by CI on this step's PR; container images (platform
+  S1) depend on the same wheel.
+- The `readme-writing` skill is to be offered again once something runs (end of
+  foundation or integration).
 
 ## Decisions
 
-None yet. New entries go in `docs/DECISIONS.md` under the `FND` heading.
+FND-001, FND-002, FND-003, FND-004, FND-005, FND-006 in `docs/DECISIONS.md`.

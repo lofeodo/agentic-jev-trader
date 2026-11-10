@@ -7,7 +7,7 @@ branch off `main`, and one file per step.
 
 | Feature | Status | Steps | Needs in `main` | Index | Summary |
 | --- | --- | --- | --- | --- | --- |
-| Foundation | in progress | 0 of 7 | nothing | [foundation/ROADMAP.md](foundation/ROADMAP.md) | Repo scaffold, verified technology choices, shared contracts, fakes, Snowflake objects and stub services. |
+| Foundation | in progress | 1 of 7 | nothing | [foundation/ROADMAP.md](foundation/ROADMAP.md) | Repo scaffold, verified technology choices, shared contracts, fakes, Snowflake objects and stub services. |
 | Platform | todo | 0 of 3 | foundation | [platform/ROADMAP.md](platform/ROADMAP.md) | Container images, the kind cluster, Kubernetes Terraform and the real job launcher. |
 | Dataset builder | todo | 0 of 8 | foundation | [dataset-builder/ROADMAP.md](dataset-builder/ROADMAP.md) | Turns chosen assets and a date range into an immutable, masked simulation dataset with candle features. |
 | Market-data server | todo | 0 of 2 | foundation | [market-data/ROADMAP.md](market-data/ROADMAP.md) | MCP server that serves snapshots, bars and instruments from a dataset, never past the current step. |
@@ -58,7 +58,7 @@ graph LR
     class foundation ready
 ```
 
-Progress (2026-11-10): nothing done. Foundation is ready to start.
+Progress (2026-11-10): Foundation in progress (S0 done, S1 next). No feature done yet.
 
 The build order is contract-first, chosen to maximise parallel work (decision PRJ-001):
 
