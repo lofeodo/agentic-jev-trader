@@ -1,0 +1,33 @@
+# Direct dependencies, pinned exactly (decision FND-002). Transitive dependencies float.
+# Python 3.12 (decision FND-001). Install with:
+#   conda run -n agentic-jev-trader python -m pip install -r requirements.txt
+# Editing this file is a shared-file change: note it in the step's "What was done".
+
+# Agent orchestration, tracing and the model interface
+langgraph==1.2.20
+langchain==1.4.9
+langsmith==0.14.17
+# LLM provider package: added in foundation S1 once the provider is chosen
+
+# MCP servers and the MCP-to-LangGraph bridge
+mcp==1.30.0
+langchain-mcp-adapters==0.3.2
+
+# Contracts and data handling
+pydantic==2.14.3
+pandas==3.1.1
+TA-Lib==0.8.3
+
+# Storage
+snowflake-connector-python[pandas]==5.2.0
+
+# API and job launching
+fastapi==0.162.3
+uvicorn==0.54.0
+httpx==0.28.1
+kubernetes==37.0.2
+
+# Tests and lint
+pytest==9.2.0
+pytest-asyncio==1.4.1.post1
+ruff==0.17.4
