@@ -1,8 +1,8 @@
 # S01. Verification and developer decisions
 
-**Status:** in progress
+**Status:** done
 
-**Summary:** Every VERIFY item that shapes a shared contract checked against official documentation, and the developer decisions from the spec settled and logged.
+**Summary:** Every spec VERIFY item answered with sources and an owner for what stays open, the stack moved to MCP SDK 2.x after the old adapter proved archived (smoke-tested locally), and the provider choices logged: DeepSeek, Jev direct, Alpaca and Coinbase, LangSmith free plan, Snowflake in AWS US West.
 
 ## Goal
 
@@ -101,16 +101,58 @@ creating any account or key, paid calls, the frontend check (web-app S2).
 
 ## What was done
 
-Nothing yet.
+- **Research** during planning: three research passes over official docs, PyPI and
+  GitHub (Jev and data providers; LangChain, MCP and LangSmith; Snowflake, Terraform and
+  TA-Lib), plus DeepSeek's docs. Two spec assumptions turned out wrong:
+  `langchain-mcp-adapters` is archived and needs `mcp<2`, and MCP SDK 2.x renamed
+  `FastMCP` to `MCPServer`.
+- **`docs/verification.md`** (new): one section per VERIFY item (Jev, LangGraph and
+  LangChain, LangSmith, Snowflake vectors and embeddings, Terraform provider, MCP SDK,
+  trace context, TA-Lib, data providers, DeepSeek), each finding with source, date and
+  confidence and a "for the contracts" note; a local-checks section; an open-items
+  table with an owner step for each item.
+- **Local checks** in a throwaway Python 3.12 env: the new requirement set resolves
+  with `pip check` clean; MCP smoke test passed (an `MCPServer` with a structured tool
+  and `/health` over Streamable HTTP, called through `langchain.mcp.MCPAdapter`; static
+  headers delivered; W3C `traceparent` reached the server's `_meta` with the client's
+  trace ID); `init_chat_model("deepseek:deepseek-flash")` and `with_structured_output`
+  construct; `typesafe-sdk` builds the four `decide` questions; `alpaca-py` resolves.
+- **`docs/assumptions.md`** (new): the 16 spec assumptions confirmed; first dataset;
+  five ambiguities (A1 to A5) with owner steps.
+- **`docs/DECISIONS.md`** (shared): FND-007 to FND-013 added under the FND heading.
+- **`requirements.txt`** (shared): removed `langchain-mcp-adapters==0.3.2`;
+  `mcp` 1.30.0 to 2.3.0; `langchain` to `langchain[mcp]` 1.4.9; added
+  `langchain-deepseek==1.1.1`, `typesafe-sdk==0.7.5`, `alpaca-py==0.45.0`.
+- **`.env.example`** (shared) and `docs/configuration.md`: DeepSeek defaults, Jev URL
+  and a new `JEV_MODEL`, Alpaca key and secret (`STOCK_DATA_API_SECRET` added,
+  `CRYPTO_DATA_API_KEY` removed), key-pair sign-in marked confirmed.
+- **Project env** updated: adapter uninstalled, requirements reinstalled; `pip check`
+  clean, pytest 13 passed and 1 skipped, ruff lint and format clean.
+- **Other docs:** `CLAUDE.md` current state and two gotchas (check verification.md
+  first; the MCP 2.x import path); S0's open issues annotated as resolved; S5's vector
+  dimension note and S6's adapter name updated.
 
 ## Deviations from plan
 
-None yet.
+- Added `JEV_MODEL` to `.env.example` and a `STOCK_DATA_API_SECRET` (Alpaca needs a key
+  ID and a secret); the plan named the pair without the variable name.
+- `opentelemetry-sdk` was installed in the throwaway env only, to create a span for the
+  trace-context check; it is not a project dependency yet (S6 decides).
 
 ## Open issues
 
-- What the `editorial-ui` skill specifies for the frontend is checked in web-app S2, not here.
+The full table is at the end of [verification.md](../verification.md). The ones that
+shape the next steps:
+
+- **S2:** reserve trace context on every tool request; a tracing level in the config
+  model; the candidate schema must fit DeepSeek's strict mode; resolve ambiguities A1
+  (what a "day" is for the 3% stop) and A2 (exposure for options and futures).
+- **S4:** how `REF.ASSET_KEY` is hidden from `AGENT_ROLE`, since Terraform cannot grant
+  "all tables except one" (separate schema, or per-table grants); AI functions on a
+  trial account need a card.
+- **S6:** prove the agent-to-server trace link inside LangSmith (the MCP side works).
+- What the `editorial-ui` skill specifies for the frontend is checked in web-app S2.
 
 ## Decisions
 
-None yet. New entries go in `docs/DECISIONS.md` under the `FND` heading.
+FND-007, FND-008, FND-009, FND-010, FND-011, FND-012, FND-013 in `docs/DECISIONS.md`.
