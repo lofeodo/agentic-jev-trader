@@ -1,0 +1,19 @@
+# Tool settings only. The project is not an installable package: the repo root is on
+# the import path (decision FND-003) and dependencies live in requirements.txt.
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib --strict-markers"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "paid: calls a paid API (LLM, Jev, data provider, Snowflake); skipped unless --run-paid",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

@@ -59,7 +59,58 @@ examples), the global rules apply unless the project `CLAUDE.md` says otherwise.
 
 ## Foundation (FND)
 
-No entries yet.
+### FND-001 Python 3.12 for the env and the container images
+
+2026-11-10. The conda env `agentic-jev-trader` and, later, the images use Python 3.12.
+**Why:** the author's choice in the S0 interview. PyPI was checked first: LangGraph
+1.2.20 declares support up to 3.13; TA-Lib 0.8.3 and the Snowflake connector 5.2.0 ship
+Windows and Linux wheels for 3.11 to 3.15. 3.13 was recommended as the newest fully
+supported version; 3.14 (the machine's default Python) is not yet declared by LangGraph.
+**Cost:** 3.12 reaches end of security support sooner than 3.13, so an upgrade comes
+earlier; nothing here needs a newer feature.
+
+### FND-002 Exact pins for direct dependencies only
+
+2026-11-10. `requirements.txt` pins every direct dependency with `==`; transitive ones
+float. All packages the spec names are pinned now, plus `uvicorn`, `httpx`,
+`pytest-asyncio`, `kubernetes` and `ruff`, which the spec implies.
+**Why:** later features rarely need to edit this shared file, and a full lock file would
+conflict on every parallel dependency change. **Cost:** a transitive release can break
+an install or CI without any change here; the fix is to pin that package when it happens.
+No LLM provider package yet: foundation S1 chooses the provider.
+
+### FND-003 The repo root is on the import path; no installable package
+
+2026-11-10. `pyproject.toml` holds only tool settings. pytest adds the repo root through
+`pythonpath`, code runs from the root as `python -m <package>`, and images copy folders.
+**Why:** a single solo repo with several entry points; it removes a `pip install -e .`
+setup step and packaging metadata. **Cost:** code run from another directory cannot
+import the packages; container images must set the working directory to the copied root.
+
+### FND-004 CI runs on Linux only, with ruff and pytest
+
+2026-11-10. One Ubuntu job on every PR and on pushes to `main` and the eleven feature
+branches: install, `ruff check`, `ruff format --check`, `pytest`.
+**Why:** Linux matches the containers; Windows is exercised by local runs, and the setup
+was checked through `cmd` in S0. One job keeps CI fast across sixty step PRs.
+**Cost:** a Windows-only break (path handling, a wheel missing on Windows) is caught
+only locally.
+
+### FND-005 Paid tests behind a `paid` marker and a `--run-paid` flag
+
+2026-11-10. Any test that calls an LLM, Jev, a data provider or Snowflake carries
+`@pytest.mark.paid`; a root `conftest.py` skips those unless pytest gets `--run-paid`.
+Markers are strict, so a typo in a marker name fails collection.
+**Why:** the global rule that unit tests never call paid APIs and such tests are skipped
+by default. **Cost:** paid tests never run in CI; they are run by hand before releases
+or prompt and model changes.
+
+### FND-006 Line endings normalised to LF
+
+2026-11-10. `.gitattributes` stores text files with LF (`*.bat` and `*.cmd` keep CRLF).
+**Why:** the repo is edited on Windows and checked on Linux; the same bytes everywhere
+keep `ruff format --check` and diffs stable. **Cost:** none expected; Windows editors
+handle LF.
 
 ## Platform (PLT)
 
