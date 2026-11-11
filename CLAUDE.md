@@ -19,3 +19,17 @@ When I invoke one of the skills below, start your first reply with one line reco
 | `/research` | Sonnet, medium |
 
 Rule of thumb: more thinking where decisions get made and mistakes compound; less where a spec or ticket already holds the decisions. Switch at phase boundaries, not mid-phase.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for lofeodo/agentic-jev-trader (gh CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
