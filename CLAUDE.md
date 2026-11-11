@@ -13,11 +13,9 @@ When I invoke one of the skills below, start your first reply with one line reco
 | `/diagnosing-bugs` | Opus high, or Fable for hard ones |
 | `/code-review` | Opus, high |
 | `/implement`, `/tdd` | Opus, medium (high if a ticket keeps going red) |
-| `/implement-spec` | Opus, medium to orchestrate; Sonnet, medium for implementer subagents |
+| `/implement-spec` | Opus, medium |
 | `/retro`, `/improve-codebase-architecture`, `/prototype` | Opus, medium–high |
 | `/pr`, `/handoff`, `/wait-what`, `/wizard` | Sonnet, medium |
-| `/research`, Explore/search subagents | Sonnet (Haiku for plain file sweeps) |
-
-Subagents inherit the main session's model unless told otherwise. So during `/implement-spec`, launch implementer and merger subagents with `model: sonnet` and `effort: medium` explicitly. Exploration subagents use `model: sonnet` too.
+| `/research` | Sonnet, medium |
 
 Rule of thumb: more thinking where decisions get made and mistakes compound; less where a spec or ticket already holds the decisions. Switch at phase boundaries, not mid-phase.
