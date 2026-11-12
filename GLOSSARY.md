@@ -95,11 +95,11 @@ The question Jev answers at every step for an open position: hold, close, reduce
 _Avoid_: Manage
 
 **Full evaluation**:
-The Tier 2 path, where the LLM selects past episodes and Jev picks a candidate trade and sizes it.
+The Tier 2 path, where the LLM selects past episodes and Jev either picks a candidate trade and sizes it or picks no trade.
 _Avoid_: Closer look
 
 **Candidate trade**:
-One of the trades code lists for an asset at a step: an instrument, a direction, a stop price, and a target price. The LLM never proposes one.
+One of the trades code lists for an asset at a step: an instrument, a direction, a stop price, and a target price.
 _Avoid_: Proposal, idea, signal
 
 **Decision**:
@@ -110,7 +110,7 @@ _Avoid_: Action, move
 The hosted decision model from TypeSafe AI. State goes in; choice, score, and yes/no answers with probabilities come out.
 
 **Size bucket**:
-One of the dollar amounts, each a share of account value, that Jev chooses between when sizing a trade.
+One of the dollar amounts, each a share of account value, that Jev weighs when sizing a trade. The size is their average, weighted by the probability Jev gives each.
 
 **Stop price**:
 The price, fixed at entry and never moved, at which code closes the position to cap its loss.
@@ -151,7 +151,7 @@ The size of all open positions added together, counting a short the same as a lo
 _Avoid_: Gross exposure
 
 **Risk limit**:
-A cap on the account that code enforces whatever the models propose.
+A cap on the account that code enforces whatever the models decide.
 _Avoid_: Guardrail, constraint
 
 **Position limit**:
