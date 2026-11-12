@@ -11,12 +11,12 @@ One 15-minute candle: open, high, low, close, volume.
 _Avoid_: Candle (for the data row), tick
 
 **Step**:
-The moment a bar ends, when the agent may act. One every 15 minutes, around the clock, on the UTC clock shared by all assets.
+The moment a bar ends, when the agent may act. Steps come every 15 minutes, day and night, on one UTC clock shared by all assets.
 _Avoid_: Tick, turn, iteration
 
 **Day**:
-One UTC calendar day on the shared clock: 96 steps. It is the same day for every asset and for the account.
-_Avoid_: Trading day, date
+One UTC calendar day: 96 steps. It is the same day for every asset and for the account.
+_Avoid_: Trading day
 
 **Session**:
 A stock's trading hours within one day. Crypto has no session.
