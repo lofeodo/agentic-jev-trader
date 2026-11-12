@@ -20,6 +20,14 @@ When I invoke one of the skills below, start your first reply with one line reco
 
 Rule of thumb: more thinking where decisions get made and mistakes compound; less where a spec or ticket already holds the decisions. Switch at phase boundaries, not mid-phase.
 
+## Plain language
+
+I'm new to finance and trading. This applies to everything I read: chat, issues, comments, and docs.
+
+- Explain each finance, trading, or statistics term in everyday words where it first appears in a message or issue, with a small example in dollars. Terms from `GLOSSARY.md` get the same treatment.
+- Lead with what happens to the account, then name the term for it.
+- When a question needs background, give the explainer first, then ask.
+
 ## Agent skills
 
 ### Issue tracker
