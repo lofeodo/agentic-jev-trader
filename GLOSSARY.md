@@ -93,12 +93,42 @@ _Avoid_: Action, move
 The hosted decision model from TypeSafe AI. State goes in; choice, score, and yes/no answers with probabilities come out.
 
 **Stop price**:
-The price, set at entry, at which code closes the position.
+The price, fixed at entry and never moved, at which code closes the position to cap its loss.
 _Avoid_: Stop loss, stop
 
 **Target price**:
 The advisory price at which the trade would have met its goal. Code never acts on it.
 _Avoid_: Take profit
+
+### Account and risk
+
+**Account value**:
+Cash plus the current value of every open position.
+_Avoid_: Equity, balance, portfolio value
+
+**Position**:
+A holding in one instrument, from the step it is opened until it is fully closed.
+
+**Long**:
+A position that gains when the price rises: units are bought first and sold later.
+
+**Short**:
+A position that gains when the price falls: borrowed units are sold first and bought back later.
+
+**Exposure**:
+The value of all open positions added together, long and short alike.
+_Avoid_: Leverage, gross exposure
+
+**Risk limit**:
+A cap on the account that code enforces whatever the models propose.
+_Avoid_: Guardrail, constraint
+
+**Daily loss limit**:
+The risk limit that blocks new entries and adds for the rest of the day once account value has fallen a set share since the start of the day. It never closes a position.
+_Avoid_: Daily stop, circuit breaker
+
+**Slippage**:
+The small price penalty applied to every fill, standing in for the worse price a real order gets.
 
 ### Memory
 
@@ -109,6 +139,17 @@ _Avoid_: Rulebook, theory
 **Track record**:
 Statistics, computed by code, of how the agent's own closed trades performed for each pattern and context.
 _Avoid_: Stats, performance history
+
+**Closed trade**:
+A position that has been fully closed, so its profit or loss is known.
+
+**Track record group**:
+One line of the track record: the closed trades that share a pattern, a direction, and a context.
+_Avoid_: Bucket, cell, segment
+
+**Minimum sample**:
+The number of closed trades a track record group needs before the agent is shown it.
+_Avoid_: Threshold, cutoff
 
 **Episode**:
 The stored record of one decision: its situation, action, and outcome.
