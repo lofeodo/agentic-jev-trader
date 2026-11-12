@@ -92,13 +92,59 @@ _Avoid_: Action, move
 **Jev**:
 The hosted decision model from TypeSafe AI. State goes in; choice, score, and yes/no answers with probabilities come out.
 
+**Size bucket**:
+One of the dollar amounts, each a share of account value, that Jev chooses between when sizing a trade.
+
 **Stop price**:
-The price, set at entry, at which code closes the position.
+The price, fixed at entry and never moved, at which code closes the position to cap its loss.
 _Avoid_: Stop loss, stop
 
 **Target price**:
 The advisory price at which the trade would have met its goal. Code never acts on it.
 _Avoid_: Take profit
+
+### Account and risk
+
+**Account value**:
+What the account would be worth in cash if every open position were closed now.
+_Avoid_: Equity, balance, portfolio value
+
+**Position**:
+A holding in one instrument, from the step it is opened until it is fully closed.
+_Avoid_: Trade (for something still open)
+
+**Entry**:
+Opening a new position.
+
+**Add**:
+Increasing a position that is already open.
+
+**Long**:
+A position that gains when the price rises: units are bought first and sold later.
+
+**Short**:
+A position that gains when the price falls: borrowed units are sold first and bought back later.
+
+**Exposure**:
+The size of all open positions added together, counting a short the same as a long.
+_Avoid_: Gross exposure
+
+**Risk limit**:
+A cap on the account that code enforces whatever the models propose.
+_Avoid_: Guardrail, constraint
+
+**Position limit**:
+The risk limit on how large one position may be, as a share of account value.
+
+**Exposure limit**:
+The risk limit on exposure, as a multiple of account value.
+
+**Daily loss limit**:
+The risk limit that blocks entries and adds for the rest of the day once account value has fallen by a fixed percentage since the start of the day. It never closes a position.
+_Avoid_: Daily stop, circuit breaker
+
+**Slippage**:
+The small price penalty applied whenever an order is carried out, standing in for the worse price a real order gets.
 
 ### Memory
 
@@ -107,8 +153,23 @@ Reference entries describing what each candle pattern traditionally means. Share
 _Avoid_: Rulebook, theory
 
 **Track record**:
-Statistics, computed by code, of how the agent's own closed trades performed for each pattern and context.
+Statistics, computed by code, of how the agent's own closed trades performed for each pattern, direction, and context.
 _Avoid_: Stats, performance history
+
+**Closed trade**:
+The finished record of a position, from its entry to its full close, with a known profit or loss.
+
+**Track record group**:
+One line of the track record: the closed trades that share a pattern, a direction, and whichever parts of the context the group specifies.
+_Avoid_: Bucket, cell, segment
+
+**Lesson**:
+A rule or reflection a model writes about its own past decisions. This project's memory holds none.
+_Avoid_: Reflection, insight
+
+**Minimum sample**:
+The number of closed trades a track record group needs before the agent is shown it.
+_Avoid_: Threshold, cutoff
 
 **Episode**:
 The stored record of one decision: its situation, action, and outcome.
