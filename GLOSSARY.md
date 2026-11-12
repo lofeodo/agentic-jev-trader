@@ -26,6 +26,21 @@ _Avoid_: Trading day, market hours
 A fixed, versioned set of assets, instruments, bars, and candle features that runs are executed on. Once published it never changes.
 _Avoid_: Data set, universe
 
+**Data provider**:
+The outside service a dataset's bars are downloaded from.
+_Avoid_: Vendor, feed, source
+
+**Adjusted price**:
+A stock's past price corrected for splits and dividends, so that a change in price is always a real gain or loss to a holder. Every stock price in a dataset is an adjusted price.
+_Avoid_: Raw price, as-traded price
+
+**Missing bar**:
+A step at which an asset should have a bar but the data provider supplied none, or one with no volume. It stays missing: no bar is ever made up to fill it.
+_Avoid_: Gap (for a single bar), hole
+
+**Quality report**:
+The list, made when a dataset is built, of every missing bar and every other problem found in the data provider's bars.
+
 **Development period**:
 The part of a dataset's date range used for building, tuning, and building up memory.
 _Avoid_: Training period, in-sample
