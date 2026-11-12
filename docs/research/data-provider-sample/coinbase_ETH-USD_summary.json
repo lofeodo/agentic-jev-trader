@@ -1,0 +1,156 @@
+{
+  "product": "ETH-USD",
+  "requests": 1387,
+  "first_bar": "2016-05-18T00:00:00Z",
+  "last_bar": "2026-11-12T16:30:00Z",
+  "bars": 365601,
+  "missing_bars_total": 2146,
+  "gap_count": 824,
+  "off_grid_timestamps": 0,
+  "bars_with_inconsistent_ohlc": 0,
+  "per_year": {
+    "2016": {
+      "bars": 20036,
+      "missing": 1852,
+      "gaps": 736,
+      "zero_volume": 0
+    },
+    "2017": {
+      "bars": 34898,
+      "missing": 142,
+      "gaps": 63,
+      "zero_volume": 0
+    },
+    "2018": {
+      "bars": 35008,
+      "missing": 32,
+      "gaps": 6,
+      "zero_volume": 0
+    },
+    "2019": {
+      "bars": 35027,
+      "missing": 13,
+      "gaps": 2,
+      "zero_volume": 0
+    },
+    "2020": {
+      "bars": 35109,
+      "missing": 27,
+      "gaps": 8,
+      "zero_volume": 0
+    },
+    "2021": {
+      "bars": 35038,
+      "missing": 2,
+      "gaps": 1,
+      "zero_volume": 0
+    },
+    "2022": {
+      "bars": 35040,
+      "missing": 0,
+      "gaps": 0,
+      "zero_volume": 0
+    },
+    "2023": {
+      "bars": 35021,
+      "missing": 19,
+      "gaps": 2,
+      "zero_volume": 0
+    },
+    "2024": {
+      "bars": 35127,
+      "missing": 9,
+      "gaps": 3,
+      "zero_volume": 0
+    },
+    "2025": {
+      "bars": 35015,
+      "missing": 25,
+      "gaps": 2,
+      "zero_volume": 0
+    },
+    "2026": {
+      "bars": 30282,
+      "missing": 25,
+      "gaps": 1,
+      "zero_volume": 0
+    }
+  },
+  "longest_gaps": [
+    {
+      "from": "2016-05-20T20:15:00Z",
+      "to": "2016-05-23T13:45:00Z",
+      "missing_bars": 263
+    },
+    {
+      "from": "2016-05-18T02:15:00Z",
+      "to": "2016-05-18T17:00:00Z",
+      "missing_bars": 60
+    },
+    {
+      "from": "2016-05-20T00:45:00Z",
+      "to": "2016-05-20T14:45:00Z",
+      "missing_bars": 57
+    },
+    {
+      "from": "2016-05-19T08:45:00Z",
+      "to": "2016-05-19T16:15:00Z",
+      "missing_bars": 31
+    },
+    {
+      "from": "2016-05-23T14:15:00Z",
+      "to": "2016-05-23T21:45:00Z",
+      "missing_bars": 31
+    },
+    {
+      "from": "2016-05-24T00:15:00Z",
+      "to": "2016-05-24T07:30:00Z",
+      "missing_bars": 30
+    },
+    {
+      "from": "2016-05-24T08:00:00Z",
+      "to": "2016-05-24T15:15:00Z",
+      "missing_bars": 30
+    },
+    {
+      "from": "2016-05-19T01:00:00Z",
+      "to": "2016-05-19T08:00:00Z",
+      "missing_bars": 29
+    },
+    {
+      "from": "2026-05-08T01:30:00Z",
+      "to": "2026-05-08T07:30:00Z",
+      "missing_bars": 25
+    },
+    {
+      "from": "2017-02-28T19:45:00Z",
+      "to": "2017-03-01T01:15:00Z",
+      "missing_bars": 23
+    },
+    {
+      "from": "2025-10-25T15:15:00Z",
+      "to": "2025-10-25T20:45:00Z",
+      "missing_bars": 23
+    },
+    {
+      "from": "2016-12-01T01:15:00Z",
+      "to": "2016-12-01T06:00:00Z",
+      "missing_bars": 20
+    },
+    {
+      "from": "2016-05-26T07:15:00Z",
+      "to": "2016-05-26T11:30:00Z",
+      "missing_bars": 18
+    },
+    {
+      "from": "2023-03-04T17:15:00Z",
+      "to": "2023-03-04T21:15:00Z",
+      "missing_bars": 17
+    },
+    {
+      "from": "2017-04-15T19:15:00Z",
+      "to": "2017-04-15T22:45:00Z",
+      "missing_bars": 15
+    }
+  ]
+}
