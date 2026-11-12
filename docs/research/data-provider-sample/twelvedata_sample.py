@@ -1,11 +1,13 @@
 """Throwaway: page Twelve Data 15-minute bars for one stock with the public demo key.
 
-Usage: python twelvedata_sample.py <out_dir> <symbol> <apikey>
+Usage: python twelvedata_sample.py <out_dir> <symbol> <apikey or env file>
 """
 import csv
 import json
+import os
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
@@ -28,8 +30,12 @@ def fetch(symbol, key, start, end):
     )
     for attempt in range(6):
         req = urllib.request.Request(URL + q, headers={"User-Agent": "python-client"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            body = json.loads(r.read())
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                body = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            # An empty date range comes back as HTTP 400, rate limiting as HTTP 429.
+            body = {"code": e.code, "status": "error"}
         if body.get("status") == "ok":
             return body["values"]
         if body.get("code") == 429:
@@ -108,5 +114,15 @@ def main(out_dir, symbol, key):
     print(json.dumps(summary, indent=2))
 
 
+def resolve_key(arg):
+    """Accept a literal key (e.g. `demo`) or the path of an env file holding TWELVE_DATA_API_KEY."""
+    if not os.path.isfile(arg):
+        return arg
+    for line in open(arg, encoding="utf-8"):
+        if line.strip().startswith("TWELVE_DATA_API_KEY="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    sys.exit("TWELVE_DATA_API_KEY not found in the env file")
+
+
 if __name__ == "__main__":
-    main(*sys.argv[1:4])
+    main(sys.argv[1], sys.argv[2], resolve_key(sys.argv[3]))
