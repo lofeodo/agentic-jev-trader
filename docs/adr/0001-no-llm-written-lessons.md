@@ -1,7 +1,7 @@
 # The LLM never writes lessons into memory
 
-Most agent memory designs let the model write reflections or rules after it sees how a decision turned out. Here the agent's memory holds only reference text (the playbook) and facts computed by code (episodes, outcomes, and the track record); the LLM's stated reason for a decision is stored for auditing and is never retrieved as evidence. We chose this so that every remembered item can be checked against the data, so that one mistaken model-written rule cannot compound over a run, and so that comparing `memory_on` with `memory_off` measures the value of recorded facts alone.
+Most agent memory designs let the model write lessons after it sees how a decision turned out. Here the agent's memory holds only reference text (the playbook) and records built by code (episodes with their outcomes, the track record, and position journals). The LLM's stated reason for a trade appears again only in the position journal of the position it opened, while that position is open; otherwise it is kept for auditing, and memory search never returns it as evidence for another decision. We chose this so that every remembered item can be checked against the data, so that one mistaken lesson cannot compound over a run, and so that comparing `memory_on` with `memory_off` measures what the playbook and the recorded facts add, with no lessons in the mix.
 
 ## Considered Options
 
-- **LLM-written lessons as an extra variant in version 1.** Ruled out of scope. If it returns, it comes as a new variant alongside the existing ones, so the comparison above stays intact.
+- **Lessons as an extra variant.** Ruled out of scope for version 1.
