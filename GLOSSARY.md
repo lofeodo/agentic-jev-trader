@@ -83,14 +83,23 @@ The label that keeps one run's episodes and track record separate from every oth
 ### Deciding
 
 **Tier**:
-How far a step's evaluation went for one asset: 0 is code only, 1 is a Jev screen or manage call, 2 is a full evaluation.
+How far a step's evaluation went for one asset: 0 is code only, 1 is a screen or a position check, 2 is a full evaluation.
 _Avoid_: Level, stage
 
+**Screen**:
+The question Jev answers at every step for an asset with no position: is a full evaluation worth running now? The answer is a number from 0 to 1.
+_Avoid_: Filter, pre-check
+
+**Position check**:
+The question Jev answers at every step for an open position: hold, close, reduce, or add.
+_Avoid_: Manage
+
 **Full evaluation**:
-The Tier 2 path, where the LLM proposes candidate trades and Jev picks and sizes one.
+The Tier 2 path, where the LLM selects past episodes and Jev either picks a candidate trade and sizes it or picks no trade.
+_Avoid_: Closer look
 
 **Candidate trade**:
-One fully specified trade proposed by the LLM: instrument, direction, stop price, target price, and a reason.
+One of the trades code lists for an asset at a step: an instrument, a direction, a stop price, and a target price.
 _Avoid_: Proposal, idea, signal
 
 **Decision**:
@@ -101,7 +110,7 @@ _Avoid_: Action, move
 The hosted decision model from TypeSafe AI. State goes in; choice, score, and yes/no answers with probabilities come out.
 
 **Size bucket**:
-One of the dollar amounts, each a share of account value, that Jev chooses between when sizing a trade.
+One of the dollar amounts, each a share of account value, that Jev weighs when sizing a trade. The size is their average, weighted by the probability Jev gives each.
 
 **Stop price**:
 The price, fixed at entry and never moved, at which code closes the position to cap its loss.
@@ -127,6 +136,10 @@ Opening a new position.
 **Add**:
 Increasing a position that is already open.
 
+**Reduce**:
+Closing part of a position, which stays open at a smaller size.
+_Avoid_: Trim, scale out
+
 **Long**:
 A position that gains when the price rises: units are bought first and sold later.
 
@@ -138,7 +151,7 @@ The size of all open positions added together, counting a short the same as a lo
 _Avoid_: Gross exposure
 
 **Risk limit**:
-A cap on the account that code enforces whatever the models propose.
+A cap on the account that code enforces whatever the models decide.
 _Avoid_: Guardrail, constraint
 
 **Position limit**:
