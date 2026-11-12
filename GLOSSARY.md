@@ -46,7 +46,7 @@ The part of a dataset's date range used for building, tuning, and building up me
 _Avoid_: Training period, in-sample
 
 **Warm-up period**:
-The first three months of a dataset's development period, in which no run trades. Its bars supply the history that later measurements need and the averages those measurements are scaled by.
+The first three months of a dataset's development period, in which no run trades. Its bars supply the history that later measurements need and the averages and spreads those measurements are scaled by.
 _Avoid_: Burn-in, lookback period
 
 **Test period**:
@@ -230,13 +230,13 @@ The one-paragraph plain-language description of a snapshot, written by code and 
 The candle patterns, candle geometry, and context for one asset at one step.
 
 **Feature vector**:
-A snapshot's measurements written as a list of numbers in a fixed order, so that two snapshots can be compared.
+A snapshot's candle geometry and context written as a list of numbers in a fixed order, so that two snapshots can be compared. Candle patterns are not part of it.
 _Avoid_: Embedding (for this list), numeric vector
 
 **Episode search**:
-Finding the past episodes whose snapshots are most like the current snapshot, judged by feature vector and by situation text. It is the project's RAG step.
-_Avoid_: Memory search, retrieval, RAG (as the project's name for it)
+Finding the past full evaluations with complete outcomes whose snapshots are most like the current snapshot, judged by feature vector and by situation text. It is the project's retrieval-augmented generation (RAG) step: looking things up before a model answers.
+_Avoid_: Memory search, retrieval
 
 **Selected episodes**:
-The episodes the LLM chose, from what episode search returned, for Jev to read in one full evaluation.
+The episodes, possibly none, that the LLM chose from what episode search returned, for Jev to read in one full evaluation.
 _Avoid_: Retrieved memories, examples
