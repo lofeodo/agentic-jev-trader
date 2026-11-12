@@ -11,8 +11,16 @@ One 15-minute candle: open, high, low, close, volume.
 _Avoid_: Candle (for the data row), tick
 
 **Step**:
-One 15-minute decision point on the clock shared by all assets.
+The moment a bar ends, when the agent may act. One every 15 minutes, around the clock, on the UTC clock shared by all assets.
 _Avoid_: Tick, turn, iteration
+
+**Day**:
+One UTC calendar day on the shared clock: 96 steps. It is the same day for every asset and for the account.
+_Avoid_: Trading day, date
+
+**Session**:
+A stock's trading hours within one day. Crypto has no session.
+_Avoid_: Trading day, market hours
 
 **Dataset**:
 A fixed, versioned set of assets, instruments, bars, and candle features that runs are executed on. Once published it never changes.
@@ -44,7 +52,7 @@ The neutral name the agent sees for an asset, such as `ASSET_03`.
 _Avoid_: Alias, anonymized ID
 
 **Asset key**:
-The mapping from each masked ID back to the real asset and its price scale. Never visible to the agent.
+The mapping from each masked ID back to the real asset and its price and volume scales. Never visible to the agent.
 _Avoid_: Lookup table, mapping table
 
 ### Runs
