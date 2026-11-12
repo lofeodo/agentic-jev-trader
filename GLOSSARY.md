@@ -31,11 +31,11 @@ The outside service a dataset's bars are downloaded from.
 _Avoid_: Vendor, feed, source
 
 **Adjusted price**:
-A stock's past price corrected for splits and dividends, so that a change in price is always a real gain or loss to a holder. Every stock price in a dataset is an adjusted price.
+A stock's past price corrected for splits and dividends, so that a change in price is always a real gain or loss to a holder. A split swaps each share for several cheaper ones (one $100 share becomes two $50 shares); a dividend is cash paid to holders, after which the price drops by about that amount. Every stock price in a dataset is an adjusted price.
 _Avoid_: Raw price, as-traded price
 
 **Missing bar**:
-A step at which an asset should have a bar but the data provider supplied none, or one with no volume. It stays missing: no bar is ever made up to fill it.
+A bar an asset should have at a step but that the data provider did not supply, or supplied with no volume. It stays missing: no bar is ever made up to fill it.
 _Avoid_: Gap (for a single bar), hole
 
 **Quality report**:
