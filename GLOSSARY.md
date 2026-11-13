@@ -316,3 +316,13 @@ _Avoid_: Memory search, retrieval
 **Selected episodes**:
 The episodes, possibly none, that the LLM chose from what episode search returned, for Jev to read in one full evaluation.
 _Avoid_: Retrieved memories, examples
+
+### Testing
+
+**Recorded-answer test**:
+An automated check that runs the agent through one scenario on answers the LLM and Jev gave once and that were saved, instead of calling either service. It costs nothing and gives the same result every time.
+_Avoid_: Replay test, regression test, playback test
+
+**Scenario**:
+One made-up situation a recorded-answer test puts the agent in: one asset at one step, with made-up bars and a made-up memory.
+_Avoid_: Case, fixture, replay
