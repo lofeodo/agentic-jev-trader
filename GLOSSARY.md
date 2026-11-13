@@ -70,7 +70,7 @@ A thing whose price is tracked, such as one stock, fund, or cryptocurrency.
 _Avoid_: Symbol, ticker, security
 
 **Asset class**:
-Whether an asset is a stock (funds included) or crypto. The agent is told it.
+Whether an asset is a stock or crypto. A fund counts as a stock.
 _Avoid_: Asset type, market
 
 **Instrument**:
@@ -297,14 +297,14 @@ Reference entries, one per candle pattern, giving its name, its lean, and a desc
 _Avoid_: Rulebook, theory
 
 **Track record**:
-Statistics, computed by code, of how the agent's own closed trades performed for each candle pattern, direction, asset class, and context. It counts candle patterns on bars only, never those on hourly bars or daily bars.
+Statistics, computed by code, of how the agent's own closed trades performed for each candle pattern, direction, and asset class, split further by whether the trade was with the trend, by volume level, and by part of the day. It counts candle patterns on bars only, never those on hourly bars or daily bars.
 _Avoid_: Stats, performance history
 
 **Closed trade**:
 The finished record of a position, from its entry to its full close, with a known profit or loss.
 
 **Track record group**:
-One line of the track record: the closed trades that share a pattern, a direction, an asset class, and whichever of the three sorting details the group specifies: with or against the trend, volume level, and part of the day.
+One line of the track record: the closed trades that share a pattern, a direction, an asset class, and any of three further splits the group specifies: with or against the trend, volume level, and part of the day.
 _Avoid_: Bucket, cell, segment
 
 **Lesson**:
@@ -334,39 +334,39 @@ The one-paragraph plain-language description of a snapshot, written by code and 
 The candle patterns, candle geometry, and context for one asset at one step.
 
 **Context**:
-The ten measurements of an asset's surroundings at a step: its short-term and long-term trend, its volume against normal, where the price sits against the day's average price and against the highs and lows of the day and the previous day, how far through the day it is, and its typical move as a share of price.
+The measurements of an asset's surroundings at a step, ten in version 1: its short-term and long-term trend, its volume against normal, where the price sits against the day's average price and against the highs and lows of the day and the previous day, how far through its session or day it is, and its typical move as a share of price.
 _Avoid_: Indicators, market context
 
 **Typical move**:
-How far an asset's price usually travels within one bar, averaged over its last 14 bars. Distances in a snapshot are written as multiples of it: with a typical move of $0.60, a price $0.90 above some level is 1.5 above it. Traders call it ATR (average true range).
+The average, over an asset's last bars (14 in version 1), of how far its price travelled per bar, counting any jump from the previous bar's close. With a typical move of $0.60, a price $0.90 above some level is 1.5 typical moves above it. Traders call it ATR (average true range).
 _Avoid_: ATR (unexplained), volatility, range
 
 **Day's average price**:
-The average price paid for an asset so far in the day, weighted by how much was traded at each price. Traders call it VWAP.
+The average price paid for an asset so far in the day, weighted by how much was traded at each price: 100 units traded at $10 and 300 at $12 give $11.50, not $11. Traders call it VWAP.
 _Avoid_: VWAP (unexplained), mean price
 
 **Short-term trend**:
-Where an asset's price sits against the average closing price of its last 20 bars: above it, the price has been rising for the last few hours.
+Where an asset's price sits against the average closing price of its last bars (20 in version 1). A price of $52 against an average of $50 is above it: the price has been rising for the last few hours.
 _Avoid_: Momentum, intraday trend
 
 **Long-term trend**:
-Where an asset's price sits against the average closing price of its last 20 daily bars: above it, the price has been rising for weeks.
+Where an asset's price sits against the average closing price of its last daily bars (20 in version 1). A price of $52 against an average of $50 is above it: the price has been rising for weeks.
 _Avoid_: Daily trend, the trend (when the short-term one could be meant)
 
 **With the trend**:
-Said of a trade whose direction matches the long-term trend: a long while the price is above its 20-day average, or a short while it is below. Any other trade is against the trend.
+Said of a trade whose direction matches the long-term trend: a long while the price is at or above that trend's average, or a short while it is below. Any other trade is against the trend; there is nothing in between.
 _Avoid_: Trend-following, countertrend
 
 **Volume against normal**:
-A bar's volume divided by the average volume of the asset's bars at the same time of day over its previous 20 days with bars. A reading of 1.8 means 1.8 times the usual trading.
+A bar's volume divided by the average volume of the asset's bars at the same time of day over its previous days with bars (20 in version 1). A reading of 1.8 means 1.8 times the usual trading.
 _Avoid_: Relative volume, RVOL
 
 **Volume level**:
-Which of three piles a bar's volume against normal falls in: low (below 0.9), average (0.9 to 1.1), or high (above 1.1).
+Which of three piles a bar's volume against normal falls in: low, average, or high. With version 1's starting settings, low is below 0.9, average is 0.9 to 1.1, and high is above 1.1.
 _Avoid_: Volume bucket, high or low volume (there are three)
 
 **Part of the day**:
-Which of three stretches of an asset's day a step falls in. For a stock: the first hour, the middle, or the last hour of its session. For crypto: Asian hours, European hours, or American hours, each 8 hours of the day.
+Which of three stretches of an asset's day a step falls in. For a stock: the first hour, the middle, or the last hour of its session. For crypto: Asian hours (midnight to 8:00 UTC), European hours (8:00 to 16:00), or American hours (16:00 to midnight).
 _Avoid_: Time-of-day bucket, session (for crypto's parts)
 
 **Feature vector**:
