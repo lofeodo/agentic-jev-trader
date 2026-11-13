@@ -100,17 +100,37 @@ _Avoid_: Test run, trial run, pilot run, smoke run
 A run whose results count toward the project's conclusions.
 _Avoid_: Actual run, real run, full run
 
+**Tuning run**:
+A short run in the development period, made to adjust how the agent behaves before its settings are frozen. Its results never count toward a conclusion.
+_Avoid_: Test run, trial run, calibration run
+
+**Build-up run**:
+A run in the development period whose purpose is to fill a memory with episodes and a track record. The agent trades without reading memory, and its results never count toward a conclusion.
+_Avoid_: Seeding run, training run, warm-up run
+
 **Spending cap**:
 The amount of spending on Jev and LLM calls at which code stops a run, once the current step has ended. It counts money paid for model calls, never trading losses.
 _Avoid_: Call budget, run budget, dollar cap
 
 **Variant**:
-Which strategy a run uses: `buy_hold`, `pattern_rules`, `memory_off`, or `memory_on`.
+Which strategy a run uses: `buy_hold` (equal money put into every asset at the first step and never traded), `memory_off`, or `memory_on`.
 _Avoid_: Mode, arm, configuration
 
 **Random seed**:
 The number that fixes a run's randomness, so variants can be repeated and their spread reported.
 _Avoid_: Seed (unqualified)
+
+**Repeat**:
+One `memory_on` run and one `memory_off` run over the same steps, set apart from other repeats only by its random seed.
+_Avoid_: Trial, replicate, iteration
+
+**Verdict**:
+The conclusion drawn for one stretch of the test period: memory helped, memory hurt, or can't tell.
+_Avoid_: Result (for the conclusion), significance
+
+**Base memory**:
+The memory a build-up run leaves behind. It never changes afterwards; a measurement run with memory starts from a copy of it.
+_Avoid_: Initial memory, starting memory
 
 **Seed memory**:
 A copy of another run's memory that a run starts from.
