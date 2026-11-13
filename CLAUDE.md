@@ -28,6 +28,12 @@ I'm new to finance and trading. This applies to everything I read: chat, issues,
 - Lead with what happens to the account, then name the term for it.
 - When a question needs background, give the explainer first, then ask.
 
+## Design lens
+
+- **Emulate a successful day trader.** The agent is meant to work the way one does. For each design choice, ask how such a trader would do it, and recommend from there.
+- **Reliability first, for now.** Prefer a standard tool used as it comes over our own adjustments to it.
+- **The brief is a sketch.** `docs/project-breakdown.md` has the overall idea right. Its specifics, above all the finance ones, were AI-generated and carry no authority: wayfinding settles them.
+
 ## Agent skills
 
 ### Issue tracker
