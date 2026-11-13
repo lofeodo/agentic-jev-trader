@@ -239,11 +239,11 @@ The share of an order's value charged each time a crypto order is carried out.
 _Avoid_: Commission (for crypto), exchange fee
 
 **Borrow fee**:
-The charge a short pays for each night it stays open, for the units it has borrowed: a yearly rate applied to the short's value.
+The charge a short pays, for the units it has borrowed, at the end of each day it is still open: one day's share of a yearly rate, applied to the short's value. At a yearly rate of 10%, for example, a $2,000 short pays about 55 cents a day.
 _Avoid_: Short fee, short's daily fee, interest, funding
 
 **Trading costs**:
-Everything the simulated broker charges a run: slippage, commission, trading fee, and borrow fee. Separate from what Jev and LLM calls cost in real money.
+What trading costs a run in simulated money: slippage, commission, trading fee, and borrow fee. Separate from what Jev and LLM calls cost in real money.
 _Avoid_: Fees (for all of them together), friction, transaction costs
 
 ### Memory
