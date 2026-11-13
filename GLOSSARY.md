@@ -50,6 +50,10 @@ _Avoid_: Gap (for a single bar), hole
 A day on which the data provider's bars for a stock carry only part of the market's trading, even when their prices are sound. Every bar the stock has that day is a missing bar.
 _Avoid_: Thin day, low-volume day (both also describe a genuinely quiet market), bad day
 
+**Lead-in sessions**:
+The sessions just before a dataset's first day, 20 in version 1, whose bars the dataset builder downloads only to judge a stock's usual volume. They are never part of the dataset.
+_Avoid_: Lookback, pre-roll, warm-up (that is the first months inside the dataset)
+
 **Quality report**:
 The list, made when a dataset is built, of every missing bar and every other problem found in the data provider's bars.
 
@@ -93,7 +97,7 @@ _Avoid_: Lookup table, mapping table
 ### Runs
 
 **Run**:
-One replay of an agent or baseline over a step range of one dataset, with its own account and its own memory.
+One replay of an agent or baseline over a step range of one dataset, with its own account and its own memory. At its last step code closes every open position, so a run always ends in cash.
 _Avoid_: Backtest (as a noun for the record), session, simulation
 
 **Live run**:
@@ -121,7 +125,7 @@ The amount of spending on Jev and LLM calls at which code stops a run, once the 
 _Avoid_: Call budget, run budget, dollar cap
 
 **Variant**:
-Which strategy a run uses: `buy_hold` (equal money put into every asset at the first step and never traded), `memory_off`, or `memory_on`.
+Which strategy a run uses: `buy_hold` (equal money put into every asset at the first step and held until the run's last step), `memory_off`, or `memory_on`.
 _Avoid_: Mode, arm, configuration
 
 **Random seed**:
@@ -196,6 +200,10 @@ _Avoid_: Take profit
 **Account value**:
 What the account would be worth in cash if every open position were closed now.
 _Avoid_: Equity, balance, portfolio value
+
+**Order**:
+An instruction to buy or sell an amount of one instrument. One the agent decides at a step is carried out at the opening price of the asset's next bar. Trading costs come on top of its dollar amount: a $2,000 stock purchase with a $1 commission takes $2,001 from the account.
+_Avoid_: Trade (that is a finished position), fill, transaction
 
 **Position**:
 A holding in one instrument, from the step it is opened until it is fully closed.
@@ -302,6 +310,10 @@ _Avoid_: Stats, performance history
 
 **Closed trade**:
 The finished record of a position, from its entry to its full close, with a known profit or loss.
+
+**Closing reason**:
+Why a position closed: Jev chose to close it, its stop price was reached, a forced close, or the run ended.
+_Avoid_: Exit reason, exit type
 
 **Track record group**:
 One line of the track record: the closed trades that share a pattern, a direction, an asset class, and any of three further splits the group specifies: with or against the trend, volume level, and part of the day.
