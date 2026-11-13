@@ -100,20 +100,40 @@ _Avoid_: Test run, trial run, pilot run, smoke run
 A run whose results count toward the project's conclusions.
 _Avoid_: Actual run, real run, full run
 
+**Tuning run**:
+A short run in the development period, made to adjust how the agent behaves before its settings are frozen. Its results never count toward a conclusion.
+_Avoid_: Calibration run, experiment, dry run
+
+**Build-up run**:
+A run in the development period whose purpose is to fill a memory with episodes and a track record. It trades as the `memory_off` variant does, reading no memory, and its results never count toward a conclusion.
+_Avoid_: Seeding run, training run, warm-up run
+
 **Spending cap**:
 The amount of spending on Jev and LLM calls at which code stops a run, once the current step has ended. It counts money paid for model calls, never trading losses.
 _Avoid_: Call budget, run budget, dollar cap
 
 **Variant**:
-Which strategy a run uses: `buy_hold`, `pattern_rules`, `memory_off`, or `memory_on`.
+Which strategy a run uses: `buy_hold` (equal money put into every asset at the first step and never traded), `memory_off`, or `memory_on`.
 _Avoid_: Mode, arm, configuration
 
 **Random seed**:
-The number that fixes a run's randomness, so variants can be repeated and their spread reported.
+The number that fixes the part of a run's randomness that code controls. Jev's answers vary on their own, so two runs with the same random seed can still differ.
 _Avoid_: Seed (unqualified)
 
+**Repeat**:
+One `memory_on` run and one `memory_off` run over the same steps with the same settings. Repeats differ only by chance, such as Jev answering the same question slightly differently.
+_Avoid_: Trial, replicate, iteration
+
+**Verdict**:
+The conclusion about memory for one part of the test period, drawn by comparing the ending account value of its `memory_on` runs with that of its `memory_off` runs: memory helped, memory hurt, or can't tell.
+_Avoid_: Result (for the conclusion), significance
+
+**Base memory**:
+The memory a build-up run leaves behind, which never changes afterwards. Every `memory_on` run starts from a fresh copy of it, its seed memory.
+_Avoid_: Initial memory, starting memory
+
 **Seed memory**:
-A copy of another run's memory that a run starts from.
+A copy of another run's memory that a run starts from. In version 1 the only memory copied is the base memory.
 _Avoid_: Seed (unqualified), warm start
 
 **Memory namespace**:
