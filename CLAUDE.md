@@ -30,9 +30,9 @@ I'm new to finance and trading. This applies to everything I read: chat, issues,
 
 ## Design lens
 
-- **Emulate a successful day trader.** The agent is meant to work the way one does. For each design choice, ask how such a trader would do it, and recommend from there.
+- **Emulate a successful day trader** (someone who opens and closes trades within the same day). The agent is meant to work the way one does. For each design choice, ask how such a trader would do it, and recommend from there.
 - **Reliability first, for now.** Prefer a standard tool used as it comes over our own adjustments to it.
-- **The brief is a sketch.** `docs/project-breakdown.md` has the overall idea right. Its specifics, above all the finance ones, were AI-generated and carry no authority: wayfinding settles them.
+- **The brief is a sketch.** `docs/project-breakdown.md` has the overall idea right. Its specifics, above all the finance ones, carry no authority: wayfinding settles them.
 
 ## Agent skills
 

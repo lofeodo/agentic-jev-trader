@@ -11,7 +11,7 @@ One 15-minute candle: open, high, low, close, volume.
 _Avoid_: Candle (for the data row), tick
 
 **Hourly bar**:
-A summary of an asset's bars over one hour, built by code from the bars: the first one's open, the highest high, the lowest low, the last one's close, and the volume added up. It shows the agent the bigger picture; the agent still decides on bars.
+A summary of an asset's bars within one clock hour, built by code: the first bar's open, the highest high, the lowest low, the last bar's close, and the volume added up. A stock's session opens on the half hour, so its first hourly bar holds two bars.
 _Avoid_: 1h candle, higher timeframe
 
 **Daily bar**:
@@ -197,23 +197,23 @@ The small price penalty applied whenever an order is carried out, standing in fo
 ### Memory
 
 **Candle pattern**:
-A named shape of one to five bars of one size in a row (bars, hourly bars, or daily bars) that traders read as a hint about where the price goes next. On bars and hourly bars it never stretches across a missing bar or a stock's overnight close.
+A named shape of one to five bars in a row, or of as many hourly bars or daily bars, that traders read as a hint about where the price goes next. A shape with a rising and a falling version, such as engulfing, is two candle patterns.
 _Avoid_: Signal, formation, setup
 
 **Pattern window**:
-The most recent steps, four in version 1, whose candle patterns a snapshot lists, each with how many bars ago it was recognised. It covers bars only: for hourly bars and daily bars a snapshot lists the patterns on the latest finished one.
+The most recent steps, four in version 1, whose candle patterns on bars a snapshot lists, each with how many steps ago it was recognised.
 _Avoid_: Lookback (for this window)
 
 **Lean**:
-The hint a candle pattern traditionally gives: bullish (the price will rise), bearish (the price will fall), or neutral (indecision). Each playbook entry has one fixed lean.
+The hint a candle pattern gives: bullish (the price will rise), bearish (the price will fall), or neutral (indecision). Each candle pattern has one fixed lean.
 _Avoid_: Direction (that is a trade's long or short), bias, signal
 
 **Playbook**:
-Reference entries, one per candle pattern and lean, giving the pattern's name, its lean, and a description of its shape. Shared by all runs and read only.
+Reference entries, one per candle pattern, giving its name, its lean, and a description of its shape. Shared by all runs and read only.
 _Avoid_: Rulebook, theory
 
 **Track record**:
-Statistics, computed by code, of how the agent's own closed trades performed for each pattern, direction, and context.
+Statistics, computed by code, of how the agent's own closed trades performed for each candle pattern, direction, and context. It counts candle patterns on bars only, never those on hourly bars or daily bars.
 _Avoid_: Stats, performance history
 
 **Closed trade**:
