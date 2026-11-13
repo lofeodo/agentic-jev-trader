@@ -92,6 +92,18 @@ _Avoid_: Backtest (as a noun for the record), session, simulation
 A run that is in progress and being watched in the web app. It is still a historical replay.
 _Avoid_: Live trading, paper trading
 
+**Practice run**:
+A short run that calls the real paid services to check that the system works. Its results never count toward a conclusion.
+_Avoid_: Test run, trial run, pilot run, smoke run
+
+**Measurement run**:
+A run whose results count toward the project's conclusions.
+_Avoid_: Actual run, real run, full run
+
+**Spending cap**:
+The most a run may spend on model calls. Code stops the run when its spending reaches the cap.
+_Avoid_: Call budget, run budget
+
 **Variant**:
 Which strategy a run uses: `buy_hold`, `pattern_rules`, `memory_off`, or `memory_on`.
 _Avoid_: Mode, arm, configuration
