@@ -197,15 +197,19 @@ The small price penalty applied whenever an order is carried out, standing in fo
 ### Memory
 
 **Candle pattern**:
-A named shape of one to five bars in a row that traders read as a hint about where the price goes next. All of its bars sit at back-to-back steps, so it never stretches across a missing bar or a stock's overnight close.
+A named shape of one to five bars of one size in a row (bars, hourly bars, or daily bars) that traders read as a hint about where the price goes next. On bars and hourly bars it never stretches across a missing bar or a stock's overnight close.
 _Avoid_: Signal, formation, setup
+
+**Pattern window**:
+The most recent steps, four in version 1, whose candle patterns a snapshot lists, each with how many bars ago it was recognised. It covers bars only: for hourly bars and daily bars a snapshot lists the patterns on the latest finished one.
+_Avoid_: Lookback (for this window)
 
 **Lean**:
 The hint a candle pattern traditionally gives: bullish (the price will rise), bearish (the price will fall), or neutral (indecision). Each playbook entry has one fixed lean.
 _Avoid_: Direction (that is a trade's long or short), bias, signal
 
 **Playbook**:
-Reference entries describing what each candle pattern traditionally means. Shared by all runs and read only.
+Reference entries, one per candle pattern and lean, giving the pattern's name, its lean, and a description of its shape. Shared by all runs and read only.
 _Avoid_: Rulebook, theory
 
 **Track record**:
