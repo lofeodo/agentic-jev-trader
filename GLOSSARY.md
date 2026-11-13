@@ -51,7 +51,7 @@ A day on which the data provider's bars for a stock carry only part of the marke
 _Avoid_: Thin day, low-volume day (both also describe a genuinely quiet market), bad day
 
 **Lead-in sessions**:
-The sessions just before a dataset's first day, 20 in version 1, whose bars the dataset builder downloads only to judge a stock's usual volume. They are never part of the dataset.
+The sessions just before a dataset's first day, 20 in version 1, whose bars serve only to show how much a stock normally trades, so that partial-volume days can be spotted from the dataset's first day on. They are never part of the dataset.
 _Avoid_: Lookback, pre-roll, warm-up (that is the first months inside the dataset)
 
 **Quality report**:
@@ -97,7 +97,7 @@ _Avoid_: Lookup table, mapping table
 ### Runs
 
 **Run**:
-One replay of an agent or baseline over a step range of one dataset, with its own account and its own memory. At its last step code closes every open position, so a run always ends in cash.
+One replay of an agent or baseline over a step range of one dataset, with its own account and its own memory. At its last step code closes every open position, so a run that reaches it ends in cash; a run stopped earlier keeps its positions open and can be restarted.
 _Avoid_: Backtest (as a noun for the record), session, simulation
 
 **Live run**:
@@ -202,8 +202,8 @@ What the account would be worth in cash if every open position were closed now.
 _Avoid_: Equity, balance, portfolio value
 
 **Order**:
-An instruction to buy or sell an amount of one instrument. One the agent decides at a step is carried out at the opening price of the asset's next bar. Trading costs come on top of its dollar amount: a $2,000 stock purchase with a $1 commission takes $2,001 from the account.
-_Avoid_: Trade (that is a finished position), fill, transaction
+An instruction to buy or sell an amount of one instrument. Its commission or trading fee comes on top of its dollar amount: a $2,000 stock purchase with a $1 commission takes $2,001 of cash for a $2,000 position.
+_Avoid_: Trade (for the instruction), fill, transaction
 
 **Position**:
 A holding in one instrument, from the step it is opened until it is fully closed.
