@@ -10,6 +10,14 @@ An agent that trades in a historical market simulation, records every decision, 
 One 15-minute candle: open, high, low, close, volume.
 _Avoid_: Candle (for the data row), tick
 
+**Hourly bar**:
+A summary of an asset's bars over one hour, built by code from the bars: the first one's open, the highest high, the lowest low, the last one's close, and the volume added up. It shows the agent the bigger picture; the agent still decides on bars.
+_Avoid_: 1h candle, higher timeframe
+
+**Daily bar**:
+The same summary over a whole day of an asset's bars: one session for a stock, one day for crypto.
+_Avoid_: Daily candle, higher timeframe
+
 **Step**:
 The moment a bar ends, when the agent may act. Steps come every 15 minutes, day and night, on one UTC clock shared by all assets.
 _Avoid_: Tick, turn, iteration
