@@ -92,6 +92,18 @@ _Avoid_: Backtest (as a noun for the record), session, simulation
 A run that is in progress and being watched in the web app. It is still a historical replay.
 _Avoid_: Live trading, paper trading
 
+**Practice run**:
+A brief run that calls the real paid services, Jev and the LLM, to confirm that the system works. Its results never count toward a conclusion.
+_Avoid_: Test run, trial run, pilot run, smoke run
+
+**Measurement run**:
+A run whose results count toward the project's conclusions.
+_Avoid_: Actual run, real run, full run
+
+**Spending cap**:
+The amount of spending on Jev and LLM calls at which code stops a run, once the current step has ended. It counts money paid for model calls, never trading losses.
+_Avoid_: Call budget, run budget, dollar cap
+
 **Variant**:
 Which strategy a run uses: `buy_hold`, `pattern_rules`, `memory_off`, or `memory_on`.
 _Avoid_: Mode, arm, configuration
@@ -120,6 +132,10 @@ _Avoid_: Filter, pre-check
 **Position check**:
 The question Jev answers at every step for an open position: hold, close, reduce, or add.
 _Avoid_: Manage
+
+**Check**:
+One look at one asset at one step, answered by Jev: either a screen or a position check.
+_Avoid_: Tier 1 call, quick check
 
 **Full evaluation**:
 The Tier 2 path, where the LLM selects past episodes and Jev either picks a candidate trade and sizes it or picks no trade.
