@@ -43,8 +43,12 @@ A stock's past price corrected for splits and dividends, so that a change in pri
 _Avoid_: Raw price, as-traded price
 
 **Missing bar**:
-A bar an asset should have at a step but that the data provider did not supply, or supplied with no volume. It stays missing: no bar is ever made up to fill it.
+A bar an asset should have at a step but that the data provider did not supply, supplied with no volume, or supplied for a stock on a partial-volume day. It stays missing: no bar is ever made up to fill it.
 _Avoid_: Gap (for a single bar), hole
+
+**Partial-volume day**:
+A day on which the data provider's bars for a stock carry only part of the market's trading, even where their prices are sound. Every bar the stock has that day is a missing bar.
+_Avoid_: Thin day, low-volume day (both also describe a genuinely quiet market), bad day
 
 **Quality report**:
 The list, made when a dataset is built, of every missing bar and every other problem found in the data provider's bars.
