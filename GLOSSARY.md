@@ -177,7 +177,7 @@ _Avoid_: Action, move
 The hosted decision model from TypeSafe AI. State goes in; choice, score, and yes/no answers with probabilities come out.
 
 **Size bucket**:
-One of the dollar amounts, each a share of account value, that Jev weighs when deciding how much money to put into a trade. The size is their average, weighted by the probability Jev gives each. Code then makes the trade smaller if it would break a risk limit.
+One of the dollar amounts, each a percentage of account value, that Jev weighs when deciding how much money to put into a trade. The size is their average, weighted by the probability Jev gives each. Code then makes the trade smaller if it would break the trade risk limit, the position limit, or the exposure limit.
 
 **Stop price**:
 The price, fixed at entry and never moved, at which code closes the position to cap its loss.
@@ -221,22 +221,18 @@ _Avoid_: Gross exposure
 A cap on the account that code enforces whatever the models decide.
 _Avoid_: Guardrail, constraint
 
-**Risk profile**:
-A named set of risk limits and of the other settings that decide how boldly the agent trades, such as the size buckets. Every run trades under one. Version 1 has a single risk profile, medium.
-_Avoid_: Risk level, risk mode, preset
-
 **Position limit**:
-The risk limit on how large one position may be, as a share of account value.
+The risk limit on how large one position may be, as a multiple of account value.
 
 **Exposure limit**:
 The risk limit on exposure, as a multiple of account value.
 
 **Trade risk**:
 What a position would lose, before trading costs, if it closed at its stop price. A $10,000 position whose stop price is 1% away from its entry price has a trade risk of $100. A position can lose more than its trade risk when the price jumps past the stop price, as a stock's can between one session and the next.
-_Avoid_: Risk (unqualified), R, exposure
+_Avoid_: Risk (unqualified), R, exposure (that is the size of all open positions)
 
 **Trade risk limit**:
-The risk limit on a position's trade risk, as a share of account value. Code makes an entry or an add smaller until the position fits it.
+The risk limit on a position's trade risk, as a share of account value. Code makes an entry or an add smaller until the position fits it. With a limit of 1%, a $10,000 account holds no position whose trade risk was above $100 when it was opened or added to.
 _Avoid_: Loss cap, risk per trade, 1% rule
 
 **Daily loss limit**:
@@ -244,8 +240,12 @@ The risk limit that blocks entries and adds for the rest of the day once account
 _Avoid_: Daily stop, circuit breaker
 
 **Forced close**:
-Code closing every position because account value has fallen below a fixed share of exposure, as a broker does to protect the money it has lent. With a share of one quarter, an account holding $20,000 of positions is closed out once account value drops below $5,000.
+Code closing every position because account value has fallen below a fixed share of exposure, as a broker does to protect what it has lent. With a share of one quarter, an account that buys $20,000 of a stock with $10,000 of its own money is closed out if the stock falls by about a third: the position is then worth about $13,300 and account value about $3,300, a quarter of it.
 _Avoid_: Margin call, liquidation, stop-out
+
+**Risk profile**:
+A named set of risk limits and of the other settings that decide how boldly the agent trades, such as the size buckets. Every run trades under one. Version 1 has a single risk profile, medium.
+_Avoid_: Risk level, risk mode, preset
 
 **Slippage**:
 The small price penalty applied whenever an order is carried out, standing in for the worse price a real order gets.
@@ -260,14 +260,14 @@ _Avoid_: Commission (for crypto), exchange fee
 
 **Borrow fee**:
 The charge a short pays, for the units it has borrowed, at the end of each day it is still open: one day's share of a yearly rate, applied to the short's value. At a yearly rate of 10%, for example, a $2,000 short pays about 55 cents a day.
-_Avoid_: Short fee, short's daily fee, interest, funding
+_Avoid_: Short fee, short's daily fee, interest (that is the loan's charge), funding
 
 **Loan**:
 The money the account owes when the positions it has bought cost more than the cash it had. An account with $10,000 that buys $16,000 of positions has a loan of $6,000. The units a short borrows are not part of it.
 _Avoid_: Margin, leverage, debt
 
 **Loan interest**:
-The charge on the loan at the end of each day: one day's share of a yearly rate. At a yearly rate of 5%, a $10,000 loan costs about $1.40 a day. A loan paid back before the day ends costs nothing.
+The charge on the loan at the end of each day: one day's share of a yearly rate. At a yearly rate of 5%, a $10,000 loan costs about $1.37 a day. A loan paid back before the day ends costs nothing.
 _Avoid_: Margin interest, borrow fee (that is a short's charge), funding
 
 **Trading costs**:
