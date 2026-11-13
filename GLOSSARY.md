@@ -230,6 +230,22 @@ _Avoid_: Daily stop, circuit breaker
 **Slippage**:
 The small price penalty applied whenever an order is carried out, standing in for the worse price a real order gets.
 
+**Commission**:
+The flat dollar amount charged each time a stock order is carried out, whatever the order's size.
+_Avoid_: Fee (for stocks), brokerage
+
+**Trading fee**:
+The share of an order's value charged each time a crypto order is carried out.
+_Avoid_: Commission (for crypto), exchange fee
+
+**Borrow fee**:
+The charge a short pays, for the units it has borrowed, at the end of each day it is still open: one day's share of a yearly rate, applied to the short's value. At a yearly rate of 10%, for example, a $2,000 short pays about 55 cents a day.
+_Avoid_: Short fee, short's daily fee, interest, funding
+
+**Trading costs**:
+What trading costs a run in simulated money: slippage, commission, trading fee, and borrow fee. Separate from what Jev and LLM calls cost in real money.
+_Avoid_: Fees (for all of them together), friction, transaction costs
+
 ### Memory
 
 **Candle pattern**:
