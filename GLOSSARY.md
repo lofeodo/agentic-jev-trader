@@ -47,7 +47,7 @@ A bar an asset should have at a step but that the data provider did not supply, 
 _Avoid_: Gap (for a single bar), hole
 
 **Partial-volume day**:
-A day on which the data provider's bars for a stock carry only part of the market's trading, even where their prices are sound. Every bar the stock has that day is a missing bar.
+A day on which the data provider's bars for a stock carry only part of the market's trading, even when their prices are sound. Every bar the stock has that day is a missing bar.
 _Avoid_: Thin day, low-volume day (both also describe a genuinely quiet market), bad day
 
 **Quality report**:
