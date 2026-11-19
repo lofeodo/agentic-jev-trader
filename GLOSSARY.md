@@ -190,7 +190,7 @@ Every message of one full evaluation's exchange between code and the LLM, in ord
 _Avoid_: Trace (that is a tracing service's own recording), chat log, conversation
 
 **Candidate trade**:
-One of the trades code lists for an asset at a step: an instrument, a direction, a stop price, and a target price.
+One of the trades code lists for an asset at a step: an instrument, a direction, and a stop price.
 _Avoid_: Proposal, idea, signal
 
 **Decision**:
@@ -198,7 +198,19 @@ What the agent did for one asset at one step, including "no action".
 _Avoid_: Action, move
 
 **Jev**:
-The hosted decision model from TypeSafe AI. State goes in; choice, score, and yes/no answers with probabilities come out.
+The hosted decision model from TypeSafe AI. A background and questions go in; choice, score, and yes/no answers with probabilities come out.
+
+**Jev request**:
+One call to Jev: a background and one or more questions, which Jev answers all at once. A question that depends on another's answer goes in a second Jev request.
+_Avoid_: Jev call (for the text sent), prompt (that is the LLM's)
+
+**Background**:
+The text code writes for one Jev request to describe the moment: the task, the account, the asset or the position, and any memory shown. Jev's own documentation calls it the state.
+_Avoid_: State, context (that is a snapshot's measurements), prompt (that is the LLM's)
+
+**Reading version**:
+The name of one exact wording of everything Jev is sent that is not data: the opening of the background, the layout of its sections, and the wording of every question and option. Every run and every Jev request records the one it used.
+_Avoid_: Prompt version (that is the LLM's)
 
 **Size bucket**:
 One of the dollar amounts, each a percentage of account value, that Jev weighs when deciding how much money to put into a trade. The size is their average, weighted by the probability Jev gives each. Code then makes the trade smaller if it would break the trade risk limit, the position limit, or the exposure limit.
@@ -206,10 +218,6 @@ One of the dollar amounts, each a percentage of account value, that Jev weighs w
 **Stop price**:
 The price, fixed at entry and never moved, at which code closes the position to cap its loss.
 _Avoid_: Stop loss, stop
-
-**Target price**:
-The advisory price at which the trade would have met its goal. Code never acts on it.
-_Avoid_: Take profit
 
 ### Account and risk
 
@@ -352,8 +360,12 @@ A fact about how a decision turned out, computed by code and visible only from t
 _Avoid_: Result, label
 
 **Position journal**:
-The running record for an open position: why it was opened, the exit plan, and what has happened since.
+The running record for an open position: the situation it was opened in, its stop price, and what has been done to it since.
 _Avoid_: Trade log, position notes
+
+**Entry memory**:
+The track record lines and selected episodes Jev read in the full evaluation that opened a position. They are kept with the position unchanged, and Jev reads them again at each of its position checks.
+_Avoid_: Frozen memory, carried memory
 
 **Situation text**:
 The one-paragraph plain-language description of a snapshot, written by code and embedded for episode search.
@@ -412,6 +424,10 @@ _Avoid_: Retrieved memories, examples
 **Episode summary**:
 The one line that stands for an episode in a list of episode search results: how long ago it was, the asset, the part of the day, the long-term trend, the volume level, the candle patterns on bars, what was decided, and how it ended.
 _Avoid_: Preview, snippet
+
+**Episode block**:
+The few lines that stand for one selected episode in a background: how long ago it was, whether it was the same asset, the situation text, what was decided, and how it ended. In a position check it also says how the trade was handled bar by bar.
+_Avoid_: Episode card, example
 
 ### Testing
 
