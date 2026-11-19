@@ -157,7 +157,7 @@ The agent is looking at one asset in which it holds no position. It is about to 
 
 A past episode is the record of one earlier decision of this kind: the situation at the time, what the decision model picked, and how it turned out.
 
-Once a trade is open, the decision model looks at it again every 15 minutes and holds it, adds to it, reduces it, or closes it. Code closes it if the price reaches its stop price. You take no part in those later checks. Every past episode shows how its trade ended, and reading one in full shows the checks bar by bar.
+Once a trade is open, the decision model looks at it again every 15 minutes and holds it, adds to it, reduces it, or closes it. Code closes it if the price reaches its stop price. You take no part in those later checks, but if a trade is opened the decision model reads the episodes you selected again at each of them. Every past episode shows how its trade ended, and reading one in full shows the checks bar by bar.
 
 You do not decide the trade. Nothing you write reaches the decision model. For each episode you select it reads a record written by code (the situation, what was decided, and how it ended), plus the track record (the totals over the agent's closed trades), which code always adds whatever you select.
 
@@ -201,7 +201,7 @@ const TOOLS = [
       "    \"short\"             a short was opened",
       "    \"no_trade\"          no trade was made" ] },
   { name: "read_episodes", isLookup: true,
-    description: "Read past episodes in full: the situation as it was described at the time, what was decided, how the position was handled bar by bar until it closed, and how it ended. The decision model reads the same record for each episode you select, without the bar-by-bar handling. Counts as one lookup, however many episodes you ask for.",
+    description: "Read past episodes in full: the situation as it was described at the time, what was decided, how the position was handled bar by bar until it closed, and how it ended. The decision model reads the same record for each episode you select: without the bar-by-bar handling when it decides the trade, and with it at the later checks of a trade it opens. Counts as one lookup, however many episodes you ask for.",
     inputs: [ `episode_ids (required): a list of 1 to ${LIMITS.perRead} IDs you have been shown, such as ["E1", "E4"]` ] },
   { name: "read_track_record", isLookup: true,
     description: "Read the totals over the agent's closed trades for one candle pattern and one direction, in the current asset's class (stocks or crypto): how many trades, how many wins, the average win and the average loss. The decision model is always given the track record, whatever you select. Counts as one lookup.",
@@ -295,7 +295,7 @@ const SCENARIOS = [
   { tab: "Always sent", intro: "The part that never changes from one full evaluation to the next: the standing instructions and the descriptions of the four tools. Because it never changes, the provider charges much less to re-read it (prompt caching).",
     render() {
       const instructions = systemPrompt(); let html = "";
-      html += messageBox("code", "Standing instructions (the system prompt)", instructions, "<b>What it does:</b> tells the LLM its one job, in the same words every time.<br><br><b>The goal</b> is one sentence: the highest account value at the end. Nothing asks for steady growth or care.<br><br><b>Why only \"long, short, or no trade\":</b> the LLM is called only for an asset the agent holds nothing in. Closing, adding, and reducing are decided later, every 15 minutes, by Jev alone. The paragraph beginning \"Once a trade is open\" tells the LLM so, because the past records show how those trades ended.<br><br><b>No trading advice:</b> it never says which patterns are good or when to trade.<br><br><b>Every reply must be a tool call,</b> and every model is treated the same way: no provider feature is used to force one.", `about ${roughTokens(instructions)} tokens`);
+      html += messageBox("code", "Standing instructions (the system prompt)", instructions, "<b>What it does:</b> tells the LLM its one job, in the same words every time.<br><br><b>The goal</b> is one sentence: the highest account value at the end. Nothing asks for steady growth or care.<br><br><b>Why only \"long, short, or no trade\":</b> the LLM is called only for an asset the agent holds nothing in. Closing, adding, and reducing are decided later, every 15 minutes, by Jev alone. The paragraph beginning \"Once a trade is open\" tells the LLM so, because the past records show how those trades ended. It also says that Jev reads the selected episodes again at each of those later checks (added 2026-11-19, when that was decided).<br><br><b>No trading advice:</b> it never says which patterns are good or when to trade.<br><br><b>Every reply must be a tool call,</b> and every model is treated the same way: no provider feature is used to force one.", `about ${roughTokens(instructions)} tokens`);
       const toolNotes = [
         "<b>Search again.</b> The LLM can narrow the search three ways, and every allowed value is spelled out with its meaning. It cannot type its own words and cannot filter by profit or loss (decided earlier).",
         "<b>Read in full.</b> Opens the whole record of up to 5 episodes for the price of one lookup.",
