@@ -129,7 +129,7 @@ The amount of spending on Jev and LLM calls at which code stops a sim, once the 
 _Avoid_: Call budget, run budget, dollar cap
 
 **Spending ceiling**:
-The most real money the whole project may pay for Jev and LLM calls, US$50 in version 1. A sim is refused when its spending cap, added to the money already spent and to the unspent part of the cap of every sim in progress, would pass it.
+The most real money the whole project may pay for Jev and LLM calls, US$75 in version 1. A sim is refused when its spending cap, added to the money already spent and to the unspent part of the cap of every sim in progress, would pass it.
 _Avoid_: Budget, limit (unqualified), total cap
 
 **Not responding**:
@@ -137,7 +137,7 @@ How the web app shows a sim that is recorded as in progress but has stored nothi
 _Avoid_: Stalled, hung, crashed, dead
 
 **Variant**:
-Which strategy a sim uses: `buy_hold` (equal money put into every asset at the first step and held until the sim's last step), `memory_off`, or `memory_on`.
+Which strategy a sim uses: `buy_hold` (equal money put into every asset at the first step and held until the sim's last step), `memory_off`, or `memory_on`. Two `memory_on` sims can differ by the LLM that selects their episodes; the LLM is a setting of the sim, not a variant.
 _Avoid_: Mode, arm, configuration
 
 **Random seed**:
@@ -145,12 +145,28 @@ The number that fixes the part of a sim's randomness that code controls. Jev's a
 _Avoid_: Seed (unqualified)
 
 **Repeat**:
-One `memory_on` sim and one `memory_off` sim over the same steps with the same settings. Repeats differ only by chance, such as Jev answering the same question slightly differently.
+One `memory_on` sim for each LLM being compared and one `memory_off` sim, all over the same steps with the same settings. Repeats differ only by chance, such as Jev answering the same question slightly differently.
 _Avoid_: Trial, replicate, iteration
 
 **Verdict**:
-The conclusion about memory for one part of the test period, drawn by comparing the ending account value of its `memory_on` sims with that of its `memory_off` sims: memory helped, memory hurt, or can't tell.
+The conclusion about memory for one part of the test period, drawn by comparing the ending account value of its `memory_on` sims with that of its `memory_off` sims: memory helped, memory hurt, or can't tell. Each LLM being compared gets its own verdict.
 _Avoid_: Result (for the conclusion), significance
+
+**Performance winner**:
+For one part of the test period, the LLM whose `memory_on` sims ended with the higher average account value, when the gap is larger than the repeats' own spread. When it is not, there is no performance winner.
+_Avoid_: Best model, winner (unqualified)
+
+**Price winner**:
+For one part of the test period, the LLM that cost fewer real dollars per full evaluation in its `memory_on` sims, thinking included.
+_Avoid_: Cheapest model, winner (unqualified)
+
+**LLM benchmark**:
+A one-off comparison made before the measurement sims: each LLM is handed the same full evaluations saved from the build-up sim, several times each, and selects episodes for them. Nothing is traded and Jev is not asked. An LLM that fails too often is left out of the measurement sims.
+_Avoid_: Try-out, smoke check, test run, bake-off
+
+**Selection overlap**:
+How alike two sets of selected episodes for the same situation are: the episodes in both, as a share of the episodes in either. Selections of A, B, C and B, C, D share 2 of 4 episodes, an overlap of 50%.
+_Avoid_: Similarity (that is how alike two snapshots are), agreement
 
 **Base memory**:
 The memory a build-up sim leaves behind, which never changes afterwards. Every `memory_on` sim starts from a fresh copy of it, its seed memory.
