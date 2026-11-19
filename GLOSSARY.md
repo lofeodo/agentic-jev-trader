@@ -426,7 +426,7 @@ The one line that stands for an episode in a list of episode search results: how
 _Avoid_: Preview, snippet
 
 **Episode block**:
-The few lines that stand for one selected episode in a background: how long ago it was, the asset, the situation text, what was decided, and how it ended. In a position check it also says how the trade was handled bar by bar.
+The few lines that stand for one selected episode in a background: how long ago it was, whether it was the same asset, the situation text, what was decided, and how it ended. In a position check it also says how the trade was handled bar by bar.
 _Avoid_: Episode card, example
 
 ### Testing
