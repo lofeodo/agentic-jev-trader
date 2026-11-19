@@ -27,7 +27,10 @@ const MIXES = {
   grid: "Chart grid", hatch: "Hatching",
 };
 let MIX = new Set();
-const MIX_PICK = ["ruler", "heads", "grid"];   /* the mix recommended on the guide page */
+const MIX_YOURS = ["heads", "boxes", "pairs", "top", "two", "grid", "hatch"];   /* the developer's pick after round 5 */
+/* Round 6: where a trade opened and closed, drawn three ways. "" is the row of ticks along the bottom, as before. */
+const MARKS_WORDS = { "": "ticks along the bottom", line: "on the line", strip: "strip under the chart" };
+let MARKS = "";
 const mixOn = k => LOOK === "plasma" && MIX.has(k);
 /* The typeface for titles and sentences. "" is whatever the computer has (Arial on Windows, Helvetica on a Mac). */
 const FACES = { "": "the computer's own", arimo: "Arimo", inter: "Inter" };
@@ -75,7 +78,8 @@ function runHeader2(run) {
 /* ---------- the chart: full width, hover for any moment, click to open it ---------- */
 function bigChart(run) {
   const cs = Object.assign({}, CHART[LOOK] || CHART.plasma, mixOn("grid") ? { grid: "full" } : {}, mixOn("hatch") ? { hatch: 1 } : {}, CURVE ? { curve: CURVE } : {});
-  const s = seriesOf(run), p = partnerOf(run), W = 1400, H = 500, m = { t: 20, r: 236, b: 52, l: 96 }, n = run.days * 4 + 1;
+  const marks = LOOK === "plasma" ? MARKS : "", strip = marks === "strip", band = strip ? 46 : 0;
+  const s = seriesOf(run), p = partnerOf(run), W = 1400, H = 500 + band, m = { t: 20, r: 236, b: 52 + band, l: 96 }, n = run.days * 4 + 1;
   const lines = [{ key: "agent", name: "this run " + fmt$(run.value), vals: s.agent, kind: "subject" }, { key: "holding", name: "holding " + fmt$(run.holding), vals: s.holding, kind: "dashed" }];
   if (p) lines.push({ key: "partner", name: (p.variant === "memory_on" ? "with memory " : "without ") + fmt$(p.value), vals: seriesOf(p).agent, kind: "context" });
   const { y, ticks } = scaleY(lines.flatMap(l => l.vals).concat([10000]), H, m.t, m.b, 6);
@@ -108,7 +112,7 @@ function bigChart(run) {
     if (run.days > 60 && !major) continue;
     if (major && cs.grid === "full" && d > 0 && d < run.days) g += ln(tx, y0, tx, y1, "gl");
     if (major || cs.minor || cs.grid === "full") g += ln(tx, y1, tx, y1 + (major ? 8 : 4), "ax");
-    if (major) g += `<text class="tick" x="${tx}" y="${y1 + 27}" text-anchor="middle">${dayDate(run.start, d)}</text>`;
+    if (major) g += `<text class="tick" x="${tx}" y="${y1 + 27 + band}" text-anchor="middle">${dayDate(run.start, d)}</text>`;
   }
   g += cs.frame ? `<rect class="ax" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="none"/>` : ln(x0, y0, x0, y1, "ax") + ln(x0, y1, x1, y1, "ax");
   g += ln(x0, y(10000), x1, y(10000), "startline");
@@ -124,8 +128,26 @@ function bigChart(run) {
         : `<rect class="mark" x="${f1(cx - 4)}" y="${f1(cy - 4)}" width="8" height="8" fill="var(--bg)"/>`;
     });
   });
-  /* every trade is a small tick along the bottom, at the moment it was opened */
-  tradesOf(run).forEach(t => { const tx = x(openMin(t) / 360); if (tx <= x1) g += `<line class="rug ${t.open ? "open" : ""}" x1="${tx.toFixed(1)}" x2="${tx.toFixed(1)}" y1="${y1 - 13}" y2="${y1 - 2}"/>`; });
+  if (!marks) {
+    /* every trade is a small tick along the bottom, at the moment it was opened */
+    tradesOf(run).forEach(t => { const tx = x(openMin(t) / 360); if (tx <= x1) g += `<line class="rug ${t.open ? "open" : ""}" x1="${tx.toFixed(1)}" x2="${tx.toFixed(1)}" y1="${y1 - 13}" y2="${y1 - 2}"/>`; });
+  } else {
+    /* round 6: a square where a trade opened (filled while it is still open), an x where it closed.
+       "line" puts each mark on the sim's own line at that moment; "strip" lines them up in two rows under the chart. */
+    const last = s.agent.length - 1, valAt = xi => { const a = Math.min(last, Math.floor(xi)), b = Math.min(last, a + 1); return s.agent[a] + (s.agent[b] - s.agent[a]) * (xi - a); };
+    if (strip) {
+      g += `<rect class="gl" x="${x0}" y="${y1 + 10}" width="${x1 - x0}" height="36" fill="none"/>` + ln(x0, y1 + 28, x1, y1 + 28, "gl");
+      g += `<text class="striplbl" x="${x0 - 12}" y="${y1 + 23}" text-anchor="end">opened</text><text class="striplbl" x="${x0 - 12}" y="${y1 + 41}" text-anchor="end">closed</text>`;
+    }
+    const mark = (t, at, closing) => {
+      /* a trade later than the line's last point: the strip shows it at its own time, the line shows it at the line's end */
+      const xi = strip ? at : Math.min(at, last), cx = x(xi), cy = strip ? y1 + (closing ? 37 : 19) : y(valAt(xi));
+      const shape = closing ? `<path class="tm x" d="M${f1(cx - 4)} ${f1(cy - 4)}L${f1(cx + 4)} ${f1(cy + 4)}M${f1(cx - 4)} ${f1(cy + 4)}L${f1(cx + 4)} ${f1(cy - 4)}"/>`
+        : `<rect class="tm ${t.open ? "held" : ""}" x="${f1(cx - 4)}" y="${f1(cy - 4)}" width="8" height="8"/>`;
+      return `<g class="tmk" onclick="${exch(t.id)}"><title>${ASSETS[t.asset].name}, ${t.dir}: ${closing ? "closed" : "opened"}</title>${shape}</g>`;
+    };
+    tradesOf(run).forEach(t => { const oi = openMin(t) / 360, ci = closeMin(t) / 360; if (x(oi) <= x1) g += mark(t, oi, false); if (x(ci) <= x1) g += mark(t, ci, true); });
+  }
   const ends = lines.map(l => ({ l, x: x(l.vals.length - 1), y: y(l.vals[l.vals.length - 1]) }));
   ends.push({ l: { name: "start $10,000", kind: "ref" }, x: x1, y: y(10000) });
   ends.sort((a, b) => a.y - b.y); for (let i = 1; i < ends.length; i++) if (ends[i].y < ends[i - 1].y + 19) ends[i].y = ends[i - 1].y + 19;
@@ -214,10 +236,10 @@ function screenRunV2(id, q) {
   const secs = (live ? [["Now", () => nowSection(run)]] : []).concat([["Trades", () => secActivity(run, q)], ["Measurements", () => secMeasurements(run)], [SCORE_NAME, () => secTrackRecord(run).replace("The track record is", "The " + SCORE_NAME.toLowerCase() + " is")], ["Settings", () => secSettings(run)]]);
   const p = partnerOf(run), cs = CHART[LOOK] || CHART.plasma;
   const mk = cs.markers ? ["+ ", "□ ", "✳ "] : ["", "", ""];
-  const legend = `<span><i class="sw"></i>${mk[0]}this run</span>${p ? `<span><i class="sw ctx"></i>${mk[1]}its partner, ${VARIANT_WORDS[p.variant]}</span>` : ""}<span><i class="sw ref"></i>${mk[2]}holding the five assets</span><span>| a trade opened</span>`;
+  const legend = `<span><i class="sw"></i>${mk[0]}this run</span>${p ? `<span><i class="sw ctx"></i>${mk[1]}its partner, ${VARIANT_WORDS[p.variant]}</span>` : ""}<span><i class="sw ref"></i>${mk[2]}holding the five assets</span>${LOOK === "plasma" && MARKS ? `<span>□ a trade opened</span><span>■ still open</span><span>× a trade closed</span>` : `<span>| a trade opened</span>`}`;
   const rail = `<div class="sticky win railwin"><span class="kicker">On this page</span><ol class="list mt1 onpage">${secs.map((s, i) => `<li><a href="javascript:void 0" onclick="document.getElementById('sec${i}').scrollIntoView()"><span class="idx" data-n="${i + 1}">0${i + 1}</span><span class="nm">${s[0]}</span></a></li>`).join("")}</ol>
     <div class="mt2"><span class="kicker">Notable moments</span></div><div class="mt1">${eventList(run)}</div></div>`;
-  return note("the trading sim page, round 5", `This is Plasma, the look you picked. The second row of the bar at the bottom adds parts of Wireframe to it, one button each: a white button is switched on. <b>None</b> is Plasma alone, <b>All</b> is close to Wireframe as you saw it, <b>My pick</b> is the mix I would choose. <b>Typeface</b>, <b>Letters</b>, <b>Colour</b>, and <b>Chart line</b> in the first row are the four smaller questions still open. Every switch is kept in the address, so a mix you like can be reloaded or sent. Click a row for its ${TRAIL_NAME.toLowerCase()}; hover and click the chart. The <a href="#/" style="text-decoration:underline">guide page</a> explains each switch and lists the questions.`, "first") + runHeader2(run) + `
+  return note("the trading sim page, round 6", `This is the look you chose: Plasma with headings, boxes, split boxes, the boxed top bar, the second colour, the chart grid, and hatching, in capitals, with straight chart lines and Arimo. One new switch to judge: <b>Trade marks</b> in the first row of the bar. It shows where each trade opened (a square, filled while the trade is still open) and closed (an x), three ways: the ticks along the bottom as before, on the sim's line, or in a strip under the chart. In the strip, click a mark for that trade's ${TRAIL_NAME.toLowerCase()}. The <a href="#/" style="text-decoration:underline">guide page</a> has the question.`, "first") + runHeader2(run) + `
     <section class="chartblock win">
       <p class="chartlede">After <b>${run.daysDone} ${run.daysDone === 1 ? "day" : "days"}</b> the account holds <b>${fmt$(run.value)}</b>: <b class="accent">${fmt$(Math.abs(behind))} ${behind < 0 ? "less" : "more"}</b> than holding the five assets and never trading.</p>
       ${figure(1, "Account value, against holding the five assets", legend, `<div id="bigplot">${bigChart(run)}</div>`, `${run.daysDone} of ${run.days} days · 4 points a day · times in UTC · prototype: made-up numbers`)}

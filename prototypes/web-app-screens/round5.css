@@ -132,6 +132,14 @@ html[data-look="plasma"][data-mix~="glow"] .btn:hover { box-shadow: 0 0 16px col
 html[data-look="plasma"][data-mix~="glow"] #bigplot .ln.subject { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--hi) 55%, transparent)); }
 html[data-look="plasma"][data-mix~="glow"][data-mix~="title"] :is(.r4title, h1.title) { text-shadow: 0 0 18px color-mix(in srgb, var(--fg) 38%, transparent); }
 
+/* ---------- round 6: marks where a trade opened (a square) and closed (an x) ---------- */
+html[data-r4] #bigplot .tm { fill: var(--bg); stroke: var(--fg); stroke-width: 1.5; }
+html[data-r4] #bigplot .tm.held { fill: var(--hi); stroke: var(--hi); }
+html[data-r4] #bigplot .tm.x { fill: none; stroke-width: 1.75; }
+html[data-r4] #bigplot .tmk { cursor: pointer; }
+html[data-r4] #bigplot .tmk:hover .tm { stroke: var(--hi); stroke-width: 2.5; }
+html[data-r4] #bigplot .striplbl { font: 300 12.5px var(--mono); fill: var(--dim); letter-spacing: .06em; }
+
 /* ---------- the prototype bar: two rows, and a lit button for a switch that is on ---------- */
 #bar { flex-direction: column; align-items: center; gap: .4rem; border-radius: 18px; padding: .5rem .9rem; white-space: normal;
   left: 8px; right: 8px; transform: none; margin-inline: auto; width: fit-content; max-width: calc(100vw - 16px); }

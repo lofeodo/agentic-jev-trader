@@ -8,14 +8,17 @@ const onGuide = () => !parseHash().parts[0];
 function cycleOf(list, now, by) { return list[(list.indexOf(now) + by + list.length) % list.length]; }
 /* The look, the letters, and the colour are kept in the address (?look=plasma&caps=1&tube=green), so a view can be reloaded or shared. */
 (() => { const s = new URLSearchParams(location.search); if (LOOKS[s.get("look")]) LOOK = s.get("look"); if (s.has("caps")) CAPS = +s.get("caps") ? 1 : 0; if (TUBES[s.get("tube")]) TUBE = s.get("tube"); if (CURVES[s.get("line")]) CURVE = s.get("line");
-  (s.get("mix") || "").split(",").forEach(k => { if (MIXES[k]) MIX.add(k); }); if (FACES[s.get("face")]) FACE = s.get("face"); })();
-function saveLook() { const s = new URLSearchParams(); s.set("look", LOOK); if (CAPS != null) s.set("caps", CAPS); if (TUBE) s.set("tube", TUBE); if (CURVE) s.set("line", CURVE); if (MIX.size) s.set("mix", mixList()); if (FACE) s.set("face", FACE);
+  (s.get("mix") || "").split(",").forEach(k => { if (MIXES[k]) MIX.add(k); }); if (FACES[s.get("face")]) FACE = s.get("face"); if (MARKS_WORDS[s.get("marks")]) MARKS = s.get("marks");
+  /* an address with no switches at all opens the look the developer chose after round 5 */
+  if (!location.search) { MIX = new Set(MIX_YOURS); CURVE = "line"; FACE = "arimo"; } })();
+function saveLook() { const s = new URLSearchParams(); s.set("look", LOOK); if (CAPS != null) s.set("caps", CAPS); if (TUBE) s.set("tube", TUBE); if (CURVE) s.set("line", CURVE); s.set("mix", mixList() || "none"); if (FACE) s.set("face", FACE); if (MARKS) s.set("marks", MARKS);
   try { history.replaceState(null, "", "?" + s.toString().replace(/%2C/g, ",") + location.hash); } catch (e) { /* opened as a file in a browser that refuses: the view still switches */ } }
 /* round 5: the Wireframe parts, each switched on its own, always listed in the order the bar shows them */
 const mixList = () => Object.keys(MIXES).filter(k => MIX.has(k)).join(",");
 function redrawInPlace() { saveLook(); draw.keepScroll = true; draw(); }
 function toggleMix(k) { if (MIX.has(k)) MIX.delete(k); else MIX.add(k); redrawInPlace(); }
 function setMix(keys) { MIX = new Set(keys); redrawInPlace(); }
+function cycleMarks() { MARKS = cycleOf(Object.keys(MARKS_WORDS), MARKS, 1); redrawInPlace(); }
 function cycleFace() { FACE = cycleOf(Object.keys(FACES), FACE, 1); redrawInPlace(); }
 const capsNow = () => (CAPS == null ? CAPS_DEFAULT[LOOK] : CAPS);
 function cycleLook(by) { LOOK = cycleOf(Object.keys(LOOKS), LOOK, by); CAPS = null; saveLook(); draw.keepScroll = true; draw(); }
@@ -35,11 +38,12 @@ function drawBar() {
       + `${sep}<span>Letters</span><button onclick="toggleCaps()">${capsNow() ? "ALL CAPITALS" : "Normal case"}</button>`
       + `${sep}<span>Colour</span><button onclick="cycleTube()">${TUBES[TUBE]}</button>`
       + (parseHash().parts[0] === "run" ? `${sep}<span>Chart line</span><button onclick="cycleCurve()">${CURVES[CURVE]}</button>` : "")
+      + (plasma && parseHash().parts[0] === "run" ? `${sep}<span>Trade marks</span><button class="${MARKS ? "on" : ""}" onclick="cycleMarks()">${MARKS_WORDS[MARKS]}</button>` : "")
       + (plasma ? `${sep}<span>Typeface</span><button onclick="cycleFace()">${FACES[FACE]}</button>` : ""))
     + `${sep}<button onclick="document.body.classList.toggle('nonotes')">Notes on/off</button></div>`
     /* round 5: a second row, on Plasma only. One button per Wireframe part; a lit button is switched on. */
     + (plasma ? `<div class="row mixrow"><span>Add from Wireframe</span>${Object.keys(MIXES).map((k, i) => `<button class="${MIX.has(k) ? "on" : ""}" aria-pressed="${MIX.has(k)}" onclick="toggleMix('${k}')">${i + 1} ${MIXES[k]}</button>`).join("")}`
-      + `${sep}${preset("None", [])}${preset("My pick", MIX_PICK)}${preset("All", Object.keys(MIXES))}</div>` : "");
+      + `${sep}${preset("None", [])}${preset("Your pick", MIX_YOURS)}${preset("All", Object.keys(MIXES))}</div>` : "");
 }
 function draw() {
   let { parts, q } = parseHash(), page = parts[0] || "guide";
