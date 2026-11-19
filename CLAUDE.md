@@ -40,6 +40,14 @@ I'm new to finance and trading. This applies to everything I read: chat, issues,
 
 Changing what the LLM is sent (system prompt, tool descriptions, message layouts, the limit and re-ask messages) means updating this page in the same pull request, so the two always match.
 
+## Review gate
+
+Per the `review-gate` skill, a PR always gets the `requires-human-review` label when it:
+
+- places orders (an order is an instruction to buy or sell, such as "buy $1,000 of this stock");
+- changes risk limits (a risk limit is a cap on the account that code enforces, such as never risking more than $100 of a $10,000 account on one trade);
+- touches API keys.
+
 ## Agent skills
 
 ### Issue tracker
