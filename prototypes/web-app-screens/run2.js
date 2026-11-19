@@ -1,12 +1,24 @@
 /* PROTOTYPE, round 2. The run page as one long report with the chart front and centre, a chart you can hover
    and click, a side panel for "a moment" and for "the exchange behind a decision", and three ways to draw that exchange. */
 
-let LOOK = "g3278";    /* which period look the run page wears */
+let LOOK = "plasma";   /* which round 4 look the app wears */
 let FLOW = "strip";    /* the developer picked the strip; rail and lanes stay in the code as the record of round 2 */
-let WORD = 0;          /* which entry of WORDS stands in for "run" */
+let WORD = 1;          /* settled in round 3: a run is a "trading sim" */
 let PANEL = null, PANEL_BACK = [], STRIP_AT = 0, CH = null;
-const LOOKS = { g3278: "1 · 3278 green", c3279: "2 · 3279 colour", vt220: "3 · VT220 amber", dos: "4 · PC blue", phosphor: "Phosphor from round 2, to compare" };
-const VT_LOOKS = ["g3278", "c3279", "vt220", "dos"];
+/* Round 4: five looks, each drawn from one of the developer's reference pictures. */
+const LOOKS = { plasma: "1 · Plasma", desk: "2 · Dealing desk", page: "3 · Page", work: "4 · Workstation", wire: "5 · Wireframe" };
+const CAPS_DEFAULT = { plasma: 1, desk: 0, page: 1, work: 0, wire: 1 };
+const TUBES = { "": "as pictured", orange: "orange", amber: "amber", green: "green", white: "white" };
+let CAPS = null, TUBE = "", CURVE = "";   /* null or "": the look's own default */
+const CURVES = { "": "as the look draws it", smooth: "smooth", line: "straight", step: "steps" };
+/* How each look draws the big chart. */
+const CHART = {
+  plasma: { curve: "smooth", grid: "", ticks: "in", frame: 1, minor: 1 },
+  desk: { curve: "line", grid: "h", ticks: "", frame: 1 },
+  page: { curve: "step", grid: "dots", ticks: "out", frame: 1 },
+  work: { curve: "line", grid: "", ticks: "out", frame: 0, markers: 1 },
+  wire: { curve: "line", grid: "full", ticks: "out", frame: 1, hatch: 1 },
+};
 const FLOWS = { rail: "1 · rail", lanes: "2 · lanes", strip: "3 · strip" };
 /* full: the name in titles ("All trading sims"). short: the name inside a sentence ("the sim ended"). */
 const WORDS = [{ full: "run", short: "run" }, { full: "trading sim", short: "sim" }, { full: "market replay", short: "replay" }, { full: "trading trial", short: "trial" }];
@@ -20,57 +32,97 @@ const exch = tid => `openPanel({kind:'exchange',tid:'${tid}'})`;
 const flap = s => (LOOK === "board" ? `<span class="flap">${String(s).split("").map(c => `<b class="${c === " " ? "gap" : ""}">${c === " " ? "" : c}</b>`).join("")}</span>` : s);
 
 /* ---------- header ---------- */
+/* One set of markup; each look's CSS arranges it its own way (centred title, title bar, boxed cells, ...). */
+function dayRuler(run, day) {
+  let marks = "";
+  for (let d = 0; d <= run.days; d += run.days > 60 ? 60 : 5) marks += `<span style="left:${(d / run.days * 100).toFixed(2)}%">${d}</span>`;
+  return `<div class="ruler" aria-hidden="true" style="--days:${run.days}"><div class="scale">${marks}</div><i style="left:${((day - 0.5) / run.days * 100).toFixed(2)}%"></i></div>`;
+}
 function runHeader2(run) {
   const f = tradeFacts(run), behind = run.value - run.holding, live = run.status === "running";
   const kind = { measurement: "Measurement run", "build-up": "Build-up run", tuning: "Tuning run", practice: "Practice run" }[run.kind];
   const button = live ? `<button class="btn hot">Stop ■</button>` : run.status === "stopped" ? `<button class="btn">Raise the cap and restart</button>` : run.status === "failed" ? `<button class="btn">Restart from step ${stepAt(run, run.daysDone).toLocaleString("en-US")}</button>` : "";
-  const tape = LOOK !== "board" ? "" : `<div class="tape" aria-hidden="true"><span>${[0, 1].map(() => Object.keys(ASSETS).map((id, i) => `${ASSETS[id].symbol} ${realPrice(id, ASSETS[id].base)} ${i % 2 ? "▼" : "▲"}<i>${i % 2 ? "−" : "+"}${(0.2 + i * 0.31).toFixed(2)}%</i>`).join("") + `ACCOUNT ${fmt$(run.value)} ▲<i>${sgn$(run.value - 10000)}</i>HOLDING ${fmt$(run.holding)}<i>&nbsp;</i>`).join("")}</span></div>`;
-  return `${tape}<div class="g12 rhead">
-    <div class="c9">
-      <span class="kicker"><a href="${href("runs")}">← All runs</a> &nbsp;·&nbsp; ${kind} · ${run.label} · ${VARIANT_WORDS[run.variant]}</span>
-      <h1 class="display title">${run.title}</h1>
-      <p class="meta mt1">${statusBadge(run)} &nbsp; day ${Math.min(run.daysDone + (live ? 1 : 0), run.days)} of ${run.days} · replaying ${dayYear(run.start, Math.min(run.daysDone, run.days - 1))}${live ? ` <span id="live-clock">15:15</span> UTC` : ""} · step <span id="live-step">${(stepAt(run, run.daysDone) + (live ? 61 : 0)).toLocaleString("en-US")}</span>${live ? ` · <span id="live-ago">updated just now</span>` : ""}</p>
-    </div>
-    <div class="c3" style="align-self:end; text-align:right">${button}</div>
-  </div>
-  <dl class="statrow mt2 rule" style="padding-top:.9rem">
-    <div><dt class="kicker">Account value ${live ? "now" : "at the end"}</dt><dd class="statbig">${flap(fmt$(run.value))} <small>${sgn$(run.value - 10000)}</small></dd><div class="meta mt1">started with $10,000</div></div>
-    <div><dt class="kicker">Holding the five assets instead</dt><dd class="statbig">${flap(fmt$(run.holding))}</dd><div class="meta mt1">the agent is <b class="${behind < 0 ? "accent" : ""}">${fmt$(Math.abs(behind))} ${behind < 0 ? "behind" : "ahead"}</b></div></div>
-    <div><dt class="kicker">Trades</dt><dd class="statbig">${flap(f.all.length)} <small>${(f.all.length / Math.max(1, Math.min(run.daysDone, 30))).toFixed(1)} a day</small></dd><div class="meta mt1">${f.won.length} made money · ${f.lost.length} lost · ${f.all.length - f.closed.length} open</div></div>
-    <div><dt class="kicker">Spent on the models (real dollars)</dt><dd class="statbig">${flap(cents(run.spent))} <small>of ${cents(run.cap)} cap</small></dd>${track(run.spent / run.cap, run.spent >= run.cap)}<div class="meta">estimated ${cents(run.est)} for the whole run</div></div>
-  </dl>`;
+  const day = Math.min(run.daysDone + (live ? 1 : 0), run.days);
+  const status = live ? `<span class="sq"></span>running` : run.status === "finished" ? "finished" : `${run.status}: ${run.why}`;
+  const pf = (label, value, after, cls) => `<span class="pf ${cls || ""}"><i>${label}</i><b>${value}</b>${after ? `<em>${after}</em>` : ""}</span>`;
+  return `<div class="win r4head">
+    <a class="r4crumb kicker" href="${href("runs")}">← All runs</a>
+    <h1 class="r4title">${run.title}</h1>
+    <p class="r4sub">${kind} · ${run.label} · ${VARIANT_WORDS[run.variant]}</p>
+    <div class="r4params">${pf("Status", status, "", live || run.status === "finished" ? "" : "bad")}${pf("Day", day, "of " + run.days)}${pf("Replaying", dayYear(run.start, Math.min(run.daysDone, run.days - 1)) + (live ? ` <span id="live-clock">15:15</span>` : ""), "UTC")}${pf("Step", `<span id="live-step">${(stepAt(run, run.daysDone) + (live ? 61 : 0)).toLocaleString("en-US")}</span>`)}${live ? `<span class="pf note" id="live-ago">updated just now</span>` : ""}${button}</div>
+    ${dayRuler(run, day)}
+    <dl class="statrow">
+      <div><dt class="kicker">Account value ${live ? "now" : "at the end"}</dt><dd class="statbig">${fmt$(run.value)} <small>${sgn$(run.value - 10000)}</small></dd><div class="meta mt1">started with $10,000</div></div>
+      <div><dt class="kicker">Holding the five assets instead</dt><dd class="statbig">${fmt$(run.holding)}</dd><div class="meta mt1">the agent is <b class="${behind < 0 ? "accent" : ""}">${fmt$(Math.abs(behind))} ${behind < 0 ? "behind" : "ahead"}</b></div></div>
+      <div><dt class="kicker">Trades</dt><dd class="statbig">${f.all.length} <small>${(f.all.length / Math.max(1, Math.min(run.daysDone, 30))).toFixed(1)} a day</small></dd><div class="meta mt1">${f.won.length} made money · ${f.lost.length} lost · ${f.all.length - f.closed.length} open</div></div>
+      <div><dt class="kicker">Spent on the models (real dollars)</dt><dd class="statbig">${cents(run.spent)} <small>of ${cents(run.cap)} cap</small></dd>${track(run.spent / run.cap, run.spent >= run.cap)}<div class="meta">estimated ${cents(run.est)} for the whole run</div></div>
+    </dl></div>`;
 }
 
 /* ---------- the chart: full width, hover for any moment, click to open it ---------- */
 function bigChart(run) {
-  const s = seriesOf(run), p = partnerOf(run), W = 1400, H = 480, m = { t: 18, r: 200, b: 48, l: 98 }, n = run.days * 4 + 1;   /* margins wide enough for a terminal font */
+  const cs = Object.assign({}, CHART[LOOK] || CHART.plasma, CURVE ? { curve: CURVE } : {});
+  const s = seriesOf(run), p = partnerOf(run), W = 1400, H = 500, m = { t: 20, r: 236, b: 52, l: 96 }, n = run.days * 4 + 1;
   const lines = [{ key: "agent", name: "this run " + fmt$(run.value), vals: s.agent, kind: "subject" }, { key: "holding", name: "holding " + fmt$(run.holding), vals: s.holding, kind: "dashed" }];
   if (p) lines.push({ key: "partner", name: (p.variant === "memory_on" ? "with memory " : "without ") + fmt$(p.value), vals: seriesOf(p).agent, kind: "context" });
   const { y, ticks } = scaleY(lines.flatMap(l => l.vals).concat([10000]), H, m.t, m.b, 6);
-  const x = i => m.l + (W - m.l - m.r) * i / (n - 1), stepped = true;   /* every terminal look draws hard steps */
-  const path = vals => vals.map((v, i) => (i === 0 ? `M${x(0).toFixed(1)} ${y(v).toFixed(1)}` : stepped ? `H${x(i).toFixed(1)}V${y(v).toFixed(1)}` : `L${x(i).toFixed(1)} ${y(v).toFixed(1)}`)).join("");
-  let g = "";
-  ticks.forEach(t => { g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)"/><text class="tick" x="${m.l - 9}" y="${y(t) + 4}" text-anchor="end">${fmt$(t)}</text>`; });
-  g += `<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="var(--ink)"/><line x1="${m.l}" x2="${m.l}" y1="${m.t}" y2="${H - m.b}" stroke="var(--ink)"/>`;
+  const x0 = m.l, x1 = W - m.r, y0 = m.t, y1 = H - m.b, x = i => x0 + (x1 - x0) * i / (n - 1), f1 = v => v.toFixed(1);
+  const path = vals => {
+    const P = vals.map((v, i) => [x(i), y(v)]);
+    if (cs.curve === "step") return P.map((q, i) => (i ? `H${f1(q[0])}V${f1(q[1])}` : `M${f1(q[0])} ${f1(q[1])}`)).join("");
+    if (cs.curve === "line") return P.map((q, i) => (i ? "L" : "M") + f1(q[0]) + " " + f1(q[1])).join("");
+    /* smooth: a curve through every point, the way the plasma screen in the picture drew its line */
+    let d = `M${f1(P[0][0])} ${f1(P[0][1])}`;
+    for (let i = 0; i < P.length - 1; i++) {
+      const a = P[Math.max(0, i - 1)], b = P[i], c = P[i + 1], e = P[Math.min(P.length - 1, i + 2)];
+      d += `C${f1(b[0] + (c[0] - a[0]) / 6)} ${f1(b[1] + (c[1] - a[1]) / 6)} ${f1(c[0] - (e[0] - b[0]) / 6)} ${f1(c[1] - (e[1] - b[1]) / 6)} ${f1(c[0])} ${f1(c[1])}`;
+    }
+    return d;
+  };
+  let g = cs.hatch ? `<defs><pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="var(--line)" stroke-width="1"/></pattern></defs>` : "";
+  const ln = (xa, ya, xb, yb, cls) => `<line class="${cls}" x1="${f1(xa)}" y1="${f1(ya)}" x2="${f1(xb)}" y2="${f1(yb)}"/>`;
+  ticks.forEach((t, k) => {
+    const ty = y(t);
+    if (cs.grid && ty > y0 + 1 && ty < y1 - 1) g += ln(x0, ty, x1, ty, cs.grid === "dots" ? "gl dots" : "gl");
+    if (cs.ticks === "in") g += ln(x0, ty, x0 + 10, ty, "ax") + ln(x1 - 10, ty, x1, ty, "ax");
+    if (cs.ticks === "out") g += ln(x0 - 7, ty, x0, ty, "ax");
+    if (cs.minor && k < ticks.length - 1) { const my = (ty + y(ticks[k + 1])) / 2; g += ln(x0, my, x0 + 5, my, "ax") + ln(x1 - 5, my, x1, my, "ax"); }
+    g += `<text class="tick" x="${x0 - 12}" y="${ty + 5}" text-anchor="end">${fmt$(t)}</text>`;
+  });
   const per = run.days > 60 ? 60 : run.days > 10 ? 5 : 1;
-  for (let d = 0; d <= run.days; d += per) g += `<line x1="${x(d * 4)}" x2="${x(d * 4)}" y1="${H - m.b}" y2="${H - m.b + 5}" stroke="var(--ink)"/><text class="tick" x="${x(d * 4)}" y="${H - m.b + 20}" text-anchor="middle">${dayDate(run.start, d)}</text>`;
-  g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(10000)}" y2="${y(10000)}" stroke="var(--ink)" stroke-dasharray="4 3"/>`;
+  for (let d = 0; d <= run.days; d++) {
+    const major = d % per === 0, tx = x(d * 4);
+    if (run.days > 60 && !major) continue;
+    if (major && cs.grid === "full" && d > 0 && d < run.days) g += ln(tx, y0, tx, y1, "gl");
+    if (major || cs.minor || cs.grid === "full") g += ln(tx, y1, tx, y1 + (major ? 8 : 4), "ax");
+    if (major) g += `<text class="tick" x="${tx}" y="${y1 + 27}" text-anchor="middle">${dayDate(run.start, d)}</text>`;
+  }
+  g += cs.frame ? `<rect class="ax" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="none"/>` : ln(x0, y0, x0, y1, "ax") + ln(x0, y1, x1, y1, "ax");
+  g += ln(x0, y(10000), x1, y(10000), "startline");
   const order = { dashed: 0, context: 1, subject: 2 };
   [...lines].sort((a, b) => order[a.kind] - order[b.kind]).forEach(l => {
-    const style = l.kind === "subject" ? (LOOK === "tape" ? `stroke="var(--accent)" stroke-width="4" stroke-dasharray="0.1 7" stroke-linecap="round"` : `stroke="var(--accent)" stroke-width="2.75"`) : l.kind === "dashed" ? `stroke="var(--ink)" stroke-width="1.25" stroke-dasharray="2 4"` : `stroke="var(--dot)" stroke-width="1.25"`;
-    g += `<path d="${path(l.vals)}" fill="none" ${style}/>`;
+    if (cs.hatch && l.kind === "subject") g += `<path d="${path(l.vals)}V${y1}H${x0}Z" fill="url(#hatch)" opacity=".55"/>`;
+    g += `<path class="ln ${l.kind}" d="${path(l.vals)}" fill="none"/>`;
+    /* the workstation's way of telling lines apart: a mark on each line once a day, as its charts did */
+    if (cs.markers) l.vals.forEach((v, i) => {
+      if (i % 4) return; const cx = x(i), cy = y(v), r = 5;
+      g += l.kind === "subject" ? ln(cx - r, cy, cx + r, cy, "mark") + ln(cx, cy - r, cx, cy + r, "mark")
+        : l.kind === "dashed" ? ln(cx - r, cy - r, cx + r, cy + r, "mark") + ln(cx - r, cy + r, cx + r, cy - r, "mark") + ln(cx - r, cy, cx + r, cy, "mark")
+        : `<rect class="mark" x="${f1(cx - 4)}" y="${f1(cy - 4)}" width="8" height="8" fill="var(--bg)"/>`;
+    });
   });
   /* every trade is a small tick along the bottom, at the moment it was opened */
-  tradesOf(run).forEach(t => { const tx = x(openMin(t) / 360); if (tx <= W - m.r) g += `<line class="rug ${t.open ? "open" : ""}" x1="${tx.toFixed(1)}" x2="${tx.toFixed(1)}" y1="${H - m.b - 11}" y2="${H - m.b - 1}"/>`; });
+  tradesOf(run).forEach(t => { const tx = x(openMin(t) / 360); if (tx <= x1) g += `<line class="rug ${t.open ? "open" : ""}" x1="${tx.toFixed(1)}" x2="${tx.toFixed(1)}" y1="${y1 - 13}" y2="${y1 - 2}"/>`; });
   const ends = lines.map(l => ({ l, x: x(l.vals.length - 1), y: y(l.vals[l.vals.length - 1]) }));
-  ends.push({ l: { name: "start $10,000", kind: "ref" }, x: W - m.r, y: y(10000) });
-  ends.sort((a, b) => a.y - b.y); for (let i = 1; i < ends.length; i++) if (ends[i].y < ends[i - 1].y + 15) ends[i].y = ends[i - 1].y + 15;
+  ends.push({ l: { name: "start $10,000", kind: "ref" }, x: x1, y: y(10000) });
+  ends.sort((a, b) => a.y - b.y); for (let i = 1; i < ends.length; i++) if (ends[i].y < ends[i - 1].y + 19) ends[i].y = ends[i - 1].y + 19;
   ends.forEach(e => {
-    if (e.l.kind === "subject") g += `<circle cx="${e.x}" cy="${y(e.l.vals[e.l.vals.length - 1])}" r="5" fill="var(--accent)" stroke="var(--paper)" stroke-width="2"/>`;
-    g += `<text class="lbl ${e.l.kind === "subject" ? "subject" : ""}" x="${e.x + 10}" y="${e.y + 4}">${e.l.name}</text>`;
+    if (e.l.kind === "subject" && !cs.markers) g += `<circle class="enddot" cx="${e.x}" cy="${y(e.l.vals[e.l.vals.length - 1])}" r="5"/>`;
+    /* a line's name sits at its end; once the lines reach the right edge, in the margin beyond the frame */
+    g += `<text class="lbl ${e.l.kind === "subject" ? "subject" : ""}" x="${e.l.kind !== "ref" && e.x < x1 - 230 ? e.x + 14 : x1 + 14}" y="${e.y + 5}">${e.l.name}</text>`;
   });
-  g += `<g id="hov" visibility="hidden"><line id="hov-l" y1="${m.t}" y2="${H - m.b}" stroke="var(--ink)"/><circle id="hov-h" r="4" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/><circle id="hov-a" r="6" fill="var(--accent)" stroke="var(--paper)" stroke-width="2"/></g>`;
-  g += `<rect id="hov-r" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/>`;
+  g += `<g id="hov" visibility="hidden"><line id="hov-l" class="ax" y1="${y0}" y2="${y1}"/><circle id="hov-h" r="4" fill="var(--bg)" stroke="var(--fg)" stroke-width="1.5"/><circle id="hov-a" class="enddot" r="6"/></g>`;
+  g += `<rect id="hov-r" x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="transparent"/>`;
   CH = { run, x, y, n, W, m, len: s.agent.length };
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Line chart of account value over the run, against holding the five assets">${g}</svg>`;
 }
@@ -147,18 +199,18 @@ function secActivity(run, q) {
 function screenRunV2(id, q) {
   const run = runById(id) || RUNS[0], live = run.status === "running", behind = run.value - run.holding;
   const secs = (live ? [["Now", () => nowSection(run)]] : []).concat([["Trades", () => secActivity(run, q)], ["Measurements", () => secMeasurements(run)], [SCORE_NAME, () => secTrackRecord(run).replace("The track record is", "The " + SCORE_NAME.toLowerCase() + " is")], ["Settings", () => secSettings(run)]]);
-  const p = partnerOf(run);
-  const legend = `<span><i class="sw"></i>this run</span>${p ? `<span><i class="sw ctx"></i>its partner, ${VARIANT_WORDS[p.variant]}</span>` : ""}<span><i class="sw ref" style="border-top:1.25px dotted var(--ink)"></i>holding the five assets</span><span>| a trade opened</span>`;
-  const rail = `<div class="sticky"><span class="kicker">On this page</span><ol class="list mt1 onpage">${secs.map((s, i) => `<li style="padding:.4rem 0"><a href="javascript:void 0" onclick="document.getElementById('sec${i}').scrollIntoView()"><span class="meta accent idx" data-f="F${i + 1}">0${i + 1}</span> &nbsp;<span style="font:600 1.05rem var(--display)">${s[0]}</span></a></li>`).join("")}</ol>
+  const p = partnerOf(run), cs = CHART[LOOK] || CHART.plasma;
+  const mk = cs.markers ? ["+ ", "□ ", "✳ "] : ["", "", ""];
+  const legend = `<span><i class="sw"></i>${mk[0]}this run</span>${p ? `<span><i class="sw ctx"></i>${mk[1]}its partner, ${VARIANT_WORDS[p.variant]}</span>` : ""}<span><i class="sw ref"></i>${mk[2]}holding the five assets</span><span>| a trade opened</span>`;
+  const rail = `<div class="sticky win railwin"><span class="kicker">On this page</span><ol class="list mt1 onpage">${secs.map((s, i) => `<li><a href="javascript:void 0" onclick="document.getElementById('sec${i}').scrollIntoView()"><span class="idx" data-n="${i + 1}">0${i + 1}</span><span class="nm">${s[0]}</span></a></li>`).join("")}</ol>
     <div class="mt2"><span class="kicker">Notable moments</span></div><div class="mt1">${eventList(run)}</div></div>`;
-  return note("the run page, round 3", `Trades and decisions are now one table, and the order is: now, trades, measurements, ${SCORE_NAME.toLowerCase()} (was "track record"), settings. Click any row for its ${TRAIL_NAME.toLowerCase()} in the side panel.
-    <ul><li><b>Look</b> in the bar at the bottom (or the ← → keys) switches between four period looks. Each uses the real typeface of its machine, one colour family, one text size, and reverse video for emphasis. Round 2's Phosphor is last, to compare.</li><li><b>Word</b> swaps "run" for another name across the page.</li></ul>`, "first") + runHeader2(run) + `
-    <section class="chartblock">
-      <p class="chartlede">After <b>${run.daysDone} ${run.daysDone === 1 ? "day" : "days"}</b> the account holds <b>${fmt$(run.value)}</b>: <b class="accent">${fmt$(Math.abs(behind))} ${behind < 0 ? "less" : "more"}</b> than holding the five assets and never trading. <span class="hint">hover the chart for any moment · click to open it</span></p>
+  return note("the trading sim page, round 4", `Five looks drawn from your pictures, on the layout from round 3. <b>Look</b> in the bar at the bottom (or the ← → keys) switches between them. <b>Letters</b> switches between all capitals and normal case; the text sent to Jev and the LLM, shown in the side panel, always stays exactly as it was sent. <b>Colour</b> tries any look in another screen colour. Click a row for its ${TRAIL_NAME.toLowerCase()}; hover and click the chart. The <a href="#/" style="text-decoration:underline">guide page</a> says which picture each look comes from.`, "first") + runHeader2(run) + `
+    <section class="chartblock win">
+      <p class="chartlede">After <b>${run.daysDone} ${run.daysDone === 1 ? "day" : "days"}</b> the account holds <b>${fmt$(run.value)}</b>: <b class="accent">${fmt$(Math.abs(behind))} ${behind < 0 ? "less" : "more"}</b> than holding the five assets and never trading.</p>
       ${figure(1, "Account value, against holding the five assets", legend, `<div id="bigplot">${bigChart(run)}</div>`, `${run.daysDone} of ${run.days} days · 4 points a day · times in UTC · prototype: made-up numbers`)}
       ${live ? metersBlock(run) : ""}
     </section>
-    <div class="g12 mt3"><div class="c3">${rail}</div><div class="c9"><div class="stack">${secs.map((s, i) => `<section id="sec${i}">${sechead("0" + (i + 1), s[0])}${s[1]()}</section>`).join("")}</div></div></div>`;
+    <div class="g12 mt3"><div class="c3">${rail}</div><div class="c9"><div class="stack">${secs.map((s, i) => `<section id="sec${i}" class="win">${sechead("0" + (i + 1), s[0])}${s[1]()}</section>`).join("")}</div></div></div>`;
 }
 
 /* ---------- side panel ---------- */
@@ -171,7 +223,7 @@ function drawPanel() {
   const body = PANEL.kind === "moment" ? momentPanel(PANEL) : exchangePanel(PANEL);
   root.innerHTML = `<div id="scrim" onclick="closePanel()"></div><aside id="panel" role="dialog" aria-label="${body.label}">
     <div class="phead">${PANEL_BACK.length ? `<a class="kicker" href="javascript:void 0" onclick="backPanel()">← Back</a>` : ""}<span class="kicker">${body.label}</span><button class="btn" onclick="closePanel()">Esc ×</button></div>${body.html}</aside>`;
-  applyWord(root);
+  applyWord(root); markSigns(root);
 }
 function momentPanel(p) {
   const run = runById(p.run), f = momentFacts(run, p.i), gap = f.value - f.holding;
@@ -268,5 +320,21 @@ function applyWord(root) {
     if (s.trim() === "Runs") s = s.replace("Runs", cap(w.full) + "s");
     s = s.replace(/\b(All|New|all|new) runs?\b/g, (all, lead) => lead + " " + w.full + (/s$/.test(all) ? "s" : ""));
     x.nodeValue = s.replace(/(?<!evaluation )\b(R|r)un(s?)\b/g, (all, r, plural) => (r === "R" ? cap(w.short) : w.short) + plural);
+  });
+}
+
+/* ---------- round 4: the command line under the masthead, and marking gains and losses ---------- */
+/* The line every reference screen has under its header: what to do on this page. */
+function cmdLine(page) {
+  const text = { run: "Hover the chart for any moment and click to open it", runs: "Pick a run to open it", "new-run": "Enter all values and hit", datasets: "Enter all values and hit", trade: "Click a mark on the chart for its decision trail" }[page] || "Read only";
+  return `<div class="cmd"><span class="cl">Command</span><span class="ct">${text}</span><kbd>&lt;GO&gt;</kbd></div>`;
+}
+/* A cell that holds only a gain or a loss gets a class, so a look with colours can colour it. */
+function markSigns(root) {
+  if (!root) return;
+  root.querySelectorAll("td, dd, small, b, span, .big").forEach(el => {
+    if (el.children.length || el.closest("pre, .pnote")) return;
+    const sign = /^\s*([+−])\$[\d,.]+/.exec(el.textContent);
+    if (sign) el.classList.add(sign[1] === "+" ? "up" : "dn");
   });
 }

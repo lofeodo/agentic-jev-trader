@@ -4,17 +4,27 @@ function parseHash() {
   const h = location.hash.slice(1) || "/", cut = h.indexOf("?");
   return { parts: (cut < 0 ? h : h.slice(0, cut)).split("/").filter(Boolean), q: new URLSearchParams(cut < 0 ? "" : h.slice(cut + 1)) };
 }
-const onRunPage = () => parseHash().parts[0] === "run";
+const onGuide = () => !parseHash().parts[0];
 function cycleOf(list, now, by) { return list[(list.indexOf(now) + by + list.length) % list.length]; }
-function cycleLook(by) { LOOK = cycleOf(Object.keys(LOOKS), LOOK, by); draw.keepScroll = true; draw(); }
+/* The look, the letters, and the colour are kept in the address (?look=plasma&caps=1&tube=green), so a view can be reloaded or shared. */
+(() => { const s = new URLSearchParams(location.search); if (LOOKS[s.get("look")]) LOOK = s.get("look"); if (s.has("caps")) CAPS = +s.get("caps") ? 1 : 0; if (TUBES[s.get("tube")]) TUBE = s.get("tube"); if (CURVES[s.get("line")]) CURVE = s.get("line"); })();
+function saveLook() { const s = new URLSearchParams(); s.set("look", LOOK); if (CAPS != null) s.set("caps", CAPS); if (TUBE) s.set("tube", TUBE); if (CURVE) s.set("line", CURVE); try { history.replaceState(null, "", "?" + s + location.hash); } catch (e) { /* opened as a file in a browser that refuses: the view still switches */ } }
+const capsNow = () => (CAPS == null ? CAPS_DEFAULT[LOOK] : CAPS);
+function cycleLook(by) { LOOK = cycleOf(Object.keys(LOOKS), LOOK, by); CAPS = null; saveLook(); draw.keepScroll = true; draw(); }
+function toggleCaps() { CAPS = capsNow() ? 0 : 1; saveLook(); draw.keepScroll = true; draw(); }
+function cycleCurve() { CURVE = cycleOf(Object.keys(CURVES), CURVE, 1); saveLook(); draw.keepScroll = true; draw(); }
+function cycleTube() { TUBE = cycleOf(Object.keys(TUBES), TUBE, 1); saveLook(); draw.keepScroll = true; draw(); }
 function cycleFlow(by) { FLOW = cycleOf(Object.keys(FLOWS), FLOW, by); drawPanel(); drawBar(); }
 function cycleWord() { WORD = (WORD + 1) % WORDS.length; draw.keepScroll = true; draw(); }
 
 function drawBar() {
-  const exchangeOpen = PANEL && PANEL.kind === "exchange", sep = `<span class="sep">|</span>`;
+  const sep = `<span class="sep">|</span>`;
   document.getElementById("bar").innerHTML = `<b>PROTOTYPE</b>${sep}<button onclick="location.hash='#/'">Guide and questions</button>`
-    + (onRunPage() ? `${sep}<span>Look</span><button onclick="cycleLook(-1)" aria-label="Previous look">←</button><b>${LOOKS[LOOK]}</b><button onclick="cycleLook(1)" aria-label="Next look">→</button>` : "")
-    + `${sep}<span>Word for "run"</span><button onclick="cycleWord()">${WORDS[WORD].full}</button>`
+    + (onGuide() ? `${sep}<button onclick="location.hash='${runHref("rise-on-1")}'">Open the trading sim page</button>`
+      : `${sep}<span>Look</span><button onclick="cycleLook(-1)" aria-label="Previous look">←</button><b>${LOOKS[LOOK]}</b><button onclick="cycleLook(1)" aria-label="Next look">→</button>`
+      + `${sep}<span>Letters</span><button onclick="toggleCaps()">${capsNow() ? "ALL CAPITALS" : "Normal case"}</button>`
+      + `${sep}<span>Colour</span><button onclick="cycleTube()">${TUBES[TUBE]}</button>`
+      + (parseHash().parts[0] === "run" ? `${sep}<span>Chart line</span><button onclick="cycleCurve()">${CURVES[CURVE]}</button>` : ""))
     + `${sep}<button onclick="document.body.classList.toggle('nonotes')">Notes on/off</button>`;
 }
 function draw() {
@@ -25,13 +35,15 @@ function draw() {
     : page === "comparison" ? screenComparison() : page === "datasets" ? screenDatasets() : page === "dataset" ? screenDataset()
     : page === "playbook" ? screenPlaybook() : page === "spending" ? screenSpending() : screenGuide();
   const active = { run: "runs", "new-run": "runs", trade: "runs", dataset: "datasets" }[page] || page;
-  /* the three terminal looks are tried on the run page only */
-  document.documentElement.dataset.look = page === "run" ? LOOK : "paper";
-  if (page === "run" && VT_LOOKS.includes(LOOK)) document.documentElement.dataset.vt = "1"; else delete document.documentElement.dataset.vt;
+  /* round 4: every screen wears the look, except the guide, which is notes to the developer */
+  const de = document.documentElement, guide = page === "guide";
+  de.dataset.look = guide ? "paper" : LOOK;
+  if (guide) { delete de.dataset.r4; delete de.dataset.caps; delete de.dataset.tube; }
+  else { de.dataset.r4 = "1"; de.dataset.caps = capsNow(); if (TUBE) de.dataset.tube = TUBE; else delete de.dataset.tube; }
   const app = document.getElementById("app");
-  app.innerHTML = `<main>${masthead(active)}${screen}</main>`;
+  app.innerHTML = `<main>${masthead(active)}${guide ? "" : cmdLine(page)}${screen}</main>`;
   if (page === "run") wireChart();
-  applyWord(app);
+  applyWord(app); markSigns(app);
   drawPanel(); drawBar();
   if (!draw.keepScroll) window.scrollTo(0, 0);
   draw.keepScroll = false;
@@ -41,7 +53,7 @@ window.addEventListener("keydown", e => {
   if (e.key === "Escape" && PANEL) { closePanel(); return; }
   if (e.target.matches("input, textarea, select, [contenteditable]")) return;
   const by = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0; if (!by) return;
-  if (onRunPage()) cycleLook(by);
+  if (!onGuide()) cycleLook(by);
 });
 document.addEventListener("click", e => {
   /* any link to an exchange opens the side panel in place */

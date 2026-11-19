@@ -80,38 +80,51 @@ function screenDatasets() {
 }
 
 function screenGuide() {
-  const names = (title, words, list) => `<li><h3>${title}</h3><p class="small">${words}</p><p class="small">${list.map((n, i) => `<span class="badge ${i ? "" : "fill"}">${n[0]}</span> ${n[1]}`).join("<br>")}</p></li>`;
-  return `<div class="guide"><span class="kicker">Prototype · round 3 · all data made up</span>
-    <h1 class="display title" style="max-width:none">The web app's screens, third pass</h1>
-    <p class="lead mt2">This pass does two things: four new terminal looks for the run page, built to be period-correct and easy to read, and names to choose from for the four things you wanted renamed. Purple boxes and the purple bar are notes to you, not part of the design.</p>
+  const look = (key, name, from, words) => `<li><h3>${name}</h3><p class="small muted" style="margin-bottom:.25rem">From: ${from}</p><p class="small">${words} <a href="?look=${key}#/run/rise-on-1" style="text-decoration:underline">Open it →</a></p></li>`;
+  return `<div class="guide"><span class="kicker">Prototype · round 4 · all data made up</span>
+    <h1 class="display title" style="max-width:none">The web app's look, fourth pass</h1>
+    <p class="lead mt2">Five looks built from the pictures you sent, on the layout you already settled. Each one is drawn differently, not only coloured differently: where the title sits, how a heading is marked, how a table's column names are set off, how the chart is drawn. Purple boxes and the purple bar are notes to you, not part of the design.</p>
     <div class="g12 mt3"><div class="c7">
-      ${sechead("01", "Four period looks")}
-      <p class="small"><a href="${runHref("rise-on-1")}" style="text-decoration:underline">Open the run page</a> and use "Look" in the bar at the bottom, or the ← → keys.</p>
+      ${sechead("01", "Five looks")}
+      <p class="small"><a href="${runHref("rise-on-1")}" style="text-decoration:underline">Open the trading sim page</a> and use "Look" in the bar at the bottom, or the ← → keys. The look now covers every screen, so the forms and the error box can be judged too.</p>
       <ol class="list mt1">
-        <li><h3>1 · 3278 green</h3><p class="small">The IBM 3278, the green mainframe terminal on bank and brokerage desks from the late 1970s. One green, in three strengths.</p></li>
-        <li><h3>2 · 3279 colour</h3><p class="small">The same terminal with its colour tube. Each colour has a job: turquoise for labels, green for data, white for headings and key figures, yellow for what to look at, red for warnings.</p></li>
-        <li><h3>3 · VT220 amber</h3><p class="small">The DEC VT220 with the amber tube, 1983. Amber was sold as the easier colour on the eyes for a full working day.</p></li>
-        <li><h3>4 · PC blue</h3><p class="small">An IBM PC in text mode, late 1980s: white, cyan, and yellow on blue, the way desk trading software looked. The odd one out; brightest and highest in contrast.</p></li>
+        ${look("plasma", "1 · Plasma", "your main picture, the 1986 GRiDCase trading terminal with the orange screen.", "One orange on near-black. The title sits in the middle of the screen. Values sit in lit blocks (dark letters on an orange block), as the date fields do in the picture. Thin rules, a command line under the header, plenty of empty screen. The chart is a plain box with tick marks on the inside, serif numbers, and a smooth line. Two typefaces, as in the picture: a thin fixed-width one for the system's own words, a plain one for titles and sentences. All capitals.")}
+        ${look("desk", "2 · Dealing desk", "the two-screen colour terminal and the Reuters monitors.", "Black with amber text, and four more colours that each have one job: red bars for headings, white for the number to read first, blue for labels, green and red for a gain and a loss. Normal case, rows packed closer. The chart has a blue frame and grid.")}
+        ${look("page", "3 · Page", "the green screen with INDEX and COMMAND across the top.", "Two bars in reverse video across the top (light bar, dark letters). Titles centred in plain capitals. Column names inside a drawn box. Values lined up by rows of dots, meters made of thin upright bars. The chart is drawn in hard steps. One fixed-width typeface at nearly one size.")}
+        ${look("work", "4 · Workstation", "the black-and-white screen with windows and the pie chart.", "A striped desktop, and each part of the page is a window with a double border and a title bar. Where a colour screen would use colour, this one uses patterns: hatching in bars and meters, and a different mark on each chart line (a plus, a box, a star). Its letters are the real ones of a 1980s PC, which makes it the hardest of the five to read.")}
+        ${look("wire", "5 · Wireframe", "the orange poster with the wireframe city.", "Red-orange lines and amber letters, with every part of the screen in an outlined box. A label and its value share a box split by a line. Headings have a numbered cell and a line running off to the right. The day of the sim is a ruler with a pointer. A heavy typeface for the title. A faint glow on the boxes only, never on the letters.")}
       </ol>
-      <p class="small muted mt1"><b>What changed against round 2's Phosphor, and why it looked fake:</b> it used a modern pixel font drawn to look old, a glow, a scanline overlay, and a second colour (amber on green). A real tube had one phosphor and was sharp. These four use the actual typeface of each machine, one colour family, one text size (with exact double size for the title and the four key figures), and reverse video (a light block with dark letters) for emphasis. Sentences are in normal case; only headings and labels are capitals.</p>
-      <div class="mt3">${sechead("02", "Names to choose from", "my pick is the filled one, and it is the one the prototype uses")}</div>
+      <div class="mt3">${sechead("02", "What keeps every look easy to read")}</div>
       <ol class="list">
-        ${names('A word for "run"', 'It has to say "a simulation of trading" in plain words and stay short. "Word" in the bar swaps it across every screen. Each has a long form for titles and a short form inside sentences.', [["Trading sim", '"All trading sims", "the sim ended in cash". Says exactly what it is; "sim" is everyday speech.'], ["Market replay", '"All market replays", "the replay ended". Says how it works: past market days are played again and the agent trades through them.'], ["Trading trial", '"All trading trials", "the trial ended". Plain, but "trial" can sound like a free trial or a court case.']])}
-        ${names('A name for "track record"', "It is the agent's own tally of how its past trades turned out, pattern by pattern: \"bullish engulfing, long, stocks: 38 trades, 58% made money\".", [["Scorecard", "Short, and usable in a sentence: \"the scorecard for hammer longs\"."], ["Results by pattern", "Says exactly what the table is, but is long to say every time."], ["Win and loss record", "Plain, but it leaves out the dollar amounts."], ["Pattern history", "Could be mistaken for the history of prices."]])}
-        ${names("The side panel's header", "The panel shows every question and answer that led to one decision, in order.", [["Decision trail", "A trail you follow step by step. No technical baggage."], ["Chain of thought", "Your suggestion. One caution: in AI writing it means a model thinking out loud in words, and Jev does not do that. What the panel shows is questions and answers."], ["How it decided", "The plainest, but reads oddly as a label on a button."], ["Behind the trade", "Friendly, but wrong for a decision that ended in no trade."]])}
-        ${names("The run on your own dates", "The third kind on the New run form.", [["Free run", "Free to pick any days."], ["Open run", "Same idea; \"open\" also means an open position, which could confuse."], ["Sandbox", "Says \"safe place to try things\", and nothing counts there."]])}
+        <li><p class="small"><b>More than one text size.</b> Round 3 used a single size for everything, as a character screen did, and nothing stood out. Here the title, the four key figures, and the headings are larger, so the eye finds them first.</p></li>
+        <li><p class="small"><b>Sharp letters at normal spacing.</b> No glow on text, no scanlines, no blur, and no typeface that spreads its letters so far apart that words stop reading as words.</p></li>
+        <li><p class="small"><b>Sentences in a plain typeface</b> where the picture has one (looks 1 and 5). Fixed-width letters are kept for labels, numbers, and tables, where columns have to line up.</p></li>
+        <li><p class="small"><b>Text shown word for word stays as it was sent.</b> What Jev and the LLM were sent, in the side panel, is never turned into capitals, in any look.</p></li>
+      </ol>
+      <div class="mt3">${sechead("03", "The switches in the bar")}</div>
+      <ol class="list">
+        <li><p class="small"><b>Look</b> moves between the five.</p></li>
+        <li><p class="small"><b>Letters</b> switches the look you are on between all capitals and normal case. Each look starts in the case its picture uses.</p></li>
+        <li><p class="small"><b>Colour</b> shows the look you are on in another screen colour (orange, amber, green, white), so a look is not turned down for its colour alone.</p></li>
+        <li><p class="small"><b>Chart line</b> draws the chart's lines smooth, straight, or in steps, whatever the look. See question 3.</p></li>
+      </ol>
+      <div class="mt3">${sechead("04", "Where to look")}</div>
+      <ol class="list">
+        <li><p class="small"><a href="${runHref("rise-on-1")}" style="text-decoration:underline">The trading sim page</a>: the header, the chart (hover it, click it), the tables, the measurements.</p></li>
+        <li><p class="small">The decision trail: on the sim page, click any row of the trades table. This is where the longest text is.</p></li>
+        <li><p class="small"><a href="${href("new-run")}" style="text-decoration:underline">The new sim form</a>: entry fields, and the error box (click "Free sim" to see it).</p></li>
+        <li><p class="small"><a href="${href("runs")}" style="text-decoration:underline">The list of sims</a> and <a href="${href("datasets")}" style="text-decoration:underline">datasets</a>: the same look on screens I did not polish.</p></li>
       </ol>
     </div><div class="c5"><div class="sticky">
       <div class="pnote" style="margin:0"><b class="t">Questions for you</b>
         <ul>
-          <li><b>1. The look.</b> 3278 green, 3279 colour, VT220 amber, or PC blue? <i>My pick: 3279 colour. It is as period-correct as the green one, and the colours do real work: you can tell a label from a number from a warning without reading.</i></li>
-          <li><b>2. The word for "run".</b> Trading sim, market replay, trading trial, or something else? <i>My pick: trading sim.</i></li>
-          <li><b>3. "Track record".</b> Scorecard, results by pattern, or another? <i>My pick: scorecard.</i></li>
-          <li><b>4. The side panel's header.</b> Decision trail, chain of thought, or another? <i>My pick: decision trail.</i></li>
-          <li><b>5. The run on your own dates.</b> Free run, sandbox, or another? <i>My pick: free run.</i></li>
+          <li><b>1. Which look, or which parts of which?</b> "The header of 1 with the boxes of 5" is a fine answer. <i>My pick: Plasma. It is your main picture, it is the calmest, and it stayed readable in every part of the page, including the long text in the side panel.</i></li>
+          <li><b>2. Capitals or normal case?</b> Try "Letters" on the measurements section of the sim page, which has the longest sentences. <i>My pick: capitals, as in the picture. If the long sentences tire you, the middle way is capitals for labels and headings and normal case for sentences.</i></li>
+          <li><b>3. The chart's line: smooth or exact?</b> Plasma draws a smooth curve, as the picture does. A smooth curve rounds the corners between two measured points, so it can swing a little past the true number between them. Example: the account is worth $10,400 at noon and $10,200 at 18:00; a smooth curve may dip to about $10,190 on the way, a value the account never had. Straight lines between the points are exact. <i>My pick: straight. The chart exists to show what the account was worth, and it still looks right in the box with the tick marks. "Chart line" in the bar shows both.</i></li>
+          <li><b>4. The colour.</b> <i>My pick: the orange of the picture.</i></li>
+          <li><b>5. The typefaces.</b> Plasma's fixed-width one is JetBrains Mono, which is free to use and ships with the app. Its titles and sentences use Helvetica or Arial, whichever the computer already has, so a Mac and a Windows PC would show slightly different letters. Is that fine, or should the app ship one free typeface so it looks the same everywhere? <i>My pick: ship one, chosen and its licence checked when the spec is written.</i></li>
         </ul>
-        <p style="margin-top:.6rem"><b>Done as you said, no question:</b> trades and decisions are one table, in the order now, trades, measurements, scorecard, settings · the panel is drawn as the strip · practice and tuning runs are off the <a href="${href("new-run")}" style="text-decoration:underline">New run</a> form · the tick box there is fixed · <a href="${href("datasets")}" style="text-decoration:underline">Datasets</a> has one button, with the check as a ticked box.</p>
-        <p style="margin-top:.6rem"><b>Two things I assumed:</b> practice and tuning runs still show in the <a href="${href("runs")}" style="text-decoration:underline">Runs</a> list, marked as developer tools · a ${FREE_NAME.toLowerCase()} cannot use the locked test days, as tuning runs could not.</p>
+        <p style="margin-top:.6rem"><b>Two things I assumed:</b> the target is now the 1986 trading terminal in your main picture, not a Bloomberg screen in particular · faithfulness stops at the styling: the screens, their order, and the side panel are as you left them in round 3.</p>
       </div>
     </div></div></div></div>`;
 }

@@ -1,0 +1,540 @@
+/* PROTOTYPE, round 4. Five looks for the whole app, each drawn from one of the developer's reference pictures:
+     plasma  the orange gas-plasma screen of the 1986 GRiDCase trading terminal (the main picture)
+     desk    the colour dealing-desk screens: amber on black, red bars, a few working colours
+     page    the green "page" screen: reverse-video INDEX and COMMAND bars, boxed column headings
+     work    the black-and-white PC workstation: windows with title bars, hatched fills, marks on chart lines
+     wire    the orange wireframe poster: everything in outlined boxes, leader lines, a ruler
+   The page layout is round 3's. What changes per look is how each part is drawn, not only its colour.
+
+   What round 3 got wrong and this round does differently, in every look:
+   - more than one text size, so the eye finds the title, the key figures, and the headings first;
+   - letters set at normal spacing in typefaces drawn for screens, so words read as words;
+   - explanatory sentences in a proportional typeface where the reference picture has one;
+   - the text sent to Jev and the LLM is never capitalised: it is shown exactly as sent.
+
+   First the shared terminal base (dark screen, sizes, lit blocks), then one block per look. */
+
+html[data-r4] {
+  color-scheme: dark;
+  --fs: 17px; --fs-t: 16px; --fs-s: 13.5px; --track: 0em; --track-s: .06em; --bw: 1px;
+  --lit: var(--fg); --litfg: var(--bg); --line: var(--fg); --subj: var(--fg); --refc: var(--dim); --ctxc: var(--dim); --gridc: var(--faint);
+  --up: inherit; --dn: inherit; --cell: var(--mono); --tick: var(--mono);
+  /* the names the round 1 to 3 stylesheets use, pointed at this look's colours and faces */
+  --paper: var(--bg); --ink: var(--fg); --muted: var(--dim); --hair: var(--faint); --accent: var(--hi); --accentsoft: transparent; --raised: var(--bg);
+  --grid: var(--faint); --dot: var(--dim); --display: var(--sans); --serif: var(--text);
+}
+/* "Colour" in the bar: any look in another screen colour */
+html[data-r4][data-tube="orange"] { --fg: #f09a3e; --dim: #b9772f; --faint: #5a3b1c; --hi: #ffc98a; }
+html[data-r4][data-tube="amber"] { --fg: #ffb000; --dim: #c48a0a; --faint: #5e4300; --hi: #ffe08a; }
+html[data-r4][data-tube="green"] { --fg: #33e58c; --dim: #27ab6a; --faint: #14583a; --hi: #c9ffe4; }
+html[data-r4][data-tube="white"] { --fg: #e6e6e6; --dim: #a3a3a3; --faint: #4d4d4d; --hi: #ffffff; }
+
+html[data-r4] body { background: var(--bg); color: var(--fg); font: 400 var(--fs)/1.5 var(--text); }
+html[data-r4] main { max-width: 1500px; }
+html[data-r4] ::selection { background: var(--lit); color: var(--litfg); }
+html[data-r4] :focus-visible { outline: 2px solid var(--hi); }
+html[data-r4] b, html[data-r4] strong { font-weight: 400; color: var(--hi); }
+html[data-r4] .accent { color: var(--hi); }
+html[data-r4] .muted { color: var(--dim); }
+html[data-r4] .small { font-size: var(--fs-t); }
+html[data-r4] .up { color: var(--up); } html[data-r4] .dn { color: var(--dn); }
+
+/* all capitals, when the look or the bar asks for them; never for text shown word for word */
+html[data-r4][data-caps="1"] :is(#app, #panelroot, #tip) { text-transform: uppercase; letter-spacing: var(--track); }
+html[data-r4] :is(#app, #panelroot) button { text-transform: inherit; }
+html[data-r4] :is(pre, .pnote, .pnote *, input, select) { text-transform: none !important; }
+html[data-r4] :is(pre, .pnote, .pnote *) { letter-spacing: 0 !important; }
+
+/* small system text: labels, notes under figures, column headings */
+html[data-r4] :is(.kicker, .meta, th, .hint, figcaption, .term, .masked, .when, .who) { font: 400 var(--fs-s)/1.45 var(--mono); letter-spacing: var(--track-s); color: var(--dim); }
+html[data-r4] .figure figcaption { font: 400 var(--fs-s)/1.45 var(--mono); border-top: 0; color: var(--dim); }
+html[data-r4] .measure .term { font: 400 var(--fs-s)/1.45 var(--mono); color: var(--dim); }
+html[data-r4] .timeline .when { font: 400 var(--fs-s)/1.45 var(--mono); color: var(--dim); }
+html[data-r4] .meta b { color: var(--fg); }
+
+/* ---------- masthead and command line ---------- */
+html[data-r4] .mast { border-bottom: 0; margin-bottom: 0; padding-bottom: .5rem; gap: .3rem 2ch; align-items: center; }
+html[data-r4] .wordmark { font: 400 var(--fs-s)/1.7 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+html[data-r4] .wordmark .accent { color: inherit; }
+html[data-r4] .mast nav { gap: .2rem 1ch; }
+html[data-r4] .mast nav a { font: 400 var(--fs-s)/1.7 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--fg); border: 0; padding: 0 1ch; }
+html[data-r4] .mast nav a.on, html[data-r4] .mast nav a:hover { background: var(--lit); color: var(--litfg); }
+html[data-r4] .mast .spend b { color: var(--fg) !important; }
+.cmd, .ruler { display: none; }
+html[data-r4] .cmd { display: flex; align-items: baseline; gap: 1.2ch; font: 400 var(--fs)/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; border-top: var(--bw) solid var(--line); border-bottom: var(--bw) solid var(--line); padding: .3rem 0; margin-bottom: 2.25rem; }
+html[data-r4] .cmd .cl { display: none; }
+html[data-r4] .cmd kbd { font: inherit; }
+
+/* ---------- the sim page's header ---------- */
+html[data-r4] .r4crumb { display: inline-block; }
+html[data-r4] .r4crumb:hover { color: var(--hi); }
+html[data-r4] :is(.r4title, h1.title) { font: 400 2.1rem/1.15 var(--sans); letter-spacing: .02em; margin: .35rem 0 .3rem; max-width: none; }
+html[data-r4] .r4sub { font: 400 1.1rem/1.4 var(--sans); color: var(--dim); margin: 0 0 1.1rem; }
+html[data-r4] .r4params { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem 2.6ch; font: 400 var(--fs-t)/1.5 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+html[data-r4] .pf { display: inline-flex; align-items: baseline; gap: 1ch; white-space: nowrap; }
+html[data-r4] .pf i, html[data-r4] .pf em { font-style: normal; color: var(--dim); }
+html[data-r4] .pf b { background: var(--lit); color: var(--litfg); padding: 0 .9ch; }
+html[data-r4] .pf.note { color: var(--dim); }
+html[data-r4] .sq { display: inline-block; width: .55em; height: .55em; margin-right: .7ch; background: currentColor; animation: r4blink 1.2s steps(1) infinite; }
+@keyframes r4blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { html[data-r4] .sq { animation: none; } }
+html[data-r4] .statrow { margin-top: 2rem; padding-top: 1.1rem; border-top: var(--bw) solid var(--line); gap: 1.5rem 4ch; }
+html[data-r4] .statbig { font: 400 2.6rem/1.05 var(--sans); letter-spacing: 0; color: var(--hi); }
+html[data-r4] .statbig small { font-size: .42em; letter-spacing: .03em; color: var(--dim); }
+html[data-r4] .statbig small.up { color: var(--up); } html[data-r4] .statbig small.dn { color: var(--dn); }
+html[data-r4] .keyfig { font: 400 3rem/1 var(--sans); letter-spacing: 0; color: var(--hi); }
+html[data-r4] .keyfig small { color: var(--dim); }
+
+/* meters: an outlined box that fills */
+html[data-r4] .track { height: 11px; border: var(--bw) solid var(--line); background: none; margin: .6rem 0 .45rem; }
+html[data-r4] .track i { background: var(--fg); }
+html[data-r4] .track i.hot { background: var(--hi); }
+html[data-r4] .meters { border-top: var(--bw) solid var(--line); }
+html[data-r4] .meters .big { font: 400 1.3rem/1.3 var(--mono); color: var(--hi); }
+html[data-r4] .meters .big small { font-size: .78em; color: var(--dim); }
+
+/* ---------- the chart ---------- */
+html[data-r4] .chartblock { margin-top: 2.75rem; }
+html[data-r4] .chartlede { font: 400 1.2rem/1.5 var(--text); max-width: 80ch; margin-bottom: 1rem; }
+html[data-r4] .fighead { border-bottom: var(--bw) solid var(--line); }
+html[data-r4] .fighead h3 { font: 400 1.25rem/1.3 var(--sans); letter-spacing: .02em; }
+html[data-r4] .fighead .kicker { color: var(--dim); font-weight: 400 !important; }
+html[data-r4] .sw { width: 22px; border-top: 2.5px solid var(--subj); margin-right: .8ch; }
+html[data-r4] .sw.ctx { border-top: 1.75px dotted var(--ctxc); }
+html[data-r4] .sw.ref { border-top: 1.75px dashed var(--refc); }
+html[data-r4] .plot .tick { font: 400 15px var(--tick); fill: var(--fg); letter-spacing: .02em; }
+html[data-r4] .plot .lbl { font: 400 14px var(--mono); fill: var(--fg); stroke: var(--bg); stroke-width: 5px; letter-spacing: .03em; }
+html[data-r4] .plot .lbl.subject { fill: var(--subj); font-weight: 400; }
+html[data-r4] #bigplot .ax { stroke: var(--line); stroke-width: 1.25; }
+html[data-r4] #bigplot .gl { stroke: var(--gridc); stroke-width: 1; }
+html[data-r4] #bigplot .gl.dots { stroke-dasharray: 1 7; stroke: var(--dim); }
+html[data-r4] #bigplot .startline { stroke: var(--dim); stroke-width: 1; stroke-dasharray: 2 5; }
+html[data-r4] #bigplot .ln { stroke-linejoin: round; }
+html[data-r4] #bigplot .ln.subject { stroke: var(--subj); stroke-width: 2.6; }
+html[data-r4] #bigplot .ln.dashed { stroke: var(--refc); stroke-width: 1.6; stroke-dasharray: 7 5; }
+html[data-r4] #bigplot .ln.context { stroke: var(--ctxc); stroke-width: 1.6; stroke-dasharray: 1.5 4; }
+html[data-r4] #bigplot .mark { stroke: var(--fg); stroke-width: 1.5; }
+html[data-r4] #bigplot .enddot { fill: var(--subj); stroke: var(--bg); stroke-width: 2; }
+html[data-r4] #bigplot .rug { stroke: var(--dim); stroke-width: 1.5; }
+html[data-r4] #bigplot .rug.open { stroke: var(--hi); stroke-width: 3; }
+
+/* ---------- section heads, lists, the rail ---------- */
+html[data-r4] .sechead { border-top: var(--bw) solid var(--line); padding-top: .7rem; margin-bottom: 1.4rem; gap: .3rem 1.5ch; }
+html[data-r4] .sechead .n { font: 400 var(--fs-s) var(--mono); color: var(--dim); letter-spacing: .08em; }
+html[data-r4] .sechead h2 { font: 400 1.75rem/1.1 var(--sans); letter-spacing: .03em; }
+html[data-r4] .subhead { font: 400 1.2rem/1.3 var(--sans); letter-spacing: .02em; border-top: var(--bw) solid var(--faint); padding-top: .6rem; margin: 2.25rem 0 .8rem; color: var(--hi); }
+html[data-r4] .subhead .kicker { margin-left: 1.5ch; }
+html[data-r4] .lead { font-size: 1.1rem; line-height: 1.55; max-width: 80ch; }
+html[data-r4] ol.list > li { border-top: var(--bw) solid var(--faint); padding: .55rem 0; }
+html[data-r4] ol.list > li:first-child { border-top: var(--bw) solid var(--line); }
+html[data-r4] li.click:hover { background: var(--lit); color: var(--litfg); }
+html[data-r4] li.click:hover * { color: var(--litfg) !important; }
+html[data-r4] .onpage a { display: flex; align-items: baseline; gap: 1.5ch; }
+html[data-r4] .onpage .idx { font: 400 var(--fs-s) var(--mono); color: var(--dim); }
+html[data-r4] .onpage .nm { font: 400 1.1rem var(--sans); letter-spacing: .03em; }
+html[data-r4] .onpage a:hover .nm { color: var(--hi); }
+html[data-r4] .timeline .t { font: 400 1rem/1.4 var(--sans); letter-spacing: .01em; }
+html[data-r4] .mk { background: var(--fg); width: 8px; height: 8px; }
+html[data-r4] .mk.bad, html[data-r4] .mk.run { background: var(--hi); }
+html[data-r4] .mk.pend { background: none; border: 1px solid var(--dim); }
+html[data-r4] .waiting { border-top: var(--bw) solid var(--faint); }
+html[data-r4] .waiting p { font: 400 1.2rem/1.4 var(--sans); color: var(--dim); }
+html[data-r4] .why, html[data-r4] .pkey { border-left: var(--bw) solid var(--line); padding-left: 1.5ch; font-size: var(--fs-t); background: none; }
+
+/* ---------- tables ---------- */
+html[data-r4] thead tr { border-bottom: var(--bw) solid var(--line); }
+html[data-r4] th { padding: .4rem 2ch .4rem 0; }
+html[data-r4] td { font: 400 var(--fs-t)/1.45 var(--cell); border-bottom: 0; padding: .42rem 2ch .42rem 0; }
+html[data-r4] td.num, html[data-r4] th.num { font-family: var(--mono); letter-spacing: .02em; }
+html[data-r4] td.num { font-size: var(--fs-t); } html[data-r4] th.num { font-size: var(--fs-s); }
+html[data-r4] td { letter-spacing: .01em; }
+html[data-r4] td .meta { letter-spacing: .03em; white-space: normal; }
+html[data-r4] li.click > .meta { width: 9.5rem !important; flex: none; white-space: nowrap; }
+html[data-r4] td b { font: inherit !important; color: var(--fg); }
+html[data-r4] tr.click:hover { background: var(--lit); }
+html[data-r4] tr.click:hover * { color: var(--litfg) !important; background: none !important; }
+html[data-r4] tr.dim td { color: var(--dim); }
+html[data-r4] tr.group td { border-bottom: var(--bw) solid var(--line); }
+html[data-r4] .asset b { font: inherit; letter-spacing: inherit; color: var(--fg); }
+html[data-r4] dl.pairs { border-top: var(--bw) solid var(--line); gap: .4rem 2ch; }
+html[data-r4] dl.pairs dd { font: 400 var(--fs-t) var(--mono); color: var(--hi); }
+
+/* ---------- small parts: badges, chips, switches, buttons ---------- */
+html[data-r4] .badge { border: 0; padding: 0; font: 400 var(--fs-s) var(--mono); letter-spacing: var(--track-s); color: var(--dim); vertical-align: baseline; }
+html[data-r4] .badge::before { content: "["; } html[data-r4] .badge::after { content: "]"; }
+html[data-r4] .badge.ink { color: var(--fg); } html[data-r4] .badge.out { color: var(--hi); }
+html[data-r4] .badge.fill { background: var(--lit); color: var(--litfg); padding: 0 .8ch; }
+html[data-r4] .badge.fill::before, html[data-r4] .badge.fill::after { content: ""; }
+html[data-r4] .badge .sq { margin-right: .5ch; }
+html[data-r4] .chip { border: 0; padding: 0; font: 400 var(--fs-s) var(--mono); letter-spacing: .04em; color: var(--dim); }
+html[data-r4] a.chip { color: var(--hi); text-decoration: underline; text-underline-offset: 3px; }
+html[data-r4] a.chip:hover { background: var(--lit); color: var(--litfg); }
+html[data-r4] .filters { gap: .4rem 1ch; align-items: center; }
+html[data-r4] .tog { border: var(--bw) solid transparent; padding: 0 1ch; font: 400 var(--fs-s)/1.8 var(--mono); letter-spacing: var(--track-s); color: var(--fg); text-transform: uppercase; }
+html[data-r4] .tog span { opacity: 1; color: var(--dim); }
+html[data-r4] .tog:hover { border-color: var(--line); }
+html[data-r4] .tog.on { background: var(--lit); color: var(--litfg); border-color: var(--lit); }
+html[data-r4] .tog.on span { color: var(--litfg); }
+html[data-r4] .btn { border: var(--bw) solid var(--line); background: none; color: var(--fg); font: 400 var(--fs-s)/1.5 var(--mono); letter-spacing: .1em; padding: .3rem 1.4ch; transition: none; }
+html[data-r4] .btn:hover { background: var(--lit); color: var(--litfg); }
+html[data-r4] .btn.hot { background: var(--lit); color: var(--litfg); border-color: var(--lit); }
+html[data-r4] .btn.hot:hover { background: var(--hi); border-color: var(--hi); }
+html[data-r4] .btn.wide { font-size: var(--fs-t); }
+
+/* ---------- measurement lines and ranked bars ---------- */
+html[data-r4] .measure { border-top: var(--bw) solid var(--faint); padding: .65rem 0; }
+html[data-r4] .measure:first-of-type { border-top: var(--bw) solid var(--line); }
+@media (min-width: 768px) { html[data-r4] .measure { grid-template-columns: 21rem 14rem 1fr; gap: .1rem 3ch; } }
+html[data-r4] .measure b { color: var(--fg); }
+html[data-r4] .measure .v { font: 400 1.1rem/1.4 var(--mono); color: var(--hi); }
+html[data-r4] .measure .w { font-size: var(--fs-t); color: var(--dim); }
+html[data-r4] .rbar { grid-template-columns: 16rem 1fr; gap: 1.5ch; padding: .3rem 0; }
+html[data-r4] .rbar .nm { font: 400 var(--fs-t) var(--cell); }
+html[data-r4] .rbar .b { font: 400 var(--fs-s) var(--mono); gap: 1ch; }
+html[data-r4] .rbar .b i { height: 10px; background: var(--fg); }
+html[data-r4] .rbar.neg .b i { background: none; border: var(--bw) solid var(--fg); }
+
+/* ---------- forms and the error box ---------- */
+html[data-r4] label.f > span { font: 400 var(--fs-s)/1.6 var(--mono); letter-spacing: var(--track-s); color: var(--dim); text-transform: uppercase; }
+html[data-r4] label.f :is(input, select) { color-scheme: light; width: 100%; border: 0; background: var(--lit); color: var(--litfg); font: 400 var(--fs-t)/1.5 var(--mono); letter-spacing: .04em; padding: .2rem 1ch; margin-top: .2rem; }
+html[data-r4] label.f input::placeholder { color: var(--litfg); opacity: .6; }
+html[data-r4] label.f small { color: var(--dim); font-size: var(--fs-t); margin-top: .35rem; }
+html[data-r4] .pick { border-top: var(--bw) solid var(--faint); padding: .7rem 0; }
+html[data-r4] .pick:first-of-type { border-top: var(--bw) solid var(--line); }
+html[data-r4] .pick input, html[data-r4] input[type="checkbox"] { accent-color: var(--fg) !important; }
+html[data-r4] .pick b { font: 400 1.15rem var(--sans); letter-spacing: .02em; }
+html[data-r4] .pick small { font-size: var(--fs-t); color: var(--dim); }
+html[data-r4] .callout { border: var(--bw) solid var(--line); background: none; font: 400 var(--fs-t)/1.5 var(--text); padding: .7rem 1.5ch; color: var(--fg); }
+html[data-r4] .callout > b:first-child { display: block; background: var(--lit); color: var(--litfg); margin: -.7rem -1.5ch .1rem; padding: .3rem 1.5ch; }
+html[data-r4] .callout > b:first-child::before { content: "ERROR · "; }
+html[data-r4] .callout > b:first-child + br { display: none; }
+html[data-r4] .keyfig + dl.pairs { margin-top: 1.25rem; }
+
+/* ---------- side panel ---------- */
+html[data-r4] #scrim { background: rgb(0 0 0 / .72); }
+html[data-r4] #panel { background: var(--bg); color: var(--fg); border-left: var(--bw) solid var(--line); box-shadow: none; padding: 0 2rem 7rem; }
+html[data-r4] .phead { background: var(--bg); border-bottom: var(--bw) solid var(--line); }
+html[data-r4] .ptitle { font: 400 1.8rem/1.15 var(--sans); letter-spacing: .02em; }
+html[data-r4] .who { border: 0; padding: 0; color: var(--dim); }
+html[data-r4] .who.reply { color: var(--hi); }
+html[data-r4] .mtext { font: 400 14.5px/1.6 var(--mono); color: var(--fg); border-left: var(--bw) solid var(--dim); padding-left: 1.5ch; max-height: 22rem; }
+html[data-r4] .msay { font-size: var(--fs-t); color: var(--dim); }
+html[data-r4] .sbox { border: var(--bw) solid var(--line); padding: .55rem 1ch .6rem; }
+html[data-r4] .sbox .k { font: 400 var(--fs-s) var(--mono); letter-spacing: var(--track-s); color: var(--dim); opacity: 1; }
+html[data-r4] .sbox .o { font: 400 1.05rem/1.3 var(--mono); color: var(--hi); margin-top: .2rem; }
+html[data-r4] .sbox:not(:last-child)::after { color: var(--fg); }
+html[data-r4] .sbox.on { background: var(--lit); }
+html[data-r4] .sbox.on * { color: var(--litfg) !important; }
+html[data-r4] .sbox:hover { border-color: var(--hi); }
+html[data-r4] .sdetail { border-top: var(--bw) solid var(--line); }
+html[data-r4] .sdetail .one { border-top: var(--bw) solid var(--faint); }
+
+/* ---------- the chart's tooltip ---------- */
+html[data-r4] #tip { background: var(--bg); border: var(--bw) solid var(--line); box-shadow: 0 0 0 6px var(--bg); width: auto; min-width: 36ch; padding: 0 0 .6rem; }
+html[data-r4] #tip .tt { font: 400 var(--fs-t)/1.5 var(--mono); letter-spacing: .05em; background: var(--lit); color: var(--litfg); padding: .25rem 1.4ch; }
+html[data-r4] #tip .kicker { display: block; padding: .45rem 1.4ch 0; }
+html[data-r4] #tip dl { margin: .35rem 1.4ch 0; gap: 3px 3ch; font: 400 var(--fs-s)/1.5 var(--mono); letter-spacing: .04em; }
+html[data-r4] #tip dt { color: var(--dim); } html[data-r4] #tip dt.s { color: var(--fg); } html[data-r4] #tip dd { color: var(--hi); }
+html[data-r4] #tip .go { margin: .55rem 1.4ch 0; border-top: var(--bw) solid var(--faint); padding-top: .4rem; font: 400 var(--fs-s) var(--mono); letter-spacing: .05em; color: var(--hi); }
+
+/* =====================================================================
+   LOOK 1 · PLASMA. The main picture: a 1986 GRiDCase 1520 running a trading terminal.
+   One orange on near-black. Two typefaces as on that screen: a thin fixed-width face for the system's own
+   words (labels, fields, the command line) and a plain grotesque for titles and sentences. Values sit in lit
+   blocks (dark letters on an orange block). Thin rules, lots of empty screen, a title in the middle.
+   The chart is a plain box with tick marks on the inside, serif numerals, and a smooth line.
+   ===================================================================== */
+html[data-look="plasma"] {
+  --bg: #141416; --fg: #f09a3e; --dim: #b9772f; --faint: #5a3b1c; --hi: #ffb968;
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif; --text: var(--sans); --mono: "JetBrains Mono", Consolas, monospace; --tick: "Times New Roman", Times, serif;
+  --track: .035em; --refc: var(--fg); --ctxc: var(--fg);
+}
+html[data-look="plasma"] :is(.kicker, .meta, th, td, .hint, figcaption, .term, .cmd, .r4params, .mast nav a, .wordmark, .tog, .btn, .badge, .chip) { font-weight: 300; }
+html[data-look="plasma"] .mast { padding-bottom: .15rem; }
+html[data-look="plasma"] .mast nav { margin-inline: auto; }
+html[data-look="plasma"] .mast .spend { margin-left: 0; }
+/* the picture's command line: the words, a rule right under them, an empty band, a second rule */
+html[data-look="plasma"] .cmd { border-top: 0; padding: .1rem 0 .2rem; position: relative; margin-bottom: 3.6rem; }
+html[data-look="plasma"] .cmd::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1.15rem; border-bottom: 1px solid var(--line); }
+html[data-look="plasma"] .r4head { text-align: center; position: relative; }
+html[data-look="plasma"] .r4crumb { position: absolute; left: 0; top: .6rem; }
+html[data-look="plasma"] .r4title { font-size: 2.2rem; letter-spacing: .03em; margin-top: 0; }
+html[data-look="plasma"] .r4sub { font-size: 1.15rem; margin-bottom: 1.5rem; }
+html[data-look="plasma"] .r4params { justify-content: center; }
+html[data-look="plasma"] .statrow { text-align: center; border-top: 0; margin-top: 2.75rem; padding-top: 0; }
+html[data-look="plasma"] .statrow .track { max-width: 16rem; margin-inline: auto; }
+html[data-look="plasma"] .chartlede { text-align: center; margin-inline: auto; }
+html[data-look="plasma"] .fighead { border-bottom: 0; justify-content: center; }
+html[data-look="plasma"] .fighead .legend { margin-left: 0; width: 100%; justify-content: center; gap: .25rem 3ch; }
+html[data-look="plasma"] .fighead > .kicker:first-child { display: none; }
+html[data-look="plasma"] .figure figcaption { text-align: center; }
+html[data-look="plasma"] .sechead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; border-top: 0; border-bottom: 1px solid var(--line); padding: 0 0 .5rem; }
+html[data-look="plasma"] .sechead h2 { grid-column: 2; }
+html[data-look="plasma"] .sechead .kicker { justify-self: end; }
+html[data-look="plasma"] .subhead { border-top: 0; margin-top: 2.5rem; }
+
+/* =====================================================================
+   LOOK 2 · DEALING DESK. The colour screens of the early 1990s desk: black, amber text, and a few colours
+   that each have one job. Red bars carry headings, white is the number to read first, blue is a label,
+   green and red are gain and loss. One fixed-width face, normal case, rows packed closer.
+   The chart has a blue frame and grid, as the Reuters colour monitor in the picture does.
+   ===================================================================== */
+html[data-look="desk"] {
+  --bg: #000000; --fg: #ffa028; --dim: #c07a1e; --faint: #3a3a3a; --hi: #ffffff;
+  --red: #b3231b; --blue: #2f6fd6; --lab: #6fb7ff; --up: #3fdc6c; --dn: #ff6a5c;
+  --sans: "IBM Plex Mono", Consolas, monospace; --text: var(--sans); --mono: var(--sans);
+  --fs: 16px; --fs-t: 15.5px; --fs-s: 13.5px; --track-s: .02em;
+  --line: var(--blue); --gridc: #1c3f7a; --subj: #ffffff; --refc: var(--fg); --ctxc: #49d6e8;
+}
+html[data-look="desk"][data-tube] { --line: var(--blue); }
+html[data-look="desk"] :is(.kicker, th, .term) { color: var(--lab); }
+html[data-look="desk"] label.f > span { color: var(--lab); }
+html[data-look="desk"] .mast { background: #2b2b2b; padding: 0; gap: 0 1ch; margin-bottom: 0; }
+html[data-look="desk"] .wordmark { background: var(--red); color: #fff; padding: .15rem 1.5ch; font-weight: 600; }
+html[data-look="desk"] .mast nav a { color: #d6d6d6; text-transform: none; letter-spacing: .02em; padding: .15rem 1.5ch; }
+html[data-look="desk"] .mast nav a.on { background: var(--red); color: #fff; }
+html[data-look="desk"] .mast nav a:hover { background: #555; color: #fff; }
+html[data-look="desk"] .mast .spend { padding-right: 1.5ch; color: #d6d6d6; }
+html[data-look="desk"] .mast .spend b { color: #fff !important; }
+html[data-look="desk"] .cmd { border: 0; text-transform: none; letter-spacing: .02em; padding: .35rem 0; margin-bottom: 1.25rem; font-size: var(--fs); }
+html[data-look="desk"] .cmd .ct::before { content: "█ "; color: var(--blue); animation: r4blink 1.2s steps(1) infinite; }
+html[data-look="desk"] .cmd kbd { background: #1f9d4c; color: #fff; padding: 0 .8ch; }
+html[data-look="desk"] :is(.r4title, h1.title) { font: 600 1.25rem/1.5 var(--mono); background: var(--red); color: #fff; padding: .15rem 1.5ch; margin: .5rem 0 .5rem; letter-spacing: .01em; }
+html[data-look="desk"] .r4sub { font-size: 1rem; margin-bottom: .7rem; color: var(--fg); }
+html[data-look="desk"] .r4params { text-transform: none; letter-spacing: .01em; gap: .4rem 2.5ch; }
+html[data-look="desk"] .pf i { color: var(--lab); }
+html[data-look="desk"] .statrow { margin-top: 1.25rem; padding-top: .8rem; border-top: 1px solid var(--blue); }
+html[data-look="desk"] .statbig { font: 600 2.2rem/1.1 var(--mono); }
+html[data-look="desk"] .chartblock { margin-top: 1.75rem; }
+html[data-look="desk"] .chartlede { font-size: 1.05rem; }
+html[data-look="desk"] .fighead { background: var(--red); border: 0; padding: .2rem 1.5ch; }
+html[data-look="desk"] .fighead * { color: #fff !important; }
+html[data-look="desk"] .fighead h3 { font: 600 1rem/1.5 var(--mono); }
+html[data-look="desk"] .fighead .sw { border-top-color: #fff; }
+html[data-look="desk"] .sechead { background: var(--red); border: 0; padding: .2rem 1.5ch; margin-bottom: .9rem; }
+html[data-look="desk"] .sechead * { color: #fff !important; }
+html[data-look="desk"] .sechead h2 { font: 600 1.1rem/1.5 var(--mono); letter-spacing: .01em; }
+html[data-look="desk"] .subhead { font: 600 1rem/1.5 var(--mono); color: var(--hi); border-top: 1px solid var(--blue); margin-top: 1.5rem; }
+html[data-look="desk"] .stack > * + * { margin-top: 2.25rem; }
+html[data-look="desk"] thead tr { border: 0; background: #5c1410; }
+html[data-look="desk"] th { color: #fff; padding: .2rem 2ch .2rem 1ch; }
+html[data-look="desk"] td { padding: .2rem 2ch .2rem 1ch; }
+html[data-look="desk"] td.num { color: var(--hi); }
+html[data-look="desk"] td.num.up { color: var(--up); } html[data-look="desk"] td.num.dn { color: var(--dn); }
+html[data-look="desk"] tr.click:hover { background: var(--blue); }
+html[data-look="desk"] tr.click:hover * { color: #fff !important; }
+html[data-look="desk"] li.click:hover { background: var(--blue); }
+html[data-look="desk"] li.click:hover * { color: #fff !important; }
+html[data-look="desk"] ol.list > li { padding: .3rem 0; }
+html[data-look="desk"] .measure { padding: .35rem 0; }
+html[data-look="desk"] .onpage .idx { font-size: 0; }
+html[data-look="desk"] .onpage .idx::before { content: attr(data-n) ")"; font: 600 var(--fs-s) var(--mono); background: var(--blue); color: #fff; padding: 0 .7ch; }
+html[data-look="desk"] .onpage .nm { font-size: 1rem; }
+html[data-look="desk"] .tog.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+html[data-look="desk"] .tog.on span { color: #fff; }
+html[data-look="desk"] .btn.hot { background: var(--red); border-color: var(--red); color: #fff; }
+html[data-look="desk"] .track { border-color: var(--blue); }
+html[data-look="desk"] .rbar .b i { background: var(--up); }
+html[data-look="desk"] .rbar.neg .b i { background: var(--dn); border: 0; }
+html[data-look="desk"] .callout { border-color: var(--red); }
+html[data-look="desk"] .callout > b:first-child { background: var(--red); color: #fff; }
+html[data-look="desk"] #tip .tt { background: var(--red); color: #fff; }
+html[data-look="desk"] .plot .tick { fill: var(--lab); font-size: 14px; }
+html[data-look="desk"] .sbox.on { background: var(--blue); }
+html[data-look="desk"] .sbox.on * { color: #fff !important; }
+html[data-look="desk"] .ptitle { font: 600 1.4rem/1.3 var(--mono); }
+html[data-look="desk"] .timeline .t { font-size: var(--fs-t); }
+
+/* =====================================================================
+   LOOK 3 · PAGE. The green "page" screen: every screen is a numbered page with an INDEX bar and a
+   COMMAND bar in reverse video across the top, titles centred in plain capitals, and column headings
+   inside a drawn box. One wide fixed-width face in capitals, close to one size throughout.
+   Values line up with rows of dots; meters are rows of thin bars. The chart is drawn in hard steps.
+   ===================================================================== */
+html[data-look="page"] {
+  --bg: #000000; --fg: #2ee6a0; --dim: #22ad79; --faint: #105a3f; --hi: #c4ffe6;
+  --sans: "JetBrains Mono", Consolas, monospace; --text: var(--sans); --mono: var(--sans);
+  --fs: 16px; --fs-t: 15.5px; --fs-s: 14px; --track: .07em; --track-s: .07em;
+}
+html[data-look="page"] :is(.kicker, .meta, th, td, .hint, figcaption, .term, .cmd, .r4params, .mast nav a, .wordmark, .tog, .btn, .badge, .chip) { font-weight: 500; }
+html[data-look="page"] body { font-weight: 500; }
+html[data-look="page"] .mast { display: grid; grid-template-columns: 14ch 1fr auto; gap: 0; padding: 0; margin-bottom: .35rem; }
+html[data-look="page"] .mast nav { background: var(--lit); justify-content: center; gap: 0 1ch; padding: 0 1ch; }
+html[data-look="page"] .mast nav::before, html[data-look="page"] .mast nav::after { content: "***"; color: var(--litfg); font: 500 var(--fs-s)/1.7 var(--mono); padding: 0 2ch; }
+html[data-look="page"] .mast nav a { color: var(--litfg); }
+html[data-look="page"] .mast nav a.on, html[data-look="page"] .mast nav a:hover { background: var(--bg); color: var(--fg); }
+html[data-look="page"] .mast .spend { margin: 0; padding-left: 2ch; }
+html[data-look="page"] .cmd { border: 0; padding: 0; gap: 0; font-size: var(--fs-s); margin-bottom: 2.5rem; }
+html[data-look="page"] .cmd .cl { display: block; width: 14ch; }
+html[data-look="page"] .cmd .cl::after { content: " :█"; }
+html[data-look="page"] .cmd .ct { flex: 1; background: var(--lit); color: var(--litfg); text-align: center; padding: 0 1ch; line-height: 1.7; }
+html[data-look="page"] .cmd kbd { display: none; }
+html[data-look="page"] .r4head { text-align: center; }
+html[data-look="page"] :is(.r4title, h1.title) { font: 500 1.3rem/1.4 var(--mono); letter-spacing: .1em; }
+html[data-look="page"] .r4sub { font: 500 var(--fs-s)/1.5 var(--mono); }
+html[data-look="page"] .r4params { border: 1px solid var(--fg); padding: .2rem 1.5ch; justify-content: space-between; }
+html[data-look="page"] .pf b { background: none; color: var(--hi); padding: 0; }
+html[data-look="page"] .statrow { border: 1px solid var(--fg); padding: 0; gap: 0; margin-top: 1.25rem; }
+html[data-look="page"] .statrow > div { padding: .7rem 1.5ch .8rem; }
+html[data-look="page"] .statrow > div + div { border-left: 1px solid var(--fg); }
+html[data-look="page"] .statbig { font: 500 1.9rem/1.2 var(--mono); }
+html[data-look="page"] .chartlede { font-size: var(--fs); max-width: 62ch; }
+html[data-look="page"] .fighead { border: 0; flex-direction: column; align-items: center; }
+html[data-look="page"] .fighead h3 { font: 500 var(--fs)/1.5 var(--mono); letter-spacing: .07em; }
+html[data-look="page"] .fighead > .kicker:first-child { display: none; }
+html[data-look="page"] .fighead .legend { margin: 0; border: 1px solid var(--fg); padding: .1rem 1.5ch; justify-content: space-between; align-self: stretch; }
+html[data-look="page"] .sechead { border: 0; padding: 0; justify-content: center; margin-bottom: .5rem; }
+html[data-look="page"] .sechead .n { display: none; }
+html[data-look="page"] .sechead h2 { font: 500 1.15rem/1.5 var(--mono); letter-spacing: .1em; }
+html[data-look="page"] .subhead { font: 500 var(--fs)/1.5 var(--mono); letter-spacing: .07em; border: 0; text-align: center; margin-top: 2.5rem; }
+html[data-look="page"] .subhead .kicker { display: block; margin: 0; }
+html[data-look="page"] thead tr { border: 0; outline: 1px solid var(--fg); outline-offset: -1px; }
+html[data-look="page"] th { color: var(--fg); padding: .25rem 2ch .25rem 1.2ch; }
+html[data-look="page"] td { padding: .4rem 2ch .4rem 1.2ch; }
+html[data-look="page"] tbody tr:first-child td { padding-top: .8rem; }
+html[data-look="page"] .filters { border: 1px solid var(--fg); padding: .15rem 1.2ch; }
+html[data-look="page"] .filters .kicker { width: auto; color: var(--fg); }
+html[data-look="page"] .track { height: 1.05em; border: 1px solid var(--fg); background: repeating-linear-gradient(90deg, var(--faint) 0 2px, transparent 2px 6px); }
+html[data-look="page"] .track i { background: repeating-linear-gradient(90deg, var(--fg) 0 3px, var(--bg) 3px 6px); }
+html[data-look="page"] .rbar .b i { height: .9em; background: repeating-linear-gradient(90deg, var(--fg) 0 3px, transparent 3px 6px); }
+html[data-look="page"] .rbar.neg .b i { border: 0; background: repeating-linear-gradient(90deg, var(--dim) 0 1px, transparent 1px 6px); }
+html[data-look="page"] dl.pairs { border-top: 1px solid var(--fg); }
+html[data-look="page"] dl.pairs dt { display: flex; align-items: baseline; font-size: var(--fs-t); }
+html[data-look="page"] dl.pairs dt::after { content: ""; flex: 1; border-bottom: 2px dotted var(--dim); margin: 0 0 .3em 1ch; min-width: 2ch; }
+html[data-look="page"] .measure .w { max-width: 60ch; }
+html[data-look="page"] .onpage .nm, html[data-look="page"] .timeline .t { font: 500 var(--fs-t) var(--mono); }
+html[data-look="page"] .ptitle { font: 500 1.3rem/1.4 var(--mono); letter-spacing: .08em; }
+html[data-look="page"] .plot .tick { font-weight: 500; font-size: 14px; }
+html[data-look="page"] .waiting p { font: 500 var(--fs) var(--mono); }
+html[data-look="page"] .pick b { font: 500 var(--fs) var(--mono); }
+
+/* =====================================================================
+   LOOK 4 · WORKSTATION. The black-and-white PC workstation: the screen is a striped desktop, each part
+   of the page is a window with a double border and a title bar, and where a colour screen would use
+   colour this one uses patterns: hatching in bars and meters, and a different mark on each chart line
+   (+, a box, a star), named in the legend. The PC's own screen letters, in normal case.
+   ===================================================================== */
+html[data-look="work"] {
+  --bg: #000000; --fg: #ececec; --dim: #adadad; --faint: #5c5c5c; --hi: #ffffff;
+  --sans: "IBM VGA", Consolas, monospace; --text: var(--sans); --mono: var(--sans);
+  --fs: 16px; --fs-t: 16px; --fs-s: 16px; --track-s: 0em; --refc: var(--fg); --ctxc: var(--fg);
+}
+html[data-look="work"] body { background: repeating-linear-gradient(90deg, #000 0 2px, #6a6a6a 2px 4px); line-height: 1.45; }
+html[data-look="work"][data-tube] body { background: repeating-linear-gradient(90deg, #000 0 2px, var(--faint) 2px 4px); }
+html[data-look="work"] main { background: var(--bg); border: 3px double var(--fg); margin: 1.25rem auto 8rem; padding-top: 0; padding-bottom: 2rem; max-width: 1460px; }
+html[data-look="work"] :is(.kicker, .meta, th, .hint, figcaption, .term, .masked, .when, .who) { letter-spacing: 0; line-height: 1.4; }
+html[data-look="work"] .mast { border-bottom: 1px solid var(--fg); margin: 0 -2.5rem; padding: .35rem 2.5rem; gap: .2rem 3ch; }
+html[data-look="work"] .mast nav { gap: .2rem 2ch; }
+html[data-look="work"] .mast nav a, html[data-look="work"] .wordmark { letter-spacing: 0; font-size: 16px; }
+html[data-look="work"] .cmd { border-top: 0; margin: 0 -2.5rem 1.5rem; padding: .3rem 2.5rem; letter-spacing: 0; text-transform: none; }
+html[data-look="work"] .cmd kbd { display: none; }
+html[data-look="work"] .win { border: 3px double var(--fg); padding: 0 2ch 1.1rem; background: var(--bg); }
+html[data-look="work"] .stack > * + * { margin-top: 1.5rem; }
+html[data-look="work"] .r4crumb { position: absolute; right: 2ch; top: .3rem; }
+html[data-look="work"] .r4head { position: relative; }
+html[data-look="work"] :is(.r4title, .sechead, .fighead) { border: 0; border-bottom: 1px solid var(--fg); margin: 0 -2ch 1rem; padding: .25rem 2ch; }
+html[data-look="work"] .r4title { font: 400 16px/1.45 var(--sans); letter-spacing: 0; }
+html[data-look="work"] h1.title { font: 400 32px/1.15 var(--sans); letter-spacing: 0; }
+html[data-look="work"] :is(.r4title, .sechead h2, .fighead h3)::before { content: "■ "; }
+html[data-look="work"] .sechead h2, html[data-look="work"] .fighead h3 { font: 400 16px/1.45 var(--sans); letter-spacing: 0; }
+html[data-look="work"] .sechead .n, html[data-look="work"] .fighead > .kicker:first-child { display: none; }
+html[data-look="work"] .r4sub { font: 400 16px/1.45 var(--sans); }
+html[data-look="work"] .r4params { letter-spacing: 0; text-transform: none; }
+html[data-look="work"] .statrow { border-top: 1px solid var(--fg); margin: 1rem -2ch 0; padding: .9rem 2ch 0; }
+html[data-look="work"] .statbig { font: 400 32px/1.1 var(--sans); }
+html[data-look="work"] .statbig small { font-size: 16px; letter-spacing: 0; }
+html[data-look="work"] .keyfig { font: 400 48px/1 var(--sans); } html[data-look="work"] .keyfig small { font-size: 16px; }
+html[data-look="work"] .chartblock { margin-top: 1.5rem; padding-top: 0; }
+html[data-look="work"] .chartlede { font-size: 16px; margin: .8rem 0; }
+html[data-look="work"] .chartblock .figure { border: 1px solid var(--fg); padding: 0 2ch; }
+html[data-look="work"] .figure figcaption { border-top: 1px solid var(--fg); margin: .4rem -2ch 0; padding: .25rem 2ch; letter-spacing: 0; }
+html[data-look="work"] .g12.mt3 { margin-top: 1.5rem; column-gap: 1.5rem; }
+html[data-look="work"] .railwin { padding-top: .8rem; }
+html[data-look="work"] .subhead { font: 400 16px/1.45 var(--sans); letter-spacing: 0; border-top: 1px solid var(--fg); margin-inline: -2ch; padding: .3rem 2ch 0; text-decoration: underline; text-underline-offset: 4px; }
+html[data-look="work"] .subhead .kicker { display: inline-block; text-decoration: none; }
+html[data-look="work"] :is(.onpage .nm, .timeline .t, .pick b, .ptitle, .waiting p, .lead, .measure .v, .meters .big, .sbox .o) { font: 400 16px/1.45 var(--sans); letter-spacing: 0; }
+html[data-look="work"] .ptitle { font-size: 32px; line-height: 1.15; }
+html[data-look="work"] td, html[data-look="work"] td.num, html[data-look="work"] th.num { letter-spacing: 0; font-size: 16px; }
+html[data-look="work"] .track { height: 14px; }
+html[data-look="work"] .track i { background: repeating-linear-gradient(45deg, var(--fg) 0 2px, var(--bg) 2px 6px); border-right: 1px solid var(--fg); }
+html[data-look="work"] .rbar .b i { height: 14px; background: repeating-linear-gradient(45deg, var(--fg) 0 2px, var(--bg) 2px 6px); outline: 1px solid var(--fg); }
+html[data-look="work"] .rbar.neg .b i { border: 0; background: radial-gradient(var(--fg) 1px, transparent 1.4px) 0 0 / 5px 5px; }
+html[data-look="work"] .tog, html[data-look="work"] .btn, html[data-look="work"] .badge, html[data-look="work"] .chip { letter-spacing: 0; }
+html[data-look="work"] .btn { border: 3px double var(--fg); }
+html[data-look="work"] #panel { border-left: 3px double var(--fg); }
+html[data-look="work"] #tip { border: 3px double var(--fg); }
+html[data-look="work"] .plot .tick, html[data-look="work"] .plot .lbl { font: 400 16px var(--sans); letter-spacing: 0; }
+html[data-look="work"] #bigplot .ln.dashed, html[data-look="work"] #bigplot .ln.context { stroke-dasharray: none; stroke-width: 1.25; }
+html[data-look="work"] #bigplot .ln.subject { stroke-width: 1.75; }
+html[data-look="work"] .sw { display: none; }
+html[data-look="work"] .mtext { font: 400 16px/1.5 var(--sans); }
+html[data-look="work"] label.f :is(input, select) { letter-spacing: 0; }
+
+/* =====================================================================
+   LOOK 5 · WIREFRAME. The orange poster: red-orange lines, amber letters, and every part of the screen
+   inside an outlined box. A label and its value share a box split by a line; headings sit in a box with a
+   numbered cell and a leader line running off to the right; the day of the sim is a ruler with a pointer.
+   A heavy display face for the title, a plain grotesque in spaced capitals for labels, a fixed-width face
+   for numbers. The chart has a full grid and hatching under the line.
+   ===================================================================== */
+html[data-look="wire"] {
+  --bg: #0a0807; --fg: #ffb238; --dim: #e0762c; --faint: #6e2a14; --hi: #ffd98a; --line: #ff5422;
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif; --text: var(--sans); --mono: "JetBrains Mono", Consolas, monospace;
+  --bw: 1.5px; --track: .06em; --track-s: .09em; --gridc: #5a2110; --refc: var(--dim); --ctxc: var(--dim); --cell: var(--mono);
+}
+html[data-look="wire"][data-tube] { --line: var(--dim); --gridc: var(--faint); }
+html[data-look="wire"] :is(.kicker, .meta, th, .hint, figcaption, .term, .when, .who, .tog, .btn, .badge) { font-family: var(--sans); font-size: 13px; }
+html[data-look="wire"] .mast { border: 1.5px solid var(--line); padding: 0; gap: 0; align-items: stretch; }
+html[data-look="wire"] .wordmark { padding: .45rem 2ch; border-right: 1.5px solid var(--line); font: 700 13px/1.7 var(--sans); letter-spacing: .14em; }
+html[data-look="wire"] .mast nav { gap: 0; }
+html[data-look="wire"] .mast nav a { font: 400 13px/1.7 var(--sans); letter-spacing: .14em; padding: .45rem 2ch; border-right: 1.5px solid var(--line); }
+html[data-look="wire"] .mast .spend { align-self: center; padding-right: 2ch; }
+html[data-look="wire"] .cmd { border: 1.5px solid var(--line); border-top: 0; padding: 0; gap: 0; font: 400 13px/1.7 var(--sans); letter-spacing: .14em; margin-bottom: 2.5rem; width: fit-content; }
+html[data-look="wire"] .cmd .cl { display: block; padding: .4rem 2ch; border-right: 1.5px solid var(--line); color: var(--dim); }
+html[data-look="wire"] .cmd .cl::after { content: ":"; }
+html[data-look="wire"] .cmd .ct { padding: .4rem 0 .4rem 2ch; }
+html[data-look="wire"] .cmd kbd { padding: .4rem 2ch .4rem 1ch; font: inherit; }
+html[data-look="wire"] :is(.r4title, h1.title) { font: 800 3.1rem/1 "Bricolage Grotesque", var(--sans); letter-spacing: -.01em; color: var(--fg); text-shadow: 0 0 18px rgb(255 140 40 / .35); margin: .6rem 0 .5rem; }
+html[data-look="wire"] .r4sub { letter-spacing: .14em; font-size: .95rem; }
+html[data-look="wire"] .r4params { gap: .6rem 1.5ch; font-family: var(--sans); font-size: 13px; letter-spacing: .12em; }
+html[data-look="wire"] .pf { border: 1.5px solid var(--line); gap: 0; }
+html[data-look="wire"] .pf i { padding: .35rem 1.5ch; border-right: 1.5px solid var(--line); }
+html[data-look="wire"] .pf b { background: none; color: var(--hi); padding: .35rem 1.5ch; font: 400 15px/1.2 var(--mono); letter-spacing: .04em; }
+html[data-look="wire"] .pf em { padding: .35rem 1.5ch .35rem 0; }
+html[data-look="wire"] .pf.note { border: 0; }
+html[data-look="wire"] .ruler { display: block; position: relative; height: 3.6rem; margin: 1.6rem 0 0; max-width: 62rem; }
+html[data-look="wire"] .ruler .scale { position: absolute; left: 0; right: 0; top: 1.5rem; height: .8rem; border: 1.5px solid var(--line); border-top: 0;
+  background: repeating-linear-gradient(90deg, var(--line) 0 1.5px, transparent 1.5px calc(100% / var(--days))) 0 100% / 100% 45% no-repeat; }
+html[data-look="wire"] .ruler .scale span { position: absolute; top: -1.5rem; transform: translateX(-50%); font: 400 13px var(--mono); color: var(--fg); }
+html[data-look="wire"] .ruler .scale span:first-child { transform: none; } html[data-look="wire"] .ruler .scale span:last-child { transform: translateX(-100%); }
+html[data-look="wire"] .ruler > i { position: absolute; top: 2.55rem; width: 0; height: 0; margin-left: -8px; border: 8px solid transparent; border-top: 0; border-bottom: 11px solid var(--fg); }
+html[data-look="wire"] .statrow { border-top: 0; padding-top: 0; gap: 1.2rem 1.5ch; margin-top: 1.4rem; }
+html[data-look="wire"] .statrow > div { border: 1.5px solid var(--line); padding: .8rem 2ch 1rem; box-shadow: 0 0 14px rgb(255 84 34 / .14), inset 0 0 14px rgb(255 84 34 / .07); }
+html[data-look="wire"] .statbig { font: 400 2.4rem/1.15 var(--mono); letter-spacing: -.01em; }
+html[data-look="wire"] .chartlede { letter-spacing: .04em; }
+html[data-look="wire"] .chartblock .figure { border: 1.5px solid var(--line); padding: 0 2ch .7rem; box-shadow: 0 0 14px rgb(255 84 34 / .14); }
+html[data-look="wire"] .fighead { margin: 0 -2ch; padding: .5rem 2ch; border-bottom: 1.5px solid var(--line); }
+html[data-look="wire"] .fighead h3 { font: 700 1rem/1.5 var(--sans); letter-spacing: .14em; }
+html[data-look="wire"] .sechead { border: 1.5px solid var(--line); padding: 0; align-items: stretch; gap: 0; flex-wrap: nowrap; box-shadow: 0 0 14px rgb(255 84 34 / .14); }
+html[data-look="wire"] .sechead .n { padding: .6rem 1.6ch; border-right: 1.5px solid var(--line); font: 400 15px/1.5 var(--mono); color: var(--fg); }
+html[data-look="wire"] .sechead h2 { font: 700 1.1rem/1.5 var(--sans); letter-spacing: .16em; padding: .6rem 2ch; display: flex; align-items: center; flex: 1; gap: 2ch; white-space: nowrap; }
+html[data-look="wire"] .sechead h2::after { content: ""; flex: 1; border-top: 1.5px solid var(--line); margin-right: .5ch; }
+html[data-look="wire"] .subhead { font: 700 .95rem/1.5 var(--sans); letter-spacing: .14em; border-top: 4px double var(--line); padding-top: .7rem; color: var(--fg); }
+html[data-look="wire"] td { border-bottom: 1px solid var(--faint); }
+html[data-look="wire"] thead tr { border-bottom: 1.5px solid var(--line); }
+html[data-look="wire"] ol.list > li { border-top-color: var(--faint); }
+html[data-look="wire"] .onpage li { border: 0 !important; padding: .3rem 0 !important; }
+html[data-look="wire"] .onpage a { gap: 1ch; align-items: stretch; }
+html[data-look="wire"] .onpage .idx { border: 1.5px solid var(--line); padding: .45rem 1.2ch; font: 400 15px/1.4 var(--mono); color: var(--fg); }
+html[data-look="wire"] .onpage .nm { flex: 1; border: 1.5px solid var(--line); padding: .45rem 1.5ch; font: 400 .9rem/1.6 var(--sans); letter-spacing: .14em; display: flex; align-items: center; gap: 1.5ch; flex-direction: row-reverse; }
+html[data-look="wire"] .onpage .nm::after { content: ""; flex: 1; border-top: 1.5px solid var(--line); }
+html[data-look="wire"] .onpage a:hover :is(.idx, .nm) { background: var(--lit); color: var(--litfg); }
+html[data-look="wire"] .measure .w, html[data-look="wire"] .msay, html[data-look="wire"] .lead { letter-spacing: .03em; }
+html[data-look="wire"] .btn { letter-spacing: .14em; padding: .45rem 2ch; }
+html[data-look="wire"] .btn:hover { box-shadow: 0 0 16px rgb(255 84 34 / .5); }
+html[data-look="wire"] .tog { border-color: var(--faint); letter-spacing: .1em; }
+html[data-look="wire"] .sbox, html[data-look="wire"] #tip, html[data-look="wire"] .callout { box-shadow: 0 0 14px rgb(255 84 34 / .16); }
+html[data-look="wire"] .ptitle { font: 800 2.2rem/1.05 "Bricolage Grotesque", var(--sans); letter-spacing: 0; color: var(--fg); }
+html[data-look="wire"] #bigplot .ln.subject { stroke: var(--hi); filter: drop-shadow(0 0 4px rgb(255 190 90 / .55)); }
+html[data-look="wire"] .plot .tick { font: 400 13.5px var(--mono); }
+html[data-look="wire"] .timeline .t { letter-spacing: .05em; font-size: .95rem; }
