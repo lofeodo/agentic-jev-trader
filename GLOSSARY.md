@@ -31,7 +31,7 @@ A stock's trading hours within one day. Crypto has no session.
 _Avoid_: Trading day, market hours
 
 **Dataset**:
-A fixed, versioned set of assets, instruments, bars, and candle features that runs are executed on. Once published it never changes.
+A fixed, versioned set of assets, instruments, bars, and candle features that trading sims are executed on. Once published it never changes.
 _Avoid_: Data set, universe
 
 **Data provider**:
@@ -62,7 +62,7 @@ The part of a dataset's date range used for building, tuning, and building up me
 _Avoid_: Training period, in-sample
 
 **Warm-up period**:
-The first three months of a dataset's development period, in which no run trades. Its bars supply the history that later measurements need and the averages and spreads those measurements are scaled by.
+The first three months of a dataset's development period, in which no sim trades. Its bars supply the history that later measurements need and the averages and spreads those measurements are scaled by.
 _Avoid_: Burn-in, lookback period
 
 **Test period**:
@@ -94,62 +94,66 @@ _Avoid_: Alias, anonymized ID
 The mapping from each masked ID back to the real asset and its price and volume scales. Never visible to the agent.
 _Avoid_: Lookup table, mapping table
 
-### Runs
+### Trading sims
 
-**Run**:
-One replay of an agent or baseline over a step range of one dataset, with its own account and its own memory. At its last step code closes every open position, so a run that reaches it ends in cash; a run stopped earlier keeps its positions open and can be restarted.
-_Avoid_: Backtest (as a noun for the record), session, simulation
+**Trading sim**:
+One replay of an agent or baseline over a step range of one dataset, with its own account and its own memory: a simulation of trading through past market days. "Sim" for short. At its last step code closes every open position, so a sim that reaches it ends in cash; a sim stopped earlier keeps its positions open and can be restarted. The text sent to Jev and the LLM still calls it a run.
+_Avoid_: Run (outside the text the models are sent), backtest, session, simulation (unqualified)
 
-**Live run**:
-A run that is in progress and being watched in the web app. It is still a historical replay.
+**Live sim**:
+A sim that is in progress and being watched in the web app. It is still a historical replay.
 _Avoid_: Live trading, paper trading
 
-**Practice run**:
-A brief run that calls the real paid services, Jev and the LLM, to confirm that the system works. Its results never count toward a conclusion.
-_Avoid_: Test run, trial run, pilot run, smoke run
+**Practice sim**:
+A brief sim that calls the real paid services, Jev and the LLM, to confirm that the system works. Its results never count toward a conclusion. It is a developer's tool, started from the command line and never from the web app.
+_Avoid_: Practice run, test run, trial run, pilot run, smoke run
 
-**Measurement run**:
-A run whose results count toward the project's conclusions.
-_Avoid_: Actual run, real run, full run
+**Measurement sim**:
+A sim whose results count toward the project's conclusions.
+_Avoid_: Measurement run, actual run, real run, full run
 
-**Tuning run**:
-A short run in the development period, made to adjust how the agent behaves before its settings are frozen. Its results never count toward a conclusion.
-_Avoid_: Calibration run, experiment, dry run
+**Tuning sim**:
+A short sim in the development period, made to adjust how the agent behaves before its settings are frozen. Its results never count toward a conclusion. It is a developer's tool, started from the command line and never from the web app.
+_Avoid_: Tuning run, calibration run, experiment, dry run
 
-**Build-up run**:
-A run in the development period whose purpose is to fill a memory with episodes and a track record. It trades as the `memory_off` variant does, reading no memory, and its results never count toward a conclusion.
-_Avoid_: Seeding run, training run, warm-up run
+**Build-up sim**:
+A sim in the development period whose purpose is to fill a memory with episodes and a scorecard. It trades as the `memory_off` variant does, reading no memory, and its results never count toward a conclusion.
+_Avoid_: Build-up run, seeding run, training run, warm-up run
+
+**Free sim**:
+A sim on days the developer chooses, started from the web app to watch the agent trade or to try something. It cannot use test period days, and its results never count toward a conclusion.
+_Avoid_: Custom run, open run, sandbox
 
 **Spending cap**:
-The amount of spending on Jev and LLM calls at which code stops a run, once the current step has ended. It counts money paid for model calls, never trading losses.
+The amount of spending on Jev and LLM calls at which code stops a sim, once the current step has ended. It counts money paid for model calls, never trading losses.
 _Avoid_: Call budget, run budget, dollar cap
 
 **Variant**:
-Which strategy a run uses: `buy_hold` (equal money put into every asset at the first step and held until the run's last step), `memory_off`, or `memory_on`.
+Which strategy a sim uses: `buy_hold` (equal money put into every asset at the first step and held until the sim's last step), `memory_off`, or `memory_on`.
 _Avoid_: Mode, arm, configuration
 
 **Random seed**:
-The number that fixes the part of a run's randomness that code controls. Jev's answers vary on their own, so two runs with the same random seed can still differ.
+The number that fixes the part of a sim's randomness that code controls. Jev's answers vary on their own, so two sims with the same random seed can still differ.
 _Avoid_: Seed (unqualified)
 
 **Repeat**:
-One `memory_on` run and one `memory_off` run over the same steps with the same settings. Repeats differ only by chance, such as Jev answering the same question slightly differently.
+One `memory_on` sim and one `memory_off` sim over the same steps with the same settings. Repeats differ only by chance, such as Jev answering the same question slightly differently.
 _Avoid_: Trial, replicate, iteration
 
 **Verdict**:
-The conclusion about memory for one part of the test period, drawn by comparing the ending account value of its `memory_on` runs with that of its `memory_off` runs: memory helped, memory hurt, or can't tell.
+The conclusion about memory for one part of the test period, drawn by comparing the ending account value of its `memory_on` sims with that of its `memory_off` sims: memory helped, memory hurt, or can't tell.
 _Avoid_: Result (for the conclusion), significance
 
 **Base memory**:
-The memory a build-up run leaves behind, which never changes afterwards. Every `memory_on` run starts from a fresh copy of it, its seed memory.
+The memory a build-up sim leaves behind, which never changes afterwards. Every `memory_on` sim starts from a fresh copy of it, its seed memory.
 _Avoid_: Initial memory, starting memory
 
 **Seed memory**:
-A copy of another run's memory that a run starts from. In version 1 the only memory copied is the base memory.
+A copy of another sim's memory that a sim starts from. In version 1 the only memory copied is the base memory.
 _Avoid_: Seed (unqualified), warm start
 
 **Memory namespace**:
-The label that keeps one run's episodes and track record separate from every other run's.
+The label that keeps one sim's episodes and scorecard separate from every other sim's.
 
 ### Deciding
 
@@ -174,7 +178,7 @@ The Tier 2 path, where the LLM selects past episodes and Jev either picks a cand
 _Avoid_: Closer look
 
 **Lookup**:
-One use by the LLM, during a full evaluation, of a tool that reads memory: another episode search, reading episodes in full, or reading the track record. Giving its answer is not a lookup.
+One use by the LLM, during a full evaluation, of a tool that reads memory: another episode search, reading episodes in full, or reading the scorecard. Giving its answer is not a lookup.
 _Avoid_: Tool call (the answer is one too), query, retrieval
 
 **Failed reply**:
@@ -182,12 +186,16 @@ A reply from the LLM from which code can neither run a lookup nor take an answer
 _Avoid_: Invalid output, malformed answer
 
 **Prompt version**:
-The name of one exact wording of everything the LLM is sent that is not data: its standing instructions, its tool descriptions, and the layout of each message. Every run and every full evaluation records the one it used.
+The name of one exact wording of everything the LLM is sent that is not data: its standing instructions, its tool descriptions, and the layout of each message. Every sim and every full evaluation records the one it used.
 _Avoid_: Prompt revision, prompt ID
 
 **Transcript**:
 Every message of one full evaluation's exchange between code and the LLM, in order and word for word.
 _Avoid_: Trace (that is a tracing service's own recording), chat log, conversation
+
+**Decision trail**:
+Everything that was asked and answered on the way to one decision, in order: the screen, the LLM's exchange with memory, Jev's pick, Jev's size, what code trimmed, and the order.
+_Avoid_: Chain of thought (Jev does not reason in words), exchange, trace (that is a tracing service's own recording)
 
 **Candidate trade**:
 One of the trades code lists for an asset at a step: an instrument, a direction, and a stop price.
@@ -209,7 +217,7 @@ The text code writes for one Jev request to describe the moment: the task, the a
 _Avoid_: State, context (that is a snapshot's measurements), prompt (that is the LLM's)
 
 **Reading version**:
-The name of one exact wording of everything Jev is sent that is not data: the opening of the background, the layout of its sections, and the wording of every question and option. Every run and every Jev request records the one it used.
+The name of one exact wording of everything Jev is sent that is not data: the opening of the background, the layout of its sections, and the wording of every question and option. Every sim and every Jev request records the one it used.
 _Avoid_: Prompt version (that is the LLM's)
 
 **Size bucket**:
@@ -280,7 +288,7 @@ Code closing every position because account value has fallen below a fixed share
 _Avoid_: Margin call, liquidation, stop-out
 
 **Risk profile**:
-A named set of risk limits and of the other settings that decide how boldly the agent trades, such as the size buckets. Every run trades under one. Version 1 has a single risk profile, medium.
+A named set of risk limits and of the other settings that decide how boldly the agent trades, such as the size buckets. Every sim trades under one. Version 1 has a single risk profile, medium.
 _Avoid_: Risk level, risk mode, preset
 
 **Slippage**:
@@ -307,7 +315,7 @@ The charge on the loan at the end of each day: one day's share of a yearly rate.
 _Avoid_: Margin interest, borrow fee (that is a short's charge), funding
 
 **Trading costs**:
-What trading costs a run in simulated money: slippage, commission, trading fee, borrow fee, and loan interest. Separate from what Jev and LLM calls cost in real money.
+What trading costs a sim in simulated money: slippage, commission, trading fee, borrow fee, and loan interest. Separate from what Jev and LLM calls cost in real money.
 _Avoid_: Fees (for all of them together), friction, transaction costs
 
 ### Memory
@@ -325,22 +333,22 @@ The hint a candle pattern gives: bullish (the price will rise), bearish (the pri
 _Avoid_: Direction (that is a trade's long or short), bias, signal
 
 **Playbook**:
-Reference entries, one per candle pattern, giving its name, its lean, and a description of its shape. Shared by all runs and read only.
+Reference entries, one per candle pattern, giving its name, its lean, and a description of its shape. Shared by all sims and read only.
 _Avoid_: Rulebook, theory
 
-**Track record**:
-Statistics, computed by code, of how the agent's own closed trades performed for each candle pattern, direction, and asset class, split further by whether the trade was with the trend, by volume level, and by part of the day. It counts candle patterns on bars only, never those on hourly bars or daily bars.
-_Avoid_: Stats, performance history
+**Scorecard**:
+Statistics, computed by code, of how the agent's own closed trades performed for each candle pattern, direction, and asset class, split further by whether the trade was with the trend, by volume level, and by part of the day. It counts candle patterns on bars only, never those on hourly bars or daily bars. The text sent to Jev and the LLM still calls it the track record.
+_Avoid_: Track record (outside the text the models are sent), stats, performance history
 
 **Closed trade**:
 The finished record of a position, from its entry to its full close, with a known profit or loss.
 
 **Closing reason**:
-Why a position closed: Jev chose to close it, its stop price was reached, a forced close, or the run ended.
+Why a position closed: Jev chose to close it, its stop price was reached, a forced close, or the sim ended.
 _Avoid_: Exit reason, exit type
 
-**Track record group**:
-One line of the track record: the closed trades that share a pattern, a direction, an asset class, and any of three further splits the group specifies: with or against the trend, volume level, and part of the day.
+**Scorecard group**:
+One line of the scorecard: the closed trades that share a pattern, a direction, an asset class, and any of three further splits the group specifies: with or against the trend, volume level, and part of the day.
 _Avoid_: Bucket, cell, segment
 
 **Lesson**:
@@ -348,7 +356,7 @@ A rule or reflection a model writes about its own past decisions. This project's
 _Avoid_: Reflection, insight
 
 **Minimum sample**:
-The number of closed trades a track record group needs before the agent is shown it.
+The number of closed trades a scorecard group needs before the agent is shown it.
 _Avoid_: Threshold, cutoff
 
 **Episode**:
@@ -364,7 +372,7 @@ The running record for an open position: the situation it was opened in, its sto
 _Avoid_: Trade log, position notes
 
 **Entry memory**:
-The track record lines and selected episodes Jev read in the full evaluation that opened a position. They are kept with the position unchanged, and Jev reads them again at each of its position checks.
+The scorecard lines and selected episodes Jev read in the full evaluation that opened a position. They are kept with the position unchanged, and Jev reads them again at each of its position checks.
 _Avoid_: Frozen memory, carried memory
 
 **Situation text**:
@@ -432,8 +440,8 @@ _Avoid_: Episode card, example
 ### Testing
 
 **Recorded-answer test**:
-An automated test that runs the agent through one scenario using answers saved from earlier real calls to Jev and, where the scenario reaches it, the LLM, instead of calling either service. Unlike a practice run, it costs nothing and gives the same result every time.
-_Avoid_: Replay test (a run is the replay), regression test, playback test
+An automated test that runs the agent through one scenario using answers saved from earlier real calls to Jev and, where the scenario reaches it, the LLM, instead of calling either service. Unlike a practice sim, it costs nothing and gives the same result every time.
+_Avoid_: Replay test (a sim is the replay), regression test, playback test
 
 **Scenario**:
 One made-up situation a recorded-answer test puts the agent in: one asset at one step, with made-up bars, a made-up memory, and a made-up account that may hold a position.
