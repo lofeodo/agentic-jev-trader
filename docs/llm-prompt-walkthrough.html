@@ -39,13 +39,16 @@
   <div class="banner">WALKTHROUGH · ALL DATA MADE UP</div>
   <h1>What the LLM reads, and is told, when it selects past episodes</h1>
   <p class="lede"><b>Two words changed on 2026-11-19:</b> the web app and the glossary now say <b>trading sim</b> (or just sim) where this page says run, and <b>scorecard</b> where it says track record. The text the LLM is sent was left as it was, and this page shows that text word for word, so here you will still read "run" and "track record". They mean the same things.</p>
-  <p class="lede"><b>What this page is for:</b> seeing the LLM's whole briefing in one place. Every blue or purple box is the exact text that is sent or received. The grey column on the right explains each box in plain words and is not part of any message. The wording was decided on 2026-11-19. Until the agent is built, this page is where that wording lives; after that, it is kept in step with the real prompt.</p>
+  <p class="lede"><b>What this page is for:</b> seeing the LLM's whole briefing in one place. Every blue or purple box is the exact text that is sent or received. The grey column on the right explains each box in plain words and is not part of any message. The wording was decided on 2026-11-19. The LLM's second job, selecting past episodes for a position review (tab 6), was added the same day. Until the agent is built, this page is where that wording lives; after that, it is kept in step with the real prompt.</p>
 
   <div class="box">
     <h3>The story in plain words</h3>
-    <p>Every 15 minutes the agent looks at each asset. When Jev (the decision model) says an asset is worth it, the agent runs a <b>full evaluation</b> of that asset. Before Jev decides, it gets to read a few records of the agent's own earlier decisions and how they turned out. The LLM's only job is to choose which records. It does not trade.</p>
+    <p>Every 15 minutes the agent looks at each asset. When Jev (the decision model) says an asset is worth it, the agent runs a <b>full evaluation</b> of that asset. Before Jev decides, it gets to read a few records of the agent's own earlier decisions and how they turned out. The LLM's only job is to choose which records. It does not trade. It does the same job in a second place. Once a trade is open, Jev answers a quick yes-or-no question about it every 15 minutes: is it worth reconsidering now? On a yes the agent runs a <b>position review</b>, and the LLM chooses which past position reviews Jev reads before it decides to hold, close, reduce, or add (tab 6).</p>
     <div class="words" style="margin-top:10px">
       <b>Past episode</b><span>One stored record: what the market looked like, what Jev decided, how it ended.</span>
+      <b>Position</b><span>A trade that is open: $6,000 of a stock bought and not yet sold.</span>
+      <b>Position review</b><span>Reconsidering an open position: hold it, close it, reduce it (sell part), or add to it (buy more). It runs only when the position screen, a quick yes-or-no question to Jev, says it is worth it.</span>
+      <b>Standing</b><span>How a position stands at one moment: how long it has been open, its profit or loss so far, and how far away its stop price is. "Open 6 bars, +$18, stop price 0.9% away" is a standing.</span>
       <b>Long</b><span>The account gains when the price rises. Buy $6,000 of a stock; it rises 1%; the account is up $60.</span>
       <b>Short</b><span>The account gains when the price falls. On a $6,000 short, a 1% fall puts the account up $60 and a 1% rise puts it down $60.</span>
       <b>Entry price</b><span>The price at which a trade was opened, say $100.00.</span>
@@ -53,7 +56,7 @@
       <b>Candle pattern</b><span>A named shape in the last few price bars ("hammer", "bullish engulfing") that traders read as a hint.</span>
       <b>Track record</b><span>The totals over the agent's closed trades: "42 trades, 17 wins, average win +$31, average loss -$18".</span>
       <b>Trading costs</b><span>What trading itself takes from the account, such as $1 each time a stock is bought or sold. Every profit and loss on this page is after them.</span>
-      <b>Lookup</b><span>One use of a tool that reads memory. The LLM gets 6 per full evaluation. Giving its answer is not a lookup.</span>
+      <b>Lookup</b><span>One use of a tool that reads memory. The LLM gets 6 per full evaluation and 6 per position review. Giving its answer is not a lookup.</span>
       <b>Token</b><span>The unit a model's reading is billed by, about three quarters of a word. Reading 1,000 tokens (roughly 750 words) costs about a hundredth of a cent on the small model planned.</span>
     </div>
   </div>
@@ -81,6 +84,24 @@ function signedPercent(n) { return (n < 0 ? "-" : "+") + Math.abs(n).toFixed(1) 
 function countBars(n) { return n + (n === 1 ? " bar" : " bars"); }
 function countEpisodes(n) { return n + (n === 1 ? " past episode" : " past episodes"); }
 const CLOSING_REASON = { choice: "closed by choice", stop: "closed at its stop price", forced: "forced close", run_end: "closed because the run ended" };
+const capitalize = text => text.charAt(0).toUpperCase() + text.slice(1);
+
+/* shared: how a past position review is written. Both pages use these same lines. */
+function priceAfter(after) { return `price went ${signedPercent(after.oneBar)} after 1 bar, ${signedPercent(after.fourBars)} after 4 bars, ${signedPercent(after.endOfDay)} by the end of the day`; }
+/* A position's standing: how long it has been open, its profit or loss so far after trading costs, how far its stop price is. */
+function standing(p) { return `${p.direction}, ${dollars(p.dollars)}, open ${countBars(p.bars)}, ${signedDollars(p.profit)} (${signedPercent(p.percent)}), stop price ${p.stopPercent.toFixed(1)}% away`; }
+function tradeEnded(episode, separator) {
+  const end = episode.ended;
+  return (end.bars === 0 ? "closed at this review" : `${CLOSING_REASON[end.reason]} ${countBars(end.bars)} later`) + `${separator}${signedDollars(end.profit)} (${signedPercent(end.percent)})`;
+}
+function reviewRecord(episode) {
+  const p = episode.position;
+  return `The position then: ${standing(p)}. At best it had been ${signedDollars(p.best)}, at worst ${signedDollars(p.worst)}.\n`
+    + `Decided: ${episode.decided}.\n`
+    + `Afterwards: ${priceAfter(episode.after)}.\n`
+    + `The whole trade: ${episode.handled.join("; ")}.\n`
+    + `Ended: ${tradeEnded(episode, ", ")}.`;
+}
 
 /* One full evaluation: the asset being looked at, the playbook, and two bits of bookkeeping.
    - Episode IDs the LLM sees are short labels, numbered in the order the episodes
@@ -104,7 +125,18 @@ function howItEnded(episode, separator) {
 
 /* The one-line episode summary. Its pattern column holds the patterns on 15-minute bars only. */
 const SUMMARY_COLUMNS = "ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | what was decided | how it ended";
+/* The summary of a past position review: the standing takes the place of the trade, and two things happened next. */
+const REVIEW_SUMMARY_COLUMNS = "ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | the position then | what was decided | what happened next";
+function reviewSummaryLine(episode, evaluation) {
+  return [
+    evaluation.id(episode), howLongAgo(episode.stepsAgo), whichAsset(episode, evaluation), episode.setting.join(", "),
+    episode.patterns.join(", ") || "no pattern",
+    standing(episode.position), episode.decided,
+    `${priceAfter(episode.after)}; ${tradeEnded(episode, ": ")}`,
+  ].join(" | ");
+}
 function summaryLine(episode, evaluation) {
+  if (episode.review) return reviewSummaryLine(episode, evaluation);
   return [
     evaluation.id(episode), howLongAgo(episode.stepsAgo), whichAsset(episode, evaluation), episode.setting.join(", "),
     episode.patterns.join(", ") || "no pattern",
@@ -129,12 +161,24 @@ function firstMessage(episodes, evaluation) {
     + summaryList(episodes, evaluation)
     + patternNotes(current.patterns.concat(patternsInSummaries(episodes)), evaluation);
 }
+/* The first message of a position review: the situation, the position's standing, and past reviews of positions in the same direction. */
+function reviewFirstMessage(episodes, evaluation, position, endOfSession) {
+  const current = evaluation.current;
+  return `# Current situation\nAsset: ${current.asset} (${current.assetClass})\n${current.situation}\n`
+    + `\n# The position now\n${capitalize(standing(position))}. At best it has been ${signedDollars(position.best)}, at worst ${signedDollars(position.worst)}.\n`
+    + (endOfSession ? END_OF_SESSION + "\n" : "")
+    + `\n# The ${countEpisodes(episodes.length)} most like this moment, all reviews of a ${position.direction}, closest first\n${REVIEW_SUMMARY_COLUMNS}\n`
+    + summaryList(episodes, evaluation)
+    + patternNotes(current.patterns.concat(patternsInSummaries(episodes)), evaluation);
+}
+const END_OF_SESSION = "This is the last step of the session from which an order is carried out today. A position still open after it is held overnight.";
 function searchResult(episodes, evaluation, filters) {
   if (!episodes.length) return `No past episodes match (${filters}).`;
   return `${countEpisodes(episodes.length)} (${filters}), closest first\n${SUMMARY_COLUMNS}\n` + summaryList(episodes, evaluation) + patternNotes(patternsInSummaries(episodes), evaluation);
 }
 function fullEpisode(episode, evaluation) {
   let text = `${evaluation.id(episode)}: ${howLongAgo(episode.stepsAgo)}, ${whichAsset(episode, evaluation)}\nSituation then: ${episode.situation}\n`;
+  if (episode.review) return text + reviewRecord(episode);
   if (!episode.trade) return text + `Decided: no trade.\nAfterwards: ${howItEnded(episode)}.`;
   const trade = episode.trade, end = episode.ended;
   text += `Decided: ${trade.direction} with a ${trade.stop} stop price (${trade.stopPercent.toFixed(1)}% from the entry price), ${dollars(trade.dollars)}.\n`;
@@ -158,7 +202,7 @@ The agent is looking at one asset in which it holds no position. It is about to 
 
 A past episode is the record of one earlier decision of this kind: the situation at the time, what the decision model picked, and how it turned out.
 
-Once a trade is open, the decision model looks at it again every 15 minutes and holds it, adds to it, reduces it, or closes it. Code closes it if the price reaches its stop price. You take no part in those later checks, but if a trade is opened the decision model reads the episodes you selected again at each of them. Every past episode shows how its trade ended, and reading one in full shows the checks bar by bar.
+Once a trade is open it is not reconsidered at every step. Every 15 minutes the decision model answers a quick question about it: is it worth a review now? In a review it holds the trade, adds to it, reduces it, or closes it, after reading past episodes selected for that moment, which is a separate task from this one. Between reviews the trade is held, and code closes it if the price reaches its stop price. Every past episode shows how its trade ended, and reading one in full shows how it was handled bar by bar.
 
 You do not decide the trade. Nothing you write reaches the decision model. For each episode you select it reads a record written by code (the situation, what was decided, and how it ended), plus the track record (the totals over the agent's closed trades), which code always adds whatever you select.
 
@@ -184,6 +228,42 @@ Code enforces the risk limits (the caps on how much a trade can lose) after the 
 Finish by calling select_episodes with the IDs you chose and a one-line note on why. The note is kept for the developer. The decision model never sees it.`;
 }
 
+/* The LLM's second job: selecting past position reviews for a position review. */
+function reviewSystemPrompt() {
+  return `You work inside a trading agent that replays market history in 15-minute steps and trades stocks and crypto. The agent's goal is the highest account value at the end of the run.
+
+# Your job
+The agent holds an open position in one asset: a long (a bet that the price rises) or a short (a bet that it falls). It is about to review that position and decide: hold it, close it, reduce it (close part of it), or add to it (put more money into it). A separate decision model makes that decision. Before it does, it reads a few of the agent's own past episodes. Your one job is to choose which ones.
+
+A past episode here is the record of one earlier review of an open position: the situation at the time, how the position stood then (how long it had been open, its profit or loss so far, how far away its stop price was), what the decision model decided, where the price went next, and how the trade ended.
+
+A position is not reviewed at every step. Every 15 minutes the decision model answers a quick question about it, is it worth a review now, and a review runs only on a yes. A stock position is also always reviewed at the last step of its session from which an order is still carried out the same day, because after that step it is held overnight. Between reviews the position is held, and code closes it if the price reaches its stop price.
+
+You do not decide what is done with the position. Nothing you write reaches the decision model. For each episode you select it reads a record written by code, plus the track record (the totals over the agent's closed trades), which code always adds whatever you select.
+
+# What you are given
+- The current situation of the asset.
+- How the position stands now.
+- The past reviews most like this moment, all of positions in the same direction, one line each, closest first.
+- A note on each candle pattern named: which way it hints (bullish: a rise; bearish: a fall; neutral: neither) and its shape.
+
+# What you can do
+Every reply you give must be a tool call.
+Answer at once by calling select_episodes, or look further first with up to ${LIMITS.lookups} lookups:
+- search_episodes: search again, narrowed by asset, candle pattern, what was decided, or whether the position was in profit or at a loss at the time.
+- read_episodes: read up to ${LIMITS.perRead} episodes in full.
+- read_track_record: read the totals for one candle pattern and direction.
+Spend a lookup only when its result could change your choice. select_episodes is not a lookup: you can call it at any time, including after your lookups are used up.
+
+# How to choose
+Select up to ${LIMITS.selected} episodes that will most help the decision model judge the position now. Fewer is fine. So is none, if nothing fits.
+Choose by how closely an episode matches the present moment: the situation of the asset, and how the position stood. Do not choose by what was decided then or by how it turned out.
+Code enforces the risk limits (the caps on how much a trade can lose) after the decision is made, so do not choose episodes in order to steer the decision toward caution.
+
+# Your answer
+Finish by calling select_episodes with the IDs you chose and a one-line note on why. The note is kept for the developer. The decision model never sees it.`;
+}
+
 const TOOLS = [
   { name: "search_episodes", isLookup: true,
     description: `Search the agent's past episodes again for the ones most like the current situation, narrowed by the filters you set. Returns up to ${LIMITS.perSearch} one-line summaries, closest first, in the same layout as the first list. An episode you have already been shown keeps its ID. The search always starts from the current situation: you cannot type search words, and you cannot ask for only profitable or only losing episodes. Counts as one lookup.`,
@@ -202,7 +282,7 @@ const TOOLS = [
       "    \"short\"             a short was opened",
       "    \"no_trade\"          no trade was made" ] },
   { name: "read_episodes", isLookup: true,
-    description: "Read past episodes in full: the situation as it was described at the time, what was decided, how the position was handled bar by bar until it closed, and how it ended. The decision model reads the same record for each episode you select: without the bar-by-bar handling when it decides the trade, and with it at the later checks of a trade it opens. Counts as one lookup, however many episodes you ask for.",
+    description: "Read past episodes in full: the situation as it was described at the time, what was decided, how the position was handled bar by bar until it closed, and how it ended. The decision model reads the same record for each episode you select, without the bar-by-bar handling. Counts as one lookup, however many episodes you ask for.",
     inputs: [ `episode_ids (required): a list of 1 to ${LIMITS.perRead} IDs you have been shown, such as ["E1", "E4"]` ] },
   { name: "read_track_record", isLookup: true,
     description: "Read the totals over the agent's closed trades for one candle pattern and one direction, in the current asset's class (stocks or crypto): how many trades, how many wins, the average win and the average loss. The decision model is always given the track record, whatever you select. Counts as one lookup.",
@@ -217,6 +297,33 @@ const TOOLS = [
     inputs: [
       `episode_ids (required): a list of 0 to ${LIMITS.selected} IDs you have been shown, most useful first. An empty list means none.`,
       `note (required): one line, at most ${LIMITS.noteChars} characters, on why you chose them` ] },
+];
+/* In a position review two tool descriptions differ; read_track_record and select_episodes are the same. */
+const REVIEW_TOOLS = [
+  { name: "search_episodes", isLookup: true,
+    description: `Search the agent's past position reviews again for the ones most like the present moment, narrowed by the filters you set. Only reviews of positions in the same direction as the current one are searched. Returns up to ${LIMITS.perSearch} one-line summaries, closest first, in the same layout as the first list. An episode you have already been shown keeps its ID. The search always starts from the current situation: you cannot type search words, and you cannot ask for only episodes that turned out well or only those that turned out badly. Counts as one lookup.`,
+    inputs: [
+      "asset (optional): which assets to search. One of:",
+      "    \"any\"               every asset (the default)",
+      "    \"same_asset\"        only the asset in the current situation",
+      "    \"same_asset_class\"  only stocks if it is a stock, only crypto if it is crypto",
+      "pattern (optional): keep only episodes where this candle pattern was named on the 15-minute bars. One of:",
+      "    \"any\"               no narrowing (the default)",
+      "    a candle pattern name, such as \"spinning top\" or \"doji\"",
+      "    [the real definition lists every valid name; code fills the list in from the playbook]",
+      "decided (optional): keep only reviews with this decision. One of:",
+      "    \"any\"               no narrowing (the default)",
+      "    \"hold\"              the position was kept as it was",
+      "    \"close\"             the whole position was closed",
+      "    \"reduce\"            part of the position was closed",
+      "    \"add\"               more money was put into the position",
+      "standing (optional): keep only reviews where the position stood this way at the time of the review. This is about that moment, not about how the trade ended. One of:",
+      "    \"any\"               no narrowing (the default)",
+      "    \"in_profit\"         closing it then would have left a profit after trading costs",
+      "    \"at_a_loss\"         closing it then would have left a loss after trading costs" ] },
+  { name: "read_episodes", isLookup: true,
+    description: "Read past position reviews in full: the situation as it was described at the time, how the position stood, what was decided, where the price went next, how the whole trade was handled bar by bar, and how it ended. The decision model reads the same record for each episode you select. Counts as one lookup, however many episodes you ask for.",
+    inputs: [ `episode_ids (required): a list of 1 to ${LIMITS.perRead} IDs you have been shown, such as ["E1", "E4"]` ] },
 ];
 function toolText(tool) { return `${tool.name}\n${tool.description}\nInputs:\n` + tool.inputs.map(line => "  " + line).join("\n"); }
 
@@ -241,6 +348,7 @@ const PLAYBOOK = {
   "piercing": { lean: "bullish", shape: "A long down bar, then an up bar that opens lower and closes above the middle of the first bar's body." },
   "morning star": { lean: "bullish", shape: "A long down bar, a small bar below it, then a long up bar." },
   "shooting star": { lean: "bearish", shape: "A small body at the bottom of the bar with an upper wick at least twice as long." },
+  "spinning top": { lean: "neutral", shape: "A small body with a wick on each side." },
 };
 const CURRENT = { asset: "ASSET_03", assetClass: "stock", patterns: ["bullish engulfing", "hammer", "doji"],
   situation: "Stock, first hour (bar 3 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), hammer (2 bars ago). Latest hourly bar: none. Latest daily bar: doji. Last 8 bars: five up, three down; this bar is a large up bar closing near its high. Short-term trend up (1.5 typical moves above the 20-bar average). Long-term trend up (2.1 above the 20-day average). Volume high (1.8 times normal). Price is 1.0 above the day's average price, 1.0 below the day's high, 2.0 above the day's low, and 1.0 above the previous day's high. Typical move: 0.6% of price." };
@@ -280,6 +388,50 @@ const TRACK_RECORD = { pattern:"bullish engulfing", direction:"long", assetClass
   { name:"With the long-term trend, high volume, first hour", trades:11, wins:7, averageWin:38, averageLoss:-21, total:182, fits:true },
 ]};
 
+/* Made-up past position reviews, all of longs: the search for an open long returns reviews of longs only.
+   Situation texts ending in "..." are cut short. The story: five bars after the long in ASSET_03 was opened. */
+const REVIEWS = {
+  r1: { key:"r1", review:true, stepsAgo: 12*96+20, asset:"ASSET_03", assetClass:"stock", setting:["middle",TREND_UP,"volume average"], patterns:["spinning top"],
+        position:{direction:"long",dollars:5000,bars:6,profit:18,percent:0.4,stopPercent:0.9,best:25,worst:-6}, decided:"hold", after:{oneBar:-0.2,fourBars:-0.5,endOfDay:-0.9}, ended:{reason:"stop",bars:9,profit:-31,percent:-0.6},
+        handled:["bars 1 to 5 hold","bar 6 hold (this review)","bars 7 to 14 hold","bar 15 stop price reached"],
+        situation: "Stock, middle (bar 9 of 26). Patterns in the last 4 bars: spinning top (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: five up, three down; this bar is a small down bar closing mid-range. Short-term trend up (0.9 typical moves above the 20-bar average). Long-term trend up (1.8 above the 20-day average). Volume average (0.9 times normal). Price is 0.6 above the day's average price, 0.5 below the day's high, 2.4 above the day's low, and 1.1 above the previous day's high. Typical move: 0.6% of price." },
+  r2: { key:"r2", review:true, stepsAgo: 27*96+16, asset:"ASSET_03", assetClass:"stock", setting:["middle",TREND_UP,"volume average"], patterns:["doji","spinning top"],
+        position:{direction:"long",dollars:6500,bars:4,profit:26,percent:0.4,stopPercent:1.0,best:31,worst:-4}, decided:"reduce by half (that half: +$13)", after:{oneBar:0.1,fourBars:0.4,endOfDay:0.7}, ended:{reason:"choice",bars:7,profit:41,percent:0.6},
+        handled:["bars 1 to 3 hold","bar 4 reduce by half (that half: +$13) (this review)","bars 5 to 10 hold","bar 11 close"],
+        situation: "Stock, middle (bar 7 of 26). Patterns in the last 4 bars: doji (this bar), spinning top (1 bar ago). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: six up, two down; this bar is a small up bar closing mid-range. Short-term trend up (1.3 typical moves above the 20-bar average). Long-term trend up (2.0 above the 20-day average). Volume average (1.1 times normal). Price is 0.9 above the day's average price, 0.3 below the day's high, 3.1 above the day's low, and 1.5 above the previous day's high. Typical move: 0.6% of price." },
+  r3: { key:"r3", review:true, stepsAgo: 41*96+18, asset:"ASSET_04", assetClass:"stock", setting:["middle",TREND_UP,"volume low"], patterns:["spinning top"],
+        position:{direction:"long",dollars:4000,bars:5,profit:12,percent:0.3,stopPercent:1.3,best:19,worst:-9}, decided:"close", after:{oneBar:0.2,fourBars:0.7,endOfDay:1.0}, ended:{reason:"choice",bars:0,profit:12,percent:0.3},
+        handled:["bars 1 to 4 hold","bar 5 close (this review)"],
+        situation: "Stock, middle (bar 8 of 26). Patterns in the last 4 bars: spinning top (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a small down bar closing mid-range. Short-term trend up (0.6 typical moves above the 20-bar average). Long-term trend up (1.1 above the 20-day average). Volume low (0.8 times normal). Price is 0.4 above the day's average price, 0.6 below the day's high, 1.9 above the day's low, and 0.2 above the previous day's high. Typical move: 0.7% of price." },
+  r4: { key:"r4", review:true, stepsAgo: 5*96+24, asset:"ASSET_01", assetClass:"stock", setting:["middle",TREND_UP,"volume average"], patterns:["doji"], patternsOnLongerBars:["belt-hold"],
+        position:{direction:"long",dollars:7000,bars:8,profit:35,percent:0.5,stopPercent:0.8,best:41,worst:-12}, decided:"hold", after:{oneBar:0.3,fourBars:0.6,endOfDay:0.8}, ended:{reason:"choice",bars:6,profit:84,percent:1.2},
+        handled:["bars 1 to 7 hold","bar 8 hold (this review)","bars 9 to 13 hold","bar 14 close"],
+        situation: "Stock, middle (bar 11 of 26). Patterns in the last 4 bars: doji (1 bar ago). Latest hourly bar: belt-hold. Latest daily bar: none. Last 8 bars: five up, three down; this bar is a small up bar closing near its high. Short-term trend up (1.2 typical moves above the 20-bar average). Long-term trend up (1.6 above the 20-day average). Volume average (1.0 times normal). Price is 0.7 above the day's average price, 0.2 below the day's high, 2.6 above the day's low, and 0.9 above the previous day's high. Typical move: 0.5% of price." },
+  r5: { key:"r5", review:true, stepsAgo: 60*96+70, asset:"ASSET_03", assetClass:"stock", setting:["last hour",TREND_UP,"volume high"], patterns:["shooting star"],
+        position:{direction:"long",dollars:5500,bars:14,profit:52,percent:0.9,stopPercent:1.6,best:66,worst:-10}, decided:"close", after:{oneBar:-0.3,fourBars:-0.4,endOfDay:-0.4}, ended:{reason:"choice",bars:0,profit:52,percent:0.9},
+        handled:["bars 1 to 13 hold","bar 14 close (this review)"], situation: "Stock, last hour (bar 24 of 26). ..." },
+  r6: { key:"r6", review:true, stepsAgo: 18*96+33, asset:"ASSET_05", assetClass:"crypto", setting:["European hours",TREND_UP,"volume average"], patterns:["spinning top","doji"],
+        position:{direction:"long",dollars:3000,bars:9,profit:10,percent:0.3,stopPercent:2.1,best:22,worst:-14}, decided:"hold", after:{oneBar:0.0,fourBars:0.5,endOfDay:1.4}, ended:{reason:"choice",bars:20,profit:44,percent:1.5},
+        handled:["bars 1 to 8 hold","bar 9 hold (this review)","bars 10 to 28 hold","bar 29 close"], situation: "Crypto, European hours (bar 44 of 96). ..." },
+  r7: { key:"r7", review:true, stepsAgo: 77*96+41, asset:"ASSET_02", assetClass:"stock", setting:["middle",TREND_DOWN,"volume low"], patterns:["doji"],
+        position:{direction:"long",dollars:6000,bars:5,profit:-14,percent:-0.2,stopPercent:0.5,best:8,worst:-19}, decided:"hold", after:{oneBar:-0.3,fourBars:-0.6,endOfDay:-0.2}, ended:{reason:"stop",bars:2,profit:-38,percent:-0.6},
+        handled:["bars 1 to 4 hold","bar 5 hold (this review)","bar 6 hold","bar 7 stop price reached"], situation: "Stock, middle (bar 12 of 26). ..." },
+  r8: { key:"r8", review:true, stepsAgo: 95*96+27, asset:"ASSET_03", assetClass:"stock", setting:["middle",TREND_UP,"volume high"], patterns:["belt-hold"],
+        position:{direction:"long",dollars:8000,bars:3,profit:44,percent:0.6,stopPercent:1.2,best:44,worst:-5}, decided:"add $2,000", after:{oneBar:0.2,fourBars:0.5,endOfDay:0.3}, ended:{reason:"choice",bars:8,profit:71,percent:0.7},
+        handled:["bars 1 to 2 hold","bar 3 add $2,000 (this review)","bars 4 to 10 hold","bar 11 close"], situation: "Stock, middle (bar 10 of 26). ..." },
+  r9: { key:"r9", review:true, stepsAgo: 130*96+9, asset:"ASSET_04", assetClass:"stock", setting:["first hour",TREND_UP,"volume average"], patterns:["spinning top"],
+        position:{direction:"long",dollars:4500,bars:2,profit:5,percent:0.1,stopPercent:0.7,best:11,worst:-3}, decided:"hold", after:{oneBar:-0.4,fourBars:-0.8,endOfDay:-1.1}, ended:{reason:"stop",bars:1,profit:-33,percent:-0.7},
+        handled:["bar 1 hold","bar 2 hold (this review)","bar 3 stop price reached"], situation: "Stock, first hour (bar 4 of 26). ..." },
+  r10: { key:"r10", review:true, stepsAgo: 210*96+52, asset:"ASSET_01", assetClass:"stock", setting:["middle",TREND_UP,"volume average"], patterns:["doji"],
+        position:{direction:"long",dollars:5000,bars:7,profit:20,percent:0.4,stopPercent:1.0,best:27,worst:-8}, decided:"reduce by a quarter (that part: +$5)", after:{oneBar:0.1,fourBars:0.2,endOfDay:0.5}, ended:{reason:"choice",bars:9,profit:39,percent:0.8},
+        handled:["bars 1 to 6 hold","bar 7 reduce by a quarter (that part: +$5) (this review)","bars 8 to 15 hold","bar 16 close"], situation: "Stock, middle (bar 13 of 26). ..." },
+};
+/* Five bars after the long in ASSET_03 was opened (the same moment as tabs 4 and 5 of the Jev walkthrough). */
+const REVIEW_CURRENT = { asset: "ASSET_03", assetClass: "stock", patterns: ["spinning top", "doji", "belt-hold"],
+  situation: "Stock, middle (bar 8 of 26). Patterns in the last 4 bars: spinning top (this bar), doji (2 bars ago). Latest hourly bar: belt-hold. Latest daily bar: doji. Last 8 bars: five up, three down; this bar is a small up bar closing mid-range. Short-term trend up (1.1 typical moves above the 20-bar average). Long-term trend up (2.3 above the 20-day average). Volume average (1.0 times normal). Price is 0.8 above the day's average price, 0.4 below the day's high, 2.9 above the day's low, and 1.8 above the previous day's high. Typical move: 0.6% of price." };
+const POSITION_NOW = { direction:"long", dollars:6000, bars:5, profit:21, percent:0.4, stopPercent:1.1, best:33, worst:-8 };
+const REVIEW_FIRST_SEARCH = ["r1","r2","r4","r3","r6","r5","r8","r7","r9","r10"].map(k => REVIEWS[k]);
+
 /* ============================================================
    PAGE (throwaway shell around the portable part)
    ============================================================ */
@@ -293,16 +445,23 @@ function stateLine(lookupsUsed, evaluation, text) { return `lookups used: ${look
 const newEvaluation = () => makeEvaluation(CURRENT, PLAYBOOK);
 
 const SCENARIOS = [
-  { tab: "Always sent", intro: "The part that never changes from one full evaluation to the next: the standing instructions and the descriptions of the four tools. Because it never changes, the provider charges much less to re-read it (prompt caching).",
+  { tab: "Always sent", intro: "The part that never changes from one call to the next: the standing instructions and the descriptions of the four tools. Because it never changes, the provider charges much less to re-read it (prompt caching). The LLM has two jobs, each with its own standing instructions: selecting past episodes for a full evaluation (shown first) and for a position review (shown after the four tools). A call is sent the instructions of the job it is doing, never both.",
     render() {
       const instructions = systemPrompt(); let html = "";
-      html += messageBox("code", "Standing instructions (the system prompt)", instructions, "<b>What it does:</b> tells the LLM its one job, in the same words every time.<br><br><b>The goal</b> is one sentence: the highest account value at the end. Nothing asks for steady growth or care.<br><br><b>Why only \"long, short, or no trade\":</b> the LLM is called only for an asset the agent holds nothing in. Closing, adding, and reducing are decided later, every 15 minutes, by Jev alone. The paragraph beginning \"Once a trade is open\" tells the LLM so, because the past records show how those trades ended. It also says that Jev reads the selected episodes again at each of those later checks (added 2026-11-19, when that was decided).<br><br><b>No trading advice:</b> it never says which patterns are good or when to trade.<br><br><b>Every reply must be a tool call,</b> and every model is treated the same way: no provider feature is used to force one.", `about ${roughTokens(instructions)} tokens`);
+      html += messageBox("code", "Standing instructions (the system prompt)", instructions, "<b>What it does:</b> tells the LLM its one job, in the same words every time.<br><br><b>The goal</b> is one sentence: the highest account value at the end. Nothing asks for steady growth or care.<br><br><b>Why only \"long, short, or no trade\":</b> these instructions are for an asset the agent holds nothing in. Closing, adding, and reducing are decided later, in position reviews, which have their own instructions further down this tab. The paragraph beginning \"Once a trade is open\" says so, because the past records show how those trades were handled and how they ended.<br><br><b>No trading advice:</b> it never says which patterns are good or when to trade.<br><br><b>Every reply must be a tool call,</b> and every model is treated the same way: no provider feature is used to force one.", `about ${roughTokens(instructions)} tokens`);
       const toolNotes = [
         "<b>Search again.</b> The LLM can narrow the search three ways, and every allowed value is spelled out with its meaning. It cannot type its own words and cannot filter by profit or loss (decided earlier).",
         "<b>Read in full.</b> Opens the whole record of up to 5 episodes for the price of one lookup.",
         "<b>The track record.</b> Totals for one pattern and one direction. Jev gets the track record anyway, so this only helps the LLM choose.",
         "<b>The answer.</b> The LLM answers by calling this tool, so the answer always has the same shape: a list of IDs and a note. It never counts against the 6 lookups and is never taken away."];
       TOOLS.forEach((tool, i) => { const text = toolText(tool); html += messageBox("code", "Tool description " + (i + 1) + " of 4" + (tool.isLookup ? " (a lookup)" : " (the answer)"), text, toolNotes[i], `about ${roughTokens(text)} tokens`); });
+      const reviewInstructions = reviewSystemPrompt();
+      html += messageBox("code", "Standing instructions for a position review (the second job)", reviewInstructions, "<b>The same job in a second place:</b> the agent holds a position, Jev has said it is worth a review, and the LLM chooses which past position reviews Jev reads first.<br><br><b>What a past episode is here:</b> one earlier review of an open position, not a decision to open a trade. It carries the position's standing at that moment: how long it had been open, its profit or loss so far, and how far away its stop price was.<br><br><b>\"A position is not reviewed at every step\"</b> explains why the records are scattered moments of a trade and not one per bar, and why some come from just before the market closed.<br><br><b>How to choose</b> names two things to match: the asset's situation and how the position stood. The rule is otherwise the same: by likeness, never by what was decided or how it turned out.<br><br><b>Everything else</b> (the limit of 6 lookups, the answer tool, the note) is word for word the same as in the first job.", `about ${roughTokens(reviewInstructions)} tokens`);
+      const reviewToolNotes = [
+        "<b>Search again, for a position review.</b> Only reviews of positions in the same direction are searched (longs for a long). \"Decided\" now offers hold, close, reduce, and add. One narrowing is new: whether the position was in profit or at a loss <b>at the moment of the review</b>. That is part of the situation. It is not how the trade ended, which still cannot be filtered on.",
+        "<b>Read in full, for a position review.</b> The record adds the position's standing, where the price went next, and the whole trade bar by bar with the review marked. Jev reads the same record."];
+      REVIEW_TOOLS.forEach((tool, i) => { const text = toolText(tool); html += messageBox("code", "In a position review: " + tool.name + " (a lookup)", text, reviewToolNotes[i], `about ${roughTokens(text)} tokens`); });
+      html += messageBox("aside", "The other two tools (not a message)", "read_track_record and select_episodes are described in exactly the same words in both jobs.", "The prompt version (the name of one exact wording) covers both jobs' instructions and tool descriptions together.", "");
       return html; } },
 
   { tab: "1. Answers at once", intro: "The usual case. Code has already run the first search. The LLM reads the current situation and ten one-line summaries, and answers straight away without a lookup.",
@@ -325,7 +484,7 @@ const SCENARIOS = [
       const read = toolCall("read_episodes", { episode_ids: ["E1","E2","E8","E11"] });
       html += messageBox("llm", "LLM to code: asks to read four in full", read, "", stateLine(2, evaluation, read));
       const records = fullEpisodes([EPISODES.a, EPISODES.b, EPISODES.h, EPISODES.k], evaluation);
-      html += messageBox("code", "Code to LLM: the four episodes in full", records, "<b>Each record has four parts:</b> the situation as it was written then, what Jev decided, what happened bar by bar, and how it ended.<br><br>\"At best +$33, at worst -$8\" means the trade was $33 up at its highest point and $8 down at its lowest before it closed.<br><br>Runs of the same answer are merged (\"bars 1 to 2 hold\").<br><br>When Jev picks a trade it reads the same record for a selected episode, minus the bar-by-bar line. If a position is opened, Jev re-reads the record at each later position check, with that line. Jev's side is on <a href=\"jev-reading-walkthrough.html\">the Jev walkthrough</a>.", stateLine(2, evaluation, records));
+      html += messageBox("code", "Code to LLM: the four episodes in full", records, "<b>Each record has four parts:</b> the situation as it was written then, what Jev decided, what happened bar by bar, and how it ended.<br><br>\"At best +$33, at worst -$8\" means the trade was $33 up at its highest point and $8 down at its lowest before it closed.<br><br>Runs of the same answer are merged (\"bars 1 to 2 hold\").<br><br>When Jev picks a trade it reads the same record for a selected episode, minus the bar-by-bar line. Jev does not read it again once the trade is open: a position review gets its own selection (tab 6). Jev's side is on <a href=\"jev-reading-walkthrough.html\">the Jev walkthrough</a>.", stateLine(2, evaluation, records));
       const ask = toolCall("read_track_record", { pattern: "bullish engulfing", direction: "long" });
       html += messageBox("llm", "LLM to code: asks for the track record", ask, "", stateLine(3, evaluation, ask));
       const totals = trackRecord(TRACK_RECORD);
@@ -368,6 +527,21 @@ const SCENARIOS = [
       html += messageBox("aside", "The first search finds nothing", "The LLM is not called at all: no prompt, no cost.\nJev is told there are no past episodes yet.", "Decided earlier in \"Memory search design\".", "");
       const first = firstMessage([EPISODES.a, EPISODES.b, EPISODES.g], evaluation);
       html += messageBox("code", "The first search finds only three: the first message", first, "The LLM is called as usual with what there is. The heading says \"3\", not \"10\".", stateLine(0, evaluation, first));
+      return html; } },
+
+  { tab: "6. Position review", intro: "The LLM's second job. Five bars (75 minutes) after the long in ASSET_03 was opened, Jev's position screen (the quick yes-or-no question asked about every open position at every step) said the position is worth a review. Code has searched memory for past position reviews of longs that look like this moment. The LLM is sent the position-review instructions from the first tab and chooses which of them Jev reads before deciding to hold, close, reduce, or add. Everything not shown here (running out of lookups, a reply that does not fit, a thin memory) works exactly as in tabs 3 to 5.",
+    render() {
+      const evaluation = makeEvaluation(REVIEW_CURRENT, PLAYBOOK); const first = reviewFirstMessage(REVIEW_FIRST_SEARCH, evaluation, POSITION_NOW); let html = "";
+      html += messageBox("code", "Code to LLM: the first message", first, "<b>Top:</b> the asset's situation text now, as in a full evaluation.<br><br><b>The position now:</b> one line on how the position stands. Reading it: a bet of $6,000 on a rise, open 5 bars (75 minutes), $21 ahead after trading costs, with its stop price 1.1% below the last price. At its best it was $33 ahead and at its worst $8 behind. The LLM is told nothing else about the account.<br><br><b>The list:</b> past position reviews, all of longs, ranked by how much the chart looked like now. The search does not rank by standing, so the LLM does that part. Reading the first line: twelve days ago on this same stock, in the middle of the day on average trading, a $5,000 long open 6 bars and $18 ahead was reviewed and held; the price then slipped, and the trade closed at its stop price 9 bars later, $31 down.<br><br><b>\"What happened next\"</b> is two facts for every past review, whatever was decided: where the price went (after 1 bar, 4 bars, and by the end of the day) and how the trade ended. \"Closed at this review\" means the review's own decision closed it. E4 reads: closed $12 ahead, and the price then rose a further 1.0% by the end of the day.", stateLine(0, evaluation, first));
+      const read = toolCall("read_episodes", { episode_ids: ["E1","E2","E3","E4"] });
+      html += messageBox("llm", "LLM to code: asks to read four in full", read, "The four whose standing looks most like now: longs open about an hour and slightly ahead, in the middle of the day.", stateLine(1, evaluation, read));
+      const records = fullEpisodes([REVIEWS.r1, REVIEWS.r2, REVIEWS.r4, REVIEWS.r3], evaluation);
+      html += messageBox("code", "Code to LLM: the four past reviews in full", records, "<b>Each record has six parts:</b> the situation as it was written then, how the position stood, what Jev decided, where the price went next, the whole trade bar by bar, and how it ended.<br><br><b>\"The whole trade\"</b> marks the review itself with \"(this review)\". Runs of the same answer are merged. A bar reads \"hold\" whether the position screen said no or a review decided to hold.<br><br><b>\"Ended\"</b> counts bars from the review, not from the entry: \"9 bars later\".<br><br>Jev reads exactly this record for each episode selected, without the ID. Jev's side is on <a href=\"jev-reading-walkthrough.html\">the Jev walkthrough</a>, tab 5.", stateLine(1, evaluation, records));
+      const answer = toolCall("select_episodes", { episode_ids: ["E1","E2","E3","E4"], note: "E1, E2: this stock, a long open about an hour and slightly ahead in a quiet middle of the day, as now. E3, E4: the same on other stocks. Left out: losing positions and last-hour reviews." });
+      html += messageBox("llm", "LLM to code: its answer", answer, "One held and was stopped out, one held and gained, one took half off, one closed and missed a rise: the LLM chose by likeness, and the outcomes came out mixed.", stateLine(1, evaluation, answer));
+      html += messageBox("aside", "What code does next (not a message)", "Stores: the 10 episodes shown, the 4 selected, the note, 1 lookup, and the prompt version, and every message above word for word.\nBuilds Jev's reading from the 4 selected reviews plus the track record, then asks Jev: hold, close, reduce, or add.\nIf Jev decides to hold, nothing is traded. Either way this review is itself stored as an episode, and it can be found by later searches once its trade has closed and the day has ended.", "The agent without memory and the build-up run make the same reviews with no LLM call and no past episodes, so their reviews are stored as episodes too. That is how the base memory comes to hold position reviews.", "");
+      const lastStep = reviewFirstMessage(REVIEW_FIRST_SEARCH.slice(0, 2), makeEvaluation(REVIEW_CURRENT, PLAYBOOK), POSITION_NOW, true);
+      html += messageBox("code", "An end-of-session review: the one line added to the first message", lastStep.slice(lastStep.indexOf("# The position now"), lastStep.indexOf("\n\n# The 2 past")), "A stock still held when the market closes is carried overnight, and can open the next morning far from where it ended. So at the last step from which an order is still carried out the same day, every open stock position gets a review without the position screen being asked. The first message then carries this one extra line. Everything else is the same.", "");
       return html; } },
 ];
 
