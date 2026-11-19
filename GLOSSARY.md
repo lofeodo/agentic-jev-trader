@@ -125,8 +125,16 @@ A sim on days the developer chooses, started from the web app to watch the agent
 _Avoid_: Custom run, open run, sandbox
 
 **Spending cap**:
-The amount of spending on Jev and LLM calls at which code stops a sim, once the current step has ended. It counts money paid for model calls, never trading losses.
+The amount of spending on Jev and LLM calls at which code stops a sim, once the current step has ended. It counts money paid for model calls, never trading losses. A sim stopped by its spending cap can be resumed under a new one.
 _Avoid_: Call budget, run budget, dollar cap
+
+**Spending ceiling**:
+The most real money the whole project may pay for Jev and LLM calls, US$50 in version 1. A sim is refused when its spending cap, added to the money already spent and to the unspent part of the cap of every sim in progress, would pass it.
+_Avoid_: Budget, limit (unqualified), total cap
+
+**Not responding**:
+How the web app shows a sim that is recorded as in progress but has stored nothing for a set time, 7 minutes in version 1, usually because its program has died. It can be resumed from its last stored step.
+_Avoid_: Stalled, hung, crashed, dead
 
 **Variant**:
 Which strategy a sim uses: `buy_hold` (equal money put into every asset at the first step and held until the sim's last step), `memory_off`, or `memory_on`.
