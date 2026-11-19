@@ -182,27 +182,39 @@ The label that keeps one sim's episodes and scorecard separate from every other 
 ### Deciding
 
 **Tier**:
-How far a step's evaluation went for one asset: 0 is code only, 1 is a screen or a position check, 2 is a full evaluation.
+How far a step's evaluation went for one asset: 0 is code only, 1 is a screen or a position screen, 2 is a full evaluation or a position review.
 _Avoid_: Level, stage
 
 **Screen**:
 The question Jev answers at every step for an asset with no position: is a full evaluation worth running now? The answer is a number from 0 to 1.
 _Avoid_: Filter, pre-check
 
-**Position check**:
-The question Jev answers at every step for an open position: hold, close, reduce, or add.
-_Avoid_: Manage
+**Position screen**:
+The question Jev answers at every step for an open position: is a position review worth running now? The answer is a number from 0 to 1. Below the cut-off nothing more is asked and the position is held.
+_Avoid_: Position check (the every-step hold, close, reduce, or add question it replaced), filter, pre-check
+
+**Position review**:
+The Tier 2 path for an open position, run when its position screen says yes: the LLM selects past episodes and Jev decides to hold, close, reduce, or add.
+_Avoid_: Position check, closer look, manage
+
+**End-of-session review**:
+The position review every open stock position gets, with no position screen first, at the last step of a session from which an order is still carried out the same day. It decides whether the position is carried overnight.
+_Avoid_: Forced review (a forced close is something else), closing review
+
+**Standing**:
+How an open position stood at one step: how long it had been open, its profit or loss so far, and how far its stop price was from the last price. "Open 6 bars, up $18, stop price 0.9% away" is a standing.
+_Avoid_: State, status
 
 **Check**:
-One look at one asset at one step, answered by Jev: either a screen or a position check.
+One look at one asset at one step, answered by Jev: either a screen or a position screen.
 _Avoid_: Tier 1 call, quick check
 
 **Full evaluation**:
-The Tier 2 path, where the LLM selects past episodes and Jev either picks a candidate trade and sizes it or picks no trade.
+The Tier 2 path for an asset with no position, run when its screen says yes: the LLM selects past episodes and Jev either picks a candidate trade and sizes it or picks no trade.
 _Avoid_: Closer look
 
 **Lookup**:
-One use by the LLM, during a full evaluation, of a tool that reads memory: another episode search, reading episodes in full, or reading the scorecard. Giving its answer is not a lookup.
+One use by the LLM, during a full evaluation or a position review, of a tool that reads memory: another episode search, reading episodes in full, or reading the scorecard. Giving its answer is not a lookup.
 _Avoid_: Tool call (the answer is one too), query, retrieval
 
 **Failed reply**:
@@ -214,11 +226,11 @@ The name of one exact wording of everything the LLM is sent that is not data: it
 _Avoid_: Prompt revision, prompt ID
 
 **Transcript**:
-Every message of one full evaluation's exchange between code and the LLM, in order and word for word.
+Every message of the exchange between code and the LLM in one full evaluation or one position review, in order and word for word.
 _Avoid_: Trace (that is a tracing service's own recording), chat log, conversation
 
 **Decision trail**:
-Everything that was asked and answered on the way to one decision, in order: the screen, the LLM's exchange with memory, Jev's pick, Jev's size, what code trimmed, and the order.
+Everything that was asked and answered on the way to one decision, in order: the screen, the LLM's exchange with memory, Jev's pick, Jev's size, what code trimmed, and the order. For a position review: the position screen, the LLM's exchange with memory, Jev's answer and how much, what code trimmed, and the order.
 _Avoid_: Chain of thought (Jev does not reason in words), exchange, trace (that is a tracing service's own recording)
 
 **Candidate trade**:
@@ -396,7 +408,7 @@ The running record for an open position: the situation it was opened in, its sto
 _Avoid_: Trade log, position notes
 
 **Entry memory**:
-The scorecard lines and selected episodes Jev read in the full evaluation that opened a position. They are kept with the position unchanged, and Jev reads them again at each of its position checks.
+The scorecard lines and selected episodes Jev read in the full evaluation that opened a position. They are kept with the position unchanged and shown with it. Jev does not read them again: a position review reads episodes selected for its own moment.
 _Avoid_: Frozen memory, carried memory
 
 **Situation text**:
@@ -446,19 +458,19 @@ A snapshot's candle geometry and context written as a list of numbers in a fixed
 _Avoid_: Embedding (for this list), numeric vector
 
 **Episode search**:
-Finding the past full evaluations with complete outcomes whose snapshots are most like the current snapshot, judged by feature vector and by situation text. It is the project's retrieval-augmented generation (RAG) step: looking things up before a model answers.
+Finding the past episodes with complete outcomes whose snapshots are most like the current snapshot, judged by feature vector and by situation text. For an asset with no position it finds past full evaluations; for an open position it finds past position reviews of positions in the same direction. It is the project's retrieval-augmented generation (RAG) step: looking things up before a model answers.
 _Avoid_: Memory search, retrieval
 
 **Selected episodes**:
-The episodes, possibly none, that the LLM chose from what episode search returned, for Jev to read in one full evaluation.
+The episodes, possibly none, that the LLM chose from what episode search returned, for Jev to read in one full evaluation or one position review.
 _Avoid_: Retrieved memories, examples
 
 **Episode summary**:
-The one line that stands for an episode in a list of episode search results: how long ago it was, the asset, the part of the day, the long-term trend, the volume level, the candle patterns on bars, what was decided, and how it ended.
+The one line that stands for an episode in a list of episode search results: how long ago it was, the asset, the part of the day, the long-term trend, the volume level, the candle patterns on bars, what was decided, and how it ended. For a past position review it also gives the position's standing then.
 _Avoid_: Preview, snippet
 
 **Episode block**:
-The few lines that stand for one selected episode in a background: how long ago it was, whether it was the same asset, the situation text, what was decided, and how it ended. In a position check it also says how the trade was handled bar by bar.
+The few lines that stand for one selected episode in a background: how long ago it was, whether it was the same asset, the situation text, what was decided, and how it ended. For a past position review it also gives the position's standing then, where the price went next, and how its trade was handled bar by bar.
 _Avoid_: Episode card, example
 
 ### Testing
