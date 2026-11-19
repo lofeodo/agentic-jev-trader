@@ -42,15 +42,18 @@
 
   <div class="box">
     <h3>The story in plain words</h3>
-    <p>Every 15 minutes the agent looks at each asset. When Jev (the decision model) says an asset deserves a closer look, the agent runs a <b>full evaluation</b>. Before Jev decides, it gets to read a few records of the agent's own earlier decisions and how they turned out. The LLM's only job is to choose which records. It does not trade.</p>
+    <p>Every 15 minutes the agent looks at each asset. When Jev (the decision model) says an asset is worth it, the agent runs a <b>full evaluation</b> of that asset. Before Jev decides, it gets to read a few records of the agent's own earlier decisions and how they turned out. The LLM's only job is to choose which records. It does not trade.</p>
     <div class="words" style="margin-top:10px">
       <b>Past episode</b><span>One stored record: what the market looked like, what Jev decided, how it ended.</span>
-      <b>Long</b><span>A bet that the price rises. Buy $6,000 of a stock, it rises 1%, you are up $60.</span>
-      <b>Short</b><span>A bet that the price falls. It falls 1% on $6,000, you are up $60; it rises 1%, you are down $60.</span>
-      <b>Stop price</b><span>The price at which code closes the trade to cap its loss. Tight is close to the entry price (small loss, easily hit), wide is far away.</span>
+      <b>Long</b><span>The account gains when the price rises. Buy $6,000 of a stock; it rises 1%; the account is up $60.</span>
+      <b>Short</b><span>The account gains when the price falls. On a $6,000 short, a 1% fall puts the account up $60 and a 1% rise puts it down $60.</span>
+      <b>Entry price</b><span>The price at which a trade was opened, say $100.00.</span>
+      <b>Stop price</b><span>Caps what a trade can lose: code closes the trade if the price reaches it. A $6,000 long opened at $100.00 with a stop price of $99.40 loses about $36 at most. A tight stop price is close to the entry price (a small loss, easily reached); a wide one is far away.</span>
       <b>Candle pattern</b><span>A named shape in the last few price bars ("hammer", "bullish engulfing") that traders read as a hint.</span>
-      <b>Track record</b><span>The scorecard over many closed trades: "42 trades, 17 wins".</span>
+      <b>Track record</b><span>The totals over the agent's closed trades: "42 trades, 17 wins, average win +$31, average loss -$18".</span>
+      <b>Trading costs</b><span>What trading itself takes from the account, such as $1 each time a stock is bought or sold. Every profit and loss on this page is after them.</span>
       <b>Lookup</b><span>One use of a tool that reads memory. The LLM gets 6 per full evaluation. Giving its answer is not a lookup.</span>
+      <b>Token</b><span>The unit a model's reading is billed by, about three quarters of a word. Reading 1,000 tokens (roughly 750 words) costs about a hundredth of a cent on the small model planned.</span>
     </div>
   </div>
 
@@ -65,89 +68,88 @@
    always produces the same text (needed by the recorded-answer tests).
    ============================================================ */
 const STEPS_PER_DAY = 96;
+const LIMITS = { lookups: 6, selected: 5, perSearch: 10, perRead: 5, noteChars: 200, failedReplies: 3 };
 
-function ago(steps) {
-  if (steps < STEPS_PER_DAY) { const h = Math.max(1, Math.floor(steps / 4)); return h + (h === 1 ? " hour ago" : " hours ago"); }
-  const d = Math.floor(steps / STEPS_PER_DAY); return d + (d === 1 ? " day ago" : " days ago");
+function howLongAgo(steps) {
+  if (steps < STEPS_PER_DAY) { const hours = Math.max(1, Math.floor(steps / 4)); return hours + (hours === 1 ? " hour ago" : " hours ago"); }
+  const days = Math.floor(steps / STEPS_PER_DAY); return days + (days === 1 ? " day ago" : " days ago");
 }
-function money(n) { const s = Math.abs(n).toLocaleString("en-US"); return (n < 0 ? "-$" : "+$") + s; }
+function signedDollars(n) { return (n < 0 ? "-$" : "+$") + Math.abs(n).toLocaleString("en-US"); }
 function dollars(n) { return "$" + n.toLocaleString("en-US"); }
-function bars(n) { return n + (n === 1 ? " bar" : " bars"); }
-function pct(n) { return (n < 0 ? "-" : "+") + Math.abs(n).toFixed(1) + "%"; }
-const CLOSED = { choice: "closed by choice", stop: "closed at its stop price", forced: "forced close", run_end: "closed because the run ended" };
+function signedPercent(n) { return (n < 0 ? "-" : "+") + Math.abs(n).toFixed(1) + "%"; }
+function countBars(n) { return n + (n === 1 ? " bar" : " bars"); }
+function countEpisodes(n) { return n + (n === 1 ? " past episode" : " past episodes"); }
+const CLOSING_REASON = { choice: "closed by choice", stop: "closed at its stop price", forced: "forced close", run_end: "closed because the run ended" };
 
-/* One full evaluation's bookkeeping.
+/* One full evaluation: the asset being looked at, the playbook, and two bits of bookkeeping.
    - Episode IDs the LLM sees are short labels, numbered in the order the episodes
      first appear in THIS evaluation. Code keeps the map back to the stored record.
    - Each candle pattern is explained once, the first time its name appears. */
-function makeEvaluation() {
-  const ids = new Map(); const explained = new Set();
+function makeEvaluation(current, playbook) {
+  const labels = new Map(); const explained = new Set();
   return {
-    id(ep) { if (!ids.has(ep.key)) ids.set(ep.key, "E" + (ids.size + 1)); return ids.get(ep.key); },
-    shown() { return ids.size; },
-    newPatterns(names) { const fresh = names.filter(n => !explained.has(n)); fresh.forEach(n => explained.add(n)); return [...new Set(fresh)]; },
+    current, playbook,
+    id(episode) { if (!labels.has(episode.key)) labels.set(episode.key, "E" + (labels.size + 1)); return labels.get(episode.key); },
+    episodesShown() { return labels.size; },
+    patternsNotYetExplained(names) { const fresh = [...new Set(names)].filter(n => !explained.has(n)); fresh.forEach(n => explained.add(n)); return fresh; },
   };
 }
-function whichAsset(ep, current) { return (ep.asset === current.asset ? "same asset" : ep.asset) + ", " + ep.cls; }
-
-function summaryLine(ep, current, ev, o) {
-  const parts = [ev.id(ep), ago(ep.agoSteps), whichAsset(ep, current)];
-  parts.push(ep.setting.join(", "));
-  parts.push(ep.patterns.join(", ") || "no pattern");
-  if (ep.pick) {
-    parts.push(`${ep.pick.dir}, ${ep.pick.stop} stop, ${dollars(ep.pick.dollars)}`);
-    parts.push(`${CLOSED[ep.out.reason]} after ${bars(ep.out.bars)}: ${money(ep.out.pnl)} (${pct(ep.out.pct)})`);
-  } else {
-    parts.push("no trade");
-    parts.push(`price went ${pct(ep.out.after1)} after 1 bar, ${pct(ep.out.after4)} after 4 bars, ${pct(ep.out.eod)} by the end of the day`);
-  }
-  return parts.join(" | ");
+function whichAsset(episode, evaluation) { return (episode.asset === evaluation.current.asset ? "same asset" : episode.asset) + ", " + episode.assetClass; }
+function howItEnded(episode, separator) {
+  if (!episode.trade) return `price went ${signedPercent(episode.after.oneBar)} after 1 bar, ${signedPercent(episode.after.fourBars)} after 4 bars, ${signedPercent(episode.after.endOfDay)} by the end of the day`;
+  const end = episode.ended;
+  return `${CLOSING_REASON[end.reason]} after ${countBars(end.bars)}${separator}${signedDollars(end.profit)} (${signedPercent(end.percent)})`;
 }
-function columns() { return "ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | what was decided | how it ended"; }
-function summaryList(eps, current, ev, o) { return eps.map(e => summaryLine(e, current, ev, o)).join("\n"); }
+
+/* The one-line episode summary. Its pattern column holds the patterns on 15-minute bars only. */
+const SUMMARY_COLUMNS = "ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | what was decided | how it ended";
+function summaryLine(episode, evaluation) {
+  return [
+    evaluation.id(episode), howLongAgo(episode.stepsAgo), whichAsset(episode, evaluation), episode.setting.join(", "),
+    episode.patterns.join(", ") || "no pattern",
+    episode.trade ? `${episode.trade.direction}, ${episode.trade.stop} stop, ${dollars(episode.trade.dollars)}` : "no trade",
+    howItEnded(episode, ": "),
+  ].join(" | ");
+}
+function summaryList(episodes, evaluation) { return episodes.map(e => summaryLine(e, evaluation)).join("\n"); }
+const patternsInSummaries = episodes => episodes.flatMap(e => e.patterns);
+const patternsInFullEpisodes = episodes => episodes.flatMap(e => e.patterns.concat(e.patternsOnLongerBars || []));
 
 /* The playbook's entry for each pattern named in a message, the first time it is named. */
-function patternNotes(names, ev, o, playbook) {
-  const fresh = ev.newPatterns(names); if (!fresh.length) return "";
-  return "\n\n# Candle patterns named above\n" + fresh.map(n => `${n}: ${playbook[n].lean}. ${playbook[n].shape}`).join("\n");
-}
-const namesIn = eps => eps.flatMap(e => e.patterns.concat(e.also || []));
-
-function firstMessage(current, eps, ev, o, playbook) {
-  let t = `# Current situation\nAsset: ${current.asset} (${current.cls})\n${current.situation}\n`;
-  t += `\n# The ${eps.length} past episodes most like it, closest first\n${columns(o)}\n`;
-  t += summaryList(eps, current, ev, o);
-  t += patternNotes(current.patterns.concat(eps.flatMap(e => e.patterns)), ev, o, playbook);
-  return t;
-}
-function searchResult(eps, current, ev, o, filters, playbook) {
-  if (!eps.length) return `No past episodes match (${filters}).`;
-  return `${eps.length} past episodes (${filters}), closest first\n${columns(o)}\n` + summaryList(eps, current, ev, o) + patternNotes(eps.flatMap(e => e.patterns), ev, o, playbook);
-}
-function fullEpisode(ep, current, ev) {
-  let t = `${ev.id(ep)}: ${ago(ep.agoSteps)}, ${whichAsset(ep, current)}\n`;
-  t += `Situation then: ${ep.situation}\n`;
-  if (ep.pick) {
-    t += `Decided: ${ep.pick.dir} with a ${ep.pick.stop} stop price (${ep.pick.stopPct.toFixed(1)}% from the entry price), ${dollars(ep.pick.dollars)}.\n`;
-    t += `Handled: ${ep.handled.join("; ")}.\n`;
-    t += `Ended: ${CLOSED[ep.out.reason]} after ${bars(ep.out.bars)}, ${money(ep.out.pnl)} (${pct(ep.out.pct)}). At best ${money(ep.out.best)}, at worst ${money(ep.out.worst)}.`;
-  } else {
-    t += `Decided: no trade.\n`;
-    t += `Afterwards: the price went ${pct(ep.out.after1)} after 1 bar, ${pct(ep.out.after4)} after 4 bars, and ${pct(ep.out.eod)} by the end of the day.`;
-  }
-  return t;
-}
-function fullEpisodes(eps, current, ev, o, playbook) {
-  return eps.map(e => fullEpisode(e, current, ev)).join("\n\n") + patternNotes(namesIn(eps), ev, o, playbook);
-}
-function trackRecord(tr) {
-  let t = `Track record: ${tr.pattern}, ${tr.direction}, ${tr.cls}\n`;
-  t += tr.groups.map(g => `${g.name}: ${g.trades} closed trades, ${g.wins} wins (${Math.round(100 * g.wins / g.trades)}%), average win ${money(g.avgWin)}, average loss ${money(g.avgLoss)}, all together ${money(g.total)}${g.fits ? "  <- fits the current situation" : ""}`).join("\n");
-  t += `\nGroups with fewer than ${tr.minSample} closed trades are not shown.`;
-  return t;
+function patternNotes(names, evaluation) {
+  const fresh = evaluation.patternsNotYetExplained(names); if (!fresh.length) return "";
+  return "\n\n# Candle patterns named above\n" + fresh.map(n => `${n}: ${evaluation.playbook[n].lean}. ${evaluation.playbook[n].shape}`).join("\n");
 }
 
-function systemPrompt(o) {
+function firstMessage(episodes, evaluation) {
+  const current = evaluation.current;
+  return `# Current situation\nAsset: ${current.asset} (${current.assetClass})\n${current.situation}\n`
+    + `\n# The ${countEpisodes(episodes.length)} most like it, closest first\n${SUMMARY_COLUMNS}\n`
+    + summaryList(episodes, evaluation)
+    + patternNotes(current.patterns.concat(patternsInSummaries(episodes)), evaluation);
+}
+function searchResult(episodes, evaluation, filters) {
+  if (!episodes.length) return `No past episodes match (${filters}).`;
+  return `${countEpisodes(episodes.length)} (${filters}), closest first\n${SUMMARY_COLUMNS}\n` + summaryList(episodes, evaluation) + patternNotes(patternsInSummaries(episodes), evaluation);
+}
+function fullEpisode(episode, evaluation) {
+  let text = `${evaluation.id(episode)}: ${howLongAgo(episode.stepsAgo)}, ${whichAsset(episode, evaluation)}\nSituation then: ${episode.situation}\n`;
+  if (!episode.trade) return text + `Decided: no trade.\nAfterwards: ${howItEnded(episode)}.`;
+  const trade = episode.trade, end = episode.ended;
+  text += `Decided: ${trade.direction} with a ${trade.stop} stop price (${trade.stopPercent.toFixed(1)}% from the entry price), ${dollars(trade.dollars)}.\n`;
+  text += `Handled: ${episode.handled.join("; ")}.\n`;
+  return text + `Ended: ${howItEnded(episode, ", ")}. At best ${signedDollars(end.best)}, at worst ${signedDollars(end.worst)}.`;
+}
+function fullEpisodes(episodes, evaluation) {
+  return episodes.map(e => fullEpisode(e, evaluation)).join("\n\n") + patternNotes(patternsInFullEpisodes(episodes), evaluation);
+}
+function trackRecord(record) {
+  return `Track record: ${record.pattern}, ${record.direction}, ${record.assetClass}\n`
+    + record.groups.map(g => `${g.name}: ${g.trades} closed trades, ${g.wins} wins (${Math.round(100 * g.wins / g.trades)}%), average win ${signedDollars(g.averageWin)}, average loss ${signedDollars(g.averageLoss)}, all together ${signedDollars(g.total)}${g.fits ? "  <- fits the current situation" : ""}`).join("\n")
+    + `\nGroups with fewer than ${record.minimumSample} closed trades are not shown.`;
+}
+
+function systemPrompt() {
   return `You work inside a trading agent that replays market history in 15-minute steps and trades stocks and crypto. The agent's goal is the highest account value at the end of the run.
 
 # Your job
@@ -155,9 +157,9 @@ The agent is looking at one asset in which it holds no position. It is about to 
 
 A past episode is the record of one earlier decision of this kind: the situation at the time, what the decision model picked, and how it turned out.
 
-Once a trade is open, the decision model looks at it again every 15 minutes and holds it, adds to it, reduces it, or closes it. Code closes it if the price reaches its stop price. You take no part in those later checks, but each past episode shows how they went.
+Once a trade is open, the decision model looks at it again every 15 minutes and holds it, adds to it, reduces it, or closes it. Code closes it if the price reaches its stop price. You take no part in those later checks. Every past episode shows how its trade ended, and reading one in full shows the checks bar by bar.
 
-You do not decide the trade. Nothing you write reaches the decision model: it reads the episodes you select, exactly as stored, plus the track record (the totals over the agent's closed trades), which code always adds whatever you select.
+You do not decide the trade. Nothing you write reaches the decision model. For each episode you select it reads a record written by code (the situation, what was decided, and how it ended), plus the track record (the totals over the agent's closed trades), which code always adds whatever you select.
 
 # What you are given
 - The current situation of the asset.
@@ -166,14 +168,14 @@ You do not decide the trade. Nothing you write reaches the decision model: it re
 
 # What you can do
 Every reply you give must be a tool call.
-Answer at once by calling select_episodes, or look further first with up to ${o.maxLookups} lookups:
+Answer at once by calling select_episodes, or look further first with up to ${LIMITS.lookups} lookups:
 - search_episodes: search again, narrowed by asset, candle pattern, or what was decided.
-- read_episodes: read up to 5 episodes in full.
+- read_episodes: read up to ${LIMITS.perRead} episodes in full.
 - read_track_record: read the totals for one candle pattern and direction.
 Spend a lookup only when its result could change your choice. select_episodes is not a lookup: you can call it at any time, including after your lookups are used up.
 
 # How to choose
-Select up to ${o.maxSelected} episodes that will most help the decision model judge the current situation. Fewer is fine. So is none, if nothing fits.
+Select up to ${LIMITS.selected} episodes that will most help the decision model judge the current situation. Fewer is fine. So is none, if nothing fits.
 Choose by how closely an episode's situation matches the current one, not by whether it ended in a profit or a loss.
 Code enforces the risk limits (the caps on how much a trade can lose) after the decision is made, so do not choose episodes in order to steer the decision toward caution.
 
@@ -182,14 +184,14 @@ Finish by calling select_episodes with the IDs you chose and a one-line note on 
 }
 
 const TOOLS = [
-  { name: "search_episodes", lookup: true,
-    description: "Search the agent's past episodes again for the ones most like the current situation, narrowed by the filters you set. Returns up to 10 one-line summaries, closest first, in the same layout as the first list. An episode you have already been shown keeps its ID. The search always starts from the current situation: you cannot type search words, and you cannot ask for only profitable or only losing episodes. Counts as one lookup.",
+  { name: "search_episodes", isLookup: true,
+    description: `Search the agent's past episodes again for the ones most like the current situation, narrowed by the filters you set. Returns up to ${LIMITS.perSearch} one-line summaries, closest first, in the same layout as the first list. An episode you have already been shown keeps its ID. The search always starts from the current situation: you cannot type search words, and you cannot ask for only profitable or only losing episodes. Counts as one lookup.`,
     inputs: [
       "asset (optional): which assets to search. One of:",
       "    \"any\"               every asset (the default)",
       "    \"same_asset\"        only the asset in the current situation",
       "    \"same_asset_class\"  only stocks if it is a stock, only crypto if it is crypto",
-      "pattern (optional): keep only episodes where this candle pattern was named. One of:",
+      "pattern (optional): keep only episodes where this candle pattern was named on the 15-minute bars. One of:",
       "    \"any\"               no narrowing (the default)",
       "    a candle pattern name, such as \"bullish engulfing\" or \"hammer\"",
       "    [the real definition lists every valid name; code fills the list in from the playbook]",
@@ -198,26 +200,33 @@ const TOOLS = [
       "    \"long\"              a long was opened",
       "    \"short\"             a short was opened",
       "    \"no_trade\"          no trade was made" ] },
-  { name: "read_episodes", lookup: true,
-    description: "Read past episodes in full: the situation as it was described at the time, what was decided, how the position was handled bar by bar until it closed, and how it ended. This is what the decision model will read if you select the episode, plus the bar-by-bar handling. Counts as one lookup, however many episodes you ask for.",
-    inputs: [ "episode_ids (required): a list of 1 to 5 IDs you have been shown, such as [\"E1\", \"E4\"]" ] },
-  { name: "read_track_record", lookup: true,
+  { name: "read_episodes", isLookup: true,
+    description: "Read past episodes in full: the situation as it was described at the time, what was decided, how the position was handled bar by bar until it closed, and how it ended. The decision model reads the same record for each episode you select, without the bar-by-bar handling. Counts as one lookup, however many episodes you ask for.",
+    inputs: [ `episode_ids (required): a list of 1 to ${LIMITS.perRead} IDs you have been shown, such as ["E1", "E4"]` ] },
+  { name: "read_track_record", isLookup: true,
     description: "Read the totals over the agent's closed trades for one candle pattern and one direction, in the current asset's class (stocks or crypto): how many trades, how many wins, the average win and the average loss. The decision model is always given the track record, whatever you select. Counts as one lookup.",
     inputs: [
       "pattern (required): a candle pattern name, such as \"bullish engulfing\"",
       "    [the real definition lists every valid name]",
-      "direction (required): one of \"long\" or \"short\"" ] },
-  { name: "select_episodes", lookup: false,
+      "direction (required): which trades to total. One of:",
+      "    \"long\"              trades that bet on a rise",
+      "    \"short\"             trades that bet on a fall" ] },
+  { name: "select_episodes", isLookup: false,
     description: "Give your final answer. Call this once, when you are done. It is not a lookup and is always available.",
     inputs: [
-      "episode_ids (required): a list of 0 to 5 IDs you have been shown, most useful first. An empty list means none.",
-      "note (required): one line, at most 200 characters, on why you chose them" ] },
+      `episode_ids (required): a list of 0 to ${LIMITS.selected} IDs you have been shown, most useful first. An empty list means none.`,
+      `note (required): one line, at most ${LIMITS.noteChars} characters, on why you chose them` ] },
 ];
-function toolText(t) { return `${t.name}\n${t.description}\nInputs:\n` + t.inputs.map(i => "  " + i).join("\n"); }
-const LIMIT_MESSAGE = "You have used all 6 lookups. Call select_episodes now.";
-const TIME_MESSAGE = "Time is up. Call select_episodes now.";
-const REASK_MESSAGE = "Your reply must be a tool call. Call a lookup tool, or call select_episodes to answer.";
-const REASK_AT_LIMIT_MESSAGE = "Your reply must be a tool call. Call select_episodes to answer.";
+function toolText(tool) { return `${tool.name}\n${tool.description}\nInputs:\n` + tool.inputs.map(line => "  " + line).join("\n"); }
+
+/* Fixed messages code sends when a reply cannot be acted on. */
+const LOOKUPS_USED_UP = `Not run: you have used all ${LIMITS.lookups} lookups.`;
+const ANSWER_NOW_AT_LIMIT = `You have used all ${LIMITS.lookups} lookups. Call select_episodes now.`;
+const ANSWER_NOW_OUT_OF_TIME = "Time is up. Call select_episodes now.";
+const REASK = "Your reply must be a tool call. Call a lookup tool, or call select_episodes to answer.";
+const REASK_AT_LIMIT = "Your reply must be a tool call. Call select_episodes to answer.";
+const VALUE_NOT_ALLOWED = "Not run: asset must be one of \"any\", \"same_asset\", \"same_asset_class\".";
+const ANSWER_DOES_NOT_FIT = "Not accepted: episode_ids must be a list of IDs, such as [\"E1\", \"E4\"], and note must be one line of text.";
 
 /* ============================================================
    MADE-UP DATA
@@ -232,137 +241,142 @@ const PLAYBOOK = {
   "morning star": { lean: "bullish", shape: "A long down bar, a small bar below it, then a long up bar." },
   "shooting star": { lean: "bearish", shape: "A small body at the bottom of the bar with an upper wick at least twice as long." },
 };
-const SIT = "Stock, first hour (bar 3 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), hammer (2 bars ago). Latest hourly bar: none. Latest daily bar: doji. Last 8 bars: five up, three down; this bar is a large up bar closing near its high. Short-term trend up (1.5 typical moves above the 20-bar average). Long-term trend up (2.1 above the 20-day average). Volume high (1.8 times normal). Price is 1.0 above the day's average price, 1.0 below the day's high, 2.0 above the day's low, and 1.0 above the previous day's high. Typical move: 0.6% of price.";
-const CURRENT = { asset: "ASSET_03", cls: "stock", situation: SIT, patterns: ["bullish engulfing", "hammer", "doji"] };
-const UP = "long-term trend up", DOWN = "long-term trend down";
-const EP = {
-  a: { key:"a", agoSteps: 3*96+8, asset:"ASSET_03", cls:"stock", setting:["first hour",UP,"volume high"], patterns:["bullish engulfing","hammer"], pick:{dir:"long",stop:"tight",stopPct:0.6,dollars:6000}, out:{reason:"choice",bars:6,pnl:21,pct:0.4,best:33,worst:-8},
+const CURRENT = { asset: "ASSET_03", assetClass: "stock", patterns: ["bullish engulfing", "hammer", "doji"],
+  situation: "Stock, first hour (bar 3 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), hammer (2 bars ago). Latest hourly bar: none. Latest daily bar: doji. Last 8 bars: five up, three down; this bar is a large up bar closing near its high. Short-term trend up (1.5 typical moves above the 20-bar average). Long-term trend up (2.1 above the 20-day average). Volume high (1.8 times normal). Price is 1.0 above the day's average price, 1.0 below the day's high, 2.0 above the day's low, and 1.0 above the previous day's high. Typical move: 0.6% of price." };
+const TREND_UP = "long-term trend up", TREND_DOWN = "long-term trend down";
+/* Made-up past episodes, keyed by a stand-in for the stored record's own ID. Situation texts ending in "..." are cut short. */
+const EPISODES = {
+  a: { key:"a", stepsAgo: 3*96+8, asset:"ASSET_03", assetClass:"stock", setting:["first hour",TREND_UP,"volume high"], patterns:["bullish engulfing","hammer"], trade:{direction:"long",stop:"tight",stopPercent:0.6,dollars:6000}, ended:{reason:"choice",bars:6,profit:21,percent:0.4,best:33,worst:-8},
        situation: "Stock, first hour (bar 4 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), hammer (1 bar ago). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a large up bar closing at its high. Short-term trend up (0.9 typical moves above the 20-bar average). Long-term trend up (1.4 above the 20-day average). Volume high (2.2 times normal). Price is 0.6 above the day's average price, 0.2 below the day's high, 1.8 above the day's low, and 0.3 below the previous day's high. Typical move: 0.6% of price.",
        handled:["bar 1 hold","bar 2 hold","bar 3 reduce by half (that half: +$14)","bar 4 hold","bar 5 hold","bar 6 close"] },
-  b: { key:"b", agoSteps: 9*96+30, asset:"ASSET_03", cls:"stock", setting:["first hour",UP,"volume high"], patterns:["bullish engulfing"], also:["shooting star"], pick:{dir:"long",stop:"medium",stopPct:1.2,dollars:4200}, out:{reason:"stop",bars:3,pnl:-52,pct:-1.2,best:6,worst:-52},
+  b: { key:"b", stepsAgo: 9*96+30, asset:"ASSET_03", assetClass:"stock", setting:["first hour",TREND_UP,"volume high"], patterns:["bullish engulfing"], patternsOnLongerBars:["shooting star"], trade:{direction:"long",stop:"medium",stopPercent:1.2,dollars:4200}, ended:{reason:"stop",bars:3,profit:-52,percent:-1.2,best:6,worst:-52},
        situation: "Stock, first hour (bar 2 of 26). Patterns in the last 4 bars: bullish engulfing (this bar). Latest hourly bar: none. Latest daily bar: shooting star. Last 8 bars: three up, five down; this bar is a medium up bar closing near its high. Short-term trend down (0.8 typical moves below the 20-bar average). Long-term trend up (0.4 above the 20-day average). Volume high (1.6 times normal). Price is 0.3 above the day's average price, 0.4 below the day's high, 1.1 above the day's low, and 2.0 below the previous day's high. Typical move: 0.6% of price.",
        handled:["bar 1 hold","bar 2 hold","bar 3 stop price reached"] },
-  c: { key:"c", agoSteps: 12*96+2, asset:"ASSET_01", cls:"stock", setting:["first hour",UP,"volume average"], patterns:["bullish engulfing","belt-hold"], pick:null, out:{after1:0.1,after4:0.6,eod:1.1},
+  c: { key:"c", stepsAgo: 12*96+2, asset:"ASSET_01", assetClass:"stock", setting:["first hour",TREND_UP,"volume average"], patterns:["bullish engulfing","belt-hold"], after:{oneBar:0.1,fourBars:0.6,endOfDay:1.1},
        situation: "Stock, first hour (bar 3 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), belt-hold (1 bar ago). ..." },
-  d: { key:"d", agoSteps: 20*96+51, asset:"ASSET_05", cls:"crypto", setting:["European hours",UP,"volume high"], patterns:["hammer","bullish engulfing"], pick:{dir:"long",stop:"wide",stopPct:2.4,dollars:3000}, out:{reason:"choice",bars:11,pnl:48,pct:1.6,best:70,worst:-15}, situation: "Crypto, European hours (bar 41 of 96). ...", handled:["bars 1 to 10 hold","bar 11 close"] },
-  e: { key:"e", agoSteps: 31*96+12, asset:"ASSET_03", cls:"stock", setting:["first hour",UP,"volume low"], patterns:["bullish harami"], pick:{dir:"short",stop:"tight",stopPct:0.6,dollars:5000}, out:{reason:"stop",bars:2,pnl:-34,pct:-0.7,best:4,worst:-34}, situation: "Stock, first hour (bar 3 of 26). ...", handled:["bar 1 hold","bar 2 stop price reached"] },
-  f: { key:"f", agoSteps: 44*96+70, asset:"ASSET_02", cls:"stock", setting:["middle",UP,"volume high"], patterns:["bullish engulfing"], pick:{dir:"long",stop:"tight",stopPct:0.5,dollars:8000}, out:{reason:"choice",bars:4,pnl:-12,pct:-0.2,best:18,worst:-25}, situation: "Stock, middle (bar 9 of 26). ...", handled:["bars 1 to 3 hold","bar 4 close"] },
-  g: { key:"g", agoSteps: 58*96+5, asset:"ASSET_03", cls:"stock", setting:["first hour",DOWN,"volume high"], patterns:["hammer"], pick:null, out:{after1:-0.2,after4:-0.5,eod:-0.9}, situation: "Stock, first hour (bar 2 of 26). ..." },
-  h: { key:"h", agoSteps: 73*96+40, asset:"ASSET_04", cls:"stock", setting:["first hour",UP,"volume high"], patterns:["bullish engulfing","hammer"], pick:{dir:"long",stop:"medium",stopPct:1.4,dollars:5500}, out:{reason:"choice",bars:9,pnl:61,pct:1.1,best:74,worst:-20},
+  d: { key:"d", stepsAgo: 20*96+51, asset:"ASSET_05", assetClass:"crypto", setting:["European hours",TREND_UP,"volume high"], patterns:["hammer","bullish engulfing"], trade:{direction:"long",stop:"wide",stopPercent:2.4,dollars:3000}, ended:{reason:"choice",bars:11,profit:48,percent:1.6,best:70,worst:-15}, situation: "Crypto, European hours (bar 41 of 96). ...", handled:["bars 1 to 10 hold","bar 11 close"] },
+  e: { key:"e", stepsAgo: 31*96+12, asset:"ASSET_03", assetClass:"stock", setting:["first hour",TREND_UP,"volume low"], patterns:["bullish harami"], trade:{direction:"short",stop:"tight",stopPercent:0.6,dollars:5000}, ended:{reason:"stop",bars:2,profit:-34,percent:-0.7,best:4,worst:-34}, situation: "Stock, first hour (bar 3 of 26). ...", handled:["bar 1 hold","bar 2 stop price reached"] },
+  f: { key:"f", stepsAgo: 44*96+70, asset:"ASSET_02", assetClass:"stock", setting:["middle",TREND_UP,"volume high"], patterns:["bullish engulfing"], trade:{direction:"long",stop:"tight",stopPercent:0.5,dollars:8000}, ended:{reason:"choice",bars:4,profit:-16,percent:-0.2,best:18,worst:-25}, situation: "Stock, middle (bar 9 of 26). ...", handled:["bars 1 to 3 hold","bar 4 close"] },
+  g: { key:"g", stepsAgo: 58*96+5, asset:"ASSET_03", assetClass:"stock", setting:["first hour",TREND_DOWN,"volume high"], patterns:["hammer"], after:{oneBar:-0.2,fourBars:-0.5,endOfDay:-0.9}, situation: "Stock, first hour (bar 2 of 26). ..." },
+  h: { key:"h", stepsAgo: 73*96+40, asset:"ASSET_04", assetClass:"stock", setting:["first hour",TREND_UP,"volume high"], patterns:["bullish engulfing","hammer"], trade:{direction:"long",stop:"medium",stopPercent:1.4,dollars:5500}, ended:{reason:"choice",bars:9,profit:61,percent:1.1,best:74,worst:-20},
        situation: "Stock, first hour (bar 3 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), hammer (2 bars ago). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: five up, three down; this bar is a large up bar closing near its high. Short-term trend up (1.3 typical moves above the 20-bar average). Long-term trend up (2.4 above the 20-day average). Volume high (1.7 times normal). Price is 0.9 above the day's average price, 0.8 below the day's high, 2.2 above the day's low, and 1.2 above the previous day's high. Typical move: 0.7% of price.",
-       handled:["bars 1 to 5 hold","bar 6 add $1,500","bars 7 and 8 hold","bar 9 close"] },
-  i: { key:"i", agoSteps: 120*96+88, asset:"ASSET_05", cls:"crypto", setting:["American hours",DOWN,"volume average"], patterns:["bullish engulfing"], pick:{dir:"long",stop:"tight",stopPct:0.9,dollars:2500}, out:{reason:"stop",bars:5,pnl:-26,pct:-1.0,best:9,worst:-26}, situation: "Crypto, American hours (bar 70 of 96). ...", handled:["bars 1 to 4 hold","bar 5 stop price reached"] },
-  j: { key:"j", agoSteps: 201*96+17, asset:"ASSET_01", cls:"stock", setting:["middle",UP,"volume high"], patterns:["piercing"], pick:{dir:"long",stop:"wide",stopPct:1.8,dollars:3500}, out:{reason:"choice",bars:14,pnl:9,pct:0.3,best:30,worst:-22}, situation: "Stock, middle (bar 11 of 26). ...", handled:["bars 1 to 13 hold","bar 14 close"] },
-  k: { key:"k", agoSteps: 88*96+3, asset:"ASSET_03", cls:"stock", setting:["last hour",DOWN,"volume low"], patterns:["bullish engulfing"], pick:{dir:"long",stop:"tight",stopPct:0.6,dollars:7000}, out:{reason:"stop",bars:1,pnl:-44,pct:-0.6,best:0,worst:-44},
+       handled:["bars 1 to 8 hold","bar 9 close"] },
+  i: { key:"i", stepsAgo: 120*96+88, asset:"ASSET_05", assetClass:"crypto", setting:["American hours",TREND_DOWN,"volume average"], patterns:["bullish engulfing"], trade:{direction:"long",stop:"tight",stopPercent:0.9,dollars:2500}, ended:{reason:"stop",bars:5,profit:-26,percent:-1.0,best:9,worst:-26}, situation: "Crypto, American hours (bar 70 of 96). ...", handled:["bars 1 to 4 hold","bar 5 stop price reached"] },
+  j: { key:"j", stepsAgo: 201*96+17, asset:"ASSET_01", assetClass:"stock", setting:["middle",TREND_UP,"volume high"], patterns:["piercing"], trade:{direction:"long",stop:"wide",stopPercent:1.8,dollars:3500}, ended:{reason:"choice",bars:14,profit:9,percent:0.3,best:30,worst:-22}, situation: "Stock, middle (bar 11 of 26). ...", handled:["bars 1 to 13 hold","bar 14 close"] },
+  k: { key:"k", stepsAgo: 88*96+3, asset:"ASSET_03", assetClass:"stock", setting:["last hour",TREND_DOWN,"volume low"], patterns:["bullish engulfing"], trade:{direction:"long",stop:"tight",stopPercent:0.6,dollars:7000}, ended:{reason:"stop",bars:1,profit:-44,percent:-0.6,best:0,worst:-44},
        situation: "Stock, last hour (bar 24 of 26). Patterns in the last 4 bars: bullish engulfing (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: two up, six down; this bar is a small up bar closing mid-range. Short-term trend down (1.7 typical moves below the 20-bar average). Long-term trend down (0.9 below the 20-day average). Volume low (0.7 times normal). Price is 1.2 below the day's average price, 2.6 below the day's high, 0.3 above the day's low, and 3.1 below the previous day's high. Typical move: 0.6% of price.",
        handled:["bar 1 stop price reached"] },
-  l: { key:"l", agoSteps: 140*96+9, asset:"ASSET_03", cls:"stock", setting:["first hour",UP,"volume average"], patterns:["bullish engulfing","morning star"], pick:{dir:"long",stop:"wide",stopPct:1.8,dollars:4000}, out:{reason:"choice",bars:16,pnl:88,pct:2.2,best:95,worst:-18}, situation: "Stock, first hour (bar 4 of 26). ...", handled:["bars 1 to 15 hold","bar 16 close"] },
-  m: { key:"m", agoSteps: 165*96+61, asset:"ASSET_03", cls:"stock", setting:["middle",DOWN,"volume high"], patterns:["bullish engulfing"], pick:null, out:{after1:0.3,after4:-0.4,eod:-1.3}, situation: "Stock, middle (bar 14 of 26). ..." },
-  n: { key:"n", agoSteps: 230*96+44, asset:"ASSET_03", cls:"stock", setting:["first hour",UP,"volume high"], patterns:["bullish engulfing","hammer"], pick:{dir:"long",stop:"medium",stopPct:1.2,dollars:6500}, out:{reason:"choice",bars:7,pnl:35,pct:0.5,best:52,worst:-11}, situation: "Stock, first hour (bar 3 of 26). ...", handled:["bars 1 to 6 hold","bar 7 close"] },
+  l: { key:"l", stepsAgo: 140*96+9, asset:"ASSET_03", assetClass:"stock", setting:["first hour",TREND_UP,"volume average"], patterns:["bullish engulfing","morning star"], trade:{direction:"long",stop:"wide",stopPercent:1.8,dollars:4000}, ended:{reason:"choice",bars:16,profit:88,percent:2.2,best:95,worst:-18}, situation: "Stock, first hour (bar 4 of 26). ...", handled:["bars 1 to 15 hold","bar 16 close"] },
+  m: { key:"m", stepsAgo: 165*96+61, asset:"ASSET_03", assetClass:"stock", setting:["middle",TREND_DOWN,"volume high"], patterns:["bullish engulfing"], after:{oneBar:0.3,fourBars:-0.4,endOfDay:-1.3}, situation: "Stock, middle (bar 14 of 26). ..." },
+  n: { key:"n", stepsAgo: 230*96+44, asset:"ASSET_03", assetClass:"stock", setting:["first hour",TREND_UP,"volume high"], patterns:["bullish engulfing","hammer"], trade:{direction:"long",stop:"medium",stopPercent:1.2,dollars:6500}, ended:{reason:"choice",bars:7,profit:35,percent:0.5,best:52,worst:-11}, situation: "Stock, first hour (bar 3 of 26). ...", handled:["bars 1 to 6 hold","bar 7 close"] },
 };
-const FIRST10 = ["a","b","c","d","e","f","g","h","i","j"].map(k => EP[k]);
-const SECOND = ["a","b","k","l","m","n"].map(k => EP[k]);
-const TRACK = { pattern:"bullish engulfing", direction:"long", cls:"stocks", minSample:10, groups:[
-  { name:"All", trades:42, wins:17, avgWin:31, avgLoss:-18, total:77 },
-  { name:"With the long-term trend", trades:30, wins:14, avgWin:33, avgLoss:-17, total:190 },
-  { name:"With the long-term trend, high volume", trades:18, wins:10, avgWin:36, avgLoss:-19, total:208 },
-  { name:"With the long-term trend, high volume, first hour", trades:11, wins:7, avgWin:38, avgLoss:-21, total:182, fits:true },
+const FIRST_SEARCH = ["a","b","c","d","e","f","g","h","i","j"].map(k => EPISODES[k]);
+const SECOND_SEARCH = ["a","b","k","l","m","n"].map(k => EPISODES[k]);
+const TRACK_RECORD = { pattern:"bullish engulfing", direction:"long", assetClass:"stocks", minimumSample:10, groups:[
+  { name:"All", trades:42, wins:17, averageWin:31, averageLoss:-18, total:77 },
+  { name:"With the long-term trend", trades:30, wins:14, averageWin:33, averageLoss:-17, total:190 },
+  { name:"With the long-term trend, high volume", trades:18, wins:10, averageWin:36, averageLoss:-19, total:208 },
+  { name:"With the long-term trend, high volume, first hour", trades:11, wins:7, averageWin:38, averageLoss:-21, total:182, fits:true },
 ]};
 
 /* ============================================================
    PAGE (throwaway shell around the portable part)
    ============================================================ */
-const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-const tokens = s => Math.round(s.length / 4);
-function opts() { return { maxLookups: 6, maxSelected: 5 }; }
-function msg(kind, who, text, note, state) {
-  return `<div class="msg ${kind}"><div><div class="who">${who}</div><pre>${esc(text)}</pre>${state ? `<div class="state">${state}</div>` : ""}</div><div class="note">${note || ""}</div></div>`;
+const escapeHtml = text => text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const roughTokens = text => Math.round(text.length / 4);
+function messageBox(kind, heading, text, note, state) {
+  return `<div class="msg ${kind}"><div><div class="who">${heading}</div><pre>${escapeHtml(text)}</pre>${state ? `<div class="state">${state}</div>` : ""}</div><div class="note">${note || ""}</div></div>`;
 }
-const call = (name, args) => `${name}(${JSON.stringify(args)})`;
-function st(lookups, ev, text) { return `lookups used: ${lookups} of 6 · episodes shown so far: ${ev.shown()} · this message: about ${tokens(text)} tokens`; }
+const toolCall = (name, inputs) => `${name}(${JSON.stringify(inputs)})`;
+function stateLine(lookupsUsed, evaluation, text) { return `lookups used: ${lookupsUsed} of ${LIMITS.lookups} · episodes shown so far: ${evaluation.episodesShown()} · this message: about ${roughTokens(text)} tokens`; }
+const newEvaluation = () => makeEvaluation(CURRENT, PLAYBOOK);
 
 const SCENARIOS = [
   { tab: "Always sent", intro: "The part that never changes from one full evaluation to the next: the standing instructions and the descriptions of the four tools. Because it never changes, the provider charges much less to re-read it (prompt caching).",
-    render(o) {
-      const sys = systemPrompt(o); let h = "";
-      h += msg("code", "Standing instructions (the system prompt)", sys, "<b>What it does:</b> tells the LLM its one job, in the same words every time.<br><br><b>The goal</b> is one sentence: the highest account value at the end. Nothing asks for steady growth or care.<br><br><b>Why only \"long, short, or no trade\":</b> the LLM is called only for an asset the agent holds nothing in. Closing, adding, and reducing are decided later, every 15 minutes, by Jev alone. The third paragraph tells the LLM so, because the past records show those later moves.<br><br><b>No trading advice:</b> it never says which patterns are good or when to trade.<br><br><b>Every reply must be a tool call,</b> and every model is treated the same way: no provider feature is used to force one.", `about ${tokens(sys)} tokens`);
-      TOOLS.forEach((t, i) => { const tx = toolText(t); h += msg("code", "Tool description " + (i + 1) + " of 4" + (t.lookup ? " (a lookup)" : " (the answer)"), tx, [
+    render() {
+      const instructions = systemPrompt(); let html = "";
+      html += messageBox("code", "Standing instructions (the system prompt)", instructions, "<b>What it does:</b> tells the LLM its one job, in the same words every time.<br><br><b>The goal</b> is one sentence: the highest account value at the end. Nothing asks for steady growth or care.<br><br><b>Why only \"long, short, or no trade\":</b> the LLM is called only for an asset the agent holds nothing in. Closing, adding, and reducing are decided later, every 15 minutes, by Jev alone. The paragraph beginning \"Once a trade is open\" tells the LLM so, because the past records show how those trades ended.<br><br><b>No trading advice:</b> it never says which patterns are good or when to trade.<br><br><b>Every reply must be a tool call,</b> and every model is treated the same way: no provider feature is used to force one.", `about ${roughTokens(instructions)} tokens`);
+      const toolNotes = [
         "<b>Search again.</b> The LLM can narrow the search three ways, and every allowed value is spelled out with its meaning. It cannot type its own words and cannot filter by profit or loss (decided earlier).",
         "<b>Read in full.</b> Opens the whole record of up to 5 episodes for the price of one lookup.",
-        "<b>The scorecard.</b> Totals for one pattern and one direction. Jev gets the scorecard anyway, so this only helps the LLM choose.",
-        "<b>The answer.</b> The LLM answers by calling this tool, so the answer always has the same shape: a list of IDs and a note. It never counts against the 6 lookups and is never taken away."][i], `about ${tokens(tx)} tokens`); });
-      return h; } },
+        "<b>The track record.</b> Totals for one pattern and one direction. Jev gets the track record anyway, so this only helps the LLM choose.",
+        "<b>The answer.</b> The LLM answers by calling this tool, so the answer always has the same shape: a list of IDs and a note. It never counts against the 6 lookups and is never taken away."];
+      TOOLS.forEach((tool, i) => { const text = toolText(tool); html += messageBox("code", "Tool description " + (i + 1) + " of 4" + (tool.isLookup ? " (a lookup)" : " (the answer)"), text, toolNotes[i], `about ${roughTokens(text)} tokens`); });
+      return html; } },
 
   { tab: "1. Answers at once", intro: "The usual case. Code has already run the first search. The LLM reads the current situation and ten one-line summaries, and answers straight away without a lookup.",
-    render(o) {
-      const ev = makeEvaluation(); const m1 = firstMessage(CURRENT, FIRST10, ev, o, PLAYBOOK); let h = "";
-      h += msg("code", "Code to LLM: the first message", m1, "<b>Top:</b> the situation text, the same paragraph Jev reads and the same one the search used. \"ASSET_03\" is a masked name, so the LLM cannot tell which real stock it is.<br><br><b>Middle:</b> one line per past episode. Reading the first line: three days ago, on this same stock, in the first hour of trading with prices rising for weeks and heavy trading, the same two patterns showed up; Jev bet $6,000 on a rise with a tight stop price; Jev closed the trade 6 bars (90 minutes) later, $21 up.<br><br><b>IDs</b> (E1, E2 ...) are short labels numbered in order of appearance, made fresh for each evaluation.<br><br><b>The three labels</b> in each line say when in the day it was, which way prices had been heading for weeks, and how heavy trading was.<br><br><b>Bottom:</b> a note on each candle pattern named, from the playbook: which way it hints (bullish means a rise, bearish a fall, neutral neither) and its shape. Each pattern is explained once per evaluation.", st(0, ev, m1));
-      const a = call("select_episodes", { episode_ids: ["E1","E8","E2","E3"], note: "Same two patterns in a stock's first hour: E1, E8 and E2 were taken (two up, one stopped out), E3 was passed up and rose." });
-      h += msg("llm", "LLM to code: its answer", a, "Four episodes chosen, fewer than the five allowed. The note is stored for you to read in the web app. Jev never sees it.", st(0, ev, a));
-      h += msg("aside", "What code does next (not a message)", "Stores: the 10 episodes shown, the 4 selected, the note, 0 lookups.\nStores every message above word for word, so the web app can show this same chain for any full evaluation.\nBuilds Jev's reading from the 4 selected episodes plus the track record, then asks Jev to pick a trade.", "The standing instructions and tool descriptions are stored once per prompt version, not once per evaluation.");
-      return h; } },
+    render() {
+      const evaluation = newEvaluation(); const first = firstMessage(FIRST_SEARCH, evaluation); let html = "";
+      html += messageBox("code", "Code to LLM: the first message", first, "<b>Top:</b> the situation text, the same paragraph Jev reads and the same one the search used. \"ASSET_03\" is a masked name, so the LLM cannot tell which real stock it is.<br><br><b>Middle:</b> one line per past episode. Reading the first line: three days ago, on this same stock, in the first hour of trading with prices rising for weeks and heavy trading, the same two patterns showed up; Jev bet $6,000 on a rise with a tight stop price; Jev closed the trade 6 bars (90 minutes) later, $21 up.<br><br><b>IDs</b> (E1, E2 ...) are short labels numbered in order of appearance, made fresh for each evaluation.<br><br><b>The three labels</b> in each line say when in the day it was, which way prices had been heading for weeks, and how heavy trading was.<br><br><b>The pattern column</b> lists the patterns on 15-minute bars. Patterns on hourly and daily bars show only in a situation text.<br><br><b>Bottom:</b> a note on each candle pattern named, from the playbook: which way it hints (bullish means a rise, bearish a fall, neutral neither) and its shape. Each pattern is explained once per evaluation.", stateLine(0, evaluation, first));
+      const answer = toolCall("select_episodes", { episode_ids: ["E1","E8","E2","E3"], note: "E1 and E8 share both patterns in a stock's first hour and rose; E2 had the engulfing alone and was stopped out; E3 was passed up and rose." });
+      html += messageBox("llm", "LLM to code: its answer", answer, "Four episodes chosen, fewer than the five allowed. The note is stored for you to read in the web app. Jev never sees it.", stateLine(0, evaluation, answer));
+      html += messageBox("aside", "What code does next (not a message)", "Stores: the 10 episodes shown, the 4 selected, the note, 0 lookups, and the prompt version.\nStores every message above word for word, so the web app can show this same chain for any full evaluation.\nBuilds Jev's reading from the 4 selected episodes plus the track record, then asks Jev to pick a trade.", "The prompt version is the name of this exact wording. The standing instructions and tool descriptions are stored once per prompt version, not once per evaluation.");
+      return html; } },
 
-  { tab: "2. Looks further", intro: "The LLM is not sure the ten lines are enough, so it searches again on the same stock, opens four episodes in full, and checks the scorecard before answering. Three lookups out of six.",
-    render(o) {
-      const ev = makeEvaluation(); const m1 = firstMessage(CURRENT, FIRST10, ev, o, PLAYBOOK); let h = "";
-      h += msg("code", "Code to LLM: the first message", m1, "Same first message as in scenario 1.", st(0, ev, m1));
-      const c1 = call("search_episodes", { asset: "same_asset", pattern: "bullish engulfing", decided: "any" });
-      h += msg("llm", "LLM to code: asks for a second search", c1, "\"Show me more from this same stock where a bullish engulfing appeared.\"", st(1, ev, c1));
-      const r1 = searchResult(SECOND, CURRENT, ev, o, "same asset, bullish engulfing, any decision", PLAYBOOK);
-      h += msg("code", "Code to LLM: search result", r1, "Only six matched. E1 and E2 were already shown and keep their IDs; the four new ones continue the numbering (E11 to E14).<br><br>The three labels already show that E11 is a poor match (last hour, prices falling, light trading), before a lookup is spent opening it. \"Morning star\" is new in this evaluation, so its note is added.", st(1, ev, r1));
-      const c2 = call("read_episodes", { episode_ids: ["E1","E2","E8","E11"] });
-      h += msg("llm", "LLM to code: asks to read four in full", c2, "", st(2, ev, c2));
-      const r2 = fullEpisodes([EP.a, EP.b, EP.h, EP.k], CURRENT, ev, o, PLAYBOOK);
-      h += msg("code", "Code to LLM: the four episodes in full", r2, "<b>Each record has four parts:</b> the situation as it was written then, what Jev decided, what happened bar by bar, and how it ended.<br><br>\"At best +$33, at worst -$8\" means the trade was $33 up at its highest point and $8 down at its lowest before it closed.", st(2, ev, r2));
-      const c3 = call("read_track_record", { pattern: "bullish engulfing", direction: "long" });
-      h += msg("llm", "LLM to code: asks for the scorecard", c3, "", st(3, ev, c3));
-      const r3 = trackRecord(TRACK);
-      h += msg("code", "Code to LLM: the track record", r3, "From the broadest group to the narrowest that still has at least 10 closed trades. A \"win\" is a trade that closed with a profit after trading costs.<br><br>Reading the last line: in a stock's first hour, with prices rising for weeks and heavy trading, this bet was made 11 times and won 7.", st(3, ev, r3));
-      const a = call("select_episodes", { episode_ids: ["E1","E8","E2","E3","E14"], note: "Closest matches on pattern pair, first hour and high volume; E2 lost with the short-term trend down; E11 dropped (last hour, low volume)." });
-      h += msg("llm", "LLM to code: its answer", a, "", st(3, ev, a));
-      return h; } },
+  { tab: "2. Looks further", intro: "The LLM is not sure the ten lines are enough, so it searches again on the same stock, opens four episodes in full, and checks the track record before answering. Three lookups out of six.",
+    render() {
+      const evaluation = newEvaluation(); const first = firstMessage(FIRST_SEARCH, evaluation); let html = "";
+      html += messageBox("code", "Code to LLM: the first message", first, "Same first message as in scenario 1.", stateLine(0, evaluation, first));
+      const search = toolCall("search_episodes", { asset: "same_asset", pattern: "bullish engulfing", decided: "any" });
+      html += messageBox("llm", "LLM to code: asks for a second search", search, "\"Show me more from this same stock where a bullish engulfing appeared.\"", stateLine(1, evaluation, search));
+      const found = searchResult(SECOND_SEARCH, evaluation, "same asset, bullish engulfing, any decision");
+      html += messageBox("code", "Code to LLM: search result", found, "Only six matched. E1 and E2 were already shown and keep their IDs; the four new ones continue the numbering (E11 to E14).<br><br>The three labels already show that E11 is a poor match (last hour, prices falling, light trading), before a lookup is spent opening it. \"Morning star\" is new in this evaluation, so its note is added.", stateLine(1, evaluation, found));
+      const read = toolCall("read_episodes", { episode_ids: ["E1","E2","E8","E11"] });
+      html += messageBox("llm", "LLM to code: asks to read four in full", read, "", stateLine(2, evaluation, read));
+      const records = fullEpisodes([EPISODES.a, EPISODES.b, EPISODES.h, EPISODES.k], evaluation);
+      html += messageBox("code", "Code to LLM: the four episodes in full", records, "<b>Each record has four parts:</b> the situation as it was written then, what Jev decided, what happened bar by bar, and how it ended.<br><br>\"At best +$33, at worst -$8\" means the trade was $33 up at its highest point and $8 down at its lowest before it closed.<br><br>Jev reads the same record for a selected episode, minus the bar-by-bar line.", stateLine(2, evaluation, records));
+      const ask = toolCall("read_track_record", { pattern: "bullish engulfing", direction: "long" });
+      html += messageBox("llm", "LLM to code: asks for the track record", ask, "", stateLine(3, evaluation, ask));
+      const totals = trackRecord(TRACK_RECORD);
+      html += messageBox("code", "Code to LLM: the track record", totals, "From the broadest group to the narrowest that still has at least 10 closed trades. A \"win\" is a trade that closed with a profit after trading costs.<br><br>Reading the last line: in a stock's first hour, with prices rising for weeks and heavy trading, this bet was made 11 times and won 7.", stateLine(3, evaluation, totals));
+      const answer = toolCall("select_episodes", { episode_ids: ["E1","E8","E14","E2","E3"], note: "E1, E8, E14: both patterns, first hour, high volume. E2 lost with the short-term trend down. E3 was passed up and rose. E11 left out: last hour, low volume." });
+      html += messageBox("llm", "LLM to code: its answer", answer, "", stateLine(3, evaluation, answer));
+      return html; } },
 
   { tab: "3. Runs out of lookups", intro: "The LLM keeps looking things up. After the sixth lookup the three lookup tools are switched off, but the answer tool stays: the LLM can always still answer. The run carries on and the event is logged.",
-    render(o) {
-      const ev = makeEvaluation(); const m1 = firstMessage(CURRENT, FIRST10, ev, o, PLAYBOOK); let h = "";
-      h += msg("code", "Code to LLM: the first message", m1, "Same first message as in scenario 1.", st(0, ev, m1));
-      h += msg("aside", "Five lookups, left out here", "search_episodes, read_episodes, search_episodes, read_track_record, search_episodes ... each answered as in scenario 2.", "", "lookups used: 5 of 6");
-      const c = call("read_episodes", { episode_ids: ["E1","E8"] }) + "\n" + call("read_track_record", { pattern: "hammer", direction: "long" });
-      h += msg("llm", "LLM to code: asks for two things at once", c, "Two requests side by side, but only one lookup is left. Each one counts.", "lookups used: 5 of 6, 2 requested");
-      const r = "[read_episodes] " + fullEpisodes([EP.a, EP.h], CURRENT, ev, o, PLAYBOOK) + "\n\n[read_track_record] Not run: you have used all 6 lookups.\n\n" + LIMIT_MESSAGE;
-      h += msg("code", "Code to LLM: one result, one refusal, and the stop message", r, "The first request is answered. The second is refused in plain words. Then the fixed stop message.<br><br>From here on the only tool on offer is select_episodes.<br><br>If the 60 seconds run out instead, the message reads: \"" + TIME_MESSAGE + "\"", "lookups used: 6 of 6 · logged: \"an LLM limit hit\"");
-      const a = call("select_episodes", { episode_ids: ["E1","E8","E2"], note: "Answered at the lookup limit: the three closest on pattern pair and time of day." });
-      h += msg("llm", "LLM to code: its answer", a, "The answer tool was never counted and never removed.", "");
-      return h; } },
+    render() {
+      const evaluation = newEvaluation(); const first = firstMessage(FIRST_SEARCH, evaluation); let html = "";
+      html += messageBox("code", "Code to LLM: the first message", first, "Same first message as in scenario 1.", stateLine(0, evaluation, first));
+      html += messageBox("aside", "Five lookups, left out here", "search_episodes, read_episodes, search_episodes, read_track_record, search_episodes ... each answered as in scenario 2.", "", `lookups used: 5 of ${LIMITS.lookups}`);
+      const twoAtOnce = toolCall("read_episodes", { episode_ids: ["E1","E8"] }) + "\n" + toolCall("read_track_record", { pattern: "hammer", direction: "long" });
+      html += messageBox("llm", "LLM to code: asks for two things at once", twoAtOnce, "Two requests side by side, but only one lookup is left. Each one counts.", `lookups used: 5 of ${LIMITS.lookups}, 2 requested`);
+      const reply = "[read_episodes] " + fullEpisodes([EPISODES.a, EPISODES.h], evaluation) + "\n\n[read_track_record] " + LOOKUPS_USED_UP + "\n\n" + ANSWER_NOW_AT_LIMIT;
+      html += messageBox("code", "Code to LLM: one result, one refusal, and the stop message", reply, "The first request is answered. The second is refused in plain words. Then the fixed stop message.<br><br>From here on the only tool on offer is select_episodes.<br><br>If the 60 seconds run out instead, the message reads: \"" + ANSWER_NOW_OUT_OF_TIME + "\"", `lookups used: ${LIMITS.lookups} of ${LIMITS.lookups} · logged: "an LLM limit hit"`);
+      const answer = toolCall("select_episodes", { episode_ids: ["E1","E8","E2"], note: "Answered at the lookup limit: E1 and E8 share both patterns in the first hour; E2 is the nearest loss." });
+      html += messageBox("llm", "LLM to code: its answer", answer, "The answer tool was never counted and never removed.", "");
+      return html; } },
 
   { tab: "4. Reply that does not fit", intro: "Ways a reply can be wrong, and what code does with each. None of them lets a made-up episode reach Jev.",
-    render(o) {
-      let h = "";
-      h += msg("llm", "Case A. The LLM writes a sentence instead of calling a tool", "I think E1, E8 and E2 are the most relevant because they share the same patterns.", "Code does not try to read IDs out of a sentence. This counts as one failed reply.", "failed replies: 1 of 3");
-      h += msg("code", "Code to LLM: asks again; every tool it still has stays on offer", REASK_MESSAGE, "The LLM is not pushed to answer: it may still look something up if it has lookups left.<br><br>If its lookups are used up, the message reads: \"" + REASK_AT_LIMIT_MESSAGE + "\"<br><br><b>Every model is treated the same:</b> the words are the only push. Some providers can force a tool call, but on Claude Haiku that skips the model's private reasoning, so the feature is not used.<br><br><b>Third failed reply in one full evaluation:</b> the run stops with a clear error and can be resumed later, like any other failed LLM call.", "");
-      h += msg("llm", "Case B. An ID that was never shown", call("select_episodes", { episode_ids: ["E1","E42","E8"], note: "Closest three." }), "E42 does not exist in this evaluation. Code drops it, keeps E1 and E8, and logs \"an unknown episode ID dropped\" (decided earlier). Not a failed reply.", "");
-      h += msg("llm", "Case C. Too many, or the same one twice", call("select_episodes", { episode_ids: ["E1","E1","E2","E3","E4","E5","E6"], note: "All relevant." }), "Code removes the repeat and keeps the first five in the order given: E1, E2, E3, E4, E5. Logged. Not a failed reply.", "");
-      h += msg("llm", "Case D. None selected", call("select_episodes", { episode_ids: [], note: "Nothing shown resembles a first-hour setup on high volume." }), "A valid answer, not an error. Jev is told no past episodes were selected and still gets the track record.", "");
-      h += msg("llm", "Case E. A lookup with a value that is not allowed", call("search_episodes", { asset: "ASSET_09", pattern: "any", decided: "any" }), "Code answers with the allowed values, in the same words as the tool description. It counts as a lookup, and is not a failed reply.", "");
-      h += msg("code", "Code to LLM: the refusal", "Not run: asset must be one of \"any\", \"same_asset\", \"same_asset_class\".", "", "");
-      return h; } },
+    render() {
+      let html = "";
+      html += messageBox("llm", "Case A. The LLM writes a sentence instead of calling a tool", "I think E1, E8 and E2 are the most relevant because they share the same patterns.", "Code does not try to read IDs out of a sentence. This counts as one failed reply.", `failed replies: 1 of ${LIMITS.failedReplies}`);
+      html += messageBox("code", "Code to LLM: asks again; every tool it still has stays on offer", REASK, "The LLM is not pushed to answer: it may still look something up if it has lookups left.<br><br>If its lookups are used up, the message reads: \"" + REASK_AT_LIMIT + "\"<br><br><b>Every model is treated the same:</b> the words are the only push. Some providers can force a tool call, but on Claude Haiku that skips the model's private reasoning, so the feature is not used.<br><br><b>Third failed reply in one full evaluation:</b> the run stops with a clear error and can be resumed later, like any other failed LLM call.", "");
+      html += messageBox("llm", "Case B. An ID that was never shown", toolCall("select_episodes", { episode_ids: ["E1","E42","E8"], note: "Closest three." }), "E42 does not exist in this evaluation. Code drops it, keeps E1 and E8, and logs \"an unknown episode ID dropped\" (decided earlier). Not a failed reply.", "");
+      html += messageBox("llm", "Case C. Too many, or the same one twice", toolCall("select_episodes", { episode_ids: ["E1","E1","E2","E3","E4","E5","E6"], note: "All relevant." }), "Code removes the repeat and keeps the first five in the order given: E1, E2, E3, E4, E5. Logged. Not a failed reply.", "");
+      html += messageBox("llm", "Case D. None selected", toolCall("select_episodes", { episode_ids: [], note: "Nothing shown resembles a first-hour setup on high volume." }), "A valid answer, not an error. Jev is told no past episodes were selected and still gets the track record.", "");
+      html += messageBox("llm", "Case E. A lookup with a value that is not allowed", toolCall("search_episodes", { asset: "ASSET_09", pattern: "any", decided: "any" }), "Code refuses and names the allowed values. It counts as a lookup, and is not a failed reply.", "");
+      html += messageBox("code", "Code to LLM: the refusal", VALUE_NOT_ALLOWED, "", "");
+      html += messageBox("llm", "Case F. An answer whose inputs do not fit", toolCall("select_episodes", { episode_ids: "E1 and E8" }), "The list is a sentence and the note is missing, so there is no answer to take. Code refuses and says what is wrong. This counts as a failed reply, and so does calling a tool that does not exist.", `failed replies: 1 of ${LIMITS.failedReplies}`);
+      html += messageBox("code", "Code to LLM: the refusal", ANSWER_DOES_NOT_FIT, "", "");
+      html += messageBox("aside", "Two smaller slips (not messages)", `A note longer than ${LIMITS.noteChars} characters is cut at ${LIMITS.noteChars} and the answer is kept. Logged.\nThe answer sent in the same reply as lookups: the answer is taken and the lookups are not run. Logged.`, "Neither is a failed reply.", "");
+      return html; } },
 
   { tab: "5. Thin memory (practice runs and tests)", intro: "Runs that count never start empty: each begins with the base memory, a year of records left by the build-up run. This case arises only in practice runs and tests that use a small made-up memory.",
-    render(o) {
-      const ev = makeEvaluation(); let h = "";
-      h += msg("aside", "The first search finds nothing", "The LLM is not called at all: no prompt, no cost.\nJev is told there are no past episodes yet.", "Decided earlier in \"Memory search design\".", "");
-      const m = firstMessage(CURRENT, [EP.a, EP.b, EP.g], ev, o, PLAYBOOK);
-      h += msg("code", "The first search finds only three: the first message", m, "The LLM is called as usual with what there is. The heading says \"3\", not \"10\".", st(0, ev, m));
-      return h; } },
+    render() {
+      const evaluation = newEvaluation(); let html = "";
+      html += messageBox("aside", "The first search finds nothing", "The LLM is not called at all: no prompt, no cost.\nJev is told there are no past episodes yet.", "Decided earlier in \"Memory search design\".", "");
+      const first = firstMessage([EPISODES.a, EPISODES.b, EPISODES.g], evaluation);
+      html += messageBox("code", "The first search finds only three: the first message", first, "The LLM is called as usual with what there is. The heading says \"3\", not \"10\".", stateLine(0, evaluation, first));
+      return html; } },
 ];
 
-let current = 1;
+let selectedTab = 1;
 function draw() {
-  document.getElementById("tabs").innerHTML = SCENARIOS.map((s, i) => `<button class="${i === current ? "on" : ""}" data-i="${i}">${s.tab}</button>`).join("");
-  const s = SCENARIOS[current];
-  document.getElementById("view").innerHTML = `<p class="scenario-intro">${s.intro}</p>` + s.render(opts());
+  document.getElementById("tabs").innerHTML = SCENARIOS.map((scenario, i) => `<button class="${i === selectedTab ? "on" : ""}" data-i="${i}">${scenario.tab}</button>`).join("");
+  const scenario = SCENARIOS[selectedTab];
+  document.getElementById("view").innerHTML = `<p class="scenario-intro">${scenario.intro}</p>` + scenario.render();
 }
-document.getElementById("tabs").addEventListener("click", e => { if (e.target.dataset.i !== undefined) { current = +e.target.dataset.i; draw(); } });
+document.getElementById("tabs").addEventListener("click", event => { if (event.target.dataset.i !== undefined) { selectedTab = +event.target.dataset.i; draw(); } });
 draw();
 </script>
 </body>

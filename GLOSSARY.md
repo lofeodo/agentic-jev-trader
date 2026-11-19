@@ -178,7 +178,7 @@ One use by the LLM, during a full evaluation, of a tool that reads memory: anoth
 _Avoid_: Tool call (the answer is one too), query, retrieval
 
 **Failed reply**:
-A reply from the LLM that is not a tool call, so that code can neither run a lookup nor take an answer from it.
+A reply from the LLM from which code can neither run a lookup nor take an answer: a sentence instead of a tool call, a call to a tool that does not exist, or an answer that is not a list of episodes with a note.
 _Avoid_: Invalid output, malformed answer
 
 **Prompt version**:
@@ -187,7 +187,7 @@ _Avoid_: Prompt revision, prompt ID
 
 **Transcript**:
 Every message of one full evaluation's exchange between code and the LLM, in order and word for word.
-_Avoid_: Trace (that is LangSmith's recording), chat log, conversation
+_Avoid_: Trace (that is a tracing service's own recording), chat log, conversation
 
 **Candidate trade**:
 One of the trades code lists for an asset at a step: an instrument, a direction, a stop price, and a target price.
@@ -410,7 +410,7 @@ The episodes, possibly none, that the LLM chose from what episode search returne
 _Avoid_: Retrieved memories, examples
 
 **Episode summary**:
-The one line that stands for an episode in a list of episode search results: how long ago it was, the asset, the part of the day, the long-term trend, the volume level, the candle patterns, what was decided, and how it ended.
+The one line that stands for an episode in a list of episode search results: how long ago it was, the asset, the part of the day, the long-term trend, the volume level, the candle patterns on bars, what was decided, and how it ended.
 _Avoid_: Preview, snippet
 
 ### Testing
