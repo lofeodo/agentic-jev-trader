@@ -34,6 +34,14 @@ I'm new to finance and trading. This applies to everything I read: chat, issues,
 - **Reliability first, for now.** Prefer a standard tool used as it comes over our own adjustments to it.
 - **The brief is a sketch.** `docs/project-breakdown.md` has the overall idea right. Its specifics, above all the finance ones, carry no authority: wayfinding settles them.
 
+## Review gate
+
+Per the `review-gate` skill, a PR always gets the `requires-human-review` label when it:
+
+- places orders (an order is an instruction to buy or sell, such as "buy $1,000 of this stock");
+- changes risk limits (a risk limit is a cap on the account that code enforces, such as never risking more than $100 of a $10,000 account on one trade);
+- touches API keys.
+
 ## Agent skills
 
 ### Issue tracker
