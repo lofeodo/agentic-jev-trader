@@ -6,11 +6,13 @@
 <title>PROTOTYPE · web app screens</title>
 <!--
   PROTOTYPE, throwaway. Never merged into main.
-  Round 4 question: what does the web app look like, so that it has the look of a 1980s trading terminal and
+  Question: what does the web app look like, so that it has the look of a 1980s trading terminal and
   is still easy to read? (wayfinder ticket "Web app look: a faithful 1980s Bloomberg terminal that is easy to read")
-  Five looks, each drawn from one of the developer's reference pictures, switchable from the bar at the bottom
-  and from the address: ?look=plasma | desk | page | work | wire, plus &caps=0|1, &tube=orange|amber|green|white,
-  &line=smooth|line|step. The looks are in round4.css; the layout is round 3's.
+  Round 5: the developer picked Plasma and kept Wireframe. Plasma is the base, and each way Wireframe differs
+  from it is its own on/off switch, in the bar's second row and in the address:
+  ?look=plasma&mix=ruler,heads,boxes,pairs,top,title,type,left,two,glow,grid,hatch (any of them), plus
+  &face=arimo|inter, &caps=0|1, &tube=orange|amber|green|white, &line=smooth|line|step. The switches are in round5.css.
+  Round 4's five looks (?look=plasma | desk | page | work | wire, in round4.css) stay as the record of that round.
   Rounds 1 to 3 (the screens, the side panel, four period looks) are earlier commits on this branch.
   All data is made up. No framework, no build step: open this file in a browser.
 -->
@@ -19,6 +21,7 @@
 <link rel="stylesheet" href="looks.css">
 <link rel="stylesheet" href="vintage.css">
 <link rel="stylesheet" href="round4.css">
+<link rel="stylesheet" href="round5.css">
 </head>
 <body>
 <div id="app"></div>
@@ -31,6 +34,7 @@
 <script src="screens-other.js"></script>
 <script src="run2.js"></script>
 <script src="round2.js"></script>
+<script src="round5.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

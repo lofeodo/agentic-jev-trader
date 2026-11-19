@@ -19,6 +19,19 @@ const CHART = {
   work: { curve: "line", grid: "", ticks: "out", frame: 0, markers: 1 },
   wire: { curve: "line", grid: "full", ticks: "out", frame: 1, hatch: 1 },
 };
+/* Round 5: Plasma is the base. Each way Wireframe differs from it is a switch of its own, on or off, kept in the
+   address as ?mix=ruler,boxes. The CSS for each is in round5.css; the two chart ones are read in bigChart below. */
+const MIXES = {
+  ruler: "Day ruler", heads: "Headings", boxes: "Boxes", pairs: "Split boxes", top: "Top bar",
+  title: "Heavy title", type: "Lettering", left: "Left-aligned", two: "Second colour", glow: "Glow",
+  grid: "Chart grid", hatch: "Hatching",
+};
+let MIX = new Set();
+const MIX_PICK = ["ruler", "heads", "grid"];   /* the mix recommended on the guide page */
+const mixOn = k => LOOK === "plasma" && MIX.has(k);
+/* The typeface for titles and sentences. "" is whatever the computer has (Arial on Windows, Helvetica on a Mac). */
+const FACES = { "": "the computer's own", arimo: "Arimo", inter: "Inter" };
+let FACE = "";
 const FLOWS = { rail: "1 · rail", lanes: "2 · lanes", strip: "3 · strip" };
 /* full: the name in titles ("All trading sims"). short: the name inside a sentence ("the sim ended"). */
 const WORDS = [{ full: "run", short: "run" }, { full: "trading sim", short: "sim" }, { full: "market replay", short: "replay" }, { full: "trading trial", short: "trial" }];
@@ -61,7 +74,7 @@ function runHeader2(run) {
 
 /* ---------- the chart: full width, hover for any moment, click to open it ---------- */
 function bigChart(run) {
-  const cs = Object.assign({}, CHART[LOOK] || CHART.plasma, CURVE ? { curve: CURVE } : {});
+  const cs = Object.assign({}, CHART[LOOK] || CHART.plasma, mixOn("grid") ? { grid: "full" } : {}, mixOn("hatch") ? { hatch: 1 } : {}, CURVE ? { curve: CURVE } : {});
   const s = seriesOf(run), p = partnerOf(run), W = 1400, H = 500, m = { t: 20, r: 236, b: 52, l: 96 }, n = run.days * 4 + 1;
   const lines = [{ key: "agent", name: "this run " + fmt$(run.value), vals: s.agent, kind: "subject" }, { key: "holding", name: "holding " + fmt$(run.holding), vals: s.holding, kind: "dashed" }];
   if (p) lines.push({ key: "partner", name: (p.variant === "memory_on" ? "with memory " : "without ") + fmt$(p.value), vals: seriesOf(p).agent, kind: "context" });
@@ -204,7 +217,7 @@ function screenRunV2(id, q) {
   const legend = `<span><i class="sw"></i>${mk[0]}this run</span>${p ? `<span><i class="sw ctx"></i>${mk[1]}its partner, ${VARIANT_WORDS[p.variant]}</span>` : ""}<span><i class="sw ref"></i>${mk[2]}holding the five assets</span><span>| a trade opened</span>`;
   const rail = `<div class="sticky win railwin"><span class="kicker">On this page</span><ol class="list mt1 onpage">${secs.map((s, i) => `<li><a href="javascript:void 0" onclick="document.getElementById('sec${i}').scrollIntoView()"><span class="idx" data-n="${i + 1}">0${i + 1}</span><span class="nm">${s[0]}</span></a></li>`).join("")}</ol>
     <div class="mt2"><span class="kicker">Notable moments</span></div><div class="mt1">${eventList(run)}</div></div>`;
-  return note("the trading sim page, round 4", `Five looks drawn from your pictures, on the layout from round 3. <b>Look</b> in the bar at the bottom (or the ← → keys) switches between them. <b>Letters</b> switches between all capitals and normal case; the text sent to Jev and the LLM, shown in the side panel, always stays exactly as it was sent. <b>Colour</b> tries any look in another screen colour. Click a row for its ${TRAIL_NAME.toLowerCase()}; hover and click the chart. The <a href="#/" style="text-decoration:underline">guide page</a> says which picture each look comes from.`, "first") + runHeader2(run) + `
+  return note("the trading sim page, round 5", `This is Plasma, the look you picked. The second row of the bar at the bottom adds parts of Wireframe to it, one button each: a white button is switched on. <b>None</b> is Plasma alone, <b>All</b> is close to Wireframe as you saw it, <b>My pick</b> is the mix I would choose. <b>Typeface</b>, <b>Letters</b>, <b>Colour</b>, and <b>Chart line</b> in the first row are the four smaller questions still open. Every switch is kept in the address, so a mix you like can be reloaded or sent. Click a row for its ${TRAIL_NAME.toLowerCase()}; hover and click the chart. The <a href="#/" style="text-decoration:underline">guide page</a> explains each switch and lists the questions.`, "first") + runHeader2(run) + `
     <section class="chartblock win">
       <p class="chartlede">After <b>${run.daysDone} ${run.daysDone === 1 ? "day" : "days"}</b> the account holds <b>${fmt$(run.value)}</b>: <b class="accent">${fmt$(Math.abs(behind))} ${behind < 0 ? "less" : "more"}</b> than holding the five assets and never trading.</p>
       ${figure(1, "Account value, against holding the five assets", legend, `<div id="bigplot">${bigChart(run)}</div>`, `${run.daysDone} of ${run.days} days · 4 points a day · times in UTC · prototype: made-up numbers`)}

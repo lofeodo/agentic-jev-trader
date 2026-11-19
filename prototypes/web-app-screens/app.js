@@ -7,8 +7,16 @@ function parseHash() {
 const onGuide = () => !parseHash().parts[0];
 function cycleOf(list, now, by) { return list[(list.indexOf(now) + by + list.length) % list.length]; }
 /* The look, the letters, and the colour are kept in the address (?look=plasma&caps=1&tube=green), so a view can be reloaded or shared. */
-(() => { const s = new URLSearchParams(location.search); if (LOOKS[s.get("look")]) LOOK = s.get("look"); if (s.has("caps")) CAPS = +s.get("caps") ? 1 : 0; if (TUBES[s.get("tube")]) TUBE = s.get("tube"); if (CURVES[s.get("line")]) CURVE = s.get("line"); })();
-function saveLook() { const s = new URLSearchParams(); s.set("look", LOOK); if (CAPS != null) s.set("caps", CAPS); if (TUBE) s.set("tube", TUBE); if (CURVE) s.set("line", CURVE); try { history.replaceState(null, "", "?" + s + location.hash); } catch (e) { /* opened as a file in a browser that refuses: the view still switches */ } }
+(() => { const s = new URLSearchParams(location.search); if (LOOKS[s.get("look")]) LOOK = s.get("look"); if (s.has("caps")) CAPS = +s.get("caps") ? 1 : 0; if (TUBES[s.get("tube")]) TUBE = s.get("tube"); if (CURVES[s.get("line")]) CURVE = s.get("line");
+  (s.get("mix") || "").split(",").forEach(k => { if (MIXES[k]) MIX.add(k); }); if (FACES[s.get("face")]) FACE = s.get("face"); })();
+function saveLook() { const s = new URLSearchParams(); s.set("look", LOOK); if (CAPS != null) s.set("caps", CAPS); if (TUBE) s.set("tube", TUBE); if (CURVE) s.set("line", CURVE); if (MIX.size) s.set("mix", mixList()); if (FACE) s.set("face", FACE);
+  try { history.replaceState(null, "", "?" + s.toString().replace(/%2C/g, ",") + location.hash); } catch (e) { /* opened as a file in a browser that refuses: the view still switches */ } }
+/* round 5: the Wireframe parts, each switched on its own, always listed in the order the bar shows them */
+const mixList = () => Object.keys(MIXES).filter(k => MIX.has(k)).join(",");
+function redrawInPlace() { saveLook(); draw.keepScroll = true; draw(); }
+function toggleMix(k) { if (MIX.has(k)) MIX.delete(k); else MIX.add(k); redrawInPlace(); }
+function setMix(keys) { MIX = new Set(keys); redrawInPlace(); }
+function cycleFace() { FACE = cycleOf(Object.keys(FACES), FACE, 1); redrawInPlace(); }
 const capsNow = () => (CAPS == null ? CAPS_DEFAULT[LOOK] : CAPS);
 function cycleLook(by) { LOOK = cycleOf(Object.keys(LOOKS), LOOK, by); CAPS = null; saveLook(); draw.keepScroll = true; draw(); }
 function toggleCaps() { CAPS = capsNow() ? 0 : 1; saveLook(); draw.keepScroll = true; draw(); }
@@ -19,13 +27,19 @@ function cycleWord() { WORD = (WORD + 1) % WORDS.length; draw.keepScroll = true;
 
 function drawBar() {
   const sep = `<span class="sep">|</span>`;
-  document.getElementById("bar").innerHTML = `<b>PROTOTYPE</b>${sep}<button onclick="location.hash='#/'">Guide and questions</button>`
+  const plasma = !onGuide() && LOOK === "plasma", same = keys => keys.length === MIX.size && keys.every(k => MIX.has(k));
+  const preset = (label, keys) => `<button class="${same(keys) ? "on" : ""}" onclick='setMix(${JSON.stringify(keys)})'>${label}</button>`;
+  document.getElementById("bar").innerHTML = `<div class="row"><b>PROTOTYPE</b>${sep}<button onclick="location.hash='#/'">Guide and questions</button>`
     + (onGuide() ? `${sep}<button onclick="location.hash='${runHref("rise-on-1")}'">Open the trading sim page</button>`
       : `${sep}<span>Look</span><button onclick="cycleLook(-1)" aria-label="Previous look">←</button><b>${LOOKS[LOOK]}</b><button onclick="cycleLook(1)" aria-label="Next look">→</button>`
       + `${sep}<span>Letters</span><button onclick="toggleCaps()">${capsNow() ? "ALL CAPITALS" : "Normal case"}</button>`
       + `${sep}<span>Colour</span><button onclick="cycleTube()">${TUBES[TUBE]}</button>`
-      + (parseHash().parts[0] === "run" ? `${sep}<span>Chart line</span><button onclick="cycleCurve()">${CURVES[CURVE]}</button>` : ""))
-    + `${sep}<button onclick="document.body.classList.toggle('nonotes')">Notes on/off</button>`;
+      + (parseHash().parts[0] === "run" ? `${sep}<span>Chart line</span><button onclick="cycleCurve()">${CURVES[CURVE]}</button>` : "")
+      + (plasma ? `${sep}<span>Typeface</span><button onclick="cycleFace()">${FACES[FACE]}</button>` : ""))
+    + `${sep}<button onclick="document.body.classList.toggle('nonotes')">Notes on/off</button></div>`
+    /* round 5: a second row, on Plasma only. One button per Wireframe part; a lit button is switched on. */
+    + (plasma ? `<div class="row mixrow"><span>Add from Wireframe</span>${Object.keys(MIXES).map((k, i) => `<button class="${MIX.has(k) ? "on" : ""}" aria-pressed="${MIX.has(k)}" onclick="toggleMix('${k}')">${i + 1} ${MIXES[k]}</button>`).join("")}`
+      + `${sep}${preset("None", [])}${preset("My pick", MIX_PICK)}${preset("All", Object.keys(MIXES))}</div>` : "");
 }
 function draw() {
   let { parts, q } = parseHash(), page = parts[0] || "guide";
@@ -40,6 +54,9 @@ function draw() {
   de.dataset.look = guide ? "paper" : LOOK;
   if (guide) { delete de.dataset.r4; delete de.dataset.caps; delete de.dataset.tube; }
   else { de.dataset.r4 = "1"; de.dataset.caps = capsNow(); if (TUBE) de.dataset.tube = TUBE; else delete de.dataset.tube; }
+  /* round 5: the Wireframe parts switched on, and the typeface, apply to Plasma only */
+  if (!guide && LOOK === "plasma" && MIX.size) de.dataset.mix = mixList().replace(/,/g, " "); else delete de.dataset.mix;
+  if (!guide && LOOK === "plasma" && FACE) de.dataset.face = FACE; else delete de.dataset.face;
   const app = document.getElementById("app");
   app.innerHTML = `<main>${masthead(active)}${guide ? "" : cmdLine(page)}${screen}</main>`;
   if (page === "run") wireChart();
