@@ -95,7 +95,7 @@ function secOverview(run, no) {
   const positions = !live ? `<div class="waiting"><span class="kicker">Open positions</span><p>${run.status === "finished" ? "None. The run ended, so it holds only cash." : "This run stopped early, so its positions are still open."}</p></div>` :
     `<div class="subhead">Open positions <span class="kicker">what the agent holds right now</span></div><div class="tablewrap"><table><thead><tr><th>Asset</th><th>Direction</th><th class="num">Size</th><th>Opened</th><th class="num">Now</th><th class="num">Stop price</th><th></th></tr></thead><tbody>${open.map(t => {
       const stop = t.entry * (1 + (t.dir === "long" ? -1 : 1) * 0.006 * t.stopMoves);
-      return `<tr class="click" onclick="location.hash='${href("trade/" + t.id)}'"><td>${assetTag(t.asset)}</td><td>${t.dir}</td><td class="num">${fmt$(t.size)}${t.trimmed ? ` <span class="badge out" title="Jev chose ${fmt$(t.chosen)}; code made it smaller">trimmed</span>` : ""}</td><td class="num" style="text-align:left">${when(run, t)} · ${t.bars} bars ago</td><td class="num">${sgn$(t.pl)}</td><td class="num">${priceTag(t.asset, stop)}<div class="meta">would lose ${fmt$(t.size * 0.006 * t.stopMoves)}</div></td><td class="num">→</td></tr>`;
+      return `<tr class="click" onclick="openPanel({kind:'exchange',tid:'${t.id}'})"><td>${assetTag(t.asset)}</td><td>${t.dir}</td><td class="num">${fmt$(t.size)}${t.trimmed ? ` <span class="badge out" title="Jev chose ${fmt$(t.chosen)}; code made it smaller">trimmed</span>` : ""}</td><td class="num" style="text-align:left">${when(run, t)} · ${t.bars} bars ago</td><td class="num">${sgn$(t.pl)}</td><td class="num">${priceTag(t.asset, stop)}<div class="meta">would lose ${fmt$(t.size * 0.006 * t.stopMoves)}</div></td><td class="num">→</td></tr>`;
     }).join("")}</tbody></table></div>`;
   const latest = f.all.slice(-6).reverse().map(t => `<li style="display:flex;gap:.75rem;align-items:baseline;flex-wrap:wrap"><span class="meta" style="width:6.2rem">${when(run, t)}</span>${assetTag(t.asset)} <span>${t.open ? "opened a " + t.dir + " of " + fmt$(t.size) : "closed its " + t.dir + ", " + sgn$(t.pl) + ": " + REASONS[t.reason]}</span><a class="chip ink" style="margin-left:auto" href="${href("decision/" + t.id)}">the exchange →</a></li>`).join("");
   const side = live ? `
@@ -156,7 +156,7 @@ function secMeasurements(run) {
 
 /* ---------- section: trades ---------- */
 function tradeRows(run, list) {
-  return list.map(t => `<tr class="click" onclick="location.hash='${href("trade/" + t.id)}'"><td class="num" style="text-align:left">${t.n}</td><td>${assetTag(t.asset)}</td><td>${t.dir}</td><td class="num" style="text-align:left">${when(run, t)}</td><td class="num">${held(t)}${t.overnight ? ` <span class="badge" title="A stock held past the end of its session">overnight</span>` : ""}</td>
+  return list.map(t => `<tr class="click" onclick="openPanel({kind:'exchange',tid:'${t.id}'})"><td class="num" style="text-align:left">${t.n}</td><td>${assetTag(t.asset)}</td><td>${t.dir}</td><td class="num" style="text-align:left">${when(run, t)}</td><td class="num">${held(t)}${t.overnight ? ` <span class="badge" title="A stock held past the end of its session">overnight</span>` : ""}</td>
     <td class="num">${fmt$(t.size)}${t.trimmed ? `<div class="meta"><span class="badge out">trimmed</span> Jev chose ${fmt$(t.chosen)}</div>` : ""}</td><td class="num">${t.open ? `<span class="muted">${sgn$(t.pl)} so far</span>` : sgn$(t.pl)}</td><td class="small">${t.open ? `<span class="badge out"><span class="sq"></span>open</span>` : REASONS[t.reason]}</td><td class="small muted">${t.pattern}</td></tr>`).join("");
 }
 const TRADE_HEAD = `<thead><tr><th>#</th><th>Asset</th><th>Direction</th><th>Opened (UTC)</th><th class="num">Held</th><th class="num">Size</th><th class="num">Profit or loss</th><th>How it ended</th><th>Pattern at entry</th></tr></thead>`;
@@ -168,7 +168,7 @@ function secTrades(run, q) {
   return `<div class="filters"><span class="kicker">Show</span>${togs}</div>
     <div class="filters"><span class="kicker">Asset</span>${Object.keys(ASSETS).map(id => `<span class="tog">${ASSETS[id].name} <span>${f.all.filter(t => t.asset === id).length}</span></span>`).join("")}</div>
     <div class="tablewrap mt1"><table>${TRADE_HEAD}<tbody>${tradeRows(run, [...sets[filter]].reverse().slice(0, 40))}</tbody></table></div>
-    <p class="meta mt1">newest first · ${Math.min(40, sets[filter].length)} of ${sets[filter].length} shown · profit or loss is after trading costs · click a row to open the trade</p>`;
+    <p class="meta mt1">newest first · ${Math.min(40, sets[filter].length)} of ${sets[filter].length} shown · profit or loss is after trading costs · click a row for the exchange behind the trade</p>`;
 }
 
 /* ---------- section: decisions (the step log) ---------- */

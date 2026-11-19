@@ -8,20 +8,27 @@
   PROTOTYPE, throwaway. Never merged into main.
   Question: which screens does version 1's web app have, and what does each show?
   (wayfinder ticket "Web app: the screens, what each shows, and what editorial-ui fixes")
-  Plan: a rough outline of every proposed screen, plus three variants of the run page,
-  switchable via ?variant= (A tabs, B one long report, C day by day) from the bar at the bottom.
+  Round 1 (earlier commit on this branch): a rough outline of every proposed screen, with the run page in
+  three layouts. Round 2 (this one): the run page as one long report with a full-width chart you can hover
+  and click, the exchange behind a decision as a side panel drawn three ways (rail, lanes, strip), and the
+  run page in four looks (paper, phosphor, big board, tape and ticket), all switched from the bar at the bottom.
   All data is made up. No framework, no build step: open this file in a browser.
 -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23f4f1ea'/%3E%3Cpath d='M10 2 6 14' stroke='%23e2401c' stroke-width='2.5'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="looks.css">
 </head>
 <body>
 <div id="app"></div>
+<div id="panelroot"></div>
+<div id="tip" role="status"></div>
 <div id="bar"></div>
 <script src="data.js"></script>
 <script src="charts.js"></script>
 <script src="screens-run.js"></script>
 <script src="screens-other.js"></script>
+<script src="run2.js"></script>
+<script src="round2.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
