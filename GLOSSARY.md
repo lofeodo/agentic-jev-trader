@@ -157,11 +157,11 @@ For one part of the test period, the LLM whose `memory_on` sims ended with the h
 _Avoid_: Best model, winner (unqualified)
 
 **Price winner**:
-For one part of the test period, the LLM that cost fewer real dollars per full evaluation in its `memory_on` sims, thinking included.
+For one part of the test period, the LLM that cost fewer real dollars per full evaluation or position review in its `memory_on` sims, thinking included.
 _Avoid_: Cheapest model, winner (unqualified)
 
 **LLM benchmark**:
-A one-off comparison made before the measurement sims: each LLM is handed the same full evaluations saved from the build-up sim, several times each, and selects episodes for them. Nothing is traded and Jev is not asked. An LLM that fails too often is left out of the measurement sims.
+A one-off comparison made before the measurement sims: each LLM is handed the same full evaluations and position reviews saved from the build-up sim, several times each, and selects episodes for them. Nothing is traded and Jev is not asked. An LLM that fails too often is left out of the measurement sims.
 _Avoid_: Try-out, smoke check, test run, bake-off
 
 **Selection overlap**:
@@ -230,7 +230,7 @@ Every message of the exchange between code and the LLM in one full evaluation or
 _Avoid_: Trace (that is a tracing service's own recording), chat log, conversation
 
 **Decision trail**:
-Everything that was asked and answered on the way to one decision, in order: the screen, the LLM's exchange with memory, Jev's pick, Jev's size, what code trimmed, and the order. For a position review: the position screen, the LLM's exchange with memory, Jev's answer and how much, what code trimmed, and the order.
+Everything that was asked and answered on the way to one decision, in order: the screen, the LLM's exchange with memory, Jev's pick, Jev's size, what code trimmed, and the order. For a position review: the position screen (an end-of-session review has none), the LLM's exchange with memory, Jev's answer and how much, what code trimmed, and the order.
 _Avoid_: Chain of thought (Jev does not reason in words), exchange, trace (that is a tracing service's own recording)
 
 **Candidate trade**:
@@ -466,7 +466,7 @@ The episodes, possibly none, that the LLM chose from what episode search returne
 _Avoid_: Retrieved memories, examples
 
 **Episode summary**:
-The one line that stands for an episode in a list of episode search results: how long ago it was, the asset, the part of the day, the long-term trend, the volume level, the candle patterns on bars, what was decided, and how it ended. For a past position review it also gives the position's standing then.
+The one line that stands for an episode in a list of episode search results: how long ago it was, the asset, the part of the day, the long-term trend, the volume level, the candle patterns on bars, what was decided, and how it ended. For a past position review it also gives the position's standing then and where the price went next.
 _Avoid_: Preview, snippet
 
 **Episode block**:
