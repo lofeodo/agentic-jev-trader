@@ -1,13 +1,17 @@
 /* PROTOTYPE, round 2. The run page as one long report with the chart front and centre, a chart you can hover
    and click, a side panel for "a moment" and for "the exchange behind a decision", and three ways to draw that exchange. */
 
-let LOOK = "paper";    /* paper (editorial) | phosphor | board | tape */
-let FLOW = "rail";     /* rail | lanes | strip: how the exchange is drawn in the side panel */
-let WORD = "run";      /* the word tried in place of "run" */
+let LOOK = "g3278";    /* which period look the run page wears */
+let FLOW = "strip";    /* the developer picked the strip; rail and lanes stay in the code as the record of round 2 */
+let WORD = 0;          /* which entry of WORDS stands in for "run" */
 let PANEL = null, PANEL_BACK = [], STRIP_AT = 0, CH = null;
-const LOOKS = { paper: "Paper (editorial, as before)", phosphor: "Phosphor", board: "Big board", tape: "Tape and ticket" };
+const LOOKS = { g3278: "1 · 3278 green", c3279: "2 · 3279 colour", vt220: "3 · VT220 amber", dos: "4 · PC blue", phosphor: "Phosphor from round 2, to compare" };
+const VT_LOOKS = ["g3278", "c3279", "vt220", "dos"];
 const FLOWS = { rail: "1 · rail", lanes: "2 · lanes", strip: "3 · strip" };
-const WORDS = ["run", "backtest", "replay", "simulation"];
+/* full: the name in titles ("All trading sims"). short: the name inside a sentence ("the sim ended"). */
+const WORDS = [{ full: "run", short: "run" }, { full: "trading sim", short: "sim" }, { full: "market replay", short: "replay" }, { full: "trading trial", short: "trial" }];
+const SCORE_NAME = "Scorecard";        /* tried in place of "Track record" */
+const TRAIL_NAME = "Decision trail";   /* tried as the side panel's header */
 
 const openMin = t => t.d * 1440 + t.minutes;
 const closeMin = t => (t.open ? Infinity : openMin(t) + t.bars * 15);
@@ -39,11 +43,11 @@ function runHeader2(run) {
 
 /* ---------- the chart: full width, hover for any moment, click to open it ---------- */
 function bigChart(run) {
-  const s = seriesOf(run), p = partnerOf(run), W = 1400, H = 480, m = { t: 18, r: 176, b: 48, l: 72 }, n = run.days * 4 + 1;
+  const s = seriesOf(run), p = partnerOf(run), W = 1400, H = 480, m = { t: 18, r: 200, b: 48, l: 98 }, n = run.days * 4 + 1;   /* margins wide enough for a terminal font */
   const lines = [{ key: "agent", name: "this run " + fmt$(run.value), vals: s.agent, kind: "subject" }, { key: "holding", name: "holding " + fmt$(run.holding), vals: s.holding, kind: "dashed" }];
   if (p) lines.push({ key: "partner", name: (p.variant === "memory_on" ? "with memory " : "without ") + fmt$(p.value), vals: seriesOf(p).agent, kind: "context" });
   const { y, ticks } = scaleY(lines.flatMap(l => l.vals).concat([10000]), H, m.t, m.b, 6);
-  const x = i => m.l + (W - m.l - m.r) * i / (n - 1), stepped = LOOK === "phosphor" || LOOK === "board";
+  const x = i => m.l + (W - m.l - m.r) * i / (n - 1), stepped = true;   /* every terminal look draws hard steps */
   const path = vals => vals.map((v, i) => (i === 0 ? `M${x(0).toFixed(1)} ${y(v).toFixed(1)}` : stepped ? `H${x(i).toFixed(1)}V${y(v).toFixed(1)}` : `L${x(i).toFixed(1)} ${y(v).toFixed(1)}`)).join("");
   let g = "";
   ticks.forEach(t => { g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)"/><text class="tick" x="${m.l - 9}" y="${y(t) + 4}" text-anchor="end">${fmt$(t)}</text>`; });
@@ -113,24 +117,42 @@ function metersBlock(run) {
 }
 function nowSection(run) {
   const f = tradeFacts(run), open = f.all.filter(t => t.open);
-  const positions = `<div class="subhead" style="margin-top:0">Open positions <span class="kicker">what the agent holds right now · click one for the exchange that opened it</span></div><div class="tablewrap"><table><thead><tr><th>Asset</th><th>Direction</th><th class="num">Size</th><th>Opened</th><th class="num">Now</th><th class="num">Stop price</th></tr></thead><tbody>${open.map(t => {
+  const positions = `<div class="subhead" style="margin-top:0">Open positions <span class="kicker">what the agent holds right now · click one for its decision trail</span></div><div class="tablewrap"><table><thead><tr><th>Asset</th><th>Direction</th><th class="num">Size</th><th>Opened</th><th class="num">Now</th><th class="num">Stop price</th></tr></thead><tbody>${open.map(t => {
     const stop = t.entry * (1 + (t.dir === "long" ? -1 : 1) * 0.006 * t.stopMoves);
     return `<tr class="click" onclick="${exch(t.id)}"><td>${assetTag(t.asset)}</td><td>${t.dir}</td><td class="num">${fmt$(t.size)}${t.trimmed ? ` <span class="badge out" title="Jev chose ${fmt$(t.chosen)}; code made it smaller">trimmed</span>` : ""}</td><td class="num" style="text-align:left">${when(run, t)} · ${t.bars} bars ago</td><td class="num">${sgn$(t.pl)}</td><td class="num">${priceTag(t.asset, stop)}<div class="meta">would lose ${fmt$(t.size * 0.006 * t.stopMoves)}</div></td></tr>`;
   }).join("")}</tbody></table></div>`;
   const latest = f.all.slice(-6).reverse().map(t => `<li class="click" style="display:flex;gap:.75rem;align-items:baseline;flex-wrap:wrap;cursor:pointer" onclick="${exch(t.id)}"><span class="meta" style="width:6.2rem">${when(run, t)}</span>${assetTag(t.asset)} <span>${t.open ? "opened a " + t.dir + " of " + fmt$(t.size) : "closed its " + t.dir + ", " + sgn$(t.pl) + ": " + REASONS[t.reason]}</span></li>`).join("");
-  return positions + `<div class="subhead">Latest decisions <span class="kicker">newest first · click one for its exchange</span></div><ol class="list">${latest}</ol>`;
+  return positions + `<div class="subhead">Latest decisions <span class="kicker">newest first · click one for its decision trail</span></div><ol class="list">${latest}</ol>`;
+}
+
+/* ---------- trades and decisions, one table ---------- */
+function secActivity(run, q) {
+  const f = tradeFacts(run), show = q.get("show") || "trades";
+  /* made-up closer looks that ended in no trade: one beside every second trade, half an hour earlier */
+  const looks = f.all.filter((t, i) => i % 2 === 0).map(t => ({ none: true, id: t.id, asset: t.asset, d: t.d, minutes: Math.max(0, t.minutes - 30), pattern: PATTERNS[(t.n * 3) % PATTERNS.length] }));
+  const sets = { trades: f.all, all: f.all.concat(looks), lost: f.closed.filter(t => t.pl <= 0), trimmed: f.trimmed, stop: f.closed.filter(t => t.reason === "stop"), overnight: f.all.filter(t => t.overnight) };
+  const words = { trades: "Trades", all: "Trades, and closer looks that ended in no trade", lost: "Lost money", trimmed: "Trimmed by a limit", stop: "Closed at the stop price", overnight: "Held overnight" };
+  const togs = Object.keys(sets).map(k => `<a class="tog ${k === show ? "on" : ""}" href="${runHref(run.id, { show: k })}">${words[k]} <span>${sets[k].length}</span></a>`).join("");
+  const list = [...(sets[show] || sets.trades)].sort((a, b) => (b.d * 1440 + b.minutes) - (a.d * 1440 + a.minutes)).slice(0, 40);
+  const row = t => t.none
+    ? `<tr class="click dim" onclick="openPanel({kind:'exchange',tid:'${t.id}',none:true})"><td class="num" style="text-align:left">${when(run, t)}</td><td>${assetTag(t.asset)}</td><td>no trade<div class="meta">${t.pattern}</div></td><td class="num">·</td><td class="num">·</td><td class="num">·</td><td class="small">Jev looked closer and picked no trade</td></tr>`
+    : `<tr class="click" onclick="${exch(t.id)}"><td class="num" style="text-align:left">${when(run, t)}</td><td>${assetTag(t.asset)}</td><td>${t.dir}<div class="meta">${t.pattern}</div></td>
+      <td class="num">${fmt$(t.size)}${t.trimmed ? `<div class="meta"><span class="badge out">trimmed</span> Jev chose ${fmt$(t.chosen)}</div>` : ""}</td><td class="num">${held(t)}${t.overnight ? `<div class="meta">overnight</div>` : ""}</td><td class="num">${t.open ? `<span class="muted">${sgn$(t.pl)} so far</span>` : sgn$(t.pl)}</td><td class="small">${t.open ? `<span class="badge out"><span class="sq"></span>open</span>` : REASONS[t.reason]}</td></tr>`;
+  return `<div class="filters"><span class="kicker">Show</span>${togs}</div>
+    <div class="tablewrap mt1"><table><thead><tr><th>When (UTC)</th><th>Asset</th><th>Decision</th><th class="num">Size</th><th class="num">Held</th><th class="num">Profit or loss</th><th>How it ended</th></tr></thead><tbody>${list.map(row).join("")}</tbody></table></div>
+    <p class="meta mt1">newest first · ${list.length} of ${(sets[show] || sets.trades).length} shown · profit or loss is after trading costs · click a row for its ${TRAIL_NAME.toLowerCase()}</p>`;
 }
 
 /* ---------- the page ---------- */
 function screenRunV2(id, q) {
   const run = runById(id) || RUNS[0], live = run.status === "running", behind = run.value - run.holding;
-  const secs = (live ? [["Now", () => nowSection(run)]] : []).concat([["Measurements", () => secMeasurements(run)], ["Trades", () => secTrades(run, q)], ["Decisions", () => secDecisions(run)], ["Track record", () => secTrackRecord(run)], ["Settings", () => secSettings(run)]]);
+  const secs = (live ? [["Now", () => nowSection(run)]] : []).concat([["Trades", () => secActivity(run, q)], ["Measurements", () => secMeasurements(run)], [SCORE_NAME, () => secTrackRecord(run).replace("The track record is", "The " + SCORE_NAME.toLowerCase() + " is")], ["Settings", () => secSettings(run)]]);
   const p = partnerOf(run);
   const legend = `<span><i class="sw"></i>this run</span>${p ? `<span><i class="sw ctx"></i>its partner, ${VARIANT_WORDS[p.variant]}</span>` : ""}<span><i class="sw ref" style="border-top:1.25px dotted var(--ink)"></i>holding the five assets</span><span>| a trade opened</span>`;
   const rail = `<div class="sticky"><span class="kicker">On this page</span><ol class="list mt1 onpage">${secs.map((s, i) => `<li style="padding:.4rem 0"><a href="javascript:void 0" onclick="document.getElementById('sec${i}').scrollIntoView()"><span class="meta accent idx" data-f="F${i + 1}">0${i + 1}</span> &nbsp;<span style="font:600 1.05rem var(--display)">${s[0]}</span></a></li>`).join("")}</ol>
     <div class="mt2"><span class="kicker">Notable moments</span></div><div class="mt1">${eventList(run)}</div></div>`;
-  return note("the run page, round 2", `Layout B, changed as you asked: the chart now runs the full width at the top, and the "now" briefing is three thin meters under it. <b>Hover the chart</b> for any moment; <b>click it</b> to open that moment in a side panel. <b>Click any trade, position, or decision</b> to open the exchange behind it in the same side panel.
-    <ul><li><b>Look</b> in the bar at the bottom (or the ← → keys) switches this page between the paper style and three terminal styles.</li><li><b>Word</b> swaps "run" for another word everywhere on the page, to see how each reads.</li></ul>`, "first") + runHeader2(run) + `
+  return note("the run page, round 3", `Trades and decisions are now one table, and the order is: now, trades, measurements, ${SCORE_NAME.toLowerCase()} (was "track record"), settings. Click any row for its ${TRAIL_NAME.toLowerCase()} in the side panel.
+    <ul><li><b>Look</b> in the bar at the bottom (or the ← → keys) switches between four period looks. Each uses the real typeface of its machine, one colour family, one text size, and reverse video for emphasis. Round 2's Phosphor is last, to compare.</li><li><b>Word</b> swaps "run" for another name across the page.</li></ul>`, "first") + runHeader2(run) + `
     <section class="chartblock">
       <p class="chartlede">After <b>${run.daysDone} ${run.daysDone === 1 ? "day" : "days"}</b> the account holds <b>${fmt$(run.value)}</b>: <b class="accent">${fmt$(Math.abs(behind))} ${behind < 0 ? "less" : "more"}</b> than holding the five assets and never trading. <span class="hint">hover the chart for any moment · click to open it</span></p>
       ${figure(1, "Account value, against holding the five assets", legend, `<div id="bigplot">${bigChart(run)}</div>`, `${run.daysDone} of ${run.days} days · 4 points a day · times in UTC · prototype: made-up numbers`)}
@@ -158,7 +180,7 @@ function momentPanel(p) {
     <h2 class="ptitle">${f.label}</h2>
     <p class="meta">day ${f.d + 1} of ${run.days} · step ${(stepAt(run, 0) + Math.round(f.T / 15)).toLocaleString("en-US")} · ${run.title}</p>
     <dl class="statrow mt2 rule" style="padding-top:.8rem"><div><dt class="kicker">Account value</dt><dd class="statbig" style="font-size:1.7rem">${fmt$(f.value)}</dd></div><div><dt class="kicker">Holding the five assets</dt><dd class="statbig" style="font-size:1.7rem">${fmt$(f.holding)}</dd><div class="meta">${fmt$(Math.abs(gap))} ${gap < 0 ? "behind" : "ahead"}</div></div><div><dt class="kicker">Since midnight</dt><dd class="statbig" style="font-size:1.7rem">${sgn$(f.sinceMidnight)}</dd></div><div><dt class="kicker">Since the start</dt><dd class="statbig" style="font-size:1.7rem">${sgn$(f.value - 10000)}</dd></div></dl>
-    <div class="subhead">Positions open at that moment <span class="kicker">click one for the exchange that opened it</span></div>
+    <div class="subhead">Positions open at that moment <span class="kicker">click one for its decision trail</span></div>
     ${f.held.length ? `<div class="tablewrap"><table style="min-width:0"><thead><tr><th>Asset</th><th>Direction</th><th class="num">Size</th><th>Opened</th><th class="num">Ended with</th></tr></thead><tbody>${f.held.map(t => `<tr class="click" onclick="${exch(t.id)}"><td>${assetTag(t.asset)}</td><td>${t.dir}</td><td class="num">${fmt$(t.size)}</td><td class="num" style="text-align:left">${when(run, t)}</td><td class="num">${t.open ? "still open" : sgn$(t.pl)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="waiting" style="padding:1.2rem 0"><span class="kicker">None</span><p style="font-size:1.2rem">The account was all in cash at that moment.</p></div>`}
     <div class="subhead">Opened or closed within 3 hours of it</div>
     ${f.near.length ? `<ol class="list">${f.near.map(line).join("")}</ol>` : `<div class="waiting" style="padding:1.2rem 0"><span class="kicker">Nothing</span><p style="font-size:1.2rem">No trade was opened or closed around then.</p></div>`}
@@ -166,7 +188,7 @@ function momentPanel(p) {
 }
 
 /* The exchange as an ordered list of stops, each with the messages that passed. who: jev | code | llm | mem. */
-function exchangeStops(run, t) {
+function exchangeStops(run, t, none) {
   const a = ASSETS[t.asset], mem = run.variant === "memory_on", p = t.entry.toFixed(2), stopWord = ["tight", "medium", "wide"][t.stopMoves - 1];
   const situation = `${a.cls === "stock" ? "Stock, " + t.part + " (bar " + t.bar + " of 26)" : "Crypto, " + t.part}. Patterns in the last 4 bars: ${t.pattern} (this bar), hammer (2 bars ago). Latest hourly bar: none. Latest daily bar: doji. Last 8 bars: five up, three down; this bar is a large up bar closing near its high. Short-term trend up (1.5 typical moves above the 20-bar average). Long-term trend up (2.1 above the 20-day average). Volume high (1.8 times normal). …`;
   const stops = [{ name: "Screen", ask: "Is a closer look worth it?", out: "0.71", say: "Above the cut-off of 0.5, so a full evaluation runs. Under it, nothing more would happen at this step.", msgs: [
@@ -181,6 +203,13 @@ function exchangeStops(run, t) {
     { from: "llm", to: "mem", t: "Lookup 2 of 6: reads two in full", text: `tool call: read_episodes(ids=["E-48213", "E-50167"])` },
     { from: "mem", to: "llm", t: "The two episodes in full", text: "[the two episodes in full: 31 lines]" },
     { from: "llm", to: "code", t: "Its answer: the selected episodes and a note", out: "3 episodes", meta: "4.1 s · $0.0021", text: `tool call: select_episodes(ids=["E-48213", "E-49190", "E-50167"], note="Same pattern in the ${t.part} with high volume; one winner, one stopped out, one no-trade.")` }] });
+  if (none) {
+    stops[0].out = "0.58"; stops[0].msgs[1].out = "0.58"; stops[0].msgs[1].text = "0.58";
+    stops.push({ name: "Pick", ask: "Which trade, if any?", out: "no trade", end: true, say: "No trade (0.46) beat long (0.38) and short (0.16), so nothing was opened and the step ended here.", msgs: [
+      { from: "code", to: "jev", t: "The background again, and the candidate trades", meta: "about 3,400 tokens", text: "[the background]\n\nQuestion: Which trade, if any?\n- long, tight stop price …\n- … 5 more\n- no trade" },
+      { from: "jev", to: "code", t: "Its answer, averaged over 5 shuffled copies", out: "no trade", text: "long 0.38 · short 0.16 · no trade 0.46\npick: no trade" }] });
+    return stops;
+  }
   stops.push({ name: "Pick", ask: "Which trade, if any?", out: `${t.dir}, ${stopWord} stop price`, say: `Probabilities are added by direction first: ${t.dir} 0.67, the other direction 0.09, no trade 0.24.`, msgs: [
     { from: "code", to: "jev", t: `The background again${mem ? ", now with the track record and the 3 episodes" : ""}, and the candidate trades`, meta: "about 3,400 tokens", text: `[the background, ${mem ? "with the track record lines and the 3 selected episodes" : "with the note that no memory is read"}]\n\nQuestion: Which trade, if any?\n- long, tight stop price ($${(t.entry * 0.994).toFixed(2)})\n- long, medium stop price ($${(t.entry * 0.988).toFixed(2)})\n- long, wide stop price ($${(t.entry * 0.982).toFixed(2)})\n- short, tight stop price …\n- short, medium stop price …\n- short, wide stop price …\n- no trade` },
     { from: "jev", to: "code", t: "Its answer, averaged over 5 shuffled copies", out: t.dir, text: `${t.dir}, tight 0.14 · ${t.dir}, medium 0.31 · ${t.dir}, wide 0.22 · other direction 0.09 · no trade 0.24\npick: ${t.dir}, ${stopWord} stop price` }] });
@@ -219,19 +248,25 @@ function flowStrip(stops) {
     <p class="meta">the whole chain on one line · click a box to read what passed at that stage</p>`;
 }
 function exchangePanel(p) {
-  const { run, trade: t } = findTrade(p.tid), a = ASSETS[t.asset], stops = exchangeStops(run, t);
-  return { label: "The exchange behind a decision", html: `
-    <h2 class="ptitle">Why it opened a ${t.dir} in ${a.name}</h2>
-    <p class="meta">trade ${t.n} · ${when(run, t)} UTC · ${fmt$(t.size)} · ${t.open ? "still open, " + sgn$(t.pl) + " so far" : sgn$(t.pl) + ", " + REASONS[t.reason]} · <a href="${href("trade/" + t.id)}" onclick="closePanel()" style="text-decoration:underline">open the trade's own page</a></p>
+  const { run, trade: t } = findTrade(p.tid), a = ASSETS[t.asset], stops = exchangeStops(run, t, p.none);
+  return { label: TRAIL_NAME, html: `
+    <h2 class="ptitle">${p.none ? "No trade in " + a.name : (t.dir === "long" ? "Long" : "Short") + " in " + a.name + ", " + fmt$(t.size)}</h2>
+    <p class="meta">${p.none ? when(run, t) + " UTC · a closer look that ended in no trade" : `trade ${t.n} · ${when(run, t)} UTC · ${t.open ? "still open, " + sgn$(t.pl) + " so far" : sgn$(t.pl) + ", " + REASONS[t.reason]} · <a href="${href("trade/" + t.id)}" onclick="closePanel()" style="text-decoration:underline">open the trade's own page</a>`}</p>
     <div class="pkey"><span class="chip">${t.asset}</span> is <b>${a.name}</b> (${a.symbol}). The boxed text is exactly what was sent, so it uses the masked ID and rescaled prices: <span class="mono">${t.entry.toFixed(2)}</span> there is <b>${realPrice(t.asset, t.entry)}</b>.</div>
     ${FLOW === "lanes" ? flowLanes(stops) : FLOW === "strip" ? flowStrip(stops) : flowRail(stops)}` };
 }
 
 /* ---------- trying another word for "run" ---------- */
 function applyWord(root) {
-  if (WORD === "run" || !root) return;
+  if (!WORD || !root) return;
+  const w = WORDS[WORD], cap = s => s[0].toUpperCase() + s.slice(1);
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = []; let nd;
   while ((nd = walker.nextNode())) nodes.push(nd);
-  const cap = WORD[0].toUpperCase() + WORD.slice(1);
-  nodes.forEach(x => { if (x.parentElement.closest("pre, .pnote, #bar, .guide")) return; x.nodeValue = x.nodeValue.replace(/(?<!evaluation )\b(R|r)un(s?)\b/g, (all, r, s) => (r === "R" ? cap : WORD) + s); });
+  nodes.forEach(x => {
+    if (x.parentElement.closest("pre, .pnote, #bar, .guide")) return;
+    let s = x.nodeValue;
+    if (s.trim() === "Runs") s = s.replace("Runs", cap(w.full) + "s");
+    s = s.replace(/\b(All|New|all|new) runs?\b/g, (all, lead) => lead + " " + w.full + (/s$/.test(all) ? "s" : ""));
+    x.nodeValue = s.replace(/(?<!evaluation )\b(R|r)un(s?)\b/g, (all, r, plural) => (r === "R" ? cap(w.short) : w.short) + plural);
+  });
 }

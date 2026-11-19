@@ -13,7 +13,7 @@ function screenRuns() {
   let rows = "";
   Object.keys(KINDS).forEach(k => {
     const list = RUNS.filter(r => r.kind === k); if (!list.length) return;
-    rows += `<tr class="group"><td colspan="7"><span style="font:600 1.25rem var(--display)">${KINDS[k]}</span> <span class="kicker">&nbsp;${{ measurement: "their results count", "build-up": "fills the base memory; its results never count", tuning: "short runs to adjust the agent; never count", practice: "one day on the real paid services; never count" }[k]}</span></td></tr>`;
+    rows += `<tr class="group"><td colspan="7"><span style="font:600 1.25rem var(--display)">${KINDS[k]}</span> <span class="kicker">&nbsp;${{ measurement: "their results count", "build-up": "fills the base memory; its results never count", tuning: "developer tool, started from the command line; never count", practice: "developer tool, started from the command line; never count" }[k]}</span></td></tr>`;
     list.forEach(r => {
       const d = r.value - r.holding, n = tradesOf(r).length;
       rows += `<tr class="click" onclick="location.hash='${runHref(r.id)}'"><td><b style="font:600 1rem var(--display)">${r.market ? r.market + " · " + VARIANT_WORDS[r.variant] + " · repeat " + r.repeat : r.title}</b><div class="meta">${r.label}${r.market ? "" : " · " + VARIANT_WORDS[r.variant]}${r.note ? " · " + r.note : ""}</div></td>

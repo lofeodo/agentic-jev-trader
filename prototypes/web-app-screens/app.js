@@ -8,14 +8,13 @@ const onRunPage = () => parseHash().parts[0] === "run";
 function cycleOf(list, now, by) { return list[(list.indexOf(now) + by + list.length) % list.length]; }
 function cycleLook(by) { LOOK = cycleOf(Object.keys(LOOKS), LOOK, by); draw.keepScroll = true; draw(); }
 function cycleFlow(by) { FLOW = cycleOf(Object.keys(FLOWS), FLOW, by); drawPanel(); drawBar(); }
-function cycleWord() { WORD = cycleOf(WORDS, WORD, 1); draw.keepScroll = true; draw(); }
+function cycleWord() { WORD = (WORD + 1) % WORDS.length; draw.keepScroll = true; draw(); }
 
 function drawBar() {
   const exchangeOpen = PANEL && PANEL.kind === "exchange", sep = `<span class="sep">|</span>`;
   document.getElementById("bar").innerHTML = `<b>PROTOTYPE</b>${sep}<button onclick="location.hash='#/'">Guide and questions</button>`
     + (onRunPage() ? `${sep}<span>Look</span><button onclick="cycleLook(-1)" aria-label="Previous look">←</button><b>${LOOKS[LOOK]}</b><button onclick="cycleLook(1)" aria-label="Next look">→</button>` : "")
-    + (exchangeOpen ? `${sep}<span>Exchange drawn as</span><button onclick="cycleFlow(-1)" aria-label="Previous view">←</button><b>${FLOWS[FLOW]}</b><button onclick="cycleFlow(1)" aria-label="Next view">→</button>` : "")
-    + (onRunPage() ? `${sep}<span>Word</span><button onclick="cycleWord()">${WORD}</button>` : "")
+    + `${sep}<span>Word for "run"</span><button onclick="cycleWord()">${WORDS[WORD].full}</button>`
     + `${sep}<button onclick="document.body.classList.toggle('nonotes')">Notes on/off</button>`;
 }
 function draw() {
@@ -28,9 +27,11 @@ function draw() {
   const active = { run: "runs", "new-run": "runs", trade: "runs", dataset: "datasets" }[page] || page;
   /* the three terminal looks are tried on the run page only */
   document.documentElement.dataset.look = page === "run" ? LOOK : "paper";
+  if (page === "run" && VT_LOOKS.includes(LOOK)) document.documentElement.dataset.vt = "1"; else delete document.documentElement.dataset.vt;
   const app = document.getElementById("app");
   app.innerHTML = `<main>${masthead(active)}${screen}</main>`;
-  if (page === "run") { wireChart(); applyWord(app); }
+  if (page === "run") wireChart();
+  applyWord(app);
   drawPanel(); drawBar();
   if (!draw.keepScroll) window.scrollTo(0, 0);
   draw.keepScroll = false;
@@ -40,7 +41,7 @@ window.addEventListener("keydown", e => {
   if (e.key === "Escape" && PANEL) { closePanel(); return; }
   if (e.target.matches("input, textarea, select, [contenteditable]")) return;
   const by = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0; if (!by) return;
-  if (PANEL && PANEL.kind === "exchange") cycleFlow(by); else if (onRunPage()) cycleLook(by);
+  if (onRunPage()) cycleLook(by);
 });
 document.addEventListener("click", e => {
   /* any link to an exchange opens the side panel in place */
