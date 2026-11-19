@@ -173,6 +173,22 @@ _Avoid_: Tier 1 call, quick check
 The Tier 2 path, where the LLM selects past episodes and Jev either picks a candidate trade and sizes it or picks no trade.
 _Avoid_: Closer look
 
+**Lookup**:
+One use by the LLM, during a full evaluation, of a tool that reads memory: another episode search, reading episodes in full, or reading the track record. Giving its answer is not a lookup.
+_Avoid_: Tool call (the answer is one too), query, retrieval
+
+**Failed reply**:
+A reply from the LLM that is not a tool call, so that code can neither run a lookup nor take an answer from it.
+_Avoid_: Invalid output, malformed answer
+
+**Prompt version**:
+The name of one exact wording of everything the LLM is sent that is not data: its standing instructions, its tool descriptions, and the layout of each message. Every run and every full evaluation records the one it used.
+_Avoid_: Prompt revision, prompt ID
+
+**Transcript**:
+Every message of one full evaluation's exchange between code and the LLM, in order and word for word.
+_Avoid_: Trace (that is LangSmith's recording), chat log, conversation
+
 **Candidate trade**:
 One of the trades code lists for an asset at a step: an instrument, a direction, a stop price, and a target price.
 _Avoid_: Proposal, idea, signal
@@ -392,6 +408,10 @@ _Avoid_: Memory search, retrieval
 **Selected episodes**:
 The episodes, possibly none, that the LLM chose from what episode search returned, for Jev to read in one full evaluation.
 _Avoid_: Retrieved memories, examples
+
+**Episode summary**:
+The one line that stands for an episode in a list of episode search results: how long ago it was, the asset, the part of the day, the long-term trend, the volume level, the candle patterns, what was decided, and how it ended.
+_Avoid_: Preview, snippet
 
 ### Testing
 
