@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Walkthrough: what Jev reads and is asked</title>
+<style>
+  :root { --ink:#1c1b19; --soft:#6b675f; --line:#d9d4c8; --paper:#faf8f3; --panel:#fff; --accent:#0b5cad; --jev:#0a6b4f; --warn:#9a4a00; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.55 system-ui, "Segoe UI", sans-serif; }
+  main { max-width:1180px; margin:0 auto; padding:28px 24px 80px; }
+  h1 { font-size:26px; margin:0 0 6px; }
+  h3 { font-size:15px; margin:0 0 6px; }
+  p { margin:6px 0; }
+  .banner { display:inline-block; background:var(--warn); color:#fff; font-size:12px; letter-spacing:.06em; padding:2px 8px; border-radius:3px; margin-bottom:10px; }
+  .lede { color:var(--soft); max-width:820px; }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px 16px; margin:14px 0; }
+  .words { display:grid; grid-template-columns: 150px 1fr; gap:4px 14px; font-size:14.5px; }
+  .words b { font-weight:600; }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:22px 0 0; border-bottom:2px solid var(--ink); }
+  .tabs button { font:inherit; padding:8px 14px; border:1px solid var(--line); border-bottom:none; background:#efece4; cursor:pointer; border-radius:6px 6px 0 0; }
+  .tabs button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .scenario-intro { margin:16px 0 4px; max-width:860px; }
+  .msg { display:grid; grid-template-columns: minmax(0,1fr) 300px; gap:16px; margin:14px 0; align-items:start; }
+  .msg .who { font-size:12.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; margin-bottom:4px; }
+  .msg.code .who { color:var(--accent); }
+  .msg.jev .who { color:var(--jev); }
+  .msg.aside .who { color:var(--soft); }
+  pre { margin:0; padding:12px 14px; background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:4px; font:13.5px/1.5 ui-monospace, Consolas, monospace; white-space:pre-wrap; word-break:break-word; }
+  .msg.jev pre { border-left-color:var(--jev); }
+  .msg.aside pre { border-left-color:var(--soft); background:#f3f0e8; font-family:inherit; font-size:14.5px; }
+  .note { font-size:14px; color:var(--soft); padding-top:22px; }
+  .note b { color:var(--ink); }
+  .state { font-size:12.5px; color:var(--soft); margin-top:4px; font-family:ui-monospace, Consolas, monospace; }
+  ol.react { max-width:900px; padding-left:22px; }
+  ol.react li { margin:12px 0; }
+  @media (max-width: 900px) { .msg { grid-template-columns: 1fr; } .note { padding-top:0; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="banner">WALKTHROUGH · ALL DATA MADE UP</div>
+  <h1>What Jev reads, and is asked, at every decision</h1>
+  <p class="lede"><b>What this page is for:</b> seeing everything Jev is sent in one place. Every blue box is the exact text code sends to Jev; every green box is what Jev sends back. The grey column on the right explains each box in plain words and is not part of any request. The last tab says why the text is worded this way. The wording was decided on 2026-11-19. Until the agent is built, this page is where that wording lives; after that, it is kept in step with the real text. It tells the same made-up story as <a href="llm-prompt-walkthrough.html">the LLM prompt walkthrough</a>: the same stock, the same past episodes.</p>
+
+  <div class="box">
+    <h3>The story in plain words</h3>
+    <p>Every 15 minutes the agent looks at each asset. Jev (the decision model) makes every trading decision. Jev cannot chat: it is sent a <b>background</b> (a page of text describing the moment) and one or more <b>questions</b> with fixed options, and it answers each question with a probability for every option. Code writes every word Jev reads.</p>
+    <div class="words" style="margin-top:10px">
+      <b>Screen</b><span>The quick question asked for an asset the account holds nothing in: is a closer look worth it? Jev answers with a number from 0 to 1.</span>
+      <b>Full evaluation</b><span>The closer look. Jev picks a trade or no trade, then says how much money to put in.</span>
+      <b>Position check</b><span>The question asked every 15 minutes about a trade that is open: hold it, close it, make it smaller, or make it bigger.</span>
+      <b>Long</b><span>The account gains when the price rises. Buy $6,000 of a stock; it rises 1%; the account is up $60.</span>
+      <b>Short</b><span>The account gains when the price falls. On a $6,000 short, a 1% fall puts the account up $60 and a 1% rise puts it down $60.</span>
+      <b>Stop price</b><span>Caps what a trade can lose: code closes the trade if the price reaches it. A $6,000 long opened at $100.00 with a stop price of $99.40 loses about $36 at most.</span>
+      <b>Typical move</b><span>How far the price usually travels in one 15-minute bar. If recent bars each covered about $0.60, the typical move is $0.60. Stop prices sit 1, 2, or 3 typical moves away: tight, medium, or wide.</span>
+      <b>Account value</b><span>What the account would be worth in cash if every open trade were closed now.</span>
+      <b>Loan</b><span>Money the account borrows when it buys more than its cash covers. An account with $7,000 of cash that buys $8,000 of a stock borrows $1,000.</span>
+      <b>Size</b><span>How much money goes into a trade. Jev chooses among five sizes, from 20% to 200% of account value ($2,000 to $20,000 on a $10,000 account).</span>
+      <b>Trade risk limit</b><span>A rule code enforces: no trade may lose more than 1% of account value ($100 of $10,000) if it closes at its stop price. Code makes a trade smaller until it fits.</span>
+      <b>Candle pattern</b><span>A named shape in the last few price bars ("hammer", "bullish engulfing") that traders read as a hint.</span>
+      <b>Track record</b><span>The totals over the agent's closed trades: "42 trades, 17 wins, average win +$31, average loss -$18".</span>
+      <b>Past episode</b><span>One stored record of an earlier decision: what the market looked like, what Jev decided, how it ended.</span>
+      <b>Trading costs</b><span>What trading itself takes from the account, such as $1 each time a stock is bought or sold.</span>
+      <b>Token</b><span>The unit Jev's reading is billed by. For this kind of text Jev counts about one token per 2.4 characters. Reading 4,000 tokens costs Jev about a sixtieth of a cent.</span>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="view"></div>
+</main>
+
+<script>
+/* ============================================================
+   PORTABLE PART: plain data in, exact text out. No page code in here.
+   Nothing below uses a clock or a random number, so the same data
+   always produces the same text (needed by the recorded-answer tests).
+   The helpers marked "shared" are copied from docs/llm-prompt-walkthrough.html:
+   in the real code the LLM's text and Jev's text come from one module.
+   ============================================================ */
+const STEPS_PER_DAY = 96;
+const CHARS_PER_JEV_TOKEN = 2.4;   /* measured in the Jev access ticket */
+const SETTINGS = {                 /* the medium risk profile and the broker cost defaults */
+  tradeRiskLimit: 0.01, positionLimit: 2, exposureLimit: 2, dailyLossLimit: 0.05, forcedCloseShare: 0.25,
+  loanRate: 0.05, stockCommission: 1, cryptoFee: 0.001, slippage: 0.0005, borrowFee: { stock: 0.0025, crypto: 0.05 },
+  sizeBuckets: [0.2, 0.4, 0.8, 1.2, 2.0], stopMultiples: { tight: 1, medium: 2, wide: 3 }, maxStopDistance: 0.05,
+  reduceShares: [0.25, 0.5, 0.75], minimumSample: 10, shuffledCopies: 5,
+};
+
+/* shared */
+function howLongAgo(steps) {
+  if (steps < STEPS_PER_DAY) { const hours = Math.max(1, Math.floor(steps / 4)); return hours + (hours === 1 ? " hour ago" : " hours ago"); }
+  const days = Math.floor(steps / STEPS_PER_DAY); return days + (days === 1 ? " day ago" : " days ago");
+}
+function dollars(n) { return "$" + Math.round(n).toLocaleString("en-US"); }
+function signedDollars(n) { const r = Math.round(n); return (r < 0 ? "-$" : "+$") + Math.abs(r).toLocaleString("en-US"); }
+function signedPercent(n) { return (n < 0 ? "-" : "+") + Math.abs(n).toFixed(1) + "%"; }
+function countBars(n) { return n + (n === 1 ? " bar" : " bars"); }
+const CLOSING_REASON = { choice: "closed by choice", stop: "closed at its stop price", forced: "forced close", run_end: "closed because the run ended" };
+function howItEnded(episode, separator) {
+  if (!episode.trade) return `price went ${signedPercent(episode.after.oneBar)} after 1 bar, ${signedPercent(episode.after.fourBars)} after 4 bars, ${signedPercent(episode.after.endOfDay)} by the end of the day`;
+  const end = episode.ended;
+  return `${CLOSING_REASON[end.reason]} after ${countBars(end.bars)}${separator}${signedDollars(end.profit)} (${signedPercent(end.percent)})`;
+}
+/* new here */
+function price(n) { return "$" + n.toFixed(2); }
+function percent(share) { return (100 * share).toFixed(1) + "%"; }
+function wholePercent(share) { return Math.round(100 * share) + "%"; }
+const capital = text => text.charAt(0).toUpperCase() + text.slice(1);
+
+/* ---------- The part of the background that is the same in every request of a run ---------- */
+function taskSection() {
+  const s = SETTINGS;
+  return `# The task
+This is a trading account in a replay of market history. It trades stocks and crypto in 15-minute steps. At every step each asset is looked at once and a decision is made about it.
+The goal is the highest account value at the end of the run. Nothing else is measured.
+
+# How trading works here
+- A long gains when the price rises. A short gains when the price falls.
+- An order decided at this step is carried out at the opening price of the asset's next bar.
+- Every position has a stop price, fixed when it is opened. Code closes the position if the price reaches it. A stock can open the next morning beyond its stop price, and then it loses more than planned.
+- Trading costs: each stock order costs ${dollars(s.stockCommission)}; each crypto order costs ${percent(s.cryptoFee)} of its value; every order is carried out at a price ${(100 * s.slippage).toFixed(2)}% worse. A short held at the end of a day pays a borrow fee (${(100 * s.borrowFee.stock).toFixed(2)}% a year on a stock, ${wholePercent(s.borrowFee.crypto)} a year on crypto). A loan pays interest of ${wholePercent(s.loanRate)} a year on what is owed at the end of a day.
+- Code enforces the risk limits, whatever is decided: no position may lose more than ${wholePercent(s.tradeRiskLimit)} of account value at its stop price; the account may hold at most ${s.exposureLimit} times its value in positions; after a loss of ${wholePercent(s.dailyLossLimit)} in one day no position is opened or added to until the next day; and if account value falls below a quarter of what the account holds, code closes every position (a forced close).
+- A decision does not need to hold back in order to stay inside a limit. Code does that.`;
+}
+
+/* ---------- The account ---------- */
+function accountFacts(account) {
+  const exposure = account.positions.reduce((sum, p) => sum + p.worth, 0);
+  const value = account.cash + exposure;      /* made-up accounts here hold longs only */
+  return { exposure, value, room: SETTINGS.exposureLimit * value - exposure };
+}
+function accountSection(account) {
+  const facts = accountFacts(account), n = account.positions.length;
+  return `# The account now
+Account value: ${dollars(facts.value)}.
+Cash: ${dollars(account.cash)}. Loan: ${account.loan ? dollars(account.loan) : "none"}.
+Open positions: ${n === 0 ? "none" : n + ", worth " + dollars(facts.exposure) + (n > 1 ? " together" : "")}.
+It may hold up to ${dollars(SETTINGS.exposureLimit * facts.value)} in positions (${SETTINGS.exposureLimit} times account value), so ${dollars(facts.room)} more.`;
+}
+function positionLine(p) {
+  return `${p.asset} (${p.assetClass}): ${p.direction}, ${dollars(p.worth)}, opened ${countBars(p.barsAgo)} ago, now ${signedDollars(p.profit)} (${signedPercent(p.percent)}) after trading costs.`;
+}
+function otherPositionsSection(positions, heading) {
+  return `# ${heading}\n` + (positions.length ? positions.map(positionLine).join("\n") : "None.");
+}
+
+/* ---------- The asset being looked at ---------- */
+function assetSection(asset, heading, holding) {
+  return `# ${heading}: ${asset.id} (${asset.assetClass})\n${holding ? holding + "\n" : ""}Last price: ${price(asset.price)}. Typical move in one bar: ${price(asset.typicalMove)}.\n${asset.situation}`;
+}
+/* The playbook's entry for every candle pattern named anywhere in the background, once each. Same line as the LLM is shown. */
+function patternNotes(names, playbook) {
+  const once = [...new Set(names)]; if (!once.length) return "";
+  return "# Candle patterns named above\n" + once.map(n => `${n}: ${playbook[n].lean}. ${playbook[n].shape}`).join("\n");
+}
+
+/* ---------- Memory: the track record and the selected episodes ---------- */
+function trackRecordLine(g) {
+  if (g.trades < SETTINGS.minimumSample) return `${g.name}: ${g.trades} closed ${g.trades === 1 ? "trade" : "trades"}, too few to show totals.`;
+  return `${g.name}: ${g.trades} closed trades, ${g.wins} wins (${Math.round(100 * g.wins / g.trades)}%), average win ${signedDollars(g.averageWin)}, average loss ${signedDollars(g.averageLoss)}, all together ${signedDollars(g.total)}`;
+}
+function trackRecordSection(groups, atEntry) {
+  return `# Track record${atEntry ? " shown when the position was opened" : ""}: the account's own closed trades on the candle patterns of the last 4 bars${atEntry ? " then" : ""}
+${groups.map(trackRecordLine).join("\n")}
+Each line is the narrowest group that fits the ${atEntry ? "situation then" : "current situation"} and has at least ${SETTINGS.minimumSample} closed trades. A win is a trade that closed with a profit after trading costs.`;
+}
+/* One selected episode. It is the LLM's "episode in full" without its ID. The bar-by-bar "Handled" line is left out
+   when Jev picks a trade and shown when Jev checks a position. */
+function episodeBlock(episode, number, current, withHandling) {
+  const which = (episode.asset === current.id ? "same asset" : "another asset") + ", " + episode.assetClass;
+  let text = `Episode ${number}: ${howLongAgo(episode.stepsAgo)}, ${which}\nSituation then: ${episode.situation}\n`;
+  if (!episode.trade) return text + `Decided: no trade.\nAfterwards: ${howItEnded(episode)}.`;
+  const trade = episode.trade, end = episode.ended;
+  text += `Decided: ${trade.direction} with a ${trade.stop} stop price (${trade.stopPercent.toFixed(1)}% from the entry price), ${dollars(trade.dollars)}.\n`;
+  if (withHandling) text += `Handled: ${episode.handled.join("; ")}.\n`;
+  return text + `Ended: ${howItEnded(episode, ", ")}. At best ${signedDollars(end.best)}, at worst ${signedDollars(end.worst)}.`;
+}
+const NO_EPISODES_YET = "# Past episodes\nNone yet: the account has no finished earlier decision to show.";
+const NO_EPISODES_SELECTED = "# Past episodes\nNone selected: the account has earlier decisions, but none was close enough to the current situation to show.";
+function episodesSection(memory, current, atEntry) {
+  if (memory.episodes === "none_yet") return NO_EPISODES_YET;
+  if (!memory.episodes.length) return NO_EPISODES_SELECTED;
+  const newestFirst = [...memory.episodes].sort((a, b) => a.stepsAgo - b.stepsAgo);
+  const n = newestFirst.length;
+  const heading = atEntry
+    ? `# Past episodes shown when the position was opened: ${n} of the account's own earlier decisions in situations like that one, newest first, with how each trade was handled bar by bar`
+    : `# Past episodes: ${n} of the account's own earlier decisions in situations like the current one, newest first`;
+  return heading + "\n" + newestFirst.map((e, i) => episodeBlock(e, i + 1, current, atEntry)).join("\n\n");
+}
+
+/* ---------- Candidate trades and the pick question ---------- */
+function candidateTrades(asset) {
+  const trades = [];
+  for (const direction of ["long", "short"]) for (const [width, multiple] of Object.entries(SETTINGS.stopMultiples)) {
+    const distance = Math.min(multiple * asset.typicalMove, SETTINGS.maxStopDistance * asset.price);
+    trades.push({ name: `${direction}_${width}_stop`, direction, width, stop: direction === "long" ? asset.price - distance : asset.price + distance, stopShare: distance / asset.price });
+  }
+  return trades;
+}
+/* The largest size code allows, and which limit sets it. riskUsed and held are for adds to an open position. */
+function largestSize(account, stopShare, riskUsed = 0, held = 0) {
+  const facts = accountFacts(account);
+  return [
+    { amount: (SETTINGS.tradeRiskLimit * facts.value - riskUsed) / stopShare, why: "the most its stop price allows" },
+    { amount: SETTINGS.positionLimit * facts.value - held, why: "the most one position may hold" },
+    { amount: facts.room, why: "the most the account may still hold" },
+  ].reduce((least, limit) => limit.amount < least.amount ? limit : least);
+}
+function tradeText(trade, asset) {
+  return trade.direction === "long"
+    ? `Long, ${trade.width} stop price: buy at the next bar's open, about ${price(asset.price)}. Code sells if the price falls to ${price(trade.stop)}, ${percent(trade.stopShare)} below.`
+    : `Short, ${trade.width} stop price: sell borrowed units at the next bar's open, about ${price(asset.price)}. Code buys them back if the price rises to ${price(trade.stop)}, ${percent(trade.stopShare)} above.`;
+}
+const NO_TRADE = { name: "no_trade", text: "No trade: open no position in this asset at this step." };
+function pickOptions(asset, account) {
+  return candidateTrades(asset).map(t => ({ name: t.name, text: `${tradeText(t, asset)} Largest size code allows with it: ${dollars(largestSize(account, t.stopShare).amount)}.` })).concat([NO_TRADE]);
+}
+
+/* ---------- Size options: for an entry, and for an add ---------- */
+const RANK_WORDS = ["The smallest size", "The second smallest size", "The middle size", "The second largest size", "The largest size"];
+function sizeOptions(account, trade, add) {
+  const facts = accountFacts(account);
+  const limit = add ? largestSize(account, add.stopShare, add.riskUsed, add.held) : largestSize(account, trade.stopShare);
+  return SETTINGS.sizeBuckets.map((share, i) => {
+    const asked = share * facts.value, actual = Math.min(asked, limit.amount);
+    let text = `${RANK_WORDS[i]}: ${dollars(asked)}${add ? " more" : ""}, ${wholePercent(share)} of account value.`;
+    if (actual < asked) text += ` Code would cut it to ${dollars(actual)}, ${limit.why}.`;
+    if (trade.direction === "long") { const borrowed = Math.max(0, actual - account.cash); text += borrowed > 0 ? ` ${dollars(borrowed)} of it borrowed.` : " Paid from cash, nothing borrowed."; }
+    const loss = add ? add.riskUsed + actual * add.stopShare : actual * trade.stopShare;
+    text += add ? ` The whole position would then lose about ${dollars(loss)} if the stop price is reached.` : ` Loses about ${dollars(loss)} if the stop price is reached.`;
+    return { name: `size_${wholePercent(share).replace("%", "_percent")}`, asked, actual, text };
+  });
+}
+const RATING_LEVELS = [
+  "Very weak: no better than a coin flip.",
+  "Weak: slightly better than a coin flip.",
+  "Moderate: a reasonable case with clear doubts.",
+  "Strong: most of what is known points the same way.",
+  "Very strong: nearly everything known points the same way.",
+];
+
+/* ---------- The position check ---------- */
+function positionFacts(position, asset) {
+  const units = position.putIn / position.entryPrice, worth = units * asset.price;
+  const gross = (position.direction === "long" ? 1 : -1) * units * (asset.price - position.entryPrice);
+  const costs = 2 * SETTINGS.stockCommission + SETTINGS.slippage * (position.putIn + worth);   /* a stock, in and out */
+  const stopDistance = Math.abs(asset.price - position.stopPrice) / asset.price;
+  return { units, worth, profit: gross - costs, profitPercent: 100 * (gross - costs) / position.putIn,
+    riskUsed: units * Math.abs(position.entryPrice - position.stopPrice), stopDistance };
+}
+function positionSection(position, asset) {
+  const f = positionFacts(position, asset), long = position.direction === "long";
+  return `# The position being checked: ${asset.id} (${asset.assetClass})
+${capital(position.direction)}, ${dollars(position.putIn)}, opened ${countBars(position.barsAgo)} ago at an entry price of ${price(position.entryPrice)}.
+Stop price: ${price(position.stopPrice)}, fixed. Code ${long ? "sells" : "buys back"} there. It is ${percent(f.stopDistance)} ${long ? "below" : "above"} the last price.
+Now: the position is worth ${dollars(f.worth)}. Closing it now would leave ${signedDollars(f.profit)} (${signedPercent(f.profitPercent)}) after trading costs. At best it was ${signedDollars(position.best)}, at worst ${signedDollars(position.worst)}.
+Situation when it was opened: ${position.situationAtEntry}
+Since then: ${position.since.join("; ")}.`;
+}
+function actionOptions(position, asset, account) {
+  const f = positionFacts(position, asset), long = position.direction === "long";
+  const addLimit = largestSize(account, f.stopDistance, f.riskUsed, f.worth);
+  const options = [
+    { name: "hold", text: "Hold: keep the position as it is." },
+    { name: "close", text: `Close: ${long ? "sell" : "buy back"} the whole position at the next bar's open, for about ${signedDollars(f.profit)} after trading costs.` },
+    { name: "reduce", text: "Reduce: close part of the position and keep the rest. How much is asked next." },
+  ];
+  if (addLimit.amount > 0 && !account.addsBlocked) options.push({ name: "add", text: `Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to ${dollars(addLimit.amount)} more.` });
+  return options;
+}
+const REDUCE_WORDS = ["A quarter", "Half", "Three quarters"];
+function reduceOptions(position, asset) {
+  const f = positionFacts(position, asset);
+  return SETTINGS.reduceShares.map((share, i) => ({ name: `reduce_${wholePercent(share).replace("%", "_percent")}`, share,
+    text: `${REDUCE_WORDS[i]}: close ${dollars(share * f.worth)} of the position, for about ${signedDollars(share * f.profit)} after trading costs. ${dollars((1 - share) * f.worth)} stays open.` }));
+}
+
+/* ---------- Whole backgrounds, one per kind of request ---------- */
+const join = parts => parts.filter(Boolean).join("\n\n");
+function screenBackground(asset, account, playbook) {
+  return join([taskSection(), accountSection(account), otherPositionsSection(account.positions, "Open positions"),
+    assetSection(asset, "The asset", "The account holds no position in it."), patternNotes(asset.patternsAll, playbook)]);
+}
+function fullEvaluationBackground(asset, account, playbook, memory, pickedTrade) {
+  const names = asset.patternsAll.concat(memory && Array.isArray(memory.episodes) ? memory.episodes.flatMap(e => e.patterns.concat(e.patternsOnLongerBars || [])) : []);
+  return join([taskSection(), accountSection(account), otherPositionsSection(account.positions, "Open positions"),
+    assetSection(asset, "The asset", "The account holds no position in it."),
+    memory && trackRecordSection(memory.trackRecord), memory && episodesSection(memory, asset),
+    patternNotes(names, playbook),
+    pickedTrade && `# The trade picked\n${tradeText(pickedTrade, asset)}`]);
+}
+function positionCheckBackground(asset, account, playbook, position, memoryAtEntry, decided) {
+  const names = asset.patternsAll.concat(position.patternsAtEntry, memoryAtEntry && Array.isArray(memoryAtEntry.episodes) ? memoryAtEntry.episodes.flatMap(e => e.patterns.concat(e.patternsOnLongerBars || [])) : []);
+  return join([taskSection(), accountSection(account),
+    otherPositionsSection(account.positions.filter(p => p.asset !== asset.id), "Other open positions"),
+    positionSection(position, asset), assetSection(asset, "The asset now"),
+    memoryAtEntry && trackRecordSection(memoryAtEntry.trackRecord, true), memoryAtEntry && episodesSection(memoryAtEntry, asset, true),
+    patternNotes(names, playbook),
+    decided && `# Decided at this step\n${decided}`]);
+}
+
+/* ---------- The questions' wording ---------- */
+const Q = {
+  screen: asset => `Is ${asset.id} worth a full evaluation at this step? A full evaluation weighs opening a long or a short in it now, and can still end in no trade.`,
+  pick: asset => `Which of these should the account do with ${asset.id} at this step?`,
+  memoriesRelevant: "Do the past episodes shown fit the current situation?",
+  size: "How much money should go into the trade picked?",
+  rating: "How strong is the case for the trade picked?",
+  action: "What should the account do with the position being checked at this step?",
+  thesisIntact: "Is the situation the position was opened in still in place?",
+  reduce: "How much of the position should be closed?",
+  add: "How much more money should go into the position?",
+};
+
+/* ============================================================
+   MADE-UP DATA (the same story as docs/llm-prompt-walkthrough.html)
+   ============================================================ */
+const PLAYBOOK = {
+  "bullish engulfing": { lean: "bullish", shape: "A down bar, then a larger up bar whose body covers the first bar's body." },
+  "hammer": { lean: "bullish", shape: "A small body at the top of the bar with a lower wick at least twice as long." },
+  "doji": { lean: "neutral", shape: "A bar that closes almost exactly where it opened." },
+  "belt-hold": { lean: "bullish", shape: "A long up bar that opens at its low." },
+  "shooting star": { lean: "bearish", shape: "A small body at the bottom of the bar with an upper wick at least twice as long." },
+  "spinning top": { lean: "neutral", shape: "A small body with a wick on each side." },
+};
+const ASSET = { id: "ASSET_03", assetClass: "stock", price: 104.20, typicalMove: 0.63, patternsAll: ["bullish engulfing", "hammer", "doji"],
+  situation: "Stock, first hour (bar 3 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), hammer (2 bars ago). Latest hourly bar: none. Latest daily bar: doji. Last 8 bars: five up, three down; this bar is a large up bar closing near its high. Short-term trend up (1.5 typical moves above the 20-bar average). Long-term trend up (2.1 above the 20-day average). Volume high (1.8 times normal). Price is 1.0 above the day's average price, 1.0 below the day's high, 2.0 above the day's low, and 1.0 above the previous day's high. Typical move: 0.6% of price." };
+const ACCOUNT = { cash: 7122, loan: 0, positions: [ { asset: "ASSET_05", assetClass: "crypto", direction: "long", worth: 3018, barsAgo: 11, profit: 9, percent: 0.3 } ] };
+/* The four episodes the LLM selected in the walkthrough's first scenario (its E1, E8, E2, E3). */
+const SELECTED = [
+  { stepsAgo: 3*96+8, asset: "ASSET_03", assetClass: "stock", patterns: ["bullish engulfing", "hammer"], trade: { direction: "long", stop: "tight", stopPercent: 0.6, dollars: 6000 }, ended: { reason: "choice", bars: 6, profit: 21, percent: 0.4, best: 33, worst: -8 }, handled: ["bars 1 to 2 hold", "bar 3 reduce by half (that half: +$14)", "bars 4 to 5 hold", "bar 6 close"],
+    situation: "Stock, first hour (bar 4 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), hammer (1 bar ago). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a large up bar closing at its high. Short-term trend up (0.9 typical moves above the 20-bar average). Long-term trend up (1.4 above the 20-day average). Volume high (2.2 times normal). Price is 0.6 above the day's average price, 0.2 below the day's high, 1.8 above the day's low, and 0.3 below the previous day's high. Typical move: 0.6% of price." },
+  { stepsAgo: 73*96+40, asset: "ASSET_04", assetClass: "stock", patterns: ["bullish engulfing", "hammer"], trade: { direction: "long", stop: "medium", stopPercent: 1.4, dollars: 5500 }, ended: { reason: "choice", bars: 9, profit: 61, percent: 1.1, best: 74, worst: -20 }, handled: ["bars 1 to 8 hold", "bar 9 close"],
+    situation: "Stock, first hour (bar 3 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), hammer (2 bars ago). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: five up, three down; this bar is a large up bar closing near its high. Short-term trend up (1.3 typical moves above the 20-bar average). Long-term trend up (2.4 above the 20-day average). Volume high (1.7 times normal). Price is 0.9 above the day's average price, 0.8 below the day's high, 2.2 above the day's low, and 1.2 above the previous day's high. Typical move: 0.7% of price." },
+  { stepsAgo: 9*96+30, asset: "ASSET_03", assetClass: "stock", patterns: ["bullish engulfing"], patternsOnLongerBars: ["shooting star"], trade: { direction: "long", stop: "medium", stopPercent: 1.2, dollars: 4200 }, ended: { reason: "stop", bars: 3, profit: -52, percent: -1.2, best: 6, worst: -52 }, handled: ["bars 1 to 2 hold", "bar 3 stop price reached"],
+    situation: "Stock, first hour (bar 2 of 26). Patterns in the last 4 bars: bullish engulfing (this bar). Latest hourly bar: none. Latest daily bar: shooting star. Last 8 bars: three up, five down; this bar is a medium up bar closing near its high. Short-term trend down (0.8 typical moves below the 20-bar average). Long-term trend up (0.4 above the 20-day average). Volume high (1.6 times normal). Price is 0.3 above the day's average price, 0.4 below the day's high, 1.1 above the day's low, and 2.0 below the previous day's high. Typical move: 0.6% of price." },
+  { stepsAgo: 12*96+2, asset: "ASSET_01", assetClass: "stock", patterns: ["bullish engulfing", "belt-hold"], after: { oneBar: 0.1, fourBars: 0.6, endOfDay: 1.1 },
+    situation: "Stock, first hour (bar 3 of 26). Patterns in the last 4 bars: bullish engulfing (this bar), belt-hold (1 bar ago). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a medium up bar closing near its high. Short-term trend up (0.5 typical moves above the 20-bar average). Long-term trend up (1.0 above the 20-day average). Volume average (1.0 times normal). Price is 0.4 above the day's average price, 0.3 below the day's high, 1.5 above the day's low, and 0.6 below the previous day's high. Typical move: 0.5% of price." },
+];
+const TRACK_RECORD = [
+  { name: "Bullish engulfing, long, stocks, with the long-term trend, high volume, first hour", trades: 11, wins: 7, averageWin: 38, averageLoss: -21, total: 182 },
+  { name: "Bullish engulfing, short, stocks, against the long-term trend", trades: 14, wins: 4, averageWin: 27, averageLoss: -24, total: -132 },
+  { name: "Hammer, long, stocks, with the long-term trend, high volume", trades: 23, wins: 11, averageWin: 29, averageLoss: -22, total: 55 },
+  { name: "Hammer, short, stocks", trades: 6 },
+];
+const MEMORY = { trackRecord: TRACK_RECORD, episodes: SELECTED };
+const THIN_TRACK_RECORD = [ { name: "Bullish engulfing, long, stocks", trades: 2 }, { name: "Bullish engulfing, short, stocks", trades: 0 }, { name: "Hammer, long, stocks", trades: 1 }, { name: "Hammer, short, stocks", trades: 0 } ];
+
+/* Five bars later: the long picked above is open, and it is checked. */
+const ASSET_LATER = { id: "ASSET_03", assetClass: "stock", price: 104.71, typicalMove: 0.61, patternsAll: ["spinning top", "doji", "belt-hold"],
+  situation: "Stock, middle (bar 8 of 26). Patterns in the last 4 bars: spinning top (this bar), doji (2 bars ago). Latest hourly bar: belt-hold. Latest daily bar: doji. Last 8 bars: five up, three down; this bar is a small up bar closing mid-range. Short-term trend up (1.1 typical moves above the 20-bar average). Long-term trend up (2.3 above the 20-day average). Volume average (1.0 times normal). Price is 0.8 above the day's average price, 0.4 below the day's high, 2.9 above the day's low, and 1.8 above the previous day's high. Typical move: 0.6% of price." };
+const POSITION = { direction: "long", putIn: 6000, entryPrice: 104.20, stopPrice: 103.57, barsAgo: 5, best: 33, worst: -8,
+  situationAtEntry: ASSET.situation, patternsAtEntry: ["bullish engulfing", "hammer", "doji"], since: ["bars 1 to 4 hold"] };
+const ACCOUNT_LATER = { cash: 1115, loan: 0, positions: [
+  { asset: "ASSET_03", assetClass: "stock", direction: "long", worth: (6000 / 104.20) * 104.71, barsAgo: 5, profit: 21, percent: 0.4 },
+  { asset: "ASSET_05", assetClass: "crypto", direction: "long", worth: 3012, barsAgo: 16, profit: 3, percent: 0.1 } ] };
+
+/* ============================================================
+   PAGE (throwaway shell around the portable part)
+   ============================================================ */
+const escapeHtml = text => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const jevTokens = text => Math.round(text.length / CHARS_PER_JEV_TOKEN);
+function messageBox(kind, heading, text, note, state) {
+  return `<div class="msg ${kind}"><div><div class="who">${heading}</div><pre>${escapeHtml(text)}</pre>${state ? `<div class="state">${state}</div>` : ""}</div><div class="note">${note || ""}</div></div>`;
+}
+const backgroundState = text => `the background: about ${jevTokens(text).toLocaleString("en-US")} tokens of the 20,000 allowed · counted once per request, however many questions follow`;
+function questionText(name, kind, instructions, options) {
+  let text = `Question "${name}" (${kind})\n${instructions}`;
+  if (options) text += "\n\nOptions, in the order sent:\n" + options.map(o => `  ${o.name}\n      ${o.text}`).join("\n");
+  return text;
+}
+function levelsText(name, instructions, levels) { return `Question "${name}" (a rating)\n${instructions}\n\nLevels, lowest first:\n` + levels.map((l, i) => `  ${i}  ${l}`).join("\n"); }
+/* A fixed stand-in for the shuffle code draws from the run's random seed. */
+const reorder = (options, order) => order.map(i => options[i]);
+const namesOnly = options => options.map(o => o.name).join(", ");
+
+const SCENARIOS = [
+  { tab: "Always sent", intro: "The opening of every background. It is the same in every request of a run: the goal, how trading works here, and what code takes care of. The numbers in it are the run's settings (the medium risk profile and the trading costs), so a tuning run that changes a setting changes this text.",
+    render() {
+      const text = taskSection();
+      return messageBox("code", "The opening of every background", text, "<b>The goal</b> is one sentence, and \"nothing else is measured\" is there so that Jev does not assume it should also keep the account steady.<br><br><b>How trading works</b> is five facts a trader would know before the first trade: what long and short mean, when an order is carried out, what a stop price does, what trading costs, and what code will not allow.<br><br><b>The last line</b> (\"A decision does not need to hold back in order to stay inside a limit. Code does that.\") is how Jev is told that staying inside the risk limits is code's job, so it need not trade smaller or less often on their account.<br><br><b>No trading advice.</b> None of the brief's eight rules of thumb is here (see the last tab, point 7).<br><br><b>Not said:</b> anything about an LLM, memory, or how the episodes were found.", `about ${jevTokens(text)} tokens`)
+        + messageBox("aside", "How a request is put together (not a message)", "A request to Jev has two parts:\n1. The background: one block of plain text, made of sections with # headings. The opening above always comes first.\n2. One or more questions. Each has its wording and, for a choice, a list of named options with a sentence each.\n\nJev answers every question in a request at the same moment, so a question that depends on another's answer goes in a second request.", "Jev's own documentation calls the background the \"state\", the wording of a question its \"instructions\", and the options its \"criteria\".", ""); } },
+
+  { tab: "1. Screen", intro: "Asked at every step for every asset the account holds nothing in. It is the cheap question that decides whether the closer look runs. Nothing from memory is in it.",
+    render() {
+      const background = screenBackground(ASSET, ACCOUNT, PLAYBOOK); let html = "";
+      html += messageBox("code", "Code to Jev: the background", background, "<b>After the opening:</b> the account in four lines, the other open positions in one line each, then the asset.<br><br><b>The account</b> shows what it is worth, its cash, and how much more it may hold. It does not show how today is going (see the last tab, point 2).<br><br><b>The asset</b> gets its price, its typical move in dollars, and the situation text: the same paragraph the LLM reads and the search uses. Prices are masked (rescaled to start at 100), so $104.20 is not the stock's real price.<br><br><b>Candle patterns:</b> every name in the situation text gets the playbook's note, the same line the LLM is shown.<br><br><b>No memory:</b> no track record and no past episodes, with or without memory switched on.", backgroundState(background));
+      html += messageBox("code", "Code to Jev: the one question", questionText("screen", "yes or no", Q.screen(ASSET)), "A yes-or-no question. Jev answers with the probability of yes.", "");
+      html += messageBox("jev", "Jev to code: its answer", "screen: 0.62", "", "");
+      html += messageBox("aside", "What code does next (not a message)", "0.62 is at or above the cut-off of 0.5, so the full evaluation runs for this asset at this step.\nBelow 0.5 the decision would be \"no action\" and the step moves on.\nThe number is stored on the decision record either way.", "When the daily loss limit has been reached, or it is a stock's last bar of the session, no position can be opened, so the screen is not asked at all.", "");
+      return html; } },
+
+  { tab: "2. Full evaluation: the pick", intro: "The screen said yes. The LLM has selected four past episodes (its work is on the other walkthrough page). Jev now reads the same background plus memory, and picks one of seven options. This is request 1 of 2.",
+    render() {
+      const background = fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, MEMORY); const options = pickOptions(ASSET, ACCOUNT); let html = "";
+      html += messageBox("code", "Code to Jev: the background", background, "<b>The same as the screen's,</b> with two sections added after the asset.<br><br><b>Track record:</b> one line for each candle pattern of the last 4 bars and each direction: the narrowest group that fits the current situation and has at least 10 closed trades. Reading the first line: in a stock's first hour, with prices rising for weeks and heavy trading, a bet on a rise after a bullish engulfing was made 11 times and won 7. \"Hammer, short\" has only 6 trades, so only the count is shown.<br><br><b>Past episodes:</b> the ones the LLM selected, newest first. Each block is what the LLM reads when it opens an episode in full, minus the bar-by-bar handling. About 310 tokens each.<br><br><b>Candle pattern notes</b> now also cover patterns named in the episodes (belt-hold, shooting star).", backgroundState(background));
+      html += messageBox("code", "Code to Jev: the pick, copy 1 of 5", questionText("pick_1", "a choice", Q.pick(ASSET), options), "<b>Seven options:</b> a long or a short, each with a tight, medium, or wide stop price, or no trade. Each is a sentence with the prices in dollars.<br><br><b>\"Largest size code allows\"</b> shows what a wider stop price costs: the further away it is, the smaller the trade has to be for its loss to stay within 1% of the account ($101 here).", "");
+      const orders = [[3,6,0,5,2,4,1],[6,2,4,1,5,0,3],[1,5,3,0,6,4,2],[4,0,6,2,1,3,5]];
+      html += messageBox("code", "Code to Jev: copies 2 to 5, same wording, shuffled order", orders.map((order, i) => `pick_${i + 2}: ${namesOnly(reorder(options, order))}`).join("\n"), "Jev leans toward whichever option is listed first. Asking five times in five orders and averaging cancels that (decided earlier). All five copies go in this one request, so the background is counted once.", "");
+      html += messageBox("code", "Code to Jev: one more question, recorded only", questionText("memories_relevant", "yes or no", Q.memoriesRelevant), "Stored for later analysis. It never changes the trade. Asked only when at least one past episode is shown.", "");
+      html += messageBox("jev", "Jev to code: its answer, averaged over the five copies", "long_tight_stop     0.34\nlong_medium_stop    0.21\nlong_wide_stop      0.09\nshort_tight_stop    0.03\nshort_medium_stop   0.02\nshort_wide_stop     0.02\nno_trade            0.29\n\nmemories_relevant: 0.81", "A probability for each option; together they add up to 1.", "");
+      html += messageBox("aside", "What code does next (not a message)", "Adds the probabilities by direction: long 0.64, no trade 0.29, short 0.07. Long wins.\nWithin long, the highest is the tight stop price (0.34).\nThe pick is long_tight_stop. Request 2 asks how much.\nHad \"no trade\" won, the full evaluation would end here with no order.", "<b>Why add by direction first:</b> see the last tab, point 3. Without it, three long options can split Jev's vote and let \"no trade\" win although Jev favours a long.", "");
+      return html; } },
+
+  { tab: "3. Full evaluation: the size", intro: "Request 2 of 2. The background is the same with one section added at the end, naming the trade just picked. Jev says how much money to put in, and rates how strong the case is.",
+    render() {
+      const picked = candidateTrades(ASSET)[0]; const background = fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, MEMORY, picked);
+      const options = sizeOptions(ACCOUNT, picked); let html = "";
+      html += messageBox("code", "Code to Jev: the end of the background (everything above it is unchanged)", background.slice(background.indexOf("# The trade picked")), "Only this section is new. The whole background is sent again, since each request stands alone.", backgroundState(background));
+      html += messageBox("code", "Code to Jev: the size, smallest first", questionText("size_small_first", "a choice", Q.size, options), "<b>Five sizes,</b> each a share of account value, in words and dollars.<br><br><b>Each says three things:</b> the dollars; whether any of it is borrowed (the account has $7,122 of cash, so the middle size borrows $990); and what the trade loses if the price reaches the stop price.<br><br><b>The largest size</b> would lose more than 1% of the account at this stop price, so the option says what code would do: cut it to $16,771. Jev is told, so that its answer means what will happen.", "");
+      html += messageBox("code", "Code to Jev: the same question, largest first", `size_large_first: ${namesOnly([...options].reverse())}`, "The lean toward the first option was measured for sizes: about 18% more money when the largest was listed first. Asking both ways and averaging cancels it (decided earlier).", "");
+      html += messageBox("code", "Code to Jev: the rating, recorded only", levelsText("rating", Q.rating, RATING_LEVELS), "Five levels. Jev returns a number from 0 to 4. Stored for later analysis; it never changes the size.", "");
+      const probabilities = [0.05, 0.15, 0.40, 0.25, 0.15];
+      html += messageBox("jev", "Jev to code: its answer, averaged over the two copies", options.map((o, i) => o.name.padEnd(20) + probabilities[i].toFixed(2)).join("\n") + "\n\nrating: 2.7", "", "");
+      const chosen = options.reduce((sum, o, i) => sum + probabilities[i] * o.asked, 0); const limit = largestSize(ACCOUNT, picked.stopShare);
+      html += messageBox("aside", "What code does next (not a message)", `Works out the size as the average of the five sizes, weighted by Jev's probabilities: ${dollars(chosen)}.\nChecks the limits: the most this stop price allows is ${dollars(limit.amount)}, so nothing is cut.\nPlaces the order: buy ${dollars(chosen)} of ASSET_03 at the next bar's open, stop price ${price(picked.stop)}. It borrows ${dollars(Math.max(0, chosen - ACCOUNT.cash))}. If the stop price is reached the trade loses about ${dollars(chosen * picked.stopShare)}.\nStores Jev's size, the size after the limits, and which limit cut it, if any.`, "The average uses each size as Jev was asked it ($20,280 for the largest), and the limits are applied afterwards, as decided in the risk profile ticket.", "");
+      return html; } },
+
+  { tab: "4. Position check", intro: "Five bars (75 minutes) later. The long is open, and at every step Jev is asked what to do with it. The LLM is not called. Jev reads the position's own record, the asset as it looks now, and the memory it was shown when the position was opened, this time with how each past trade was handled bar by bar. (To keep the arithmetic easy to follow, the made-up position is $6,000, not the size worked out on the previous tab.)",
+    render() {
+      const background = positionCheckBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION, MEMORY); const f = positionFacts(POSITION, ASSET_LATER); let html = "";
+      html += messageBox("code", "Code to Jev: the background", background, "<b>The position being checked</b> is its journal: what was put in and when, the stop price, where it stands now, the situation it was opened in, and what has been done since.<br><br><b>\"Since then\"</b> merges runs of the same answer. A busier position would read: \"bars 1 to 2 hold; bar 3 reduce by a quarter (that part: +$7); bars 4 to 9 hold\".<br><br><b>If a background ever neared 20,000 tokens,</b> the oldest \"since then\" entries would be dropped first and the opening situation kept (decided earlier). With runs merged, that does not happen in practice.<br><br><b>The asset now</b> is the current situation text, to compare with the one at entry.<br><br><b>Memory shown when the position was opened:</b> the same track record lines and the same past episodes Jev read when it picked this trade, kept with the position. Nothing is searched again and the LLM is not called. Each past trade now carries a <b>Handled</b> line: what was done at each bar until it closed. Reading episode 1: held for two bars, half closed at bar 3 for +$14, the rest closed at bar 6.<br><br><b>In the agent without memory</b> these two sections are absent, as in tab 5.", backgroundState(background));
+      const options = actionOptions(POSITION, ASSET_LATER, ACCOUNT_LATER);
+      html += messageBox("code", "Code to Jev: the action, copy 1 of 5", questionText("action_1", "a choice", Q.action, options), "Four options, asked as five shuffled copies like the pick.<br><br><b>Close</b> says what closing would leave in dollars.<br><br><b>Add</b> says how much more code would allow. When nothing can be added (the daily loss limit was reached, it is a stock's last bar of the session, or the limits leave no room), the add option is left out and three options are sent.", "");
+      html += messageBox("code", "Code to Jev: one more question, recorded only", questionText("thesis_intact", "yes or no", Q.thesisIntact), "Stored for later analysis. It never changes what is done.", "");
+      html += messageBox("jev", "Jev to code: its answer, averaged over the five copies", "hold      0.48\nclose     0.11\nreduce    0.33\nadd       0.08\n\nthesis_intact: 0.71", "The highest wins: hold. Nothing is done and the journal gains \"bar 5 hold\".", "");
+      const decidedReduce = "Reduce: close part of the position and keep the rest.";
+      const reduce = reduceOptions(POSITION, ASSET_LATER);
+      html += messageBox("code", "If Jev had answered \"reduce\": request 2, smallest first", "(the same background, ending with)\n# Decided at this step\n" + decidedReduce + "\n\n" + questionText("reduce_small_first", "a choice", Q.reduce, reduce) + `\n\nreduce_large_first: ${namesOnly([...reduce].reverse())}`, "Three options, asked smallest first and largest first. Code closes the average share, weighted by Jev's probabilities: 50% on a quarter and 50% on half closes three eighths.", "");
+      const add = { stopShare: f.stopDistance, riskUsed: f.riskUsed, held: f.worth }; const adds = sizeOptions(ACCOUNT_LATER, POSITION, add);
+      html += messageBox("code", "If Jev had answered \"add\": request 2, smallest first", "(the same background, ending with)\n# Decided at this step\nAdd: put more money into the position, in the same direction and with the same stop price.\n\n" + questionText("add_small_first", "a choice", Q.add, adds) + `\n\nadd_large_first: ${namesOnly([...adds].reverse())}`, "The same five sizes as for a new trade. The stop price stays where it is, so each option says what the <b>whole</b> position would lose there. Here the position already risks about " + dollars(f.riskUsed) + ", so code allows about " + dollars(largestSize(ACCOUNT_LATER, add.stopShare, add.riskUsed, add.held).amount) + " more before the whole reaches 1% of the account. The three largest sizes would all be cut to that same amount.", "");
+      return html; } },
+
+  { tab: "5. No memory to show", intro: "Three different situations, three different wordings, so Jev can tell them apart. Everything else in the background stays as it is.",
+    render() {
+      let html = "";
+      html += messageBox("code", "Case A. The LLM selected no episode", trackRecordSection(TRACK_RECORD) + "\n\n" + NO_EPISODES_SELECTED, "A valid answer from the LLM: memory holds past episodes, but none looked close enough. The track record is still shown.<br><br>The \"do the past episodes fit\" question is not asked.", "");
+      html += messageBox("code", "Case B. Memory holds nothing yet (practice runs and tests only)", trackRecordSection(THIN_TRACK_RECORD) + "\n\n" + NO_EPISODES_YET, "Runs that count never start empty: they begin with the base memory, a year of records. This arises only on a small made-up memory. The LLM is not called.<br><br>The track record lines still appear, each with its count, so the layout never changes.", "");
+      const without = fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, null);
+      html += messageBox("code", "Case C. The agent without memory, and the build-up run", without.slice(without.indexOf("# The asset")), "The two memory sections are simply absent: no heading and no sentence saying something is missing. The asset is followed directly by the candle pattern notes.<br><br><b>Why silent:</b> the agent without memory is the comparison. Telling Jev \"you have no experience to draw on\" could by itself make it more careful, and the comparison would then measure that sentence too.", backgroundState(without));
+      return html; } },
+
+  { tab: "Why it is worded this way", intro: "The choices behind the text on the other tabs, each with its reason. All were decided with the developer on 2026-11-19.",
+    render() {
+      const items = [
+        ["Where memory is read", "A screen reads no memory. A full evaluation reads the track record and the past episodes the LLM selected. A position check re-reads that same memory, kept with the position since it was opened, with each past trade's bar-by-bar handling added.", "Managing an open trade is where a trader's experience counts most, and the experience that applies is how earlier trades of this same setup played out: how long they were held, how far they went, when they were reduced or stopped. That is what the episodes chosen at entry hold. It needs no LLM call and no new search, and adds about 1,800 tokens to each position check: at most about 40 cents on a 30-day run with memory. Its limit: the episodes were chosen for looking like the moment of entry, not like the moment five bars in. Searching memory afresh for an open position, behind a screen of its own so that the LLM is not called at every check, is a decision still to be made: it has its own ticket on the map, and this page changes with it."],
+        ["Whether Jev sees how today is going", "Left out. Jev sees account value, cash, any loan, and how much more the account may hold, but not \"today so far: -$180\".", "Traders have a saying, \"don't trade your P&amp;L\" (P&amp;L is profit and loss: how much you are up or down): a good trade is good whether the day is up or down, and people who look at the day's losses start chasing them or freezing. The daily loss limit already covers the bad day, and code enforces it."],
+        ["How the pick is read from Jev's seven probabilities", "Add the probabilities by direction first (long, short, no trade); the highest direction wins; within it, the stop price with the highest probability.", "Three of the seven options are longs. If Jev is 67% sure of a long but splits that as 25%, 22%, and 20% across the three stop prices, \"no trade\" at 30% would win by being the single highest. Adding by direction first is how a trader decides: first which way, then where the stop price goes. It needs no extra request."],
+        ["The target price", "Dropped from version 1 altogether: not shown to Jev, not part of a candidate trade, not stored.", "The target price was the price at which a trade would have \"met its goal\". It was always twice the stop distance away and code never acted on it. Jev decides every exit at the position checks. Whether a trade got twice as far as its stop distance can be worked out later from stored prices."],
+        ["What each size option says", "Its dollars and share of the account, how much of it is borrowed, what the trade loses at its stop price, and, when a limit would cut it, the size code would really open.", "A day trader sizes a trade from what it loses if it goes wrong, so the loss belongs in the option. Telling Jev about the cut keeps its answer honest: otherwise it could choose \"$20,280\" and get $16,771. It states facts and does not ask for caution. Each pick option also names the largest size its stop price allows."],
+        ["The track record lines", "One line per candle pattern of the last 4 bars and per direction: the narrowest group with at least 10 closed trades. With fewer than 10 at every level, the count alone.", "This is the rule decided when the minimum sample was set. The LLM's tool shows the whole ladder from broadest to narrowest; for Jev that would be up to four times as many numbers, and Jev's documentation says it is weak with numbers."],
+        ["The brief's eight principles", "All dropped. Jev's background holds no rules of thumb, like the LLM's prompt.", "Five of the eight are already there as facts and not as advice: volume, the long-term trend, the distance to the day's highs and lows, the part of the day, and the track record. \"Doing nothing is always valid\" is the no-trade option. The other two assert what patterns mean, and the brief's finance specifics carry no authority. The project measures Jev's judgment, and text in the background steers it."],
+        ["Candle patterns", "Every name exactly as TA-Lib gives it, near-copies included, and the playbook's note (which way it hints, and its shape) once for each name in the background. The same note line the LLM gets.", "Follows the decision to use TA-Lib as it comes, with no tie-breaks. Ten notes cost about 300 tokens."],
+        ["The order of the past episodes", "Newest first, numbered \"Episode 1\", \"Episode 2\".", "The LLM lists its selection \"most useful first\". Passing that order on would let the LLM's ranking reach Jev, and the earlier decision is that Jev does not see how an episode ranked. Newest first is neutral."],
+        ["The size of an episode block", "About 310 tokens, not the 250 estimated earlier.", "The situation text grew when its wording was settled. Five episodes are about 1,550 tokens of the 20,000 allowed, and a whole full-evaluation background about 3,000, so nothing needs cutting."],
+        ["Storing what Jev is sent", "Every request to Jev and every answer is stored word for word, like the LLM's transcript, so the web app can show the whole chain behind any decision. The opening that never changes is stored once per reading version (the name of one exact wording of what Jev is sent).", "The developer wants to read the whole chain behind a decision. A 30-day run makes about 5,000 checks of about 3,000 characters each, plus two longer requests for each full evaluation: about 25 MB before compression. The year-long build-up comes to about 300 MB. Snowflake is on its free trial and outside the budget."],
+        ["The same request every time", "No clock time, real date, step number, run number, or random ID appears anywhere. Ages are counts (\"3 days ago\", \"5 bars ago\"); the shuffled orders come from the run's random seed, the step, and the asset; numbers are rounded by fixed rules.", "The recorded-answer tests match a saved answer only when the request is identical."],
+        ["One layout, plain text", "The background is one block of plain text with # headings, in a fixed order: the task, how trading works, the account, open positions, the asset (or the position, then the asset), track record, past episodes, candle pattern notes, and last the trade picked.", "Jev accepts structured data too, but its token count was measured on text like this, the LLM's messages use the same style, and it is what the developer reads in the web app. The order goes from what never changes to what is specific to this question."],
+      ];
+      return `<ol class="react">` + items.map(([title, decision, why]) => `<li><b>${title}.</b> ${decision}<br><span style="color:var(--soft)">${why}</span></li>`).join("") + `</ol>`; } },
+];
+
+let selectedTab = 2;
+function draw() {
+  document.getElementById("tabs").innerHTML = SCENARIOS.map((scenario, i) => `<button class="${i === selectedTab ? "on" : ""}" data-i="${i}">${scenario.tab}</button>`).join("");
+  const scenario = SCENARIOS[selectedTab];
+  document.getElementById("view").innerHTML = `<p class="scenario-intro">${scenario.intro}</p>` + scenario.render();
+}
+document.getElementById("tabs").addEventListener("click", event => { if (event.target.dataset.i !== undefined) { selectedTab = +event.target.dataset.i; draw(); } });
+draw();
+</script>
+</body>
+</html>

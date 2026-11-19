@@ -34,11 +34,19 @@ I'm new to finance and trading. This applies to everything I read: chat, issues,
 - **Reliability first, for now.** Prefer a standard tool used as it comes over our own adjustments to it.
 - **The brief is a sketch.** `docs/project-breakdown.md` has the overall idea right. Its specifics, above all the finance ones, carry no authority: wayfinding settles them.
 
-## Prompt walkthrough
+## Walkthroughs
 
-`docs/llm-prompt-walkthrough.html` is how I read the LLM's prompt: every message it is sent and every reply, word for word on made-up data, with a plain-language note beside each.
+Two pages are how I read what the models are sent: every message and every reply, word for word on made-up data, with a plain-language note beside each.
 
-Changing what the LLM is sent (system prompt, tool descriptions, message layouts, the limit and re-ask messages) means updating this page in the same pull request, so the two always match.
+- `docs/llm-prompt-walkthrough.html`: the LLM's prompt.
+- `docs/jev-reading-walkthrough.html`: what Jev (the decision model) reads and is asked.
+
+A change to what a model is sent updates its page in the same pull request, so page and text always match:
+
+- **the LLM:** system prompt, tool descriptions, message layouts, the limit and re-ask messages;
+- **Jev:** the sections of its background, the wording of a question or an option, which questions a request holds.
+
+The pages share one made-up story and one way of writing a past episode: a change to how an episode is written updates both.
 
 ## Review gate
 
