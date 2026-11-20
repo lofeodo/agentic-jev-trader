@@ -10,12 +10,18 @@ How a sim drives it, for each asset that has a bar at a step:
 At the end of each day (midnight UTC) the sim calls `charge_overnight`; at a sim's last step it
 calls `close_everything`. The broker keeps no clock of its own: the sim passes the step.
 
-Two choices the spec leaves to the build (appendix 1, "Not decided by any ticket"):
+Three choices the spec leaves to the build (appendix 1, "Not decided by any ticket"):
 
 - The stop price can be hit by the very bar an entry is carried out in: the position is open from
-  that bar's open on.
-- A short sale's proceeds go into cash, and the loan is how far cash is below zero. A $10,000
-  account that sells $2,000 short holds $12,000 of cash and owes nothing.
+  that bar's open on. A bar that opens beyond the stop price enters and closes at that open.
+- The 5% cap on a stop price is checked once, against the last price it was worked out from,
+  when the order is placed. It is not checked again against the price the order is carried out at.
+- A short sale's money goes into cash but is not the account's own: the loan is what the
+  positions bought cost beyond the account's own cash, as the glossary has it. $10,000 that buys
+  $16,000 and sells $5,000 short owes $6,000; selling $2,000 short alone owes nothing.
+
+Every position has a stop price, except the long `buy_and_hold` opens for the `buy_hold`
+comparison, which never trades until the sim's last step.
 """
 
 from dataclasses import dataclass, field
@@ -82,7 +88,7 @@ class Fill:
     price: float  # after slippage
     value: float  # units times price
     slippage_cost: float
-    fee: float  # commission or trading fee, on top of the value
+    commission_or_trading_fee: float  # on top of the value
 
 
 @dataclass(frozen=True)
@@ -104,13 +110,17 @@ class Position:
     position_id: int
     asset: str
     direction: Direction
-    stop_price: float  # fixed at entry, never moved; an add shares it
+    stop_price: (
+        float | None
+    )  # fixed at entry, never moved; an add shares it; None: `buy_hold`
     step_opened: int
     entry_price: float = 0.0  # the entry fill's price
     average_price: float = 0.0
     units: float = 0.0  # always positive; the direction says which way
     cash_flow: float = 0.0  # every dollar in and out for this position, costs included
-    trading_costs: float = 0.0  # slippage, commission or trading fee, and borrow fees
+    # Slippage, commission or trading fee, and borrow fees. Loan interest is the account's,
+    # not one position's, so it is not here.
+    trading_costs: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -120,7 +130,7 @@ class ClosedTrade:
     position_id: int
     asset: str
     direction: Direction
-    stop_price: float
+    stop_price: float | None
     step_opened: int
     step_closed: int
     entry_price: float
@@ -176,22 +186,20 @@ class Broker:
         step: int,
     ) -> int:
         """Open a position of `amount` dollars; its stop price is checked against the last price."""
-        if asset in self.positions or any(
-            o.asset == asset and o.kind is OrderKind.ENTRY for o in self._waiting
-        ):
-            raise ValueError(f"{asset} already has a position or an entry waiting")
+        if asset not in self.last_prices:
+            raise ValueError(f"{asset} has no bar yet to check a stop price against")
         check_stop_price(
             direction, self.last_prices[asset], stop_price, self.stop_settings
         )
-        return self._place(
-            asset,
-            OrderKind.ENTRY,
-            ClosingReason.JEV,
-            step,
-            amount=amount,
-            direction=direction,
-            stop_price=stop_price,
-        )
+        return self._place_entry(asset, direction, amount, stop_price, step)
+
+    def buy_and_hold(self, asset: str, amount: float, step: int) -> int:
+        """Open a long of `amount` dollars with no stop price: only for `buy_hold`.
+
+        The comparison that holds the five assets (spec appendix 1, section 6) never trades
+        between its first purchases and the sim's last step, so it has no stop price to hit.
+        """
+        return self._place_entry(asset, Direction.LONG, amount, None, step)
 
     def add(self, asset: str, amount: float, step: int) -> int:
         """Put `amount` more dollars into the open position, which keeps its stop price."""
@@ -245,7 +253,7 @@ class Broker:
         for position in self.positions.values():
             if position.direction is not Direction.SHORT:
                 continue
-            value = position.units * self.last_prices[position.asset]
+            value = self._value(position)
             rate = (
                 self.costs.stock_borrow_fee_yearly
                 if self.asset_classes[position.asset] is AssetClass.STOCK
@@ -284,17 +292,15 @@ class Broker:
         """
         self.cancelled_order_ids.extend(o.order_id for o in self._waiting)
         self._waiting.clear()
-        fills = []
-        for position in list(self.positions.values()):
-            order = _Order(
-                self._new_id(),
-                position.asset,
-                OrderKind.CLOSE,
-                ClosingReason.SIM_ENDED,
+        return [
+            self._close_now(
+                position,
+                self.last_prices[position.asset],
                 step,
+                ClosingReason.SIM_ENDED,
             )
-            fills.append(self._carry_out(order, self.last_prices[position.asset], step))
-        return fills
+            for position in list(self.positions.values())
+        ]
 
     # The account, with each position at its asset's last price
 
@@ -303,16 +309,30 @@ class Broker:
         value = self.cash
         for position in self.positions.values():
             sign = 1 if position.direction is Direction.LONG else -1
-            value += sign * position.units * self.last_prices[position.asset]
+            value += sign * self._value(position)
         return value
 
     def exposure(self) -> float:
         """All open positions added together, a short counted the same as a long."""
-        return sum(p.units * self.last_prices[p.asset] for p in self.positions.values())
+        return sum(self._value(p) for p in self.positions.values())
 
     def loan(self) -> float:
-        """What the account owes: how far cash is below zero."""
-        return max(0.0, -self.cash)
+        """What the account owes for the positions it bought beyond its own cash.
+
+        Cash holds the money from short sales, but that money stands behind the borrowed units
+        and is not the account's own, so the shorts' value is set aside first. $10,000 that buys
+        $16,000 and sells $5,000 short holds -$1,000 of cash and owes $6,000.
+        """
+        shorts = sum(
+            self._value(p)
+            for p in self.positions.values()
+            if p.direction is Direction.SHORT
+        )
+        return max(0.0, shorts - self.cash)
+
+    def _value(self, position: Position) -> float:
+        """A position's size at its asset's last price, a short counted like a long."""
+        return position.units * self.last_prices[position.asset]
 
     # Inside
 
@@ -325,12 +345,29 @@ class Broker:
         self._waiting.append(order)
         return order.order_id
 
+    def _place_entry(self, asset, direction, amount, stop_price, step) -> int:
+        if asset in self.positions or any(
+            o.asset == asset and o.kind is OrderKind.ENTRY for o in self._waiting
+        ):
+            raise ValueError(f"{asset} already has a position or an entry waiting")
+        return self._place(
+            asset,
+            OrderKind.ENTRY,
+            ClosingReason.JEV,
+            step,
+            amount=amount,
+            direction=direction,
+            stop_price=stop_price,
+        )
+
     def _require_position(self, asset: str) -> None:
         if asset not in self.positions:
             raise ValueError(f"{asset} has no open position")
 
     def _check_stop_price(self, position: Position, bar: Bar) -> Fill | None:
         """Close at the stop price, or at the bar's open if the bar opened beyond it."""
+        if position.stop_price is None:  # `buy_hold` only
+            return None
         if position.direction is Direction.LONG:
             if bar.low > position.stop_price:
                 return None
@@ -339,14 +376,14 @@ class Broker:
             if bar.high < position.stop_price:
                 return None
             price = max(bar.open, position.stop_price)
-        order = _Order(
-            self._new_id(),
-            position.asset,
-            OrderKind.CLOSE,
-            ClosingReason.STOP_PRICE,
-            bar.step,
-        )
-        return self._carry_out(order, price, bar.step)
+        return self._close_now(position, price, bar.step, ClosingReason.STOP_PRICE)
+
+    def _close_now(
+        self, position: Position, price: float, step: int, reason: ClosingReason
+    ) -> Fill:
+        """Close a whole position at `price` straight away, decided and carried out at `step`."""
+        order = _Order(self._new_id(), position.asset, OrderKind.CLOSE, reason, step)
+        return self._carry_out(order, price, step)
 
     def _carry_out(self, order: _Order, base_price: float, step: int) -> Fill | None:
         """Carry out one order at `base_price` made worse by slippage. None if its position is gone."""
@@ -364,12 +401,13 @@ class Broker:
             if position is None:
                 return None
 
-        buying_more = order.kind in (OrderKind.ENTRY, OrderKind.ADD)
+        # An entry or an add grows the position: a long buys more units, a short sells more.
+        grows = order.kind in (OrderKind.ENTRY, OrderKind.ADD)
         is_long = position.direction is Direction.LONG
-        side = Side.BUY if buying_more == is_long else Side.SELL
+        side = Side.BUY if grows == is_long else Side.SELL
         slippage = self.costs.slippage if side is Side.BUY else -self.costs.slippage
         price = base_price * (1 + slippage)
-        if buying_more:
+        if grows:
             units = order.amount / price
         elif order.kind is OrderKind.REDUCE:
             units = min(order.units, position.units)
@@ -377,16 +415,18 @@ class Broker:
             units = position.units
         value = units * price
         if self.asset_classes[order.asset] is AssetClass.STOCK:
-            fee = self.costs.stock_commission
+            commission_or_trading_fee = self.costs.stock_commission
         else:
-            fee = value * self.costs.crypto_trading_fee
+            commission_or_trading_fee = value * self.costs.crypto_trading_fee
         slippage_cost = units * abs(price - base_price)
 
-        cash_change = (-value if side is Side.BUY else value) - fee
+        cash_change = (
+            -value if side is Side.BUY else value
+        ) - commission_or_trading_fee
         self.cash += cash_change
         position.cash_flow += cash_change
-        position.trading_costs += fee + slippage_cost
-        if buying_more:
+        position.trading_costs += commission_or_trading_fee + slippage_cost
+        if grows:
             held = position.units * position.average_price
             position.units += units
             position.average_price = (held + value) / position.units
@@ -409,7 +449,7 @@ class Broker:
             price=price,
             value=value,
             slippage_cost=slippage_cost,
-            fee=fee,
+            commission_or_trading_fee=commission_or_trading_fee,
         )
         self.fills.append(fill)
         if position.units <= _NO_UNITS:

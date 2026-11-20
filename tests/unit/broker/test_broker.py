@@ -69,7 +69,7 @@ def test_a_buy_is_carried_out_at_the_next_bars_open_plus_slippage_with_the_commi
     # Fractions of a unit are allowed.
     assert fill.units == pytest.approx(19.99, abs=0.001)
     assert fill.value == pytest.approx(2_000.0)
-    assert fill.fee == 1.0
+    assert fill.commission_or_trading_fee == 1.0
     assert fill.step_decided == 1
     assert fill.step_carried_out == 2
     assert broker.cash == pytest.approx(7_999.0)  # $2,000 of stock takes $2,001
@@ -315,6 +315,20 @@ def test_a_short_sale_is_not_a_loan():
     assert charge.kind is ChargeKind.BORROW_FEE
 
 
+def test_short_sale_money_does_not_pay_down_the_loan():
+    # Glossary: $10,000 that buys $16,000 of positions owes $6,000. Selling $5,000 of another
+    # asset short at the same time does not change that (here plus about $8 of costs).
+    broker = make_broker()
+    broker.on_bar("ASSET_01", bar(1, 100.0))
+    broker.on_bar("ASSET_02", bar(1, 100.0))
+    broker.enter("ASSET_01", Direction.LONG, amount=16_000.0, stop_price=97.0, step=1)
+    broker.enter("ASSET_02", Direction.SHORT, amount=5_000.0, stop_price=103.0, step=1)
+    broker.on_bar("ASSET_01", bar(2, 100.0))
+    broker.on_bar("ASSET_02", bar(2, 100.0))
+
+    assert broker.loan() == pytest.approx(6_000.0, abs=10.0)
+
+
 # The account
 
 
@@ -349,7 +363,7 @@ def test_at_the_last_step_every_position_closes_at_its_last_price_and_counts_as_
     assert sale.price_before_slippage == 101.3833  # the last close, not a next open
     assert sale.reason is ClosingReason.SIM_ENDED
     assert sale.step_carried_out == 5
-    assert sale.fee == 1.0
+    assert sale.commission_or_trading_fee == 1.0
     assert sale.slippage_cost == pytest.approx(1.52, abs=0.01)
     # The last close values the 29.985 units at about $3,040 (within 5 cents).
     assert broker.cash - cash_before == pytest.approx(3_040.0 - 1.0 - 1.52, abs=0.05)
@@ -358,3 +372,29 @@ def test_at_the_last_step_every_position_closes_at_its_last_price_and_counts_as_
     assert broker.positions == {}
     assert len(broker.cancelled_order_ids) == 1
     assert broker.account_value() == broker.cash  # the sim ends in cash
+
+
+# The buy_hold comparison (spec appendix 1, section 6)
+
+
+def test_buy_hold_buys_at_the_first_bar_and_holds_through_any_fall_until_the_last_step():
+    broker = make_broker()
+    broker.buy_and_hold("ASSET_01", amount=2_000.0, step=1)  # no bar seen yet
+    [buy] = broker.on_bar("ASSET_01", bar(2, 100.0))
+    assert buy.price == pytest.approx(100.05)
+    assert broker.positions["ASSET_01"].stop_price is None
+
+    assert broker.on_bar("ASSET_01", bar(3, 90.0, low=80.0, close=90.0)) == []
+    [sale] = broker.close_everything(step=4)
+
+    assert sale.price_before_slippage == 90.0
+    [trade] = broker.closed_trades
+    assert trade.closing_reason is ClosingReason.SIM_ENDED
+
+
+def test_an_entry_before_the_asset_has_a_bar_is_refused():
+    broker = make_broker()
+    with pytest.raises(ValueError, match="no bar"):
+        broker.enter(
+            "ASSET_01", Direction.LONG, amount=2_000.0, stop_price=97.0, step=1
+        )

@@ -24,7 +24,7 @@ def test_short_stop_prices_sit_above_the_price():
     )
 
 
-def test_a_stop_distance_larger_than_5_percent_is_cut_to_5_percent():
+def test_a_stop_price_more_than_5_percent_away_is_brought_in_to_5_percent():
     # Typical move $2: 1, 2, 3 moves are $2, $4, $6; the third is cut to $5.
     assert stop_prices(Direction.LONG, 100.0, 2.0, SETTINGS) == pytest.approx(
         [98.0, 96.0, 95.0]
