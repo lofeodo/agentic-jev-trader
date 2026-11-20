@@ -291,14 +291,14 @@ _SHAPES: dict[tuple[str, Lean], str] = {
         "three bars, a bar closes below the second bar's low."
     ),
     ("CDLHIKKAKEMOD", "bullish"): (
-        "A bar; a second bar with a smaller range that closes near its low; a third bar inside "
-        "the second's range; then a bar with a lower high and a lower low than the third. It "
+        "A bar; a second bar inside its range (a lower high and a higher low) that closes near "
+        "its own low; a third bar inside the second's range; then a bar with a lower high and a lower low than the third. It "
         "is confirmed when, within the next three bars, a bar closes above the third bar's "
         "high."
     ),
     ("CDLHIKKAKEMOD", "bearish"): (
-        "A bar; a second bar with a smaller range that closes near its high; a third bar "
-        "inside the second's range; then a bar with a higher high and a higher low than the "
+        "A bar; a second bar inside its range (a lower high and a higher low) that closes near "
+        "its own high; a third bar inside the second's range; then a bar with a higher high and a higher low than the "
         "third. It is confirmed when, within the next three bars, a bar closes below the third "
         "bar's low."
     ),
@@ -554,7 +554,8 @@ def recognise_patterns(
     """Every candle pattern TA-Lib's 61 detectors recognise on one asset's bars of `size`.
 
     `bars_15m` are the asset's 15-minute bars, indexed by start time in UTC and in order; hourly
-    and daily bars are built from them. `missing_bars` are the start times of the asset's missing
+    and daily bars are built from them. They must hold no missing bar: a bar the data provider
+    supplied with no volume, or on a partial-volume day, is left out, never kept as a row. `missing_bars` are the start times of the asset's missing
     bars, from the dataset's quality report: only they tell an hour that lost its first bar from a
     stock's first hour, which starts on the half hour.
 
