@@ -4,6 +4,15 @@ version = "0.0.0"
 description = "A day-trading agent that asks Jev, a decision model, and recalls past episodes from memory."
 requires-python = ">=3.12,<3.13"
 
+# Installed by `-e .` in requirements.txt, so `python -m jev_trader.<part>` works. Dependencies
+# stay pinned in requirements.txt.
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
 # A bare `python -m pytest` runs the free folders only, the same ones CI runs.
 testpaths = ["tests/unit", "tests/recorded"]

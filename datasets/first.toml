@@ -1,0 +1,62 @@
+# The first dataset (spec appendix 2, section 3): four stocks and Bitcoin, 3 April 2023 to
+# 31 October 2026. Build it with:
+#   conda run -n agentic-jev-trader python -m jev_trader.dataset build datasets/first.toml
+# A dataset never changes once published: changing anything here means building a new one.
+
+name = "first"
+first_day = 2023-04-03
+last_day = 2026-10-31
+# Masked prices start at 100 and keep this many decimals.
+price_decimals = 4
+
+# The two limits a build checks before its slow part, as shares (0.005 is 0.5%).
+[limits]
+# An asset's bars missing because they were not supplied, or (Bitcoin) supplied with no volume.
+other_missing = 0.005
+# A stock's sessions that are partial-volume days: about 7 a year.
+partial_volume_days = 0.03
+
+# A stock's day is a partial-volume day if its average volume per bar is under this share of
+# the median of its previous sessions (or any bar has zero volume).
+[partial_volume]
+share_of_usual = 0.25
+sessions = 20
+
+# Nothing is tuned on these days.
+[[test_period]]
+name = "falling market"
+first_day = 2025-03-10
+last_day = 2025-04-08
+
+[[test_period]]
+name = "rising market"
+first_day = 2025-04-09
+last_day = 2025-05-08
+
+# class is "stock" (an index fund counts as a stock) or "crypto". provider_symbol is the
+# data provider's name for the asset when it differs from the ticker.
+[[assets]]
+ticker = "SPY"
+name = "SPDR S&P 500 ETF Trust"
+class = "stock"
+
+[[assets]]
+ticker = "AAPL"
+name = "Apple Inc."
+class = "stock"
+
+[[assets]]
+ticker = "JPM"
+name = "JPMorgan Chase & Co."
+class = "stock"
+
+[[assets]]
+ticker = "XOM"
+name = "Exxon Mobil Corporation"
+class = "stock"
+
+[[assets]]
+ticker = "BTC"
+name = "Bitcoin"
+class = "crypto"
+provider_symbol = "BTCUSDT"

@@ -15,16 +15,25 @@ anthropic==2.12.0
 typesafe-sdk==0.7.5
 httpx2==2.16.0
 
+# The dataset builder: the New York Stock Exchange's calendar, and downloads from the providers
+exchange_calendars==4.13.3
+httpx==0.28.1
+
 # Tests
 pytest==9.2.0
 pytest-recording==0.14.1
 vcrpy==9.4.2
+
+# Reading .env (tests and the commands)
 python-dotenv==1.2.4
 
 # Style check
 ruff==0.17.4
 
-# Snowflake setup (infra/): table changes, the connector, key pairs
+# Snowflake: table changes (infra/), the connector (infra/ and the commands), key pairs
 schemachange==4.4.0
 snowflake-connector-python==4.8.1
 cryptography==50.0.2
+
+# This project's own package, so its commands run as `python -m jev_trader...` from anywhere.
+-e .
