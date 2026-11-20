@@ -11,6 +11,7 @@ import pytest
 from dotenv import dotenv_values
 
 from jev_trader.dataset.snowflake_store import SnowflakeStore
+from jev_trader.sim.clock import day_of
 from jev_trader.sim.store import TABLES
 from jev_trader.storage.snowflake import TEST_DATABASE, connect, key_file
 
@@ -43,7 +44,7 @@ def bar_row(dataset_id, asset, step, day_bar, price):
         "ASSET": asset,
         "BAR_SIZE": "15m",
         "STEP": step,
-        "DAY": (step - 1) // 96 + 1,
+        "DAY": day_of(step),
         "BAR_NUMBER": day_bar,
         "BARS_LEFT": None,
         "OPEN": price,

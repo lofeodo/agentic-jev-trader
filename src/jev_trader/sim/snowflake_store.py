@@ -4,9 +4,10 @@ The connection must use `?` placeholders (`jev_trader.storage.snowflake.connect`
 in as the sim login, which reads REF, RAW, FEATURES and SIM and writes SIM and MEMORY.
 
 **The step transaction** (spec appendix 6, section 6). `write_steps` opens a transaction and
-first moves the marker with an UPDATE that matches only if the marker still reads what the
-writer last saw and the sim is running. That UPDATE also locks the sim's row: a second copy of
-the sim waits on it, then finds the marker moved and stores nothing. Then the rows go in, and
+first moves the sim's last completed step with an UPDATE that matches only if it still reads
+what the writer last saw and the sim is running. Snowflake locks the table for that UPDATE until
+the transaction ends: a second copy of the sim waits for it, then finds the step moved and stores
+nothing. Other sims' writes wait their turn the same way, for the length of one write. Then the rows go in, and
 the transaction commits; anything that fails rolls it all back. If the program dies with the
 transaction open, Snowflake undoes it after 5 idle minutes when it blocks another transaction
 (otherwise after 4 hours), so a restart may wait up to 5 minutes.
@@ -28,6 +29,8 @@ from jev_trader.sim.store import (
     now,
 )
 
+# The bars a sim steps through: one per asset per step.
+FIFTEEN_MINUTES = "15m"
 _JSON_COLUMNS = {"SETTINGS", "ACCOUNT_STATE", "DETAILS"}
 
 
@@ -86,8 +89,8 @@ class SnowflakeSimStore(_Connection):
             for k, v in columns.items()
         )
         self._run(
-            f"UPDATE SIM.SIMS SET {sets} WHERE ID = ?",
-            [_value(v) for v in columns.values()] + [sim_id],
+            f"UPDATE SIM.SIMS SET {sets} WHERE ID = ? AND STATUS <> ?",
+            [_value(v) for v in columns.values()] + [sim_id, str(SimStatus.FINISHED)],
         )
 
     def write_steps(self, sim_id, after_step, through_step, rows, state) -> None:
@@ -207,9 +210,9 @@ class SnowflakeMarket(_Connection):
         by_step: BarsByStep = {}
         for asset, step, open_, high, low, close in self._run(
             "SELECT ASSET, STEP, OPEN, HIGH, LOW, CLOSE FROM RAW.BARS "
-            "WHERE DATASET = ? AND BAR_SIZE = '15m' AND STEP BETWEEN ? AND ? "
+            "WHERE DATASET = ? AND BAR_SIZE = ? AND STEP BETWEEN ? AND ? "
             "ORDER BY STEP, ASSET",
-            (dataset_id, first_step, last_step),
+            (dataset_id, FIFTEEN_MINUTES, first_step, last_step),
         ):
             by_step.setdefault(step, {})[asset] = Bar(step, open_, high, low, close)
         return by_step

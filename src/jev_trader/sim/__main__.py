@@ -53,6 +53,11 @@ def steps_for(args, market) -> tuple[int, int]:
     )
 
 
+def default_steps_per_write(sim: dict) -> int:
+    """Many steps per write for the holding sim, which calls nothing paid; one otherwise."""
+    return HOLDING_STEPS_PER_WRITE if sim["VARIANT"] == "buy_hold" else 1
+
+
 def start_sim(args, store, market) -> int:
     first_step, last_step = steps_for(args, market)
     request = SimRequest(
@@ -91,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument(
             "--steps-per-write",
             type=int,
-            help=f"steps stored at once (default: {HOLDING_STEPS_PER_WRITE} for buy_hold)",
+            help=f"steps stored at once (default: {HOLDING_STEPS_PER_WRITE} for buy_hold, else 1)",
         )
     args = parser.parse_args(argv)
 
@@ -107,7 +112,8 @@ def main(argv: list[str] | None = None) -> int:
             sim_id = (
                 start_sim(args, store, market) if args.command == "start" else args.sim
             )
-            if store.sim(sim_id)["STATUS"] == "finished":
+            sim = store.sim(sim_id)
+            if sim["STATUS"] == "finished":
                 raise ValueError(f"sim {sim_id} is finished")
         except (ValueError, KeyError) as refused:
             print(f"Refused: {refused}")
@@ -117,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
             store,
             market,
             sim_id,
-            steps_per_write=args.steps_per_write or HOLDING_STEPS_PER_WRITE,
+            steps_per_write=args.steps_per_write or default_steps_per_write(sim),
             report=lambda line: print(line, flush=True),
         )
     except StepAlreadyWritten as other_copy:

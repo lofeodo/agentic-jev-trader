@@ -3,8 +3,8 @@
     python tests/snowflake/killed_sim.py SIM_ID STEPS_PER_WRITE WHEN WRITE_NUMBER
 
 WHEN is `mid-step` (the step is worked out but its write never starts) or `while-writing`
-(inside the open transaction, after the marker moved and before anything commits). The program
-ends with `os._exit`: no clean-up, no rollback, no closed connection.
+(inside the open transaction, after the last completed step moved and before anything commits).
+The program ends with `os._exit`: no clean-up, no rollback, no closed connection.
 """
 
 import os

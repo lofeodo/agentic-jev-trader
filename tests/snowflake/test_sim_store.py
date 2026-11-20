@@ -130,7 +130,7 @@ def test_two_copies_of_one_sim_cannot_both_write_a_step(
     row |= {"DAILY_LOSS_REACHED": False}
     rows = {"SIM.ACCOUNT_STEPS": [row]}
 
-    # Copy one moves the marker and holds its transaction open.
+    # Copy one moves the last completed step and holds its transaction open.
     with sim_login.cursor() as first:
         first.execute("BEGIN TRANSACTION")
         first.execute(

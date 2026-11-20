@@ -7,8 +7,8 @@ names match `infra/migrations/V3__sim_tables.sql`. The Snowflake version is
 
 **How a step is written.** `write_steps` stores everything one or more steps produced in one
 transaction (all of it lands or none of it does), together with the sim's last completed step
-and its saved account. The marker is also a lock: the write goes through only if the marker
-still reads what the writer last saw and the sim is running, so two copies of one sim cannot
+and its saved account. The last completed step is also a lock: the write goes through only
+if it still reads what the writer last saw and the sim is running, so two copies of one sim cannot
 both write a step, and nothing is written to a finished sim.
 
 An order's row changes as it goes from waiting to carried out or cancelled, so a write replaces
@@ -53,7 +53,7 @@ class StopReason(StrEnum):
 
 
 class StepAlreadyWritten(Exception):
-    """The marker had moved, or the sim was not running: another copy of the sim is writing,
+    """The last completed step had moved, or the sim was not running: another copy of the sim is writing,
     or the sim was finished or stopped meanwhile. Nothing from this write was stored."""
 
 
@@ -70,7 +70,9 @@ class SimStore(Protocol):
         """The sim's row, by column name. KeyError if there is none."""
 
     def update(self, sim_id: int, **columns) -> None:
-        """Set columns of the sim's row, such as its status. Not for the marker."""
+        """Set columns of the sim's row, such as its status; never on a finished sim.
+
+        Not for the last completed step, which only `write_steps` moves."""
 
     def write_steps(
         self,
@@ -80,11 +82,11 @@ class SimStore(Protocol):
         rows: dict[str, list[dict]],
         state: dict,
     ) -> None:
-        """Store `rows` and move the marker from `after_step` to `through_step`, all at once.
+        """Store `rows` and move the last completed step from `after_step` to `through_step`, all at once.
 
         `after_step` is the last completed step the writer last saw (None before the first
         write); `state` is the account after `through_step`. Raises `StepAlreadyWritten`, having
-        stored nothing, if the marker no longer reads `after_step` or the sim is not running.
+        stored nothing, if the last completed step no longer reads `after_step` or the sim is not running.
         """
 
     def duplicate_ids(self, sim_id: int) -> dict[str, int]:
@@ -129,7 +131,8 @@ class InMemorySimStore:
         return dict(self.sims[sim_id])
 
     def update(self, sim_id: int, **columns) -> None:
-        self.sims[sim_id].update(columns)
+        if self.sims[sim_id]["STATUS"] != SimStatus.FINISHED:
+            self.sims[sim_id].update(columns)
 
     def write_steps(self, sim_id, after_step, through_step, rows, state) -> None:
         sim = self.sims[sim_id]

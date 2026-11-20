@@ -5,7 +5,7 @@
 --
 -- How a step is written (appendix 6, section 6): everything a step stores goes in one
 -- transaction with SIMS.LAST_COMPLETED_STEP moving from N-1 to N, and the write goes through
--- only if the marker still reads N-1 and the sim is running. Snowflake does not enforce
+-- only if it still reads N-1 and the sim is running. Snowflake does not enforce
 -- PRIMARY KEY, so every record carries an ID built from what it describes (sim, step, asset),
 -- and every sim ends by counting duplicate IDs and expecting none.
 --
@@ -26,12 +26,12 @@ GRANT USAGE ON SEQUENCE SIM.SIM_IDS TO ROLE TRADING_AGENT_API;
 -- STATUS: 'created', 'running', 'stopped', 'finished' or 'failed'.
 -- STOP_REASON: 'finished', 'spending cap', 'Jev failed', 'LLM failed', 'account at zero' or
 --   'stopped by hand'. FAILURE_REASON: what went wrong, for a failed sim.
--- LAST_COMPLETED_STEP: the marker; NULL until the first step is stored.
+-- LAST_COMPLETED_STEP: the last step stored; NULL until the first step is stored.
 -- ACCOUNT_STATE: the account as it stood after that step (cash, open positions, orders still
 --   waiting, last prices, the day's starting value), so a restarted sim carries on from it
 --   (ADR 0013).
 -- RUNNING_ON: where the job runs ('pid 1234' on the developer's machine, or a cluster Job).
--- LAST_WRITTEN_AT: when the marker last moved; a running sim quiet for 7 minutes is shown as
+-- LAST_WRITTEN_AT: when LAST_COMPLETED_STEP last moved; a running sim quiet for 7 minutes is shown as
 --   not responding.
 CREATE TABLE SIM.SIMS (
     ID NUMBER NOT NULL PRIMARY KEY,

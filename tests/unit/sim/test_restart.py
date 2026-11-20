@@ -102,6 +102,9 @@ def test_nothing_is_written_to_a_finished_sim(market):
         run_sim(store, market, sim_id)
     with pytest.raises(StepAlreadyWritten):
         store.write_steps(sim_id, 288, 289, {}, {})
+    # A second copy marking it running again, late, changes nothing.
+    store.update(sim_id, STATUS="running", RUNNING_ON="pid 2")
+    assert store.sim(sim_id)["STATUS"] == "finished"
 
 
 def test_a_sim_with_a_record_id_stored_twice_ends_failed(market):

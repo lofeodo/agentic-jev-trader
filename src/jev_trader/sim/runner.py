@@ -8,8 +8,8 @@
    with a bar gets it, so orders waiting for it are carried out at its open; the strategy
    decides; the broker checks the account. Steps where no asset has a bar are skipped.
 2. At the last step every position is closed at its asset's last close (ADR 0009).
-3. Everything the steps produced is stored `steps_per_write` steps at a time, with the marker
-   and the saved account (`store.SimStore.write_steps`). One step per write is the safe
+3. Everything the steps produced is stored `steps_per_write` steps at a time, with the sim's last
+   completed step and the saved account (`store.SimStore.write_steps`). One step per write is the safe
    default; the holding sim, which calls nothing paid, stores many at once.
 4. At the end the duplicate IDs are counted. None: the sim is finished. Any: it is failed.
 
@@ -32,7 +32,6 @@ import subprocess
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Protocol
 
 from jev_trader.broker import (
     AssetClass,
@@ -43,6 +42,7 @@ from jev_trader.broker import (
     load_stop_price_settings,
     load_trading_costs,
 )
+from jev_trader.dataset.store import DatasetStatus
 from jev_trader.sim import records
 from jev_trader.sim.clock import midnights_between
 from jev_trader.sim.market import DatasetInfo, Market
@@ -83,13 +83,6 @@ class SimResult:
     steps_stored: int
 
 
-# What a sim's strategy does at a step, after the step's bars and before the account check.
-
-
-class Strategy(Protocol):
-    def on_step(self, step: int, broker: Broker, bars: dict[str, Bar]) -> None: ...
-
-
 @dataclass
 class BuyHold:
     """Equal money into every asset at the first step, held to the last (appendix 1, section 6)."""
@@ -116,7 +109,7 @@ def _cents_down(amount: float) -> float:
 # Starting a sim
 
 
-def settings_document(variant: str, starting_value: float) -> dict:
+def settings_document(starting_value: float) -> dict:
     """Every setting the sim runs with, stored on its row so a resumed sim uses the same ones.
 
     The holding sim applies no risk profile, so it stores none. The agent's sims add theirs.
@@ -145,7 +138,7 @@ def code_version() -> str:
 
 def check_request(request: SimRequest, info: DatasetInfo) -> None:
     """Refuse a sim the spec does not allow. The message says what to change."""
-    if info.status != "published":
+    if info.status != DatasetStatus.PUBLISHED:
         raise ValueError(
             f"dataset {info.dataset_id} is {info.status}, not published: "
             "no sim can start on it"
@@ -195,7 +188,7 @@ def create_sim(store: SimStore, market: Market, request: SimRequest) -> int:
             "LAST_STEP": request.last_step,
             "STARTING_VALUE": request.starting_value,
             "RANDOM_SEED": request.random_seed,
-            "SETTINGS": settings_document(request.variant, request.starting_value),
+            "SETTINGS": settings_document(request.starting_value),
             "CODE_VERSION": code_version(),
         }
     )
@@ -244,8 +237,8 @@ def run_sim(
         distance_cap=settings["stop_prices"]["distance_cap"],
     )
 
-    marker = sim["LAST_COMPLETED_STEP"]
-    if marker is None:
+    last_completed = sim["LAST_COMPLETED_STEP"]
+    if last_completed is None:
         broker = Broker(
             cash=sim["STARTING_VALUE"],
             asset_classes=dict(info.assets),
@@ -257,8 +250,8 @@ def run_sim(
         broker = Broker.from_state(
             sim["ACCOUNT_STATE"], dict(info.assets), costs, stops
         )
-        start, previous = marker + 1, marker
-        report(f"Resuming sim {sim_id} after step {marker}.")
+        start, previous = last_completed + 1, last_completed
+        report(f"Resuming sim {sim_id} after step {last_completed}.")
 
     store.update(
         sim_id,
@@ -270,9 +263,11 @@ def run_sim(
     )
     strategy = BuyHold(first_step, sim["STARTING_VALUE"])
     batch = _Batch()
-    if marker is not None and start <= last_step:
+    if last_completed is not None and start <= last_step:
         batch.rows["SIM.SIM_EVENTS"].append(
-            records.event_row(sim_id, start, "restarted", 1, {"after_step": marker})
+            records.event_row(
+                sim_id, start, "restarted", 1, {"after_step": last_completed}
+            )
         )
     steps_stored = 0
 
@@ -282,7 +277,7 @@ def run_sim(
         )
         steps = sorted(
             set(bars_by_step)
-            | ({first_step} if marker is None else set())
+            | ({first_step} if last_completed is None else set())
             | ({last_step} if start <= last_step else set())
         )
         for step in steps:
@@ -298,8 +293,10 @@ def run_sim(
             )
             previous = step
             if batch.steps >= steps_per_write or step == last_step:
-                store.write_steps(sim_id, marker, step, batch.tables(), broker.state())
-                marker, steps_stored = step, steps_stored + batch.steps
+                store.write_steps(
+                    sim_id, last_completed, step, batch.tables(), broker.state()
+                )
+                last_completed, steps_stored = step, steps_stored + batch.steps
                 batch = _Batch()
                 report(f"Stored up to step {step} of {last_step}.")
     except StepAlreadyWritten:
@@ -346,7 +343,7 @@ def _run_step(
     previous: int,
     last_step: int,
     broker: Broker,
-    strategy: Strategy,
+    strategy: BuyHold,
     bars: dict[str, Bar],
     batch: _Batch,
 ) -> None:
