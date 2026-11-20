@@ -140,6 +140,10 @@ _Avoid_: Budget, limit (unqualified), total cap
 How the web app shows a sim that is recorded as in progress but has stored nothing for a set time, 7 minutes in version 1, usually because its program has died. It can be resumed from its last stored step.
 _Avoid_: Stalled, hung, crashed, dead
 
+**Last completed step**:
+The last step whose records a sim has stored. Everything a step stores is written at once with it, so a sim stopped partway resumes from the step after it. A write goes through only if the last completed step still reads what the writer last saw, which keeps two copies of one sim from both writing a step.
+_Avoid_: Checkpoint, cursor, progress (for the stored step)
+
 **Variant**:
 Which strategy a sim uses: `buy_hold` (equal money put into every asset at the first step and held until the sim's last step), `memory_off`, or `memory_on`. Two `memory_on` sims can differ by the LLM that selects their episodes; the LLM is a setting of the sim, not a variant.
 _Avoid_: Mode, arm, configuration
