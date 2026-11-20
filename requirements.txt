@@ -17,8 +17,6 @@ httpx2==2.16.0
 
 # The dataset builder: the New York Stock Exchange's calendar, and downloads from the providers
 exchange_calendars==4.13.3
-pandas==3.1.1
-numpy==2.5.4
 httpx==0.28.1
 
 # Tests
