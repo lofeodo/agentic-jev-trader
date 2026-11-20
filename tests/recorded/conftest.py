@@ -1,6 +1,6 @@
 """Recorder settings for the recorded-answer tests (spec appendix 10, section 7).
 
-A recorded-answer test hands our code a real LLM or Jev answer saved earlier as a file under
+A recorded-answer test hands our code a real LLM or Jev answer saved earlier as a file (a "cassette") under
 `cassettes/`, so it costs nothing and gives the same result every time. The recorder is `vcrpy`
 used as it comes, through `pytest-recording`.
 
@@ -16,10 +16,10 @@ from dotenv import dotenv_values
 
 ENV_FILE = Path(__file__).parents[2] / ".env"
 API_KEYS = ["ANTHROPIC_API_KEY", "TYPESAFE_API_KEY"]
-# The SDKs refuse to start without a key. A replay never sends it anywhere, so any value works.
-REPLAY_KEY = "replay-no-key"
+# The SDKs refuse to start without a key. Handing back a saved answer never sends it, so any value works.
+STAND_IN_KEY = "stand-in-key"
 # The repo is public. These answer headers name the developer's Anthropic account or carry a
-# session cookie; replay does not need them.
+# session cookie; handing back a saved answer does not need them.
 PRIVATE_ANSWER_HEADERS = {
     "anthropic-organization-id",
     "anthropic-workspace-id",
@@ -56,4 +56,4 @@ def api_keys(request, monkeypatch):
     from_file = dotenv_values(ENV_FILE) if recording and ENV_FILE.exists() else {}
     for name in API_KEYS:
         if not os.environ.get(name):
-            monkeypatch.setenv(name, from_file.get(name) or REPLAY_KEY)
+            monkeypatch.setenv(name, from_file.get(name) or STAND_IN_KEY)
