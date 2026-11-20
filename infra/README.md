@@ -80,6 +80,14 @@ to the fallback, which runs the `GRANT` statement directly:
 conda run -n agentic-jev-trader python infra/snowflake_admin.py terraform apply -var=embedding_grant_method=execute
 ```
 
-If the builder can embed but so can the sim's role, the account opens the model to every
-role by default (`check` prints the grants to `PUBLIC` and the account's
-`CORTEX_MODELS_ALLOWLIST`). Closing that is an account-wide change, left to the developer.
+A new account opens every AI model to every role. Terraform closes two of those defaults
+for the whole account, with the developer's agreement: it takes `SNOWFLAKE.CORTEX_USER`
+away from `PUBLIC` (the role every login has) and sets `CORTEX_MODELS_ALLOWLIST` to
+`None`. Since then only the builder, and `ACCOUNTADMIN`, can embed text. A person's own
+role loses Snowflake's AI features too, unless given them the same way. `terraform destroy`
+puts both defaults back.
+
+A third default cannot be closed: Snowflake's own application role `SNOWFLAKE.PUBLIC`
+holds the all-models role, and even `ACCOUNTADMIN` may not revoke it. So the builder can
+use other models too, and `check` warns about it; the per-model grant is in place but
+cannot be shown to work on its own on this account.

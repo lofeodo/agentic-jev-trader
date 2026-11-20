@@ -39,6 +39,8 @@ SERVICE_LOGINS = ("builder", "sim", "memory", "api", "migrations")
 TERRAFORM_LOGIN = "terraform"  # made by hand once (infra/README.md), holds ACCOUNTADMIN
 EMBEDDING_MODEL = "snowflake-arctic-embed-m-v1.5"
 EMBEDDING_SIZE = 768
+# Never granted to the builder, and runs in ca-central-1 (e5-base-v2 does not).
+OTHER_EMBEDDING_MODEL = "snowflake-arctic-embed-m"
 SCHEMAS = ("REF", "KEYS", "RAW", "FEATURES", "SIM", "MEMORY", "METADATA")
 
 
@@ -289,17 +291,22 @@ def fetch_dicts(cur) -> list[dict]:
     return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
-def try_embed(settings: Settings, login: str) -> tuple[bool, str]:
+def try_embed(
+    settings: Settings,
+    login: str,
+    model: str = EMBEDDING_MODEL,
+    role: str | None = None,
+) -> tuple[bool, str]:
     """Embed one sentence as `login`'s role alone. Returns (worked, detail)."""
-    con = connect(settings, login)
+    con = connect(settings, login, role=role)
     try:
         cur = con.cursor()
         cur.execute("USE SECONDARY ROLES NONE")
         cur.execute(
-            f"SELECT ARRAY_SIZE(AI_EMBED('{EMBEDDING_MODEL}', 'A quiet morning, prices drifting up.')::ARRAY)"
+            f"SELECT ARRAY_SIZE(AI_EMBED('{model}', 'A quiet morning, prices drifting up.')::ARRAY)"
         )
         size = cur.fetchone()[0]
-        if size != EMBEDDING_SIZE:
+        if model == EMBEDDING_MODEL and size != EMBEDDING_SIZE:
             return False, f"vector of {size} numbers, expected {EMBEDDING_SIZE}"
         return True, f"vector of {size} numbers"
     except SnowflakeError as exc:  # the error text is the finding
@@ -363,10 +370,32 @@ def cmd_check(settings: Settings) -> int:
     worked, detail = try_embed(settings, "sim")
     print(f"   sim (should fail): {'WORKS' if worked else 'FAILS'} ({detail})")
     if worked:
-        # Not this ticket's grant failing: an account-wide default (section 2 above) opens
-        # the model to every role, so the builder's success alone does not prove our grant.
+        failures.append(
+            "the sim role can embed: an account-wide default opens the model"
+        )
+    # The builder's success above proves our grant only if no default opens models to
+    # every role. A second model the builder was never given tells: it must fail for the
+    # builder, while ACCOUNTADMIN (always allowed) shows the model exists in this region.
+    admin_ok, detail = try_embed(
+        settings, TERRAFORM_LOGIN, OTHER_EMBEDDING_MODEL, "ACCOUNTADMIN"
+    )
+    print(
+        f"   {OTHER_EMBEDDING_MODEL} as ACCOUNTADMIN: {'WORKS' if admin_ok else 'FAILS'} ({detail})"
+    )
+    worked, detail = try_embed(settings, "builder", OTHER_EMBEDDING_MODEL)
+    print(
+        f"   {OTHER_EMBEDDING_MODEL} as builder (should fail): {'WORKS' if worked else 'FAILS'} ({detail})"
+    )
+    if not admin_ok:
         warnings.append(
-            "the sim role can embed too: an account-wide default opens the model to every role"
+            f"{OTHER_EMBEDDING_MODEL} is not usable here, so the per-model test proves nothing"
+        )
+    elif worked:
+        # Known on this account (infra/terraform/main.tf): Snowflake's own SNOWFLAKE.PUBLIC
+        # holds the all-models role and cannot be changed, so the per-model grant is not
+        # the only way in. Every other login is still kept out by the feature gate above.
+        warnings.append(
+            "the builder can use a model it was never given (Snowflake's own all-models default)"
         )
 
     print("== 4. The memory server's role can only read")

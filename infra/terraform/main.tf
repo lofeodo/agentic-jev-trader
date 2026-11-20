@@ -247,3 +247,27 @@ resource "snowflake_execute" "builder_embedding_model" {
   execute = "GRANT APPLICATION ROLE SNOWFLAKE.\"${local.embedding_model_role}\" TO ROLE ${snowflake_account_role.login["builder"].name}"
   revert  = "REVOKE APPLICATION ROLE SNOWFLAKE.\"${local.embedding_model_role}\" FROM ROLE ${snowflake_account_role.login["builder"].name}"
 }
+
+# --- Closing Snowflake's account-wide AI defaults --------------------------------------
+# A new account lets every role use every AI model: PUBLIC (a role every login has) holds
+# the feature role CORTEX_USER, and the account's model list CORTEX_MODELS_ALLOWLIST is
+# "All". With those, any login could embed text, not only the dataset builder (spec,
+# appendix 6 section 10), and the builder working would not prove the grant above works.
+# Closing them is account-wide: a person's own role also loses AI features unless given
+# them the same way. ACCOUNTADMIN keeps access. `terraform destroy` restores both.
+# Third default, left in place: Snowflake's own application role SNOWFLAKE.PUBLIC, which
+# every role holds through PUBLIC, contains the all-models role. Tried live on 2026-11-20:
+# with the model list set to None it still let the builder use models it was never given,
+# and revoking it is refused even to ACCOUNTADMIN ("Insufficient privileges"). So the
+# feature gate (CORTEX_USER) is what keeps every other login from embedding; the per-model
+# grant above is in place but cannot be shown to work alone on this account.
+
+resource "snowflake_execute" "public_loses_cortex_user" {
+  execute = "REVOKE DATABASE ROLE SNOWFLAKE.CORTEX_USER FROM ROLE PUBLIC"
+  revert  = "GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE PUBLIC"
+}
+
+resource "snowflake_execute" "no_models_by_default" {
+  execute = "ALTER ACCOUNT SET CORTEX_MODELS_ALLOWLIST = 'None'"
+  revert  = "ALTER ACCOUNT UNSET CORTEX_MODELS_ALLOWLIST"
+}
