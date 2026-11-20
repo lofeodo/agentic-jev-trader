@@ -62,8 +62,15 @@ Hand-run groups (spec appendix 10, section 6):
 
 - Saving fresh answers for `tests/recorded` (spec appendix 10, section 7): real LLM and Jev calls, keys read from `.env`. They cost money: run only with my go-ahead. `--record-mode=once` records only the tests whose file under `cassettes/` is missing, so delete the files (cassettes) to be re-recorded first. `conda run -n agentic-jev-trader python -m pytest tests/recorded --record-mode=once`
 
+Build a dataset from its settings file in `datasets/` (downloads are free; it writes to Snowflake as the builder login, so ask before running it; `--database TRADING_AGENT_TEST` builds into the test database, `--no-check` publishes past the two limits):
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.dataset build datasets/first.toml
+```
+
 Gotchas:
 
+- `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself).
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
 - `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.
 

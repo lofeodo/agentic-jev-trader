@@ -10,6 +10,12 @@ anthropic==2.12.0
 typesafe-sdk==0.7.5
 httpx2==2.16.0
 
+# The dataset builder: the New York Stock Exchange's calendar, and downloads from the providers
+exchange_calendars==4.13.3
+pandas==3.1.1
+numpy==2.5.4
+httpx==0.28.1
+
 # Tests
 pytest==9.2.0
 pytest-recording==0.14.1
@@ -23,3 +29,6 @@ ruff==0.17.4
 schemachange==4.4.0
 snowflake-connector-python==4.8.1
 cryptography==50.0.2
+
+# This project's own package, so its commands run as `python -m jev_trader...` from anywhere.
+-e .
