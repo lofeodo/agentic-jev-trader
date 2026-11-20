@@ -1,6 +1,6 @@
 # Trading Agent with Memory (Simulation)
 
-> **Superseded on 2026-11-20.** This is the original brief, kept for history. It carries no authority: many of its specifics were changed by later decisions. Version 1 is specified in the issue [Spec: version 1 of the trading agent with memory](https://github.com/lofeodo/agentic-jev-trader/issues/82) and its ten appendix comments. Build from the spec, never from this file.
+> **Superseded on 2026-11-20.** This is the original brief, kept for history. It carries no authority: many of its specifics were changed by later decisions. Version 1 is specified in the issue [Spec: version 1 of the trading agent with memory](https://github.com/lofeodo/agentic-jev-trader/issues/82) and its comments. Build from the spec, never from this file.
 
 ## 1. Purpose
 
