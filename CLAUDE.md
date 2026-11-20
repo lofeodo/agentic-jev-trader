@@ -60,6 +60,8 @@ Hand-run groups (spec appendix 10, section 6):
 - `tests/snowflake`: real queries against `TRADING_AGENT_TEST`. Skipped unless the `SNOWFLAKE_*` login in `.env.example` is set. `conda run -n agentic-jev-trader python -m pytest tests/snowflake`
 - `tests/paid`: real LLM or Jev calls. Skipped unless `--run-paid` is given. They cost money: run only with my go-ahead. `conda run -n agentic-jev-trader python -m pytest tests/paid --run-paid`
 
+- Saving fresh answers for `tests/recorded` (spec appendix 10, section 7): real LLM and Jev calls, keys read from `.env`. They cost money: run only with my go-ahead. `--record-mode=once` records only the tests whose file under `cassettes/` is missing, so delete the files to be re-recorded first. `conda run -n agentic-jev-trader python -m pytest tests/recorded --record-mode=once`
+
 Gotchas:
 
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.

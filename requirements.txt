@@ -1,5 +1,15 @@
 # Python 3.12, conda env `agentic-jev-trader`. Add each new dependency here, pinned, when it is added.
 
+# The LLM, through LangChain's model interface, and Jev. Both send requests through httpx2.
+# An upgrade can change a request's shape and so fail the recorded-answer tests until fresh
+# answers are saved, so the SDKs under them are pinned too.
+langchain==1.5.2
+langchain-core==1.8.4
+langchain-anthropic==1.7.12
+anthropic==2.12.0
+typesafe-sdk==0.7.5
+httpx2==2.16.0
+
 # Tests
 pytest==9.2.0
 pytest-recording==0.14.1
