@@ -79,13 +79,24 @@ def test_free_tests_that_try_to_reach_the_network_fail(tree, folder):
     result.stdout.fnmatch_lines(["*Network is disabled*"])
 
 
-def test_langsmith_tracing_is_off_in_tests(tree):
+TRACING_SWITCHES = [
+    "LANGSMITH_TRACING_V2",
+    "LANGCHAIN_TRACING_V2",
+    "LANGSMITH_TRACING",
+    "LANGCHAIN_TRACING",
+]
+
+
+def test_langsmith_tracing_is_off_in_tests(tree, monkeypatch):
+    # The older switch takes priority in the LangSmith client, so a machine may have it on.
+    monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
     write_test(
         tree,
         "unit",
         "import os\n\n"
         "def test_tracing_is_off():\n"
-        "    assert os.environ['LANGSMITH_TRACING'] == 'false'\n",
+        f"    for name in {TRACING_SWITCHES!r}:\n"
+        "        assert os.environ[name] == 'false'\n",
     )
 
     tree.runpytest_subprocess("tests").assert_outcomes(passed=1)

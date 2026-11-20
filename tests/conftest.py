@@ -13,8 +13,15 @@ from pathlib import Path
 import pytest
 from dotenv import dotenv_values
 
-# Set before any test imports LangChain or LangSmith, which read it once.
-os.environ["LANGSMITH_TRACING"] = "false"
+# Set before any test imports LangChain or LangSmith. The client reads the older `_V2` names
+# first, and both the LANGSMITH_ and LANGCHAIN_ prefixes, so all four are switched off.
+for _switch in [
+    "LANGSMITH_TRACING_V2",
+    "LANGCHAIN_TRACING_V2",
+    "LANGSMITH_TRACING",
+    "LANGCHAIN_TRACING",
+]:
+    os.environ[_switch] = "false"
 
 TESTS_DIR = Path(__file__).parent
 ENV_FILE = TESTS_DIR.parent / ".env"
