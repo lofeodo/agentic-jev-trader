@@ -3,6 +3,7 @@
 from jev_trader.broker.broker import (
     AssetClass,
     Bar,
+    BlockedByRiskLimit,
     Broker,
     Charge,
     ChargeKind,
@@ -24,6 +25,7 @@ from jev_trader.broker.stops import Direction, check_stop_price, stop_prices
 __all__ = [
     "AssetClass",
     "Bar",
+    "BlockedByRiskLimit",
     "Broker",
     "Charge",
     "ChargeKind",

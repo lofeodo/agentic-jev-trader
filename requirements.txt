@@ -1,5 +1,10 @@
 # Python 3.12, conda env `agentic-jev-trader`. Add each new dependency here, pinned, when it is added.
 
+# Bars and candle patterns (a dataset records its TA-Lib version: ADR 0005)
+numpy==2.5.4
+pandas==3.1.1
+TA-Lib==0.8.3
+
 # The LLM, through LangChain's model interface, and Jev. Both send requests through httpx2.
 # An upgrade can change a request's shape and so fail the recorded-answer tests until fresh
 # answers are saved, so the SDKs under them are pinned too.

@@ -22,6 +22,24 @@ Three choices the spec leaves to the build (appendix 1, "Not decided by any tick
 
 Every position has a stop price, except the long `buy_and_hold` opens for the `buy_hold`
 comparison, which never trades until the sim's last step.
+
+**Risk limits** (spec appendix 1, section 5). A broker given a risk profile (every sim the agent
+trades in; not `buy_hold`) enforces it whatever Jev chose:
+
+- An entry or an add is made smaller to fit the trade risk, position and exposure limits when it
+  is placed (at the last price) and again when it is carried out (at the open, with account value
+  and exposure as they stand just before it). The fill and the closed trade record the amount
+  chosen and the limit that made it smaller. An order the limits leave nothing of is cancelled,
+  and `blocked_orders` records which limit did it.
+- Once the daily loss limit is reached, entries and adds are refused until midnight UTC, and those
+  already waiting are cancelled when their bar comes. Closes and reduces are never blocked.
+- No stock entry in a session's last bars (two in medium), no stock add on its last bar.
+- `check_account`, called by the sim once a step after every bar, latches the daily loss limit
+  and places a forced close of every position when account value is below the forced close share
+  of exposure (a quarter in medium). A forced close cancels every other waiting order, and while
+  one waits no entry or add is placed or carried out.
+- The second check starts again from the amount Jev chose, so an order cut when placed may be
+  carried out larger, never above Jev's amount, if room has opened since.
 """
 
 from dataclasses import dataclass, field
@@ -29,6 +47,7 @@ from enum import StrEnum
 
 from jev_trader.broker.config import StopPriceSettings, TradingCosts
 from jev_trader.broker.stops import Direction, check_stop_price
+from jev_trader.risk import RiskLimit, RiskProfile
 
 
 class AssetClass(StrEnum):
@@ -42,6 +61,11 @@ class OrderKind(StrEnum):
     REDUCE = "reduce"
     CLOSE = "close"
 
+    @property
+    def grows(self) -> bool:
+        """An entry or an add: puts money into a position, so the risk limits apply."""
+        return self in (OrderKind.ENTRY, OrderKind.ADD)
+
 
 class ClosingReason(StrEnum):
     """Why an order was placed, and so why a position closed."""
@@ -50,6 +74,17 @@ class ClosingReason(StrEnum):
     STOP_PRICE = "stop_price"
     FORCED_CLOSE = "forced_close"
     SIM_ENDED = "sim_ended"
+
+
+class BlockedByRiskLimit(ValueError):
+    """An entry or an add a risk limit forbids outright: the deciding code should not ask for it.
+
+    `Broker.entry_blocked_by` and `Broker.add_blocked_by` say so beforehand.
+    """
+
+    def __init__(self, limit: RiskLimit, asset: str):
+        super().__init__(f"{asset}: blocked by the {limit} limit")
+        self.limit = limit
 
 
 class Side(StrEnum):
@@ -89,6 +124,10 @@ class Fill:
     value: float  # units times price
     slippage_cost: float
     commission_or_trading_fee: float  # on top of the value
+    # An entry or an add under a risk profile: the amount Jev chose, and the limit that made it
+    # smaller (None if none did; the value is then the amount chosen).
+    amount_chosen: float | None = None
+    limited_by: RiskLimit | None = None
 
 
 @dataclass(frozen=True)
@@ -121,6 +160,10 @@ class Position:
     # Slippage, commission or trading fee, and borrow fees. Loan interest is the account's,
     # not one position's, so it is not here.
     trading_costs: float = 0.0
+    # The entry: the amount Jev chose, the amount put in, and the limit that made it smaller.
+    amount_chosen: float | None = None
+    amount_entered: float = 0.0
+    limited_by: RiskLimit | None = None
 
 
 @dataclass(frozen=True)
@@ -138,6 +181,10 @@ class ClosedTrade:
     closing_reason: ClosingReason
     profit: float  # dollars, after every trading cost the position paid
     trading_costs: float
+    # The entry: the amount Jev chose, the amount put in, and the limit that made it smaller.
+    amount_chosen: float | None = None
+    amount_entered: float = 0.0
+    limited_by: RiskLimit | None = None
 
 
 @dataclass
@@ -147,7 +194,11 @@ class _Order:
     kind: OrderKind
     reason: ClosingReason
     step_decided: int
-    amount: float | None = None  # dollars, for an entry or an add
+    amount: float | None = (
+        None  # dollars, for an entry or an add, after the risk limits
+    )
+    amount_chosen: float | None = None  # dollars, as Jev chose them
+    limited_by: RiskLimit | None = None
     units: float | None = None  # for a reduce
     direction: Direction | None = None  # for an entry
     stop_price: float | None = None  # for an entry
@@ -166,14 +217,24 @@ class Broker:
     asset_classes: dict[str, AssetClass]
     costs: TradingCosts
     stop_settings: StopPriceSettings
+    risk: RiskProfile | None = None  # None only for the `buy_hold` comparison
     positions: dict[str, Position] = field(default_factory=dict)
     fills: list[Fill] = field(default_factory=list)
     charges: list[Charge] = field(default_factory=list)
     closed_trades: list[ClosedTrade] = field(default_factory=list)
     cancelled_order_ids: list[int] = field(default_factory=list)
+    blocked_orders: dict[int, RiskLimit] = field(
+        default_factory=dict
+    )  # cancelled by a limit
     last_prices: dict[str, float] = field(default_factory=dict)
+    start_of_day_value: float | None = None  # account value at the last midnight UTC
+    daily_loss_reached: bool = False
     _waiting: list[_Order] = field(default_factory=list)
     _next_id: int = 1
+
+    def __post_init__(self) -> None:
+        if self.start_of_day_value is None:
+            self.start_of_day_value = self.cash
 
     # Placing orders. Each waits for the asset's next bar and returns the order's ID.
 
@@ -184,13 +245,21 @@ class Broker:
         amount: float,
         stop_price: float,
         step: int,
+        bars_left: int | None = None,
     ) -> int:
-        """Open a position of `amount` dollars; its stop price is checked against the last price."""
+        """Open a position of `amount` dollars; its stop price is checked against the last price.
+
+        Under a risk profile, a stock order gives `bars_left`, the bars left in its session (0 on
+        the last bar), and the amount is made smaller to fit the limits.
+        """
         if asset not in self.last_prices:
             raise ValueError(f"{asset} has no bar yet to check a stop price against")
         check_stop_price(
             direction, self.last_prices[asset], stop_price, self.stop_settings
         )
+        blocked_by = self.entry_blocked_by(asset, bars_left)
+        if blocked_by is not None:
+            raise BlockedByRiskLimit(blocked_by, asset)
         return self._place_entry(asset, direction, amount, stop_price, step)
 
     def buy_and_hold(self, asset: str, amount: float, step: int) -> int:
@@ -199,12 +268,59 @@ class Broker:
         The comparison that holds the five assets (spec appendix 1, section 6) never trades
         between its first purchases and the sim's last step, so it has no stop price to hit.
         """
+        if self.risk is not None:
+            raise ValueError("under a risk profile every position has a stop price")
         return self._place_entry(asset, Direction.LONG, amount, None, step)
 
-    def add(self, asset: str, amount: float, step: int) -> int:
-        """Put `amount` more dollars into the open position, which keeps its stop price."""
+    def add(
+        self, asset: str, amount: float, step: int, bars_left: int | None = None
+    ) -> int:
+        """Put `amount` more dollars into the open position, which keeps its stop price.
+
+        Under a risk profile, made smaller so the whole position fits the limits.
+        """
         self._require_position(asset)
+        blocked_by = self.add_blocked_by(asset, bars_left)
+        if blocked_by is not None:
+            raise BlockedByRiskLimit(blocked_by, asset)
         return self._place(asset, OrderKind.ADD, ClosingReason.JEV, step, amount=amount)
+
+    # What the risk limits allow at this step
+
+    def entry_blocked_by(
+        self, asset: str, bars_left: int | None = None
+    ) -> RiskLimit | None:
+        """The limit that forbids a new entry in `asset` now, or None."""
+        return self._blocked_by(asset, bars_left, entry=True)
+
+    def add_blocked_by(
+        self, asset: str, bars_left: int | None = None
+    ) -> RiskLimit | None:
+        """The limit that forbids an add to `asset` now, or None."""
+        return self._blocked_by(asset, bars_left, entry=False)
+
+    def check_account(self, step: int) -> list[int]:
+        """Once a step, after every bar: latch the daily loss limit, and place a forced close.
+
+        A forced close happens when account value is below a quarter of exposure: every other
+        waiting order is cancelled and every position gets a close order, carried out at its
+        next bar. Returns the forced close order IDs placed at this step.
+        """
+        if self.risk is None:
+            return []
+        self._update_daily_loss()
+        if not self.risk.forced_close_due(self.account_value(), self.exposure()):
+            return []
+        for order in list(self._waiting):
+            if order.reason is not ClosingReason.FORCED_CLOSE:
+                self._waiting.remove(order)
+                self.cancelled_order_ids.append(order.order_id)
+        already_closing = {o.asset for o in self._waiting}
+        return [
+            self._place(asset, OrderKind.CLOSE, ClosingReason.FORCED_CLOSE, step)
+            for asset in self.positions
+            if asset not in already_closing
+        ]
 
     def reduce(self, asset: str, units: float, step: int) -> int:
         """Close `units` of the open position, which stays open at a smaller size."""
@@ -282,6 +398,9 @@ class Broker:
                 Charge(step, ChargeKind.LOAN_INTEREST, None, loan, rate, amount)
             )
         self.charges.extend(charges)
+        # A new day: the daily loss limit is measured from here, after the night's charges.
+        self.start_of_day_value = self.account_value()
+        self.daily_loss_reached = False
         return charges
 
     def close_everything(self, step: int) -> list[Fill]:
@@ -316,6 +435,20 @@ class Broker:
         """All open positions added together, a short counted the same as a long."""
         return sum(self._value(p) for p in self.positions.values())
 
+    def _account_at_price(self, asset: str, price: float) -> tuple[float, float, float]:
+        """Account value, exposure and `asset`'s position value, with `asset` at `price`."""
+        position = self.positions.get(asset)
+        if position is None:
+            return self.account_value(), self.exposure(), 0.0
+        old = self._value(position)
+        new = position.units * price
+        sign = 1 if position.direction is Direction.LONG else -1
+        return (
+            self.account_value() + sign * (new - old),
+            self.exposure() + new - old,
+            new,
+        )
+
     def loan(self) -> float:
         """What the account owes for the positions it bought beyond its own cash.
 
@@ -342,8 +475,82 @@ class Broker:
 
     def _place(self, asset, kind, reason, step, **details) -> int:
         order = _Order(self._new_id(), asset, kind, reason, step, **details)
+        if kind.grows:
+            if not order.amount > 0:
+                raise ValueError(f"an amount must be above zero, not {order.amount}")
+            order.amount_chosen = order.amount
+            if self.risk is not None and not self._fit_to_limits(
+                order, self.last_prices[asset]
+            ):
+                self.cancelled_order_ids.append(order.order_id)
+                return order.order_id
         self._waiting.append(order)
         return order.order_id
+
+    def _fit_to_limits(self, order: _Order, price: float) -> bool:
+        """Size an entry or an add to fit the risk limits, from Jev's amount, at `price`.
+
+        False, with the limit recorded in `blocked_orders`, if the limits leave nothing of it.
+        """
+        self._update_daily_loss()
+        if self._forced_close_waiting():
+            amount, limited_by = 0.0, RiskLimit.FORCED_CLOSE
+        elif self.daily_loss_reached:
+            amount, limited_by = 0.0, RiskLimit.DAILY_LOSS
+        else:
+            stop_price = (
+                order.stop_price
+                if order.kind is OrderKind.ENTRY
+                else self.positions[order.asset].stop_price
+            )
+            account_value, exposure, position_value = self._account_at_price(
+                order.asset, price
+            )
+            amount, limited_by = self.risk.fit(
+                order.amount_chosen,
+                account_value=account_value,
+                price=price,
+                stop_price=stop_price,
+                position_value=position_value,
+                exposure=exposure,
+            )
+        order.amount, order.limited_by = amount, limited_by
+        if order.amount <= 0:
+            self.blocked_orders[order.order_id] = limited_by
+            return False
+        return True
+
+    def _blocked_by(
+        self, asset: str, bars_left: int | None, entry: bool
+    ) -> RiskLimit | None:
+        if self.risk is None:
+            return None
+        if self._forced_close_waiting():
+            return RiskLimit.FORCED_CLOSE
+        if self.asset_classes[asset] is AssetClass.STOCK:
+            if bars_left is None:
+                raise ValueError(
+                    f"{asset} is a stock: give the bars left in its session"
+                )
+            allowed = (
+                self.risk.stock_entry_allowed(bars_left)
+                if entry
+                else self.risk.stock_add_allowed(bars_left)
+            )
+            if not allowed:
+                return RiskLimit.SESSION_END
+        self._update_daily_loss()
+        return RiskLimit.DAILY_LOSS if self.daily_loss_reached else None
+
+    def _forced_close_waiting(self) -> bool:
+        return any(o.reason is ClosingReason.FORCED_CLOSE for o in self._waiting)
+
+    def _update_daily_loss(self) -> None:
+        """Once reached, the daily loss limit stays reached until midnight UTC."""
+        if self.risk is not None and self.risk.daily_loss_reached(
+            self.account_value(), self.start_of_day_value
+        ):
+            self.daily_loss_reached = True
 
     def _place_entry(self, asset, direction, amount, stop_price, step) -> int:
         if asset in self.positions or any(
@@ -387,6 +594,15 @@ class Broker:
 
     def _carry_out(self, order: _Order, base_price: float, step: int) -> Fill | None:
         """Carry out one order at `base_price` made worse by slippage. None if its position is gone."""
+        if order.kind is not OrderKind.ENTRY and order.asset not in self.positions:
+            return None
+        # The limits again, at the open and with the account as it stands just before the fill.
+        if (
+            order.kind.grows
+            and self.risk is not None
+            and not self._fit_to_limits(order, base_price)
+        ):
+            return None
         if order.kind is OrderKind.ENTRY:
             position = Position(
                 position_id=self._new_id(),
@@ -394,15 +610,15 @@ class Broker:
                 direction=order.direction,
                 stop_price=order.stop_price,
                 step_opened=step,
+                amount_chosen=order.amount_chosen,
+                limited_by=order.limited_by,
             )
             self.positions[order.asset] = position
         else:
-            position = self.positions.get(order.asset)
-            if position is None:
-                return None
+            position = self.positions[order.asset]
 
         # An entry or an add grows the position: a long buys more units, a short sells more.
-        grows = order.kind in (OrderKind.ENTRY, OrderKind.ADD)
+        grows = order.kind.grows
         is_long = position.direction is Direction.LONG
         side = Side.BUY if grows == is_long else Side.SELL
         slippage = self.costs.slippage if side is Side.BUY else -self.costs.slippage
@@ -432,6 +648,7 @@ class Broker:
             position.average_price = (held + value) / position.units
             if order.kind is OrderKind.ENTRY:
                 position.entry_price = price
+                position.amount_entered = value
         else:
             position.units -= units
 
@@ -450,6 +667,8 @@ class Broker:
             value=value,
             slippage_cost=slippage_cost,
             commission_or_trading_fee=commission_or_trading_fee,
+            amount_chosen=order.amount_chosen,
+            limited_by=order.limited_by,
         )
         self.fills.append(fill)
         if position.units <= _NO_UNITS:
@@ -471,5 +690,8 @@ class Broker:
                 closing_reason=last_fill.reason,
                 profit=position.cash_flow,
                 trading_costs=position.trading_costs,
+                amount_chosen=position.amount_chosen,
+                amount_entered=position.amount_entered,
+                limited_by=position.limited_by,
             )
         )

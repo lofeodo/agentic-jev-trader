@@ -1,0 +1,39 @@
+# The risk profile: caps on the account that code enforces whatever Jev chooses (spec appendix 1,
+# section 5). Version 1 has one profile, medium. Every number is a setting a tuning sim may change
+# with no code change; each sim stores the profile's name and every setting it ran with.
+# Dollar figures are for a $10,000 account.
+#
+# Two rows of the spec's table live in other files, so that each number has one home: the loan
+# interest rate in `trading_costs.toml` and the stop price distance cap in `stop_prices.toml`.
+# The screen cut-off belongs to deciding, which is built later.
+
+name = "medium"
+
+# Trade risk limit: the most one position may lose if it closes at its stop price, as a share of
+# account value. 0.01 is 1% ($100). Code makes an entry or an add smaller until it fits: $20,000
+# chosen with a stop price 0.95% away would lose $190, so it is cut to about $10,500.
+trade_risk_limit = 0.01
+
+# Size buckets: the sizes Jev chooses among, as shares of account value. 0.2 is 20% ($2,000).
+# Jev's size is their average weighted by the probability it gives each.
+size_buckets = [0.2, 0.4, 0.8, 1.2, 2.0]
+
+# Position limit: the most in one position, as a multiple of account value. 2.0 is $20,000.
+position_limit = 2.0
+
+# Exposure limit: the most held in total, a short counted the same as a long. 2.0 is $20,000.
+# Both holding limits are checked only when a position is opened or added to.
+exposure_limit = 2.0
+
+# Daily loss limit: once account value is this share below its value at midnight UTC, entries and
+# adds are blocked for the rest of the day. 0.05 is $500. It never closes a position.
+daily_loss_limit = 0.05
+
+# Forced close: code closes every position when account value falls below this share of
+# exposure. An account worth $3,000 holding $13,000: a quarter is $3,250, so everything closes.
+forced_close_share = 0.25
+
+# No new stock trade in a session's last this-many bars: 2 is the 15:45 and 16:00 bars. An add
+# is still allowed at the second-to-last bar (it is decided in the end-of-session review), never
+# at the last one, whose order would be carried out at the next morning's open.
+no_new_stock_trade_bars = 2
