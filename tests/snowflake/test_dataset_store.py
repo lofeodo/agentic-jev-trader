@@ -1,6 +1,6 @@
 """The dataset store against the real test database, TRADING_AGENT_TEST (hand-run).
 
-Needs the tables of `infra/migrations/V2__dataset_bars.sql` applied (`snowflake_admin.py
+Needs the tables of `infra/migrations/V2__dataset_bars.sql` and `V3__dataset_snapshots.sql` applied (`snowflake_admin.py
 migrate`) and a login that writes REF, KEYS and RAW, such as the builder's. Made-up rows only.
 """
 
@@ -96,4 +96,47 @@ def test_a_dataset_is_written_published_and_read_back(store):
     store.fail(dataset_id, "hand-run test finished")
     assert store._run(
         "SELECT COUNT(*) FROM RAW.BARS WHERE DATASET = ?", (dataset_id,)
+    ) == [(0,)]
+
+
+def test_snapshots_are_written_as_arrays_cast_to_vectors_and_embedded(store):
+    # Calls the embedding model on two short texts: a tiny share of a credit.
+    dataset_id, _ = store.begin("hand-run snapshots", {"FIRST_STEP": 1})
+    snapshot = {
+        "DATASET": dataset_id,
+        "ASSET": "ASSET_01",
+        "STEP": 55,
+        "MEASUREMENTS": [1.0, None] + [0.5] * 56,
+        "FEATURE_VECTOR": [0.25] * 58,
+        "SITUATION_TEXT": "Stock, first hour (bar 1 of 26). Volume high (1.8 times normal).",
+    }
+    store.stage_snapshots(
+        dataset_id,
+        [
+            snapshot,
+            {
+                **snapshot,
+                "STEP": 56,
+                "SITUATION_TEXT": "Crypto, Asian hours (bar 5 of 96).",
+            },
+        ],
+    )
+    assert store.embed_snapshots(dataset_id, "ASSET_01") == 2
+
+    stored = store._run(
+        "SELECT STEP, IS_NULL_VALUE(MEASUREMENTS[1]), ARRAY_SIZE(FEATURE_VECTOR::ARRAY), "
+        "ARRAY_SIZE(EMBEDDING::ARRAY), VECTOR_COSINE_SIMILARITY(EMBEDDING, EMBEDDING) "
+        "FROM FEATURES.SNAPSHOTS WHERE DATASET = ? ORDER BY STEP",
+        (dataset_id,),
+    )
+    assert [row[:4] for row in stored] == [(55, True, 58, 768), (56, True, 58, 768)]
+    assert stored[0][4] == pytest.approx(1.0)
+    assert store._run(
+        "SELECT COUNT(*) FROM FEATURES.SNAPSHOTS_LOADING WHERE DATASET = ?",
+        (dataset_id,),
+    ) == [(0,)]
+
+    store.fail(dataset_id, "hand-run test finished")
+    assert store._run(
+        "SELECT COUNT(*) FROM FEATURES.SNAPSHOTS WHERE DATASET = ?", (dataset_id,)
     ) == [(0,)]

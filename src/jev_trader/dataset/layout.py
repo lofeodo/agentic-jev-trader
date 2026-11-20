@@ -109,7 +109,7 @@ def _hour_starts(sess: Session) -> list[datetime]:
     return starts
 
 
-def _where(
+def where_bar_sits(
     size: BarSize, start: datetime, sessions: dict[date, Session] | None
 ) -> tuple[datetime, int, int | None]:
     """When a bar of `size` starting at `start` ends, its number, and the bars left after it."""
@@ -151,7 +151,7 @@ def _place(
         placed[size] = []
         for row in bar_sizes.build_bars(frame, size).itertuples():
             start = row.Index.to_pydatetime()
-            ends, number, left = _where(size, start, sessions)
+            ends, number, left = where_bar_sits(size, start, sessions)
             bar = Bar(start, row.open, row.high, row.low, row.close, row.volume)
             placed[size].append(_Placed(bar, ends, number, left))
     return placed
@@ -163,6 +163,23 @@ def _volume_scale(bars: list[Bar]) -> float:
     early = [b.volume for b in bars if b.start.date() in days]
     average = sum(early) / len(early) if early else 0.0
     return 100.0 / average if average > 0 else 1.0
+
+
+def masked_bars(
+    bars: Sequence[Bar], price_scale: float, volume_scale: float, price_decimals: int
+) -> list[Bar]:
+    """The bars as `RAW.BARS` stores them: rescaled and rounded, at their real UTC times."""
+    return [
+        Bar(
+            b.start,
+            round(b.open * price_scale, price_decimals),
+            round(b.high * price_scale, price_decimals),
+            round(b.low * price_scale, price_decimals),
+            round(b.close * price_scale, price_decimals),
+            round(b.volume * volume_scale, VOLUME_DECIMALS),
+        )
+        for b in bars
+    ]
 
 
 def lay_out(
