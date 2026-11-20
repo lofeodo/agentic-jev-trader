@@ -105,8 +105,12 @@ A sim that is in progress and being watched in the web app. It is still a histor
 _Avoid_: Live trading, paper trading
 
 **Practice sim**:
-A brief sim that calls the real paid services, Jev and the LLM, to confirm that the system works. Its results never count toward a conclusion. It is a developer's tool, started from the command line and never from the web app.
+A brief sim that calls the real paid services (Jev, and the LLM when the sim is a `memory_on` one) to confirm that the system works. Its results never count toward a conclusion. It is a developer's tool, started from the command line and never from the web app.
 _Avoid_: Practice run, test run, trial run, pilot run, smoke run
+
+**Rehearsal**:
+Three practice sims of one day each that run the whole agent, from reading bars to placing orders, and must all finish without a failure before the build-up sim starts. The first is a `memory_off` sim that leaves a small memory behind; the other two are `memory_on` sims, one per LLM being compared, that start on the following day from a copy of that memory.
+_Avoid_: Dress rehearsal, dry run, smoke test, pilot
 
 **Measurement sim**:
 A sim whose results count toward the project's conclusions.
@@ -169,11 +173,11 @@ How alike two sets of selected episodes for the same situation are: the episodes
 _Avoid_: Similarity (that is how alike two snapshots are), agreement
 
 **Base memory**:
-The memory a build-up sim leaves behind, which never changes afterwards. Every `memory_on` sim starts from a fresh copy of it, its seed memory.
+The memory a build-up sim leaves behind, which never changes afterwards. Every `memory_on` sim outside the rehearsal starts from a fresh copy of it, its seed memory.
 _Avoid_: Initial memory, starting memory
 
 **Seed memory**:
-A copy of another sim's memory that a sim starts from. In version 1 the only memory copied is the base memory.
+A copy of another sim's memory that a sim starts from.
 _Avoid_: Seed (unqualified), warm start
 
 **Memory namespace**:
