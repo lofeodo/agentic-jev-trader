@@ -245,3 +245,38 @@ def test_no_forced_close_while_account_value_is_above_a_quarter_of_what_is_held(
     enter_stock(broker, 10_000.0, stop_price=99.0)
     broker.on_bar(STOCK, bar(2, 100.0))
     assert broker.check_account(step=2) == []
+
+
+def test_the_second_check_starts_again_from_the_amount_jev_chose():
+    broker = make_broker()
+    broker.enter(CRYPTO, Direction.LONG, 15_000.0, stop_price=99.7, step=1)
+    broker.on_bar(CRYPTO, bar(2, 100.0))
+    # $15,000 held: $8,000 more is cut to $5,000 when placed ...
+    enter_stock(broker, 8_000.0, stop_price=99.5, step=2)
+    broker.close(CRYPTO, step=2)
+    broker.on_bar(CRYPTO, bar(3, 100.0))
+    # ... but the crypto is gone by the time it is carried out: Jev's $8,000 fits.
+    [fill] = broker.on_bar(STOCK, bar(3, 100.0))
+    assert fill.value == pytest.approx(8_000.0)
+    assert fill.limited_by is None
+
+
+def test_nothing_new_is_opened_while_a_forced_close_waits():
+    broker = make_broker()
+    enter_stock(broker, 10_000.0, stop_price=99.0)
+    broker.enter(CRYPTO, Direction.LONG, 10_000.0, stop_price=99.0, step=1)
+    broker.on_bar(STOCK, bar(2, 100.0))
+    broker.on_bar(CRYPTO, bar(2, 100.0))
+    broker.on_bar(STOCK, bar(3, 20.0))
+    broker.check_account(step=3)
+
+    assert broker.entry_blocked_by(STOCK, bars_left=MID_SESSION) is (
+        RiskLimit.FORCED_CLOSE
+    )
+    assert broker.add_blocked_by(CRYPTO) is RiskLimit.FORCED_CLOSE
+
+
+def test_an_amount_of_nothing_is_refused():
+    broker = make_broker()
+    with pytest.raises(ValueError, match="above zero"):
+        enter_stock(broker, 0.0, stop_price=99.0)

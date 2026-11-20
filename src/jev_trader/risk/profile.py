@@ -10,6 +10,11 @@ Choices the spec leaves to the build (appendix 1, "Not decided by any ticket"):
   limits cut to nothing is not traded.
 - A position's trade risk is measured from the price the size is worked out at (the last price
   when the order is placed, the open when it is carried out) to the stop price, on either side.
+  A bar that opens beyond the stop price is sized on that gap all the same; the stop price then
+  closes the position at that open.
+- Slippage and the commission or trading fee come on top of the trade risk, as the spec says: a
+  stop price 0.6% away sizes $16,667 to lose $100, and slippage on the way in and out adds about
+  $17 more if the stop price is hit.
 """
 
 import math
@@ -30,6 +35,7 @@ class RiskLimit(StrEnum):
     EXPOSURE = "exposure"
     DAILY_LOSS = "daily_loss"
     SESSION_END = "session_end"  # a stock's last bars of the session
+    FORCED_CLOSE = "forced_close"  # a forced close is waiting to be carried out
 
 
 @dataclass(frozen=True)
@@ -73,10 +79,11 @@ class RiskProfile:
         """The most an entry (or an add, given the position's value) may put in, and the limit
         that sets it.
 
-        Trade risk: the whole position, losing the stop price's distance, loses at most 1% of
-        account value. A stop price 0.95% away allows about $10,500 of a $10,000 account. For an
-        add, the position already held uses part of that room. The position and exposure limits
-        leave room up to twice account value. Never below zero.
+        Trade risk: the whole position, losing the stop price's distance, loses at most the trade
+        risk limit (1% of account value in medium). A stop price 0.95% away allows about $10,500
+        of a $10,000 account. For an add, the position already held uses part of that room. The
+        position and exposure limits leave room up to their multiple of account value (twice in
+        medium). Never below zero.
         """
         if account_value <= 0:
             return 0.0, RiskLimit.TRADE_RISK
@@ -119,16 +126,20 @@ class RiskProfile:
     def forced_close_due(self, account_value: float, exposure: float) -> bool:
         """Whether account value has fallen below the forced close share of exposure.
 
-        $3,000 holding $13,000: a quarter is $3,250, so yes.
+        In medium, a quarter: $3,000 holding $13,000 is below $3,250, so yes.
         """
         return exposure > 0 and account_value < self.forced_close_share * exposure
 
     def daily_loss_reached(self, account_value: float, start_of_day: float) -> bool:
-        """Whether account value is down the daily loss limit since midnight: $500 of $10,000."""
+        """Whether account value is down the daily loss limit since midnight.
+
+        At 5% (medium), $500 of $10,000.
+        """
         return account_value <= start_of_day * (1 - self.daily_loss_limit)
 
     def stock_entry_allowed(self, bars_left: int) -> bool:
-        """No new stock trade in a session's last two bars (`bars_left` is 1 or 0)."""
+        """No new stock trade in a session's last bars: in medium the last two (`bars_left` 1
+        or 0)."""
         return bars_left >= self.no_new_stock_trade_bars
 
     @staticmethod
