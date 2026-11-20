@@ -30,7 +30,7 @@ Grants per table, such as the memory server reading `SIM.SIMS` or the API adding
 their role with `_SVC` added (`TRADING_AGENT_MEMORY_SVC`).
 
 Service users cannot use passwords. Each logs in with a key pair: a private key kept on this
-machine (encrypted with `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE`) and a public key stored on the
+machine (encrypted with `SNOWFLAKE_PRIVATE_KEY_FILE_PWD`) and a public key stored on the
 Snowflake user. The private keys and Terraform's state file live in `SNOWFLAKE_LOCAL_DIR`
 (default `.agentic-jev-trader/snowflake` in your home folder), never in the repo: a git
 worktree is deleted when its work ends, and keys must never be committed.

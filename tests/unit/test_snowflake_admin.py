@@ -44,12 +44,12 @@ def test_existing_key_pair_is_never_overwritten(tmp_path):
 
 ENV = {
     "SNOWFLAKE_ACCOUNT": "MYORG-MY_ACCOUNT",
-    "SNOWFLAKE_PRIVATE_KEY_PASSPHRASE": "s3cret",
+    "SNOWFLAKE_PRIVATE_KEY_FILE_PWD": "s3cret",
 }
 
 
 def test_settings_name_the_missing_variable():
-    with pytest.raises(admin.SetupError, match="SNOWFLAKE_PRIVATE_KEY_PASSPHRASE"):
+    with pytest.raises(admin.SetupError, match="SNOWFLAKE_PRIVATE_KEY_FILE_PWD"):
         admin.Settings.from_env({"SNOWFLAKE_ACCOUNT": "MYORG-MY_ACCOUNT"})
 
 

@@ -90,7 +90,7 @@ class Settings:
 
         account = required("SNOWFLAKE_ACCOUNT")
         split_account(account)
-        passphrase = required("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE")
+        passphrase = required("SNOWFLAKE_PRIVATE_KEY_FILE_PWD")
         local = (env.get("SNOWFLAKE_LOCAL_DIR") or "").strip()
         if local:
             local_dir = Path(local).expanduser()
@@ -186,7 +186,7 @@ def load_settings() -> Settings:
 def cmd_keys(settings: Settings) -> int:
     for login in (TERRAFORM_LOGIN, *SERVICE_LOGINS):
         write_key_pair(settings.keys_dir, login, settings.passphrase)
-    print(f"Key pairs are in {settings.keys_dir} (private keys encrypted with SNOWFLAKE_PRIVATE_KEY_PASSPHRASE).")
+    print(f"Key pairs are in {settings.keys_dir} (private keys encrypted with SNOWFLAKE_PRIVATE_KEY_FILE_PWD).")
     body = public_key_body((settings.keys_dir / f"{TERRAFORM_LOGIN}.pub").read_text())
     sql = (
         "USE ROLE ACCOUNTADMIN;\n"
