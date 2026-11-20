@@ -1,2 +1,10 @@
 # Secrets: real keys live only in .env (see .env.example)
 .env
+# Snowflake private keys never enter the repo
+*.p8
+
+# Python and tool caches
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/

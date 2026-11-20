@@ -1,0 +1,10 @@
+# Python 3.12, conda env `agentic-jev-trader`. Add each new dependency here, pinned, when it is added.
+
+# Tests
+pytest==9.2.0
+pytest-recording==0.14.1
+vcrpy==9.4.2
+python-dotenv==1.2.4
+
+# Style check
+ruff==0.17.4
