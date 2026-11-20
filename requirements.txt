@@ -1,5 +1,10 @@
 # Python 3.12, conda env `agentic-jev-trader`. Add each new dependency here, pinned, when it is added.
 
+# Bars and candle patterns (a dataset records its TA-Lib version: ADR 0005)
+numpy==2.5.4
+pandas==3.1.1
+TA-Lib==0.8.3
+
 # Tests
 pytest==9.2.0
 pytest-recording==0.14.1
