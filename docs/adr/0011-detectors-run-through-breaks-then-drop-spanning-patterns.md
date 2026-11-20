@@ -1,0 +1,13 @@
+# Detectors run through every break in the bars; a pattern that spans one is dropped afterwards
+
+A candle pattern detector is TA-Lib's code for one named shape, such as "engulfing": a falling bar from $101.00 to $100.00, then a rising bar from $99.50 to $101.50 whose body (the stretch between its open and its close) covers the first one's. To decide what "long" or "small" means, each detector compares a bar with the average of the 10 to 14 bars before it. ADR 0005 also says a 15-minute or hourly pattern must never stand on bars either side of a break. A break is a missing bar (a 15-minute bar the data provider did not supply) or a stock's overnight close (the market shuts at 4 p.m. New York time and reopens at 9:30 the next morning). We decided to run each detector once over an asset's whole series of bars, as if they followed one another, and then drop every 15-minute or hourly pattern whose bars cross a break. Daily patterns are never dropped. We chose this because a day trader (someone who opens and closes trades within the same day) reads the first bars of the morning against what the stock did yesterday. Cutting the series at each overnight close would restart the averages every morning and leave a stock's first 10 to 14 bars of each session, about its first three hours of trading, with no patterns at all.
+
+## Considered Options
+
+- **Cut the series at every break and run the detectors on each piece.** Rejected: nothing would be recognised at the open, the busiest time of a stock's day.
+
+## Consequences
+
+- A break is found two ways. Between two 15-minute bars in a row that are not 15 minutes apart, such as a bar at 10:15 followed by one at 10:45. And inside an hourly bar that should hold a missing bar: this one only the dataset's list of missing bars can show. If the 10:45 bar is missing, the 10:00 hourly bar closes at the 10:30 bar's close, say $100.25 instead of $100.00, and nothing in the bars themselves says so. A stock's first hourly bar looks the same, with two bars instead of four, because the session opens at 9:30. So `recognise_patterns` takes the list of missing bars, and an hourly bar that should hold one is used by no pattern.
+- The averages behind a morning bar's pattern include the previous session's bars. TA-Lib's own output is untouched; only whole patterns are dropped.
+- How many bars a pattern stands on comes from TA-Lib's source: 1 to 5 bars per detector. One detector family, hikkake, reports its shape and then, up to three bars later, a confirmation: a bar that closes beyond the shape, which TA-Lib marks as 200 instead of 100. A confirmation stands on the shape and on every bar since it, so it is dropped when a break falls anywhere in that stretch.
