@@ -42,7 +42,7 @@ trades in; not `buy_hold`) enforces it whatever Jev chose:
   carried out larger, never above Jev's amount, if room has opened since.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 
 from jev_trader.broker.config import StopPriceSettings, TradingCosts
@@ -74,6 +74,7 @@ class ClosingReason(StrEnum):
     STOP_PRICE = "stop_price"
     FORCED_CLOSE = "forced_close"
     SIM_ENDED = "sim_ended"
+    BUY_HOLD = "buy_hold"  # a purchase of the holding sim, which nobody decides
 
 
 class BlockedByRiskLimit(ValueError):
@@ -188,7 +189,9 @@ class ClosedTrade:
 
 
 @dataclass
-class _Order:
+class Order:
+    """An order placed and not yet carried out (or cancelled before it was)."""
+
     order_id: int
     asset: str
     kind: OrderKind
@@ -202,6 +205,10 @@ class _Order:
     units: float | None = None  # for a reduce
     direction: Direction | None = None  # for an entry
     stop_price: float | None = None  # for an entry
+
+
+def _limit(value: str | None) -> RiskLimit | None:
+    return None if value is None else RiskLimit(value)
 
 
 # Units left below this count as none: a position whose last units were sold is closed.
@@ -222,19 +229,93 @@ class Broker:
     fills: list[Fill] = field(default_factory=list)
     charges: list[Charge] = field(default_factory=list)
     closed_trades: list[ClosedTrade] = field(default_factory=list)
-    cancelled_order_ids: list[int] = field(default_factory=list)
+    cancelled_orders: list[Order] = field(default_factory=list)
     blocked_orders: dict[int, RiskLimit] = field(
         default_factory=dict
     )  # cancelled by a limit
     last_prices: dict[str, float] = field(default_factory=dict)
     start_of_day_value: float | None = None  # account value at the last midnight UTC
     daily_loss_reached: bool = False
-    _waiting: list[_Order] = field(default_factory=list)
+    _waiting: list[Order] = field(default_factory=list)
     _next_id: int = 1
 
     def __post_init__(self) -> None:
         if self.start_of_day_value is None:
             self.start_of_day_value = self.cash
+
+    @property
+    def cancelled_order_ids(self) -> list[int]:
+        return [o.order_id for o in self.cancelled_orders]
+
+    @property
+    def waiting_orders(self) -> tuple[Order, ...]:
+        """Copies of the orders waiting for their asset's next bar, oldest first."""
+        return tuple(replace(o) for o in self._waiting)
+
+    # Saving the account and bringing it back (ADR 0013)
+
+    def state(self) -> dict:
+        """Everything needed to carry on from here, as plain data JSON can hold.
+
+        Cash, open positions, waiting orders, last prices, the day's starting value and the next
+        order number. The history (fills, charges, closed trades, cancelled orders) is left out:
+        the sim has stored it already. So are the settings, which the sim stores once.
+        """
+        return {
+            "cash": self.cash,
+            "positions": [asdict(p) for p in self.positions.values()],
+            "waiting": [asdict(o) for o in self._waiting],
+            "last_prices": dict(self.last_prices),
+            "start_of_day_value": self.start_of_day_value,
+            "daily_loss_reached": self.daily_loss_reached,
+            "next_id": self._next_id,
+        }
+
+    @classmethod
+    def from_state(
+        cls,
+        state: dict,
+        asset_classes: dict[str, AssetClass],
+        costs: TradingCosts,
+        stop_settings: StopPriceSettings,
+        risk: RiskProfile | None = None,
+    ) -> "Broker":
+        """The broker that `state()` saved, given the settings it ran with."""
+        positions = [
+            Position(
+                **{
+                    **p,
+                    "direction": Direction(p["direction"]),
+                    "limited_by": _limit(p["limited_by"]),
+                }
+            )
+            for p in state["positions"]
+        ]
+        waiting = [
+            Order(
+                **{
+                    **o,
+                    "kind": OrderKind(o["kind"]),
+                    "reason": ClosingReason(o["reason"]),
+                    "limited_by": _limit(o["limited_by"]),
+                    "direction": o["direction"] and Direction(o["direction"]),
+                }
+            )
+            for o in state["waiting"]
+        ]
+        return cls(
+            cash=state["cash"],
+            asset_classes=asset_classes,
+            costs=costs,
+            stop_settings=stop_settings,
+            risk=risk,
+            positions={p.asset: p for p in positions},
+            last_prices=dict(state["last_prices"]),
+            start_of_day_value=state["start_of_day_value"],
+            daily_loss_reached=state["daily_loss_reached"],
+            _waiting=waiting,
+            _next_id=state["next_id"],
+        )
 
     # Placing orders. Each waits for the asset's next bar and returns the order's ID.
 
@@ -270,7 +351,9 @@ class Broker:
         """
         if self.risk is not None:
             raise ValueError("under a risk profile every position has a stop price")
-        return self._place_entry(asset, Direction.LONG, amount, None, step)
+        return self._place_entry(
+            asset, Direction.LONG, amount, None, step, ClosingReason.BUY_HOLD
+        )
 
     def add(
         self, asset: str, amount: float, step: int, bars_left: int | None = None
@@ -314,7 +397,7 @@ class Broker:
         for order in list(self._waiting):
             if order.reason is not ClosingReason.FORCED_CLOSE:
                 self._waiting.remove(order)
-                self.cancelled_order_ids.append(order.order_id)
+                self.cancelled_orders.append(order)
         already_closing = {o.asset for o in self._waiting}
         return [
             self._place(asset, OrderKind.CLOSE, ClosingReason.FORCED_CLOSE, step)
@@ -348,7 +431,7 @@ class Broker:
             self._waiting.remove(order)
             fill = self._carry_out(order, bar.open, bar.step)
             if fill is None:
-                self.cancelled_order_ids.append(order.order_id)
+                self.cancelled_orders.append(order)
             else:
                 fills.append(fill)
         position = self.positions.get(asset)
@@ -409,7 +492,7 @@ class Broker:
         Slippage and the usual costs apply, and orders still waiting are cancelled, so the sim
         ends in cash.
         """
-        self.cancelled_order_ids.extend(o.order_id for o in self._waiting)
+        self.cancelled_orders.extend(self._waiting)
         self._waiting.clear()
         return [
             self._close_now(
@@ -474,7 +557,7 @@ class Broker:
         return self._next_id - 1
 
     def _place(self, asset, kind, reason, step, **details) -> int:
-        order = _Order(self._new_id(), asset, kind, reason, step, **details)
+        order = Order(self._new_id(), asset, kind, reason, step, **details)
         if kind.grows:
             if not order.amount > 0:
                 raise ValueError(f"an amount must be above zero, not {order.amount}")
@@ -482,12 +565,12 @@ class Broker:
             if self.risk is not None and not self._fit_to_limits(
                 order, self.last_prices[asset]
             ):
-                self.cancelled_order_ids.append(order.order_id)
+                self.cancelled_orders.append(order)
                 return order.order_id
         self._waiting.append(order)
         return order.order_id
 
-    def _fit_to_limits(self, order: _Order, price: float) -> bool:
+    def _fit_to_limits(self, order: Order, price: float) -> bool:
         """Size an entry or an add to fit the risk limits, from Jev's amount, at `price`.
 
         False, with the limit recorded in `blocked_orders`, if the limits leave nothing of it.
@@ -552,7 +635,9 @@ class Broker:
         ):
             self.daily_loss_reached = True
 
-    def _place_entry(self, asset, direction, amount, stop_price, step) -> int:
+    def _place_entry(
+        self, asset, direction, amount, stop_price, step, reason=ClosingReason.JEV
+    ) -> int:
         if asset in self.positions or any(
             o.asset == asset and o.kind is OrderKind.ENTRY for o in self._waiting
         ):
@@ -560,7 +645,7 @@ class Broker:
         return self._place(
             asset,
             OrderKind.ENTRY,
-            ClosingReason.JEV,
+            reason,
             step,
             amount=amount,
             direction=direction,
@@ -589,10 +674,10 @@ class Broker:
         self, position: Position, price: float, step: int, reason: ClosingReason
     ) -> Fill:
         """Close a whole position at `price` straight away, decided and carried out at `step`."""
-        order = _Order(self._new_id(), position.asset, OrderKind.CLOSE, reason, step)
+        order = Order(self._new_id(), position.asset, OrderKind.CLOSE, reason, step)
         return self._carry_out(order, price, step)
 
-    def _carry_out(self, order: _Order, base_price: float, step: int) -> Fill | None:
+    def _carry_out(self, order: Order, base_price: float, step: int) -> Fill | None:
         """Carry out one order at `base_price` made worse by slippage. None if its position is gone."""
         if order.kind is not OrderKind.ENTRY and order.asset not in self.positions:
             return None
