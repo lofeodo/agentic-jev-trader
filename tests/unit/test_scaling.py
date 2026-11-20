@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 
 from jev_trader.dataset.measurements import MEASUREMENT_NAMES, AssetClass, Measurements
-from jev_trader.dataset.scaling import WarmUpScales, warm_up_end
+from jev_trader.dataset.scaling import WarmUpScales, first_tradable_day
 
 FIRST_DAY = date(2023, 4, 3)
 VOLUME = MEASUREMENT_NAMES.index("volume_against_normal")
@@ -17,12 +17,12 @@ def snapshot(day, **readings):
     return Measurements(AssetClass.CRYPTO, day, 1, 96, tuple(values))
 
 
-def test_the_first_datasets_warm_up_ends_on_2_july_so_3_july_2023_is_tradable():
-    assert warm_up_end(FIRST_DAY) == date(2023, 7, 3)
+def test_the_first_datasets_first_tradable_days_on_2_july_so_3_july_2023_is_tradable():
+    assert first_tradable_day(FIRST_DAY) == date(2023, 7, 3)
 
 
 def test_three_months_from_the_31st_lands_on_the_last_day_of_a_shorter_month():
-    assert warm_up_end(date(2023, 11, 30)) == date(2024, 2, 29)
+    assert first_tradable_day(date(2023, 11, 30)) == date(2024, 2, 29)
 
 
 def test_a_reading_becomes_a_standard_score_from_the_warm_up_average_and_spread():

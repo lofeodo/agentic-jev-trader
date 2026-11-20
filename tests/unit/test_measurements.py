@@ -3,7 +3,7 @@
 Every expected value is worked out by hand from the made-up prices, never by repeating the code.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -240,3 +240,28 @@ def test_at_a_sessions_last_step_its_day_is_finished_and_joins_the_long_term_ave
     # Average of the 20 daily closes: $100.05. Daily typical move: (13 x $1.00 + $2.00) / 14.
     assert last.bar_number == 26
     assert last["long_term_trend"] == pytest.approx(0.95 / (15 / 14))
+
+
+def test_volume_against_normal_follows_the_session_across_a_clock_change():
+    # 20 summer sessions open at 13:30 UTC; after the clocks change, 9:30 New York is 14:30 UTC.
+    summer = [date(2023, 10, 2) + timedelta(days=n) for n in range(20)]
+    winter_day = date(2023, 11, 6)
+    sessions = {day: full_session(day) for day in summer}
+    winter_open = datetime(2023, 11, 6, 14, 30, tzinfo=UTC)
+    sessions[winter_day] = Session(winter_open, winter_open + 26 * QUARTER)
+    bars = [flat_bars(1, start=sessions[day].open)[0] for day in summer]
+    bars += flat_bars(1, start=winter_open, volume=1500.0)
+
+    first_bar = measure_asset(bars, AssetClass.STOCK, sessions)[-1]
+
+    # The session's first bar against the 20 earlier first bars of 1,000 each.
+    assert first_bar.bar_number == 1
+    assert first_bar["volume_against_normal"] == pytest.approx(1.5)
+
+
+def test_a_stock_bar_outside_its_session_is_refused():
+    day = CRYPTO_DAY_1.date()
+    before_the_open = flat_bars(1, start=full_session(day).open - QUARTER)
+
+    with pytest.raises(ValueError, match="outside its session"):
+        measure_asset(before_the_open, AssetClass.STOCK, {day: full_session(day)})

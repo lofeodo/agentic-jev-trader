@@ -7,7 +7,10 @@ with it, so nothing from after a step reaches it and a snapshot always gets the 
 
 Build choices the spec leaves open:
 
-- The spread is the population standard deviation of the warm-up readings.
+- The spread is how far readings typically sit from their average: the square root of the
+  average squared distance from it (the "population standard deviation"). Readings of 0.4 and
+  1.6 average 1.0, each sits 0.6 away, so the spread is 0.6, and a later reading of 1.8 scores
+  (1.8 - 1.0) / 0.6, about 1.3.
 - A "not available" reading is left out of the averages and spreads, and scores 0 (average).
 - A measurement with no warm-up readings, or whose readings never varied, scores 0 throughout:
   with no spread there is nothing to divide by.
@@ -24,8 +27,8 @@ from jev_trader.dataset.measurements import MEASUREMENT_NAMES, Measurements
 WARM_UP_MONTHS = 3
 
 
-def warm_up_end(first_day: date) -> date:
-    """The first tradable day: three calendar months after the dataset's first day.
+def first_tradable_day(first_day: date) -> date:
+    """The day after the warm-up period: three calendar months after the dataset's first day.
 
     A day missing from the later month (the 31st, say) becomes that month's last day.
     """
@@ -51,11 +54,11 @@ class WarmUpScales:
         cls, first_day: date, measurements: Iterable[Measurements]
     ) -> "WarmUpScales":
         """Averages and spreads from the snapshots in the warm-up period; all others are ignored."""
-        ends = warm_up_end(first_day)
+        ends = first_tradable_day(first_day)
         readings: list[list[float]] = [[] for _ in MEASUREMENT_NAMES]
-        for snapshot in measurements:
-            if first_day <= snapshot.day < ends:
-                for column, value in zip(readings, snapshot.values):
+        for measured in measurements:
+            if first_day <= measured.day < ends:
+                for column, value in zip(readings, measured.values):
                     if value is not None:
                         column.append(value)
         scales = []

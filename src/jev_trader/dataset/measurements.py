@@ -9,13 +9,20 @@ Build choices where the spec leaves the detail open (appendix 3, last section):
 - Order: the 48 shape numbers first, newest bar first (`bar_0` is this bar, `bar_7` the oldest),
   six per bar; then the ten surroundings in the spec's table order.
 - Shape numbers per bar: direction is +1 for an up bar, -1 for a down bar, 0 when it closes
-  where it opened. Body, upper wick and lower wick are shares of the bar's own range (they add up
-  to 1); "not available" on a bar with no range. Range and gap (open minus the previous bar's
-  close) are in multiples of the current typical move, so all 8 bars share one yardstick.
-- Typical move (ATR): the plain average of the last 14 true ranges, as the glossary defines it
-  (not Wilder's smoothing). A bar's true range needs the previous bar's close, so the first
-  typical move comes at an asset's 15th bar. The long-term trend's daily typical move is the
-  same over the last 14 finished daily bars.
+  where it opened. The body is the stretch between open and close; the upper wick runs from the
+  body's top up to the high, the lower wick from the body's bottom down to the low. A bar that
+  opens at $100.00, trades from $99.80 to $101.80 and closes at $101.30 has a $2.00 range, a
+  body of 0.65 of it, an upper wick of 0.25 and a lower wick of 0.10: shares of the bar's own
+  range, which add up to 1, and "not available" on a bar with no range. Range and gap (the
+  open minus the previous bar's close) are in multiples of the current typical move, so all 8
+  bars share one yardstick.
+- Typical move: the plain average, over the last 14 bars, of how far the price travelled in
+  each bar counting any jump from the previous bar's close (a bar from $99.50 to $100.50
+  after a $101.00 close travelled $1.50). That is the glossary's definition; the textbook
+  version of this indicator (ATR) instead weights recent bars a little more, which this code
+  does not. A bar's travel needs the previous bar's close, so the first typical move comes at
+  an asset's 15th bar. The long-term trend's daily typical move is the same over the last 14
+  finished daily bars.
 - A day is the UTC day; a stock's day is its session. A day is finished at the step its session
   (or, for crypto, the UTC day) ends, so at that step its daily bar joins the long-term average.
 - "The previous day" is the asset's previous day with bars, so a weekend or holiday is skipped.
@@ -25,7 +32,10 @@ Build choices where the spec leaves the detail open (appendix 3, last section):
   averages and spreads. Volume against normal averages the same slot (bar number in the session
   or day, so a clock change does not shift it) over those of the 20 days that have a bar there.
 - How far through the day on a half-day session: bar number over that session's own bars (14).
-- The day's average price (VWAP) weights each bar's typical price, (high + low + close) / 3.
+- The day's average price stands each bar's trading at one price, the average of its high,
+  low and close, and weights it by the amount traded: a bar from $99 to $102 closing at $102
+  counts as $101.
+- A stock bar outside its session is refused: the dataset build drops such bars first.
 """
 
 import itertools
@@ -113,24 +123,16 @@ class _Day:
         return (bar.start - self.begins) // BAR_LENGTH + 1
 
 
-def _true_range(bar_high: float, bar_low: float, previous_close: float) -> float:
-    return max(
-        bar_high - bar_low,
-        abs(bar_high - previous_close),
-        abs(bar_low - previous_close),
-    )
-
-
-def _typical_move(bars: Sequence[Bar], i: int) -> float | None:
-    """The average true range over the 14 bars up to bar `i`; not available when it is zero."""
-    if i < TYPICAL_MOVE_BARS:
+def _typical_move(recent: Sequence[Bar | _Day]) -> float | None:
+    """The typical move over the last 14 of `recent` (bars or days), each counted from the close
+    before it; not available with too few, or when the price never moved."""
+    if len(recent) <= TYPICAL_MOVE_BARS:
         return None
-    window = bars[i - TYPICAL_MOVE_BARS : i + 1]
-    ranges = [
-        _true_range(b.high, b.low, before.close)
-        for before, b in itertools.pairwise(window)
+    travelled = [
+        max(b.high - b.low, abs(b.high - before.close), abs(b.low - before.close))
+        for before, b in itertools.pairwise(recent[-TYPICAL_MOVE_BARS - 1 :])
     ]
-    return sum(ranges) / TYPICAL_MOVE_BARS or None
+    return sum(travelled) / TYPICAL_MOVE_BARS or None
 
 
 def _per(distance: float, unit: float | None) -> float | None:
@@ -194,6 +196,8 @@ def _days(
                 )
             )
         today = days[-1]
+        if not 1 <= today.slot(bar) <= today.bars_in_day:
+            raise ValueError(f"The bar starting {bar.start} is outside its session")
         today.high = max(today.high, bar.high)
         today.low = min(today.low, bar.low)
         today.close = bar.close
@@ -207,12 +211,7 @@ def _long_term_trend(price: float, finished: list[_Day]) -> float | None:
     if len(finished) < LONG_TREND_DAYS:
         return None
     average = sum(d.close for d in finished[-LONG_TREND_DAYS:]) / LONG_TREND_DAYS
-    recent = finished[-TYPICAL_MOVE_BARS - 1 :]
-    daily_ranges = [
-        _true_range(d.high, d.low, before.close)
-        for before, d in itertools.pairwise(recent)
-    ]
-    return _from(price, average, sum(daily_ranges) / TYPICAL_MOVE_BARS or None)
+    return _from(price, average, _typical_move(finished))
 
 
 def _volume_against_normal(
@@ -244,6 +243,8 @@ def measure_asset(
         raise ValueError("Bars must be in time order, at most one per step")
     days, day_of_bar = _days(bars, asset_class, sessions or {})
     result = []
+    # Today so far, up to and including the current bar: nothing later in the day leaks in.
+    day_high = day_low = day_volume = day_price_volume = 0.0
     for i, bar in enumerate(bars):
         d = day_of_bar[i]
         today = days[d]
@@ -258,9 +259,11 @@ def measure_asset(
         day_volume += bar.volume
         day_price_volume += (bar.high + bar.low + bar.close) / 3 * bar.volume
         days_average = day_price_volume / day_volume if day_volume else None
-        typical_move = _typical_move(bars, i)
+        typical_move = _typical_move(bars[max(0, i - TYPICAL_MOVE_BARS) : i + 1])
         slot = today.slot(bar)
-        finished = days[: d + 1] if bar.end >= today.ends else days[:d]
+        finished_days = d + 1 if bar.end >= today.ends else d
+        finished = days[max(0, finished_days - LONG_TREND_DAYS) : finished_days]
+        earlier = days[max(0, d - VOLUME_DAYS) : d]
         previous = days[d - 1] if d else None
         short_average = (
             sum(b.close for b in bars[i - TREND_BARS + 1 : i + 1]) / TREND_BARS
@@ -274,7 +277,7 @@ def measure_asset(
         values += [
             _from(bar.close, short_average, typical_move),
             _long_term_trend(bar.close, finished),
-            _volume_against_normal(bar.volume, slot, days[:d]),
+            _volume_against_normal(bar.volume, slot, earlier),
             _from(bar.close, days_average, typical_move),
             _per(day_high - bar.close, typical_move),
             _per(bar.close - day_low, typical_move),
