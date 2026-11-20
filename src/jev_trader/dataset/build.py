@@ -35,7 +35,11 @@ from jev_trader.dataset.layout import (
     masked_bars,
     masked_id,
 )
-from jev_trader.dataset.measurements import MEASUREMENT_NAMES, AssetClass
+from jev_trader.dataset.measurements import (
+    MEASUREMENT_NAMES,
+    AssetClass,
+    measure_asset,
+)
 from jev_trader.dataset.providers import (
     CryptoProvider,
     ProviderError,
@@ -56,7 +60,6 @@ from jev_trader.dataset.snapshots import (
     MEASUREMENT_SETTINGS,
     AssetBars,
     find_patterns,
-    measure,
     pattern_rows,
     playbook_rows,
     snapshot_rows,
@@ -182,7 +185,7 @@ def build_dataset(
             before_bars=lambda: stage("Build hourly and daily bars"),
         )
         assets = [
-            _masked(asset, key, settings.price_decimals)
+            _asset_bars(asset, key, settings.price_decimals)
             for asset, key in zip(cleaned, tables["KEYS.ASSET_KEY"], strict=True)
         ]
 
@@ -191,13 +194,18 @@ def build_dataset(
         found = {}
         tables["FEATURES.PATTERNS"] = []
         for asset in assets:
-            found[asset.masked] = find_patterns(asset, clock)
+            found[asset.masked_id] = find_patterns(asset, clock)
             tables["FEATURES.PATTERNS"] += pattern_rows(
-                dataset_id, asset.masked, found[asset.masked]
+                dataset_id, asset.masked_id, found[asset.masked_id]
             )
 
         stage("Measure")
-        measured = {asset.masked: measure(asset) for asset in assets}
+        measured = {
+            asset.masked_id: measure_asset(
+                asset.bars, asset.asset_class, asset.sessions
+            )
+            for asset in assets
+        }
         scales = WarmUpScales.from_warm_up(
             settings.first_day, itertools.chain.from_iterable(measured.values())
         )
@@ -210,9 +218,9 @@ def build_dataset(
                 snapshot_rows(
                     dataset_id,
                     asset,
-                    measured.pop(asset.masked),
+                    measured.pop(asset.masked_id),
                     scales,
-                    found[asset.masked],
+                    found[asset.masked_id],
                     clock,
                 ),
             )
@@ -221,7 +229,7 @@ def build_dataset(
         total = sum(len(a.bars) for a in assets)
         done = 0
         for asset in assets:
-            done += store.embed_snapshots(dataset_id, asset.masked)
+            done += store.embed_snapshots(dataset_id, asset.masked_id)
             share = STAGES["Embed"] + (STAGES["Publish"] - STAGES["Embed"]) * (
                 done / total if total else 1.0
             )
@@ -280,11 +288,11 @@ def _stage_times(seconds: dict[str, float]) -> str:
     return "\n".join(lines)
 
 
-def _masked(asset: CleanedAsset, key: dict, price_decimals: int) -> AssetBars:
+def _asset_bars(asset: CleanedAsset, key: dict, price_decimals: int) -> AssetBars:
     """The asset's bars as stored (masked), for the snapshot stages."""
     stock = asset.settings.asset_class is AssetClass.STOCK
     return AssetBars(
-        masked=key["MASKED_ID"],
+        masked_id=key["MASKED_ID"],
         asset_class=asset.settings.asset_class,
         bars=masked_bars(
             asset.clean.bars, key["PRICE_SCALE"], key["VOLUME_SCALE"], price_decimals

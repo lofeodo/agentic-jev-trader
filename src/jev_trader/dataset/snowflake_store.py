@@ -102,15 +102,12 @@ class SnowflakeStore:
         self.update(dataset_id, BUILT_AT=now())
 
     def save_playbook(self, rows: list[dict]) -> None:
-        versions = {r["TALIB_VERSION"] for r in rows}
-        for version in versions:
-            [(stored,)] = self._run(
-                "SELECT COUNT(*) FROM REF.PLAYBOOK WHERE TALIB_VERSION = ?", (version,)
-            )
-            if not stored:
-                self._insert(
-                    "REF.PLAYBOOK", [r for r in rows if r["TALIB_VERSION"] == version]
-                )
+        [version] = {r["TALIB_VERSION"] for r in rows}
+        [(stored,)] = self._run(
+            "SELECT COUNT(*) FROM REF.PLAYBOOK WHERE TALIB_VERSION = ?", (version,)
+        )
+        if not stored:
+            self._insert("REF.PLAYBOOK", rows)
 
     def stage_snapshots(self, dataset_id: int, rows: list[dict]) -> None:
         self._insert(

@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
 
+from jev_trader.dataset.snapshots import EMBEDDING_SIZE
+
 # The tables a build fills through `save`, in the order they are written.
 TABLES = (
     "REF.DATASET_PERIODS",
@@ -72,15 +74,15 @@ def now() -> datetime:
 
 
 def made_up_embedding(text: str) -> list[float]:
-    """768 numbers drawn from the text, the same for the same text: a stand-in for the model."""
+    """As many numbers as the model gives, drawn from the text, the same for the same text."""
     seed = hashlib.sha256(text.encode()).digest()
     numbers: list[float] = []
     block = 0
-    while len(numbers) < 768:
+    while len(numbers) < EMBEDDING_SIZE:
         digest = hashlib.sha256(seed + block.to_bytes(4, "big")).digest()
         numbers += [n / 2**32 - 0.5 for n in struct.unpack(">8I", digest)]
         block += 1
-    return numbers
+    return numbers[:EMBEDDING_SIZE]
 
 
 class InMemoryStore:

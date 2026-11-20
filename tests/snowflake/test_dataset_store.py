@@ -1,7 +1,8 @@
 """The dataset store against the real test database, TRADING_AGENT_TEST (hand-run).
 
 Needs the tables of `infra/migrations/V2__dataset_bars.sql` and `V3__dataset_snapshots.sql` applied (`snowflake_admin.py
-migrate`) and a login that writes REF, KEYS and RAW, such as the builder's. Made-up rows only.
+migrate`) and the builder's login: it writes REF, KEYS, RAW and FEATURES and alone may call the
+embedding model. Made-up rows only.
 """
 
 import os

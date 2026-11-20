@@ -36,7 +36,6 @@ from jev_trader.dataset.measurements import (
     AssetClass,
     Measurements,
     Session,
-    measure_asset,
 )
 from jev_trader.dataset.scaling import WARM_UP_MONTHS, WarmUpScales
 
@@ -59,10 +58,10 @@ MEASUREMENT_SETTINGS = {
 
 @dataclass(frozen=True)
 class AssetBars:
-    """One asset's masked 15-minute bars, the start times of its missing bars, and (for a stock)
-    its session on each day."""
+    """One asset's masked 15-minute bars, the start times of its missing bars, and (a stock only;
+    None for crypto) its session on each day."""
 
-    masked: str
+    masked_id: str
     asset_class: AssetClass
     bars: list[Bar]
     missing: list[pd.Timestamp]
@@ -90,7 +89,7 @@ class FoundPatterns:
     names: dict[tuple[BarSize, int], list[str]]
     ends: dict[BarSize, list[int]]
 
-    def lists(self, step: int) -> text.PatternLists:
+    def pattern_lists(self, step: int) -> text.PatternLists:
         """What the snapshot at `step` lists: the pattern window (in clock steps, so nothing
         from before an overnight close), and the latest finished hourly and daily bars."""
         window = [
@@ -112,10 +111,9 @@ def find_patterns(asset: AssetBars, clock: Clock) -> FoundPatterns:
     """Every candle pattern on the asset's 15-minute, hourly and daily bars."""
     frame = asset.frame
     missing = pd.DatetimeIndex(asset.missing, tz="UTC")
-    sessions = asset.sessions if asset.asset_class is AssetClass.STOCK else None
 
     def ending_step(size: BarSize, start: pd.Timestamp) -> int:
-        ends, _, _ = where_bar_sits(size, start.to_pydatetime(), sessions)
+        ends, _, _ = where_bar_sits(size, start.to_pydatetime(), asset.sessions)
         return clock.step_ending_at(ends)
 
     names: dict[tuple[BarSize, int], list[str]] = defaultdict(list)
@@ -130,11 +128,12 @@ def find_patterns(asset: AssetBars, clock: Clock) -> FoundPatterns:
     return FoundPatterns(dict(names), ends)
 
 
-def pattern_rows(dataset_id: int, masked: str, found: FoundPatterns) -> list[dict]:
+def pattern_rows(dataset_id: int, masked_id: str, found: FoundPatterns) -> list[dict]:
+    """One `FEATURES.PATTERNS` row per name recognised on a bar of the asset."""
     return [
         {
             "DATASET": dataset_id,
-            "ASSET": masked,
+            "ASSET": masked_id,
             "BAR_SIZE": size,
             "STEP": step,
             "PATTERN": name,
@@ -156,10 +155,6 @@ def playbook_rows() -> list[dict]:
         }
         for e in playbook()
     ]
-
-
-def measure(asset: AssetBars) -> list[Measurements]:
-    return measure_asset(asset.bars, asset.asset_class, asset.sessions)
 
 
 def warm_up_rows(dataset_id: int, scales: WarmUpScales) -> list[dict]:
@@ -192,11 +187,13 @@ def snapshot_rows(
         rows.append(
             {
                 "DATASET": dataset_id,
-                "ASSET": asset.masked,
+                "ASSET": asset.masked_id,
                 "STEP": step,
                 "MEASUREMENTS": list(measurements.values),
                 "FEATURE_VECTOR": list(scales.standard_scores(measurements)),
-                "SITUATION_TEXT": text.situation_text(measurements, found.lists(step)),
+                "SITUATION_TEXT": text.situation_text(
+                    measurements, found.pattern_lists(step)
+                ),
             }
         )
     return rows

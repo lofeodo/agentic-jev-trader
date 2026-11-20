@@ -60,8 +60,9 @@ CREATE TABLE FEATURES.SNAPSHOTS (
     PRIMARY KEY (DATASET, ASSET, STEP)
 );
 
--- Snapshots on their way into FEATURES.SNAPSHOTS, before their texts are embedded. Empty
--- between builds. MEASUREMENTS and FEATURE_VECTOR are JSON lists as text.
+-- Snapshots on their way into FEATURES.SNAPSHOTS, before their texts are embedded. Emptied
+-- once a build ends or fails, but a build killed outright leaves its rows here: whatever
+-- stops a build by hand must delete them. MEASUREMENTS and FEATURE_VECTOR are JSON lists as text.
 CREATE TRANSIENT TABLE FEATURES.SNAPSHOTS_LOADING (
     DATASET NUMBER NOT NULL,
     ASSET VARCHAR NOT NULL,

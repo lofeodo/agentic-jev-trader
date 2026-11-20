@@ -73,11 +73,12 @@ class FakeStocks:
 
 
 class FakeCrypto:
-    """The same up bar every 15 minutes, except in the `doji_hour` of the first day (UTC), whose
-    four bars close where they open: four 15-minute doji bars making one hourly doji bar."""
+    """The same up bar every 15 minutes, except the `doji_bars` (counted from 0 at the first
+    midnight), which close where they open. Four in one clock hour make an hourly doji bar;
+    96 in one UTC day a daily doji bar."""
 
-    def __init__(self, doji_hour=None):
-        self.doji_hour = doji_hour
+    def __init__(self, doji_bars=range(0)):
+        self.doji_bars = doji_bars
 
     def crypto_bars(self, symbol, first_day, last_day):
         start = datetime.combine(first_day, datetime.min.time(), tzinfo=UTC)
@@ -88,7 +89,7 @@ class FakeCrypto:
                 20.0,
                 21.0,
                 19.0,
-                20.0 if i // 4 == self.doji_hour else 20.5,
+                20.0 if i in self.doji_bars else 20.5,
                 4.0,
             )
             for i in range(n)
@@ -102,7 +103,7 @@ def build(store=None, stocks=None, crypto=None, **kwargs):
         stocks=stocks or FakeStocks(),
         crypto=crypto or FakeCrypto(),
         store=store,
-        today=BUILD_DAY,
+        today=kwargs.pop("today", BUILD_DAY),
         report=lambda line: None,
         **kwargs,
     )
@@ -413,7 +414,7 @@ def listed(text: str, label: str) -> list[str]:
 
 def test_a_snapshot_lists_the_pattern_window_and_the_latest_finished_hourly_bar():
     # 12:00 to 13:00 UTC on day 1: four doji bars ending at steps 49 to 52, one hourly doji.
-    result, store = build(crypto=FakeCrypto(doji_hour=12))
+    result, store = build(crypto=FakeCrypto(doji_bars=range(48, 52)))
 
     patterns = [
         (p["BAR_SIZE"], p["STEP"], p["PATTERN"])
@@ -435,6 +436,25 @@ def test_a_snapshot_lists_the_pattern_window_and_the_latest_finished_hourly_bar(
     assert "doji" in listed(text[52], hourly)
     assert "doji" in listed(text[55], hourly)  # still the latest finished hour
     assert "doji" not in listed(text[56], hourly)
+
+
+def test_a_days_patterns_are_listed_from_the_step_the_day_ends_through_the_next_day():
+    # 3 to 20 July 2023; every bar of day 12 (14 July) is a doji, so its daily bar is one.
+    # Its daily bar ends at step 12 * 96 = 1152, the UTC midnight that ends the day.
+    result, store = build(
+        settings=settings(last_day=date(2023, 7, 20)),
+        crypto=FakeCrypto(doji_bars=range(11 * 96, 12 * 96)),
+        today=date(2023, 7, 21),
+    )
+    text = {
+        s["STEP"]: s["SITUATION_TEXT"]
+        for s in rows(store, "FEATURES.SNAPSHOTS", result.dataset_id, ASSET="ASSET_02")
+    }
+    daily = "Latest daily bar: "
+    assert "doji" not in listed(text[1151], daily)  # the day's last bar has not ended
+    assert "doji" in listed(text[1152], daily)
+    assert "doji" in listed(text[1152 + 95], daily)  # all through the next day
+    assert "doji" not in listed(text[1152 + 96], daily)
 
 
 def test_the_warm_up_averages_and_spreads_are_stored_and_scale_the_feature_vectors():
