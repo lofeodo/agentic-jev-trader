@@ -30,10 +30,8 @@ TERRAFORM_DIR = REPO_ROOT / "infra" / "terraform"
 MIGRATIONS_DIR = REPO_ROOT / "infra" / "migrations"
 
 # These names must match infra/terraform/main.tf.
-DATABASES = (
-    "TRADING_AGENT_TEST",
-    "TRADING_AGENT",
-)  # test first, so a bad file stops there
+TEST_DATABASE = "TRADING_AGENT_TEST"
+DATABASES = (TEST_DATABASE, "TRADING_AGENT")  # test first, so a bad file stops there
 WAREHOUSE = "TRADING_AGENT_WH"
 SERVICE_LOGINS = ("builder", "sim", "memory", "api", "migrations")
 TERRAFORM_LOGIN = "terraform"  # made by hand once (infra/README.md), holds ACCOUNTADMIN
@@ -424,13 +422,13 @@ def cmd_check(settings: Settings) -> int:
         mcur = memory.cursor()
         mcur.execute("USE SECONDARY ROLES NONE")
         try:
-            mcur.execute(f"CREATE TABLE {DATABASES[0]}.MEMORY.WRITE_PROBE (X INT)")
+            mcur.execute(f"CREATE TABLE {TEST_DATABASE}.MEMORY.WRITE_PROBE (X INT)")
         except SnowflakeError as exc:
             print(f"   CREATE TABLE as memory: refused ({first_line(exc)})")
         else:
             failures.append("memory role could create a table")
             print("   CREATE TABLE as memory: WORKED (bad)")
-            mcur.execute(f"DROP TABLE {DATABASES[0]}.MEMORY.WRITE_PROBE")
+            mcur.execute(f"DROP TABLE {TEST_DATABASE}.MEMORY.WRITE_PROBE")
     finally:
         memory.close()
 

@@ -37,7 +37,9 @@ worktree is deleted when its work ends, and keys must never be committed.
 
 ## First-time setup
 
-1. Fill in the three `SNOWFLAKE_` lines of `.env` (see `.env.example`).
+1. Fill in `SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env` (see
+   `.env.example`). `SNOWFLAKE_LOCAL_DIR` is optional; `SNOWFLAKE_USER` and
+   `SNOWFLAKE_PRIVATE_KEY_FILE` name the login the hand-run tests use, once it exists.
 2. Make the key pairs. This also prints the SQL for step 3 and saves it as
    `create_terraform_user.sql` in the keys' folder:
 
@@ -70,6 +72,10 @@ worktree is deleted when its work ends, and keys must never be committed.
 
 ## The embedding model permission
 
+Embedding turns a paragraph into a fixed list of 768 numbers, so that paragraphs describing
+similar market moments get similar lists and memory can find past situations like the
+current one. Snowflake runs the model and bills a little credit for each call.
+
 Snowflake controls its built-in models by role. The builder's role gets two grants: the
 database role `SNOWFLAKE.CORTEX_EMBED_USER` (use of the embedding feature) and the per-model
 application role `CORTEX-MODEL-ROLE-SNOWFLAKE-ARCTIC-EMBED-M-V1.5` (use of that one model).
@@ -83,7 +89,8 @@ conda run -n agentic-jev-trader python infra/snowflake_admin.py terraform apply 
 A new account opens every AI model to every role. Terraform closes two of those defaults
 for the whole account, with the developer's agreement: it takes `SNOWFLAKE.CORTEX_USER`
 away from `PUBLIC` (the role every login has) and sets `CORTEX_MODELS_ALLOWLIST` to
-`None`. Since then only the builder, and `ACCOUNTADMIN`, can embed text. A person's own
+`None`. Since then, of our five logins, only the builder can embed text. People's roles above it
+(`ACCOUNTADMIN`, and `SYSADMIN`, which every project role sits under) can too. A person's own
 role loses Snowflake's AI features too, unless given them the same way. `terraform destroy`
 puts both defaults back.
 

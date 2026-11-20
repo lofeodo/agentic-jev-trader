@@ -267,7 +267,21 @@ resource "snowflake_execute" "public_loses_cortex_user" {
   revert  = "GRANT DATABASE ROLE SNOWFLAKE.CORTEX_USER TO ROLE PUBLIC"
 }
 
-resource "snowflake_execute" "no_models_by_default" {
-  execute = "ALTER ACCOUNT SET CORTEX_MODELS_ALLOWLIST = 'None'"
-  revert  = "ALTER ACCOUNT UNSET CORTEX_MODELS_ALLOWLIST"
+resource "snowflake_account_parameter" "cortex_models_allowlist" {
+  key   = "CORTEX_MODELS_ALLOWLIST"
+  value = "None"
+}
+
+# First set with snowflake_execute; handed to the provider's own resource above without
+# touching the account. Both blocks can go once every state has been through one apply.
+removed {
+  from = snowflake_execute.no_models_by_default
+  lifecycle {
+    destroy = false
+  }
+}
+
+import {
+  to = snowflake_account_parameter.cortex_models_allowlist
+  id = "CORTEX_MODELS_ALLOWLIST"
 }
