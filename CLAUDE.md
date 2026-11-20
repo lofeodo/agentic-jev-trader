@@ -60,6 +60,8 @@ Hand-run groups (spec appendix 10, section 6):
 - `tests/snowflake`: real queries against `TRADING_AGENT_TEST`. Skipped unless the `SNOWFLAKE_*` login in `.env.example` is set. `conda run -n agentic-jev-trader python -m pytest tests/snowflake`
 - `tests/paid`: real LLM or Jev calls. Skipped unless `--run-paid` is given. They cost money: run only with my go-ahead. `conda run -n agentic-jev-trader python -m pytest tests/paid --run-paid`
 
+- Saving fresh answers for `tests/recorded` (spec appendix 10, section 7): real LLM and Jev calls, keys read from `.env`. They cost money: run only with my go-ahead. `--record-mode=once` records only the tests whose file under `cassettes/` is missing, so delete the files (cassettes) to be re-recorded first. `conda run -n agentic-jev-trader python -m pytest tests/recorded --record-mode=once`
+
 Gotchas:
 
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
@@ -78,6 +80,12 @@ A change to what a model is sent updates its page in the same pull request, so p
 - **Jev:** the sections of its background, the wording of a question or an option, which questions a request holds.
 
 The pages share one made-up story and one way of writing a past episode: a change to how an episode is written updates both.
+
+## Snowflake setup
+
+`infra/README.md` holds the commands (Terraform, the numbered SQL files, the live check). `terraform apply` changes the developer's account: ask before each one. Private keys and Terraform's state live outside the repo, in `SNOWFLAKE_LOCAL_DIR`.
+
+Gotcha: `conda run` on Windows crashes when a program prints characters outside the old Windows code page, so scripts run through it print plain ASCII.
 
 ## Review gate
 

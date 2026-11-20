@@ -5,6 +5,16 @@ numpy==2.5.4
 pandas==3.1.1
 TA-Lib==0.8.3
 
+# The LLM, through LangChain's model interface, and Jev. Both send requests through httpx2.
+# An upgrade can change a request's shape and so fail the recorded-answer tests until fresh
+# answers are saved, so the SDKs under them are pinned too.
+langchain==1.5.2
+langchain-core==1.8.4
+langchain-anthropic==1.7.12
+anthropic==2.12.0
+typesafe-sdk==0.7.5
+httpx2==2.16.0
+
 # Tests
 pytest==9.2.0
 pytest-recording==0.14.1
@@ -13,3 +23,8 @@ python-dotenv==1.2.4
 
 # Style check
 ruff==0.17.4
+
+# Snowflake setup (infra/): table changes, the connector, key pairs
+schemachange==4.4.0
+snowflake-connector-python==4.8.1
+cryptography==50.0.2

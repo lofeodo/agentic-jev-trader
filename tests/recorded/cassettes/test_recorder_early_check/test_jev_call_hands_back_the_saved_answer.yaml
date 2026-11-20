@@ -1,0 +1,54 @@
+interactions:
+- request:
+    body: '{"state":"Made-up stock XYZ traded at $100.00 at 10:00 and at $102.00 at
+      10:15.","model":"jev-1.14.0","questions":{"rose":{"type":"noul","instructions":"Did
+      the price go up?"}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '177'
+      content-type:
+      - application/json
+      host:
+      - api.typesafe.ai
+      user-agent:
+      - typesafe-sdk/0.7.5
+      x-typesafe-runtime:
+      - python/3.12.16 (win32; AMD64)
+      x-typesafe-sdk:
+      - typesafe-sdk/0.7.5
+    method: POST
+    uri: https://api.typesafe.ai/v1/systemone
+  response:
+    body:
+      string: '{"model":"jev-1.14.0","answers":{"rose":{"type":"noul","noul":0.98}},"usage":{"input_tokens":309,"output_tokens":20}}'
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a5d9cc4ac9ea4e19-EWR
+      connection:
+      - keep-alive
+      content-length:
+      - '117'
+      content-type:
+      - application/json
+      date:
+      - Fri, 20 Nov 2026 19:18:00 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      x-typesafe-request-id:
+      - req_01a1fa64eac97cba9def62e9808bac3b
+    status:
+      code: 200
+      message: OK
+version: 1
