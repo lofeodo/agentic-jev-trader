@@ -80,9 +80,6 @@ to the fallback, which runs the `GRANT` statement directly:
 conda run -n agentic-jev-trader python infra/snowflake_admin.py terraform apply -var=embedding_grant_method=execute
 ```
 
-## Gotchas
-
-- `conda run` on Windows fails when a program prints characters outside the old Windows
-  code page, so `snowflake_admin.py` prints plain ASCII only.
-- The private keys are encrypted (PKCS#8). The Python connector and Terraform both read them
-  with the passphrase; nothing else is needed.
+If the builder can embed but so can the sim's role, the account opens the model to every
+role by default (`check` prints the grants to `PUBLIC` and the account's
+`CORTEX_MODELS_ALLOWLIST`). Closing that is an account-wide change, left to the developer.

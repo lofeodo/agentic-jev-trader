@@ -33,6 +33,8 @@ WAREHOUSE = "TRADING_AGENT_WH"
 SERVICE_LOGINS = ("builder", "sim", "memory", "api", "migrations")
 TERRAFORM_LOGIN = "terraform"  # made by hand once (infra/README.md), holds ACCOUNTADMIN
 EMBEDDING_MODEL = "snowflake-arctic-embed-m-v1.5"
+EMBEDDING_SIZE = 768
+SCHEMAS = ("REF", "KEYS", "RAW", "FEATURES", "SIM", "MEMORY", "METADATA")
 
 
 def role_name(login: str) -> str:
@@ -226,12 +228,12 @@ def cmd_migrate(settings: Settings) -> int:
     return 0
 
 
-def connect(settings: Settings, login: str, user: str | None = None, role: str | None = None):
+def connect(settings: Settings, login: str, role: str | None = None):
     import snowflake.connector
 
     return snowflake.connector.connect(
         account=settings.account,
-        user=user or user_name(login),
+        user=user_name(login),
         role=role or role_name(login),
         warehouse=WAREHOUSE,
         authenticator="SNOWFLAKE_JWT",
@@ -240,18 +242,31 @@ def connect(settings: Settings, login: str, user: str | None = None, role: str |
     )
 
 
+def first_line(exc: Exception) -> str:
+    return (str(exc).splitlines() or [""])[0]
+
+
+def fetch_dicts(cur) -> list[dict]:
+    """Rows of the last query as dicts keyed by lower-case column name."""
+    cols = [c[0].lower() for c in cur.description]
+    return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+
 def try_embed(settings: Settings, login: str) -> tuple[bool, str]:
     """Embed one sentence as `login`'s role alone. Returns (worked, detail)."""
     con = connect(settings, login)
     try:
         cur = con.cursor()
         cur.execute("USE SECONDARY ROLES NONE")
-        cur.execute(f"SELECT AI_EMBED('{EMBEDDING_MODEL}', 'A quiet morning, prices drifting up.')")
-        vector = cur.fetchone()[0]
-        size = len(vector) if isinstance(vector, (list, tuple)) else len(str(vector).split(","))
+        cur.execute(
+            f"SELECT ARRAY_SIZE(AI_EMBED('{EMBEDDING_MODEL}', 'A quiet morning, prices drifting up.')::ARRAY)"
+        )
+        size = cur.fetchone()[0]
+        if size != EMBEDDING_SIZE:
+            return False, f"vector of {size} numbers, expected {EMBEDDING_SIZE}"
         return True, f"vector of {size} numbers"
     except Exception as exc:  # the error text is the finding
-        return False, f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
+        return False, f"{type(exc).__name__}: {first_line(exc)}"
     finally:
         con.close()
 
@@ -259,6 +274,7 @@ def try_embed(settings: Settings, login: str) -> tuple[bool, str]:
 def cmd_check(settings: Settings) -> int:
     """The live checks of ticket #85. Prints a report that can be pasted on the ticket."""
     failures: list[str] = []
+    warnings: list[str] = []
     builder_role = role_name("builder")
 
     admin = connect(settings, TERRAFORM_LOGIN, role="ACCOUNTADMIN")
@@ -266,8 +282,7 @@ def cmd_check(settings: Settings) -> int:
 
     print("== 1. Grants to the dataset builder's role")
     cur.execute(f"SHOW GRANTS TO ROLE {builder_role}")
-    cols = [c[0].lower() for c in cur.description]
-    grants = [dict(zip(cols, row)) for row in cur.fetchall()]
+    grants = fetch_dicts(cur)
     embed_grants = [g for g in grants if "CORTEX" in str(g.get("name", "")).upper()]
     for g in embed_grants:
         print(f"   {g['privilege']} on {g['granted_on']} {g['name']}")
@@ -276,17 +291,23 @@ def cmd_check(settings: Settings) -> int:
     if not any(g["granted_on"] == "DATABASE_ROLE" for g in embed_grants):
         failures.append("builder role does not hold SNOWFLAKE.CORTEX_EMBED_USER")
 
-    print("== 2. What every role gets through PUBLIC (new accounts may open all models to all)")
-    for query in ("SHOW GRANTS TO ROLE PUBLIC", "SHOW GRANTS TO APPLICATION ROLE SNOWFLAKE.PUBLIC"):
+    print("== 2. What every role gets anyway (new accounts may open every model to every role)")
+    for query in (
+        "SHOW GRANTS TO ROLE PUBLIC",
+        "SHOW GRANTS TO APPLICATION ROLE SNOWFLAKE.PUBLIC",
+        "SHOW PARAMETERS LIKE 'CORTEX_MODELS_ALLOWLIST' IN ACCOUNT",
+    ):
         try:
             cur.execute(query)
-            cols = [c[0].lower() for c in cur.description]
-            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+            rows = fetch_dicts(cur)
+            if query.startswith("SHOW PARAMETERS"):
+                print(f"   CORTEX_MODELS_ALLOWLIST = {rows[0]['value'] if rows else '(not shown)'}")
+                continue
             cortex = [r for r in rows if "CORTEX" in str(r.get("name", "")).upper()]
             print(f"   {query}: {len(rows)} grants, Cortex ones: "
                   + (", ".join(f"{r['granted_on']} {r['name']}" for r in cortex) or "none"))
         except Exception as exc:
-            print(f"   {query}: could not run ({str(exc).splitlines()[0]})")
+            print(f"   {query}: could not run ({first_line(exc)})")
 
     print("== 3. Embedding as the real roles, secondary roles off")
     worked, detail = try_embed(settings, "builder")
@@ -296,22 +317,19 @@ def cmd_check(settings: Settings) -> int:
     worked, detail = try_embed(settings, "sim")
     print(f"   sim (should fail): {'WORKS' if worked else 'FAILS'} ({detail})")
     if worked:
-        failures.append("the sim role can embed too: a grant to every role (PUBLIC) opens the model")
+        # Not this ticket's grant failing: an account-wide default (section 2 above) opens
+        # the model to every role, so the builder's success alone does not prove our grant.
+        warnings.append("the sim role can embed too: an account-wide default opens the model to every role")
 
     print("== 4. The memory server's role can only read")
     memory_role = role_name("memory")
     cur.execute(f"SHOW GRANTS TO ROLE {memory_role}")
-    cols = [c[0].lower() for c in cur.description]
-    privileges = {dict(zip(cols, row))["privilege"] for row in cur.fetchall()}
+    privileges = {r["privilege"] for r in fetch_dicts(cur)}
     future: set[str] = set()
     for database in DATABASES:
-        for schema in ("REF", "KEYS", "RAW", "FEATURES", "SIM", "MEMORY", "METADATA"):
+        for schema in SCHEMAS:
             cur.execute(f"SHOW FUTURE GRANTS IN SCHEMA {database}.{schema}")
-            cols = [c[0].lower() for c in cur.description]
-            for row in cur.fetchall():
-                r = dict(zip(cols, row))
-                if r.get("grantee_name") == memory_role:
-                    future.add(r["privilege"])
+            future |= {r["privilege"] for r in fetch_dicts(cur) if r.get("grantee_name") == memory_role}
     print(f"   current privileges: {sorted(privileges)}; future-table privileges: {sorted(future)}")
     extra = (privileges | future) - {"USAGE", "SELECT"}
     if extra:
@@ -322,11 +340,12 @@ def cmd_check(settings: Settings) -> int:
         mcur.execute("USE SECONDARY ROLES NONE")
         try:
             mcur.execute(f"CREATE TABLE {DATABASES[0]}.MEMORY.WRITE_PROBE (X INT)")
-            mcur.execute(f"DROP TABLE {DATABASES[0]}.MEMORY.WRITE_PROBE")
+        except Exception as exc:
+            print(f"   CREATE TABLE as memory: refused ({first_line(exc)})")
+        else:
             failures.append("memory role could create a table")
             print("   CREATE TABLE as memory: WORKED (bad)")
-        except Exception as exc:
-            print(f"   CREATE TABLE as memory: refused ({str(exc).splitlines()[0]})")
+            mcur.execute(f"DROP TABLE {DATABASES[0]}.MEMORY.WRITE_PROBE")
     finally:
         memory.close()
 
@@ -340,10 +359,12 @@ def cmd_check(settings: Settings) -> int:
                 failures.append(f"no migration recorded in {database}")
         except Exception as exc:
             failures.append(f"no change history in {database}")
-            print(f"   {database}: {str(exc).splitlines()[0]}")
+            print(f"   {database}: {first_line(exc)}")
     admin.close()
 
     print()
+    for w in warnings:
+        print(f"WARNING: {w}")
     if failures:
         print("FAILED:")
         for f in failures:

@@ -52,6 +52,8 @@ The pages share one made-up story and one way of writing a past episode: a chang
 
 `infra/README.md` holds the commands (Terraform, the numbered SQL files, the live check). `terraform apply` changes the developer's account: ask before each one. Private keys and Terraform's state live outside the repo, in `SNOWFLAKE_LOCAL_DIR`.
 
+Gotcha: `conda run` on Windows crashes when a program prints characters outside the old Windows code page, so scripts run through it print plain ASCII.
+
 ## Review gate
 
 Per the `review-gate` skill, a PR always gets the `requires-human-review` label when it:

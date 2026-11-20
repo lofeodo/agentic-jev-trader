@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  # State is kept outside the repo, in the folder `infra/terraform.py` passes with
+  # State is kept outside the repo, in the folder `infra/snowflake_admin.py` passes with
   # -backend-config=path=... (see infra/README.md). It holds public keys and grant
   # details, and a git worktree is deleted when its work ends.
   backend "local" {}
