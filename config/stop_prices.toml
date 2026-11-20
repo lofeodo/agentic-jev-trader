@@ -1,0 +1,12 @@
+# Stop prices of candidate trades (spec appendix 1, section 3). A setting a tuning sim may change.
+#
+# A stop price is the price at which code closes a losing position by itself. Each candidate
+# trade gets a tight, medium and wide one: 1, 2 and 3 times the asset's typical move away from
+# the price. At $100 with a typical move of $0.60, a long's stop prices are $99.40, $98.80, $98.20.
+
+# Distance from the price, in typical moves: tight, medium, wide.
+multiples = [1.0, 2.0, 3.0]
+
+# The furthest a stop price may sit from the price, as a share of it: 0.05 is 5% ($5 at $100).
+# A larger distance is cut to this one, and a stop price further away is rejected.
+distance_cap = 0.05
