@@ -93,7 +93,7 @@ Per the `review-gate` skill, a PR always gets the `requires-human-review` label 
 
 - places orders (an order is an instruction to buy or sell, such as "buy $1,000 of this stock");
 - changes risk limits (a risk limit is a cap on the account that code enforces, such as never risking more than $100 of a $10,000 account on one trade);
-- touches API keys.
+- changes how API keys are stored, sent, logged, or exposed. Code that only reads a key from `.env` the usual way doesn't count.
 
 ## Agent skills
 
