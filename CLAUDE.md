@@ -32,7 +32,7 @@ I'm new to finance and trading. This applies to everything I read: chat, issues,
 
 - **Emulate a successful day trader** (someone who opens and closes trades within the same day). The agent is meant to work the way one does. For each design choice, ask how such a trader would do it, and recommend from there.
 - **Reliability first, for now.** Prefer a standard tool used as it comes over our own adjustments to it.
-- **The brief is a sketch.** `docs/project-breakdown.md` has the overall idea right. Its specifics, above all the finance ones, carry no authority: wayfinding settles them.
+- **The spec is the source.** Version 1 is specified in the issue [Spec: version 1 of the trading agent with memory](https://github.com/lofeodo/agentic-jev-trader/issues/82) and its ten appendix comments. `docs/project-breakdown.md` is the original brief, superseded and kept for history: it carries no authority.
 
 ## Walkthroughs
 
