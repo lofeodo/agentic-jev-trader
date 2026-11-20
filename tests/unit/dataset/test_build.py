@@ -12,6 +12,7 @@ from jev_trader.dataset.bars import BAR_LENGTH, Bar
 from jev_trader.dataset.build import BuildStopped, build_dataset
 from jev_trader.dataset.exchange_calendar import stock_sessions
 from jev_trader.dataset.measurements import AssetClass
+from jev_trader.dataset.providers import UnknownTicker
 from jev_trader.dataset.quality import Limits
 from jev_trader.dataset.settings import AssetSettings, DatasetSettings, Period
 from jev_trader.dataset.store import InMemoryStore
@@ -33,7 +34,7 @@ def settings(**changes) -> DatasetSettings:
                 ticker="COIN",
                 name="Made-up Coin",
                 asset_class=AssetClass.CRYPTO,
-                symbol="COINUSDT",
+                provider_symbol="COINUSDT",
             ),
         ],
         "test_periods": [Period("falling market", date(2023, 7, 6), LAST)],
@@ -260,6 +261,41 @@ def test_a_stock_whose_history_does_not_reach_20_sessions_back_stops_the_build()
     [dataset] = store.datasets.values()
     assert dataset["STATUS"] == "failed"
     assert "later first day" in dataset["FAILURE_REASON"]
+    assert_no_real_name_or_date(dataset["FAILURE_REASON"])
+
+
+def assert_no_real_name_or_date(stored: str):
+    for secret in ("XYZ", "Made-up", "COIN", "2023"):
+        assert secret not in stored
+
+
+class BrokenStocks:
+    def __init__(self, error):
+        self.error = error
+
+    def stock_bars(self, ticker, first_day, last_day):
+        raise self.error
+
+
+def test_a_ticker_the_provider_does_not_know_stops_the_build_and_is_named():
+    store = InMemoryStore()
+    unknown = UnknownTicker("Twelve Data does not know this ticker: XYZ not found")
+    with pytest.raises(BuildStopped, match="XYZ"):
+        build(store=store, stocks=BrokenStocks(unknown))
+    [dataset] = store.datasets.values()
+    assert (
+        dataset["FAILURE_REASON"] == "ASSET_01: the provider does not know this ticker"
+    )
+
+
+def test_an_unexpected_error_stores_no_real_name_or_date():
+    store = InMemoryStore()
+    crash = RuntimeError("GET https://example.test/XYZ-15m-2023-04.zip failed")
+    with pytest.raises(RuntimeError):
+        build(store=store, stocks=BrokenStocks(crash))
+    [dataset] = store.datasets.values()
+    assert dataset["STATUS"] == "failed"
+    assert_no_real_name_or_date(dataset["FAILURE_REASON"])
 
 
 def test_a_dataset_must_end_at_least_a_day_before_the_build_day():
@@ -302,12 +338,12 @@ class = "stock"
 ticker = "COIN"
 name = "Made-up Coin"
 class = "crypto"
-symbol = "COINUSDT"
+provider_symbol = "COINUSDT"
 """
     )
     loaded = load_settings(path)
     assert loaded.limits == Limits(other_missing=0.01, partial_volume_days=0.03)
-    assert loaded.assets[1].symbol == "COINUSDT"
+    assert loaded.assets[1].downloaded_as == "COINUSDT"
     assert loaded.test_periods[0].first_day == date(2023, 7, 6)
     assert loaded.usual_volume_share == 0.25 and loaded.usual_volume_sessions == 20
     assert loaded.first_day + timedelta(days=4) == loaded.last_day

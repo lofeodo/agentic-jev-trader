@@ -20,17 +20,18 @@ PRICE_DECIMALS = 4
 
 @dataclass(frozen=True)
 class AssetSettings:
-    """One asset as typed. `symbol` is the provider's name for it when it differs from the
-    ticker: Binance calls Bitcoin priced in USDT `BTCUSDT`."""
+    """One asset as typed. `provider_symbol` is the data provider's name for it when it
+    differs from the ticker: Binance calls Bitcoin priced in USDT `BTCUSDT`."""
 
     ticker: str
     name: str
     asset_class: AssetClass
-    symbol: str = ""
+    provider_symbol: str = ""
 
     @property
-    def provider_symbol(self) -> str:
-        return self.symbol or self.ticker
+    def downloaded_as(self) -> str:
+        """The name the asset is downloaded under."""
+        return self.provider_symbol or self.ticker
 
 
 @dataclass(frozen=True)
@@ -69,7 +70,7 @@ def load_settings(path: Path) -> DatasetSettings:
                 ticker=a["ticker"],
                 name=a["name"],
                 asset_class=AssetClass(a["class"]),
-                symbol=a.get("symbol", ""),
+                provider_symbol=a.get("provider_symbol", ""),
             )
             for a in raw["assets"]
         ],

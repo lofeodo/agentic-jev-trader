@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 BAR_LENGTH = timedelta(minutes=15)
+# Every UTC day has 96 steps, one per 15-minute bar.
+STEPS_PER_DAY = 96
 
 
 @dataclass(frozen=True)

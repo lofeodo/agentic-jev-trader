@@ -7,6 +7,7 @@ Column names match the numbered SQL files in `infra/migrations`.
 
 from collections import defaultdict
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Protocol
 
 # The tables a build fills, in the order they are written.
@@ -20,9 +21,11 @@ TABLES = (
     "RAW.BARS",
 )
 
-BEING_BUILT = "being built"
-PUBLISHED = "published"
-FAILED = "failed"
+
+class DatasetStatus(StrEnum):
+    BEING_BUILT = "being built"
+    PUBLISHED = "published"
+    FAILED = "failed"
 
 
 class DatasetStore(Protocol):
@@ -43,6 +46,7 @@ class DatasetStore(Protocol):
 
 
 def now() -> datetime:
+    """The time now, in UTC, as Snowflake stores it (no time zone)."""
     return datetime.now(UTC).replace(tzinfo=None)
 
 
@@ -60,7 +64,7 @@ class InMemoryStore:
             "ID": dataset_id,
             "NAME": name,
             "VERSION": version,
-            "STATUS": BEING_BUILT,
+            "STATUS": str(DatasetStatus.BEING_BUILT),
             "PUBLISHED_WITHOUT_CHECK": False,
             "FAILURE_REASON": None,
             "STARTED_AT": now(),
@@ -78,7 +82,7 @@ class InMemoryStore:
     def publish(self, dataset_id: int, without_check: bool) -> None:
         self.update(
             dataset_id,
-            STATUS=PUBLISHED,
+            STATUS=str(DatasetStatus.PUBLISHED),
             PUBLISHED_WITHOUT_CHECK=without_check,
             PUBLISHED_AT=now(),
         )
@@ -88,4 +92,4 @@ class InMemoryStore:
             self.tables[name] = [
                 r for r in self.tables[name] if r["DATASET"] != dataset_id
             ]
-        self.update(dataset_id, STATUS=FAILED, FAILURE_REASON=reason)
+        self.update(dataset_id, STATUS=str(DatasetStatus.FAILED), FAILURE_REASON=reason)

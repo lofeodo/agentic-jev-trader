@@ -34,9 +34,9 @@ def stock_sessions(first_day: date, last_day: date) -> list[tuple[date, Session]
 
 def sessions_before(first_day: date, count: int) -> list[tuple[date, Session]]:
     """The `count` sessions just before `first_day`, oldest first."""
-    cal = _calendar((first_day - timedelta(days=2 * count + 30)).year - 1)
-    earlier = cal.sessions_in_range(
-        first_day - timedelta(days=2 * count + 30), first_day
-    )
+    # Twice as many calendar days as sessions, plus a month, always holds `count` sessions.
+    reach_back = first_day - timedelta(days=2 * count + 30)
+    cal = _calendar(reach_back.year - 1)
+    earlier = cal.sessions_in_range(reach_back, first_day)
     earlier = [s for s in earlier if s.date() < first_day][-count:]
     return [_session(cal, s) for s in earlier]

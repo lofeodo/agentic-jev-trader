@@ -111,3 +111,35 @@ def test_a_binance_file_with_a_header_line_is_read_too():
     )
     row = "1735688700000,1,2,0.5,1.5,3,1735689599999,0,1,0,0,0"
     assert len(read_binance_zip(zip_of([header, row]))) == 1
+
+
+def test_a_symbol_binance_does_not_know_fails_after_one_request_per_month():
+    asked = []
+
+    def nothing(url):
+        asked.append(url)
+
+    from datetime import date
+
+    from jev_trader.dataset.providers import BinanceFiles
+
+    with pytest.raises(UnknownTicker):
+        BinanceFiles(get=nothing).crypto_bars(
+            "NOPEUSDT", date(2023, 1, 1), date(2023, 6, 3)
+        )
+    # Six monthly files, then the last month's three daily files.
+    assert len(asked) == 6 + 3
+
+
+def test_twelve_data_stops_before_800_requests_in_one_build():
+    from datetime import date
+
+    from jev_trader.dataset.providers import TwelveData
+
+    def never(url, params):
+        raise AssertionError("no request should go out")
+
+    provider = TwelveData("key", get=never)
+    provider.requests = 800
+    with pytest.raises(ProviderError, match="800 requests"):
+        provider.stock_bars("XYZ", date(2023, 1, 2), date(2023, 1, 6))

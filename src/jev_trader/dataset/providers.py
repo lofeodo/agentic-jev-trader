@@ -8,7 +8,7 @@
   in USDT, a token worth $1. Bar times are in milliseconds until the end of 2024 and in
   microseconds from 2025.
 
-Each asset class sits behind its own interface (`StockSource`, `CryptoSource`), so a dataset can
+Each asset class sits behind its own interface (`StockProvider`, `CryptoProvider`), so a dataset can
 later be built from another provider. Nothing here is ever written to the repo.
 """
 
@@ -35,12 +35,12 @@ class UnknownTicker(ProviderError):
     """A typed ticker the provider does not know."""
 
 
-class StockSource(Protocol):
+class StockProvider(Protocol):
     def stock_bars(self, ticker: str, first_day: date, last_day: date) -> list[Bar]:
         """Adjusted 15-minute bars from `first_day` to `last_day` (New York dates), in UTC."""
 
 
-class CryptoSource(Protocol):
+class CryptoProvider(Protocol):
     def crypto_bars(self, symbol: str, first_day: date, last_day: date) -> list[Bar]:
         """15-minute bars from `first_day` to `last_day` (UTC dates)."""
 
@@ -49,6 +49,9 @@ class CryptoSource(Protocol):
 
 TWELVE_DATA_URL = "https://api.twelvedata.com/time_series"
 TWELVE_DATA_MOST_BARS = 5000
+# The plan's daily allowance. A build counts its own requests only: it cannot see requests made
+# earlier the same day, so it stops before passing 800 itself (the first dataset needs about 40).
+TWELVE_DATA_DAILY_REQUESTS = 800
 # About 3,300 regular-hours bars: well under the 5,000 one request returns.
 TWELVE_DATA_WINDOW = timedelta(days=182)
 
@@ -103,7 +106,8 @@ class Pacer:
 
 
 class TwelveData:
-    """Twelve Data's free plan: adjusted 15-minute stock bars, paced to 8 requests a minute."""
+    """Twelve Data's free plan: adjusted 15-minute stock bars, paced to 8 requests a minute
+    and stopped before 800 in one build."""
 
     def __init__(
         self, api_key: str, get: Callable | None = None, pacer: Pacer | None = None
@@ -122,6 +126,11 @@ class TwelveData:
         start = first_day
         while start <= last_day:
             end = min(start + TWELVE_DATA_WINDOW, last_day + timedelta(days=1))
+            if self.requests >= TWELVE_DATA_DAILY_REQUESTS:
+                raise ProviderError(
+                    f"this build has used Twelve Data's {TWELVE_DATA_DAILY_REQUESTS} requests "
+                    "a day; build again tomorrow"
+                )
             self.pacer.wait()
             self.requests += 1
             reply = self.get(
@@ -196,22 +205,27 @@ def _months(first_day: date, last_day: date) -> list[date]:
 
 
 class BinanceFiles:
-    """Binance's public 15-minute kline files: one per month, or one per day for a month whose
-    file is not out yet."""
+    """Binance's public 15-minute kline files: one per month. The range's last month may have
+    no monthly file yet; its days' files are read instead. An earlier month with no file has
+    no bars (one request, not thirty, for a symbol Binance does not know)."""
 
     def __init__(self, get: Callable[[str], bytes | None] | None = None):
         self.get = get or _download
 
     def crypto_bars(self, symbol: str, first_day: date, last_day: date) -> list[Bar]:
         bars: dict[datetime, Bar] = {}
-        for month in _months(first_day, last_day):
+        months = _months(first_day, last_day)
+        for month in months:
             tag = f"{month:%Y-%m}"
             data = self.get(
                 f"{BINANCE_URL}/monthly/klines/{symbol}/15m/{symbol}-15m-{tag}.zip"
             )
-            files = (
-                [data] if data is not None else self._days_of(symbol, month, last_day)
-            )
+            if data is not None:
+                files = [data]
+            elif month == months[-1]:
+                files = self._days_of(symbol, month, last_day)
+            else:
+                files = []
             for f in files:
                 bars.update((b.start, b) for b in read_binance_zip(f))
         if not bars:

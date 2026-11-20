@@ -3,7 +3,7 @@
 What the models can never learn from these rows: which asset it is, what it really cost, or on
 what date (spec appendix 1, section 2). So:
 
-- **Steps.** The clock ticks every 15 minutes in UTC; step 1 is the first bar's end after the
+- **Steps.** A step comes every 15 minutes in UTC; step 1 is the end of the first bar after the
   dataset's first midnight, and every day has 96 steps (ADR 0002). A bar is stored at the step
   at which it ends: the bar from 13:30 to 13:45 UTC on day 1 ends at step 55.
 - **Masked IDs.** Assets are `ASSET_01`, `ASSET_02`, ... in the settings file's order.
@@ -15,9 +15,11 @@ what date (spec appendix 1, section 2). So:
 - The **asset key** (`KEYS.ASSET_KEY`) holds the way back: real ticker and name, both scales, and
   the real date of step 1. It is the only table with any of them.
 
-Hourly and daily bars are built from the 15-minute bars that were kept. An hourly bar covers one
-UTC clock hour, so a stock's first hourly bar of a session (13:30 to 14:00 UTC in summer) is
-short. A daily bar is one per session for a stock, one per UTC day for crypto.
+Hourly and daily bars are built from the 15-minute bars that were kept, by
+`bar_sizes.build_bars`. An hourly bar covers one UTC clock hour, so a stock's first hourly bar of
+a session (13:30 to 14:00 UTC in summer) is short. A daily bar is one per session for a stock,
+one per UTC day for crypto. A stock's bars are numbered within its session, with the bars left
+after each (0 on the last); crypto's within the UTC day, with no bars left (it has no session).
 """
 
 from collections import defaultdict
@@ -25,17 +27,20 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 
-from jev_trader.dataset.bars import BAR_LENGTH, Bar
+import pandas as pd
+
+from jev_trader.dataset.bar_sizes import BarSize, build_bars
+from jev_trader.dataset.bars import BAR_LENGTH, STEPS_PER_DAY, Bar
 from jev_trader.dataset.measurements import AssetClass, Session
 from jev_trader.dataset.quality import CleanSeries
 from jev_trader.dataset.scaling import first_tradable_day
 from jev_trader.dataset.settings import AssetSettings, DatasetSettings
 
-STEPS_PER_DAY = 96
 HOUR = timedelta(hours=1)
 VOLUME_SCALE_DAYS = 5
 VOLUME_DECIMALS = 4
-BAR_SIZES = ("15m", "1h", "1d")
+BAR_SIZES: tuple[BarSize, ...] = ("15m", "1h", "1d")
+_LENGTH = {"15m": BAR_LENGTH, "1h": HOUR, "1d": timedelta(days=1)}
 
 
 def masked_id(index: int) -> str:
@@ -74,6 +79,16 @@ class Clock:
 
 
 @dataclass(frozen=True)
+class _Scaled:
+    """An asset with its masked ID and the two numbers that rescale it."""
+
+    masked: str
+    price_scale: float
+    volume_scale: float
+    asset: CleanedAsset
+
+
+@dataclass(frozen=True)
 class _Placed:
     """A bar with where it sits: the moment it ends, its number in the session or day, and
     the bars left after it (None for crypto, which has no session)."""
@@ -82,17 +97,6 @@ class _Placed:
     ends: datetime
     number: int
     left: int | None
-
-
-def _merge(bars: Sequence[Bar]) -> Bar:
-    return Bar(
-        start=bars[0].start,
-        open=bars[0].open,
-        high=max(b.high for b in bars),
-        low=min(b.low for b in bars),
-        close=bars[-1].close,
-        volume=sum(b.volume for b in bars),
-    )
 
 
 def _hour_starts(sess: Session) -> list[datetime]:
@@ -104,50 +108,50 @@ def _hour_starts(sess: Session) -> list[datetime]:
     return starts
 
 
-def _place_stock(
-    bars: list[Bar], sessions: dict[date, Session]
-) -> dict[str, list[_Placed]]:
-    placed: dict[str, list[_Placed]] = {size: [] for size in BAR_SIZES}
-    by_day: dict[date, list[Bar]] = defaultdict(list)
-    for bar in bars:
-        by_day[bar.start.date()].append(bar)
-    for day, day_bars in sorted(by_day.items()):
-        sess = sessions[day]
-        in_session = (sess.close - sess.open) // BAR_LENGTH
-        for bar in day_bars:
-            number = (bar.start - sess.open) // BAR_LENGTH + 1
-            placed["15m"].append(_Placed(bar, bar.end, number, in_session - number))
-        hours = _hour_starts(sess)
-        by_hour: dict[datetime, list[Bar]] = defaultdict(list)
-        for bar in day_bars:
-            by_hour[bar.start.replace(minute=0)].append(bar)
-        for i, hour in enumerate(hours):
-            if by_hour.get(hour):
-                ends = min(hour + HOUR, sess.close)
-                placed["1h"].append(
-                    _Placed(_merge(by_hour[hour]), ends, i + 1, len(hours) - i - 1)
-                )
-        placed["1d"].append(_Placed(_merge(day_bars), sess.close, 1, 0))
-    return placed
-
-
-def _place_crypto(bars: list[Bar]) -> dict[str, list[_Placed]]:
-    placed: dict[str, list[_Placed]] = {size: [] for size in BAR_SIZES}
-    by_hour: dict[datetime, list[Bar]] = defaultdict(list)
-    by_day: dict[date, list[Bar]] = defaultdict(list)
-    for bar in bars:
-        midnight = bar.start.replace(hour=0, minute=0)
-        number = (bar.start - midnight) // BAR_LENGTH + 1
-        placed["15m"].append(_Placed(bar, bar.end, number, None))
-        by_hour[bar.start.replace(minute=0)].append(bar)
-        by_day[bar.start.date()].append(bar)
-    for hour, hour_bars in sorted(by_hour.items()):
-        placed["1h"].append(
-            _Placed(_merge(hour_bars), hour + HOUR, hour.hour + 1, None)
+def _where(
+    size: BarSize, start: datetime, sessions: dict[date, Session] | None
+) -> tuple[datetime, int, int | None]:
+    """When a bar of `size` starting at `start` ends, its number, and the bars left after it."""
+    if sessions is None:  # crypto: numbered within the UTC day
+        midnight = start.replace(hour=0, minute=0)
+        return start + _LENGTH[size], (start - midnight) // _LENGTH[size] + 1, None
+    sess = sessions[start.date()]
+    if size == "15m":
+        number = (start - sess.open) // BAR_LENGTH + 1
+        return (
+            start + BAR_LENGTH,
+            number,
+            (sess.close - sess.open) // BAR_LENGTH - number,
         )
-    for day, day_bars in sorted(by_day.items()):
-        ends = datetime.combine(day + timedelta(days=1), time(), tzinfo=UTC)
-        placed["1d"].append(_Placed(_merge(day_bars), ends, 1, None))
+    if size == "1h":
+        hours = _hour_starts(sess)
+        number = hours.index(start) + 1
+        return min(start + HOUR, sess.close), number, len(hours) - number
+    return sess.close, 1, 0
+
+
+def _place(
+    bars: list[Bar], sessions: dict[date, Session] | None
+) -> dict[BarSize, list[_Placed]]:
+    """The asset's 15-minute, hourly and daily bars, each with where it sits."""
+    frame = pd.DataFrame(
+        {
+            "open": [b.open for b in bars],
+            "high": [b.high for b in bars],
+            "low": [b.low for b in bars],
+            "close": [b.close for b in bars],
+            "volume": [b.volume for b in bars],
+        },
+        index=pd.DatetimeIndex([b.start for b in bars]),
+    )
+    placed: dict[BarSize, list[_Placed]] = {}
+    for size in BAR_SIZES:
+        placed[size] = []
+        for row in build_bars(frame, size).itertuples():
+            start = row.Index.to_pydatetime()
+            ends, number, left = _where(size, start, sessions)
+            bar = Bar(start, row.open, row.high, row.low, row.close, row.volume)
+            placed[size].append(_Placed(bar, ends, number, left))
     return placed
 
 
@@ -192,14 +196,16 @@ def lay_out(
             }
         )
 
-    placed_assets = []
+    scaled_assets = []
     for i, asset in enumerate(assets):
         masked = masked_id(i)
         bars = asset.clean.bars
-        price_scale = 100.0 / bars[0].open if bars and bars[0].open else 1.0
-        volume_scale = _volume_scale(bars)
-        stock = asset.settings.asset_class is AssetClass.STOCK
-
+        scaled = _Scaled(
+            masked=masked,
+            price_scale=100.0 / bars[0].open if bars and bars[0].open else 1.0,
+            volume_scale=_volume_scale(bars),
+            asset=asset,
+        )
         tables["REF.ASSETS"].append(
             {
                 "DATASET": dataset_id,
@@ -220,10 +226,10 @@ def lay_out(
                 "DATASET": dataset_id,
                 "MASKED_ID": masked,
                 "TICKER": asset.settings.ticker,
-                "PROVIDER_SYMBOL": asset.settings.provider_symbol,
+                "PROVIDER_SYMBOL": asset.settings.downloaded_as,
                 "NAME": asset.settings.name,
-                "PRICE_SCALE": price_scale,
-                "VOLUME_SCALE": volume_scale,
+                "PRICE_SCALE": scaled.price_scale,
+                "VOLUME_SCALE": scaled.volume_scale,
                 "FIRST_DAY": settings.first_day,
             }
         )
@@ -246,32 +252,32 @@ def lay_out(
                     "SHARE_OF_USUAL": p.share_of_usual,
                 }
             )
-        placed_assets.append((masked, price_scale, volume_scale, stock, asset))
+        scaled_assets.append(scaled)
     progress("Build hourly and daily bars")
 
     def price(x: float, scale: float) -> float:
         return round(x * scale, settings.price_decimals)
 
-    for masked, price_scale, volume_scale, stock, asset in placed_assets:
-        bars = asset.clean.bars
-        placed = _place_stock(bars, asset.sessions) if stock else _place_crypto(bars)
+    for s in scaled_assets:
+        stock = s.asset.settings.asset_class is AssetClass.STOCK
+        placed = _place(s.asset.clean.bars, s.asset.sessions if stock else None)
         for size in BAR_SIZES:
             for p in placed[size]:
                 step = clock.step_ending_at(p.ends)
                 tables["RAW.BARS"].append(
                     {
                         "DATASET": dataset_id,
-                        "ASSET": masked,
+                        "ASSET": s.masked,
                         "BAR_SIZE": size,
                         "STEP": step,
                         "DAY": clock.day_number(step),
                         "BAR_NUMBER": p.number,
                         "BARS_LEFT": p.left,
-                        "OPEN": price(p.bar.open, price_scale),
-                        "HIGH": price(p.bar.high, price_scale),
-                        "LOW": price(p.bar.low, price_scale),
-                        "CLOSE": price(p.bar.close, price_scale),
-                        "VOLUME": round(p.bar.volume * volume_scale, VOLUME_DECIMALS),
+                        "OPEN": price(p.bar.open, s.price_scale),
+                        "HIGH": price(p.bar.high, s.price_scale),
+                        "LOW": price(p.bar.low, s.price_scale),
+                        "CLOSE": price(p.bar.close, s.price_scale),
+                        "VOLUME": round(p.bar.volume * s.volume_scale, VOLUME_DECIMALS),
                     }
                 )
     return dict(tables)

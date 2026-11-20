@@ -33,8 +33,8 @@ name = "rising market"
 first_day = 2025-04-09
 last_day = 2025-05-08
 
-# class is "stock" (an index fund counts as a stock) or "crypto". symbol is the provider's
-# name for the asset when it differs from the ticker.
+# class is "stock" (an index fund counts as a stock) or "crypto". provider_symbol is the
+# data provider's name for the asset when it differs from the ticker.
 [[assets]]
 ticker = "SPY"
 name = "SPDR S&P 500 ETF Trust"
@@ -59,4 +59,4 @@ class = "stock"
 ticker = "BTC"
 name = "Bitcoin"
 class = "crypto"
-symbol = "BTCUSDT"
+provider_symbol = "BTCUSDT"

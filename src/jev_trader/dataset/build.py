@@ -22,7 +22,12 @@ from datetime import date
 from jev_trader.dataset.exchange_calendar import sessions_before, stock_sessions
 from jev_trader.dataset.layout import CleanedAsset, Clock, lay_out, masked_id
 from jev_trader.dataset.measurements import AssetClass
-from jev_trader.dataset.providers import CryptoSource, ProviderError, StockSource
+from jev_trader.dataset.providers import (
+    CryptoProvider,
+    ProviderError,
+    StockProvider,
+    UnknownTicker,
+)
 from jev_trader.dataset.quality import (
     CheckResult,
     NotEnoughHistory,
@@ -40,7 +45,10 @@ STAGES = {
     "Build hourly and daily bars": 0.75,
     "Publish": 0.80,
 }
-PROVIDERS = {"stock": "Twelve Data (adjust=all)", "crypto": "Binance public files"}
+PROVIDERS = {
+    AssetClass.STOCK: "Twelve Data (adjust=all)",
+    AssetClass.CRYPTO: "Binance public files",
+}
 
 
 class BuildStopped(Exception):
@@ -66,8 +74,8 @@ class BuildResult:
 
 def build_dataset(
     settings: DatasetSettings,
-    stocks: StockSource,
-    crypto: CryptoSource,
+    stocks: StockProvider,
+    crypto: CryptoProvider,
     store: DatasetStore,
     today: date,
     check: bool = True,
@@ -91,7 +99,7 @@ def build_dataset(
             "FIRST_STEP": 1,
             "LAST_STEP": clock.last_step_of(settings.last_day),
             "DATA_PROVIDERS": sorted(
-                {PROVIDERS[str(a.asset_class)] for a in settings.assets}
+                {PROVIDERS[a.asset_class] for a in settings.assets}
             ),
             "PARTIAL_VOLUME_SHARE_OF_USUAL": settings.usual_volume_share,
             "PARTIAL_VOLUME_SESSIONS": settings.usual_volume_sessions,
@@ -138,7 +146,11 @@ def build_dataset(
         store.fail(dataset_id, stop.stored_reason)
         raise
     except Exception as error:
-        store.fail(dataset_id, f"{type(error).__name__}: {error}")
+        # The error's own text can hold a real ticker, date or URL: it is printed, not stored.
+        store.fail(
+            dataset_id,
+            f"stopped by an unexpected {type(error).__name__}; details in the build's output",
+        )
         raise
 
     if result.passed:
@@ -156,8 +168,8 @@ def build_dataset(
 
 def _download_and_clean(
     settings: DatasetSettings,
-    stocks: StockSource,
-    crypto: CryptoSource,
+    stocks: StockProvider,
+    crypto: CryptoProvider,
     report: Callable[[str], None],
 ) -> list[CleanedAsset]:
     sessions = stock_sessions(settings.first_day, settings.last_day)
@@ -169,9 +181,7 @@ def _download_and_clean(
         try:
             if asset.asset_class is AssetClass.STOCK:
                 first = lead_in[0][0] if lead_in else settings.first_day
-                bars = stocks.stock_bars(
-                    asset.provider_symbol, first, settings.last_day
-                )
+                bars = stocks.stock_bars(asset.downloaded_as, first, settings.last_day)
                 clean = clean_stock(
                     bars,
                     sessions,
@@ -181,17 +191,24 @@ def _download_and_clean(
                 )
             else:
                 bars = crypto.crypto_bars(
-                    asset.provider_symbol, settings.first_day, settings.last_day
+                    asset.downloaded_as, settings.first_day, settings.last_day
                 )
                 clean = clean_crypto(bars, settings.first_day, settings.last_day)
         except NotEnoughHistory as short:
             raise BuildStopped(
                 f"{asset.ticker}: {short}. Pick a later first day.",
-                f"{masked}: {short}. Pick a later first day.",
+                f"{masked}: its history does not reach {settings.usual_volume_sessions} "
+                "sessions before the first day. Pick a later first day.",
+            ) from None
+        except UnknownTicker as error:
+            raise BuildStopped(
+                f"{asset.ticker}: {error}",
+                f"{masked}: the provider does not know this ticker",
             ) from None
         except ProviderError as error:
             raise BuildStopped(
-                f"{asset.ticker}: {error}", f"{masked}: provider error"
+                f"{asset.ticker}: {error}",
+                f"{masked}: the provider refused a download; details in the build's output",
             ) from None
         cleaned.append(CleanedAsset(asset, clean, dict(sessions)))
     return cleaned

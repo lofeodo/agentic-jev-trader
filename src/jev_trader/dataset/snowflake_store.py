@@ -5,17 +5,12 @@ and dictionaries go into ARRAY and VARIANT columns as JSON text read by `PARSE_J
 """
 
 import json
-from datetime import UTC, datetime
 
-from jev_trader.dataset.store import BEING_BUILT, FAILED, PUBLISHED, TABLES
+from jev_trader.dataset.store import TABLES, DatasetStatus, now
 
 # Rows per INSERT. Snowflake moves a statement with more bound values than about 65,000 through
 # a temporary stage, which the builder's role may not create, so each batch stays under that.
 MOST_BOUND_VALUES = 60_000
-
-
-def _now() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _value(value):
@@ -44,8 +39,8 @@ class SnowflakeStore:
             "ID": dataset_id,
             "NAME": name,
             "VERSION": earlier + 1,
-            "STATUS": BEING_BUILT,
-            "STARTED_AT": _now(),
+            "STATUS": str(DatasetStatus.BEING_BUILT),
+            "STARTED_AT": now(),
             **columns,
         }
         names = ", ".join(row)
@@ -80,17 +75,17 @@ class SnowflakeStore:
                     cur.executemany(
                         sql, [[r[c] for c in columns] for r in rows[i : i + batch]]
                     )
-        self.update(dataset_id, BUILT_AT=_now())
+        self.update(dataset_id, BUILT_AT=now())
 
     def publish(self, dataset_id: int, without_check: bool) -> None:
         self.update(
             dataset_id,
-            STATUS=PUBLISHED,
+            STATUS=str(DatasetStatus.PUBLISHED),
             PUBLISHED_WITHOUT_CHECK=without_check,
-            PUBLISHED_AT=_now(),
+            PUBLISHED_AT=now(),
         )
 
     def fail(self, dataset_id: int, reason: str) -> None:
         for name in TABLES:
             self._run(f"DELETE FROM {name} WHERE DATASET = ?", (dataset_id,))
-        self.update(dataset_id, STATUS=FAILED, FAILURE_REASON=reason)
+        self.update(dataset_id, STATUS=str(DatasetStatus.FAILED), FAILURE_REASON=reason)

@@ -24,12 +24,11 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
 
-from jev_trader.dataset.bars import BAR_LENGTH, Bar
+from jev_trader.dataset.bars import BAR_LENGTH, STEPS_PER_DAY, Bar
 from jev_trader.dataset.measurements import AssetClass, Session
 
 USUAL_VOLUME_SHARE = 0.25
 USUAL_VOLUME_SESSIONS = 20
-BARS_PER_DAY = 96
 
 
 class MissingReason(StrEnum):
@@ -42,7 +41,8 @@ class PartialVolumeTest(StrEnum):
     """Which test caught a partial-volume day."""
 
     ZERO_VOLUME_BAR = "a zero-volume bar"
-    UNDER_USUAL = "volume under a quarter of usual"
+    # The share of usual is a dataset setting (a quarter by default), stored with it.
+    UNDER_USUAL = "volume under its share of usual"
 
 
 @dataclass(frozen=True)
@@ -209,11 +209,14 @@ def clean_crypto(bars: Iterable[Bar], first_day: date, last_day: date) -> CleanS
         else:
             kept.append(bar)
         slot += BAR_LENGTH
-    return CleanSeries(kept, missing, [], days * BARS_PER_DAY, days)
+    return CleanSeries(kept, missing, [], days * STEPS_PER_DAY, days)
 
 
-OTHER_MISSING = "bars missing for other reasons"
-PARTIAL_VOLUME_DAYS = "partial-volume days"
+class Limit(StrEnum):
+    """The two limits a build checks."""
+
+    OTHER_MISSING = "bars missing for other reasons"
+    PARTIAL_VOLUME_DAYS = "partial-volume days"
 
 
 @dataclass(frozen=True)
@@ -236,7 +239,7 @@ class AssetCheck:
     asset: str  # whatever the caller keys assets by: a ticker, or a masked ID
     other_missing_share: float
     partial_volume_share: float | None  # None for crypto: the rule covers stocks only
-    over: list[str]
+    over: list[Limit]
 
 
 @dataclass(frozen=True)
@@ -256,12 +259,12 @@ class CheckResult:
         lines = ["Over a limit:"]
         for a in self.assets:
             name = names.get(a.asset, a.asset)
-            if OTHER_MISSING in a.over:
+            if Limit.OTHER_MISSING in a.over:
                 lines.append(
                     f"- {name}: {a.other_missing_share:.1%} of its bars are missing for "
                     f"other reasons (limit {self.limits.other_missing:.1%})"
                 )
-            if PARTIAL_VOLUME_DAYS in a.over:
+            if Limit.PARTIAL_VOLUME_DAYS in a.over:
                 lines.append(
                     f"- {name}: {a.partial_volume_share:.1%} of its sessions are "
                     f"partial-volume days (limit {self.limits.partial_volume_days:.1%})"
@@ -282,11 +285,11 @@ def check_limits(
     for asset, (asset_class, clean) in series.items():
         over = []
         if clean.other_missing_share > limits.other_missing:
-            over.append(OTHER_MISSING)
+            over.append(Limit.OTHER_MISSING)
         partial = None
         if asset_class is AssetClass.STOCK:
             partial = clean.partial_volume_share
             if partial > limits.partial_volume_days:
-                over.append(PARTIAL_VOLUME_DAYS)
+                over.append(Limit.PARTIAL_VOLUME_DAYS)
         checks.append(AssetCheck(asset, clean.other_missing_share, partial, over))
     return CheckResult(checks, limits)
