@@ -1,0 +1,5 @@
+cryptography==50.0.2
+pytest==9.2.0
+python-dotenv==1.2.4
+schemachange==4.4.0
+snowflake-connector-python==4.8.1

@@ -48,6 +48,10 @@ A change to what a model is sent updates its page in the same pull request, so p
 
 The pages share one made-up story and one way of writing a past episode: a change to how an episode is written updates both.
 
+## Snowflake setup
+
+`infra/README.md` holds the commands (Terraform, the numbered SQL files, the live check). `terraform apply` changes the developer's account: ask before each one. Private keys and Terraform's state live outside the repo, in `SNOWFLAKE_LOCAL_DIR`.
+
 ## Review gate
 
 Per the `review-gate` skill, a PR always gets the `requires-human-review` label when it:
