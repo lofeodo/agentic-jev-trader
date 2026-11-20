@@ -40,7 +40,7 @@ _LEAN_EXCEPTIONS: dict[str, Lean] = {
 
 # How many bars each detector's shape covers, read from TA-Lib's source (v0.8.3,
 # src/ta_func/ta_CDL*.c). 13 read one bar, 19 two, 21 three, 4 four and 4 five.
-_BARS_READ: dict[str, int] = {
+_SHAPE_LENGTH: dict[str, int] = {
     **dict.fromkeys(
         [
             "CDLBELTHOLD",
@@ -244,12 +244,13 @@ _SHAPES: dict[tuple[str, Lean], str] = {
         "closes well inside the first bar's body."
     ),
     ("CDLGAPSIDESIDEWHITE", "bullish"): (
-        "A jump up between two bars' bodies; then two up bars side by side above it, of about "
-        "the same size and opening at about the same price, the second not closing the jump."
+        "Three bars: a bar; an up bar whose body jumps above the first bar's body; then an up "
+        "bar of about the same size, opening at about the same price, that stays above the "
+        "jump."
     ),
     ("CDLGAPSIDESIDEWHITE", "bearish"): (
-        "A jump down between two bars' bodies; then two up bars side by side below it, of "
-        "about the same size and opening at about the same price, the second not closing the "
+        "Three bars: a bar; an up bar whose body jumps below the first bar's body; then an up "
+        "bar of about the same size, opening at about the same price, that stays below the "
         "jump."
     ),
     ("CDLGRAVESTONEDOJI", "bearish"): (
@@ -257,12 +258,12 @@ _SHAPES: dict[tuple[str, Lean], str] = {
         "upper wick that is not short."
     ),
     ("CDLHAMMER", "bullish"): (
-        "A small body with a long lower wick and little or no upper wick, sitting at or below "
-        "the previous bar's low."
+        "A small body with a long lower wick and little or no upper wick, sitting below or "
+        "near the previous bar's low."
     ),
     ("CDLHANGINGMAN", "bearish"): (
-        "A small body with a long lower wick and little or no upper wick, sitting at or above "
-        "the previous bar's high."
+        "A small body with a long lower wick and little or no upper wick, sitting above or "
+        "near the previous bar's high."
     ),
     ("CDLHARAMI", "bullish"): (
         "A long down bar, then a bar with a short body that sits inside the first bar's body."
@@ -325,12 +326,14 @@ _SHAPES: dict[tuple[str, Lean], str] = {
         "it."
     ),
     ("CDLKICKINGBYLENGTH", "bullish"): (
-        "Two bars with almost no wicks, one up and one down, with a jump between them; the "
-        "longer of the two is the up bar."
+        "Two bars with almost no wicks, one up and one down: a down bar then an up bar that "
+        "jumps above it, or an up bar then a down bar that jumps below it. The longer of the "
+        "two is the up bar."
     ),
     ("CDLKICKINGBYLENGTH", "bearish"): (
-        "Two bars with almost no wicks, one up and one down, with a jump between them; the "
-        "longer of the two is the down bar."
+        "Two bars with almost no wicks, one up and one down: a down bar then an up bar that "
+        "jumps above it, or an up bar then a down bar that jumps below it. The longer of the "
+        "two is the down bar."
     ),
     ("CDLLADDERBOTTOM", "bullish"): (
         "Three down bars, each opening and closing lower; a fourth down bar with a clear upper "
@@ -353,7 +356,7 @@ _SHAPES: dict[tuple[str, Lean], str] = {
     ): "A down bar, then a down bar that closes at the same price.",
     ("CDLMATHOLD", "bullish"): (
         "Five bars: a long up bar; a small down bar that jumps above its body; two more small "
-        "bars drifting lower that stay mostly within the first bar's body; then an up bar that "
+        "bars drifting lower, each with part of its body within the first bar's body; then an up bar that "
         "opens above the last small bar's close and closes above the highest of the small bars."
     ),
     ("CDLMORNINGDOJISTAR", "bullish"): (
@@ -454,12 +457,13 @@ _SHAPES: dict[tuple[str, Lean], str] = {
 
 @dataclass(frozen=True)
 class PlaybookEntry:
-    """One candle pattern: a detector and a lean."""
+    """One candle pattern: a detector and a lean, with the TA-Lib version it belongs to."""
 
     detector: str
     lean: Lean
     name: str
     shape: str
+    talib_version: str = TALIB_VERSION
 
 
 def lean_of(detector: str, value: int) -> Lean:
@@ -480,15 +484,17 @@ def _leans(detector: str) -> list[Lean]:
     return list(dict.fromkeys(lean_of(detector, s) for s in signs))
 
 
+# "Stalled" alone is not a name: this one keeps TA-Lib's trailing "pattern".
+_KEEPS_PATTERN_WORD = ("CDLSTALLEDPATTERN",)
+
+
 def pattern_name(detector: str, lean: Lean) -> str:
-    """A candle pattern's name: TA-Lib's own, in lower case, without a trailing "pattern", with
-    the lean in front when the detector gives both a bullish and a bearish candle pattern."""
-    name = (
-        abstract.Function(detector)
-        .info["display_name"]
-        .lower()
-        .removesuffix(" pattern")
-    )
+    """A candle pattern's name (ADR 0012): TA-Lib's own, in lower case, without a trailing
+    "pattern", with the lean in front when the detector gives both a bullish and a bearish
+    candle pattern."""
+    name = abstract.Function(detector).info["display_name"].lower()
+    if detector not in _KEEPS_PATTERN_WORD:
+        name = name.removesuffix(" pattern")
     return f"{lean} {name}" if len(_leans(detector)) > 1 else name
 
 
@@ -503,45 +509,68 @@ def playbook() -> tuple[PlaybookEntry, ...]:
     )
 
 
-def _bars_reached(detector: str, raw: np.ndarray, i: int) -> int:
+def _bars_covered(detector: str, results: np.ndarray, i: int) -> int:
     """How many bars, ending at bar i, the result TA-Lib reports at bar i stands on.
 
     A hikkake confirmation (+-200) stands on its shape and on the bars since the shape ended."""
-    shape = _BARS_READ[detector]
-    if detector in _CONFIRMING_DETECTORS and abs(raw[i]) == 200:
+    shape = _SHAPE_LENGTH[detector]
+    if detector in _CONFIRMING_DETECTORS and abs(results[i]) == 200:
         for back in range(1, _CONFIRMATION_REACH + 1):
-            if i - back >= 0 and abs(raw[i - back]) == 100:
+            if i - back >= 0 and abs(results[i - back]) == 100:
                 return shape + back
         return shape + _CONFIRMATION_REACH
     return shape
 
 
-def _stretches(bars_15m: pd.DataFrame, size: BarSize) -> tuple[np.ndarray, np.ndarray]:
-    """For each bar of `size`, the unbroken stretch of 15-minute bars its first and its last
-    15-minute bar belong to. A stretch breaks at every missing bar and every overnight close:
-    wherever two 15-minute bars in a row are not 15 minutes apart."""
-    breaks = bars_15m.index.to_series().diff() != BAR_LENGTH["15m"]
-    stretch = pd.Series(breaks.cumsum().to_numpy())
-    grouped = stretch.groupby(bar_starts(bars_15m, size).to_numpy())
-    return grouped.first().to_numpy(), grouped.last().to_numpy()
+def _unbroken_runs(
+    bars_15m: pd.DataFrame, size: BarSize, missing_bars: pd.DatetimeIndex
+) -> np.ndarray:
+    """For each bar of `size`, the number of the unbroken run it belongs to, or NaN for a bar no
+    pattern may use. A pattern counts only when its first and last bar share a run number.
+
+    A run breaks wherever two 15-minute bars in a row are not 15 minutes apart: at a missing bar
+    or an overnight close. A bar with such a break inside it, or that should hold a missing bar
+    (such as an hour that lost its last 15-minute bar), is unusable. Daily bars are all one run
+    (ADR 0005)."""
+    if size == "1d":
+        return np.zeros(len(build_bars(bars_15m, size)))
+    starts = bar_starts(bars_15m, size)
+    breaks_before = bars_15m.index.to_series().diff() != BAR_LENGTH["15m"]
+    run_of_15m = pd.Series(breaks_before.cumsum().to_numpy(), index=starts)
+    first = run_of_15m.groupby(level=0).first().to_numpy()
+    last = run_of_15m.groupby(level=0).last().to_numpy()
+    holds_missing = np.isin(
+        np.unique(starts), missing_bars.floor(BAR_LENGTH[size]).unique()
+    )
+    unusable = (first != last) | holds_missing
+    runs = np.cumsum(np.r_[True, first[1:] != last[:-1]] | unusable).astype(float)
+    runs[unusable] = np.nan
+    return runs
 
 
-def recognise_patterns(bars_15m: pd.DataFrame, size: BarSize) -> pd.DataFrame:
+def recognise_patterns(
+    bars_15m: pd.DataFrame, size: BarSize, missing_bars: pd.DatetimeIndex
+) -> pd.DataFrame:
     """Every candle pattern TA-Lib's 61 detectors recognise on one asset's bars of `size`.
 
     `bars_15m` are the asset's 15-minute bars, indexed by start time in UTC and in order; hourly
-    and daily bars are built from them. Each detector runs once over the whole series, unmodified,
-    so its averages carry across days. A 15-minute or hourly pattern whose bars span a missing bar
-    or an overnight close is then dropped; a daily pattern runs across consecutive days with bars.
+    and daily bars are built from them. `missing_bars` are the start times of the asset's missing
+    bars, from the dataset's quality report: only they tell an hour that lost its first bar from a
+    stock's first hour, which starts on the half hour.
+
+    Each detector runs once over the whole series, unmodified, so its averages carry across days.
+    A 15-minute or hourly pattern whose bars span a missing bar or an overnight close is then
+    dropped (ADR 0011); a daily pattern runs across consecutive days with bars. Which bars are
+    finished at a given step is for the reader to decide.
 
     Returns one row per recognised pattern, at the bar its shape ends on: `start` (that bar's start
     time), `detector`, `value` (TA-Lib's result: +-100, +-80 for a weaker form, +-200 for a
     confirmation), `lean` and `name`. Several names on one bar are all listed.
     """
-    index = bars_15m.index
-    if not isinstance(index, pd.DatetimeIndex) or str(index.tz) != "UTC":
-        raise ValueError("bars must be indexed by start time in UTC")
-    if not index.is_monotonic_increasing or not index.is_unique:
+    for times in (bars_15m.index, missing_bars):
+        if not isinstance(times, pd.DatetimeIndex) or str(times.tz) != "UTC":
+            raise ValueError("bars and missing bars must be start times in UTC")
+    if not bars_15m.index.is_monotonic_increasing or not bars_15m.index.is_unique:
         raise ValueError("bars must be in time order, one per start time")
 
     bars = build_bars(bars_15m, size)
@@ -549,18 +578,18 @@ def recognise_patterns(bars_15m: pd.DataFrame, size: BarSize) -> pd.DataFrame:
         bars[column].to_numpy(dtype=float)
         for column in ("open", "high", "low", "close")
     ]
-    if size != "1d":
-        first_stretch, last_stretch = _stretches(bars_15m, size)
+    runs = _unbroken_runs(bars_15m, size, missing_bars)
     names = {(e.detector, e.lean): e.name for e in playbook()}
 
     rows = []
     for detector in DETECTORS:
-        raw = getattr(talib, detector)(*prices)
-        for i in np.flatnonzero(raw):
-            first = i - _bars_reached(detector, raw, i) + 1
-            if size != "1d" and (first < 0 or first_stretch[first] != last_stretch[i]):
+        results = getattr(talib, detector)(*prices)
+        for i in np.flatnonzero(results):
+            first = i - _bars_covered(detector, results, i) + 1
+            # NaN differs even from itself, so a pattern on an unusable bar is dropped too.
+            if first < 0 or runs[first] != runs[i]:
                 continue
-            value = int(raw[i])
+            value = int(results[i])
             lean = lean_of(detector, value)
             rows.append((bars.index[i], detector, value, lean, names[detector, lean]))
 

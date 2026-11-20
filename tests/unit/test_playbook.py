@@ -16,6 +16,16 @@ def test_every_detector_has_at_least_one_entry():
     assert {e.detector for e in playbook()} == set(DETECTORS)
 
 
+def test_every_entry_carries_the_ta_lib_version():
+    assert {e.talib_version for e in playbook()} == {"0.8.3"}
+
+
+def test_a_trailing_pattern_is_dropped_unless_the_name_needs_it():
+    entries = _entries()
+    assert entries["CDLINNECK", "bearish"].name == "in-neck"
+    assert entries["CDLSTALLEDPATTERN", "bearish"].name == "stalled pattern"
+
+
 def test_a_detector_with_a_rising_and_a_falling_version_gives_two_entries():
     entries = _entries()
     assert entries["CDLENGULFING", "bullish"].name == "bullish engulfing"

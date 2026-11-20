@@ -63,13 +63,13 @@ def test_a_daily_bar_summarises_the_whole_day():
 
 
 def test_an_hour_with_no_bars_gives_no_hourly_bar_and_none_is_made_up():
-    gap = _bars(
+    skips_an_hour = _bars(
         [
             ("2026-03-02 13:45", 100.0, 101.0, 99.0, 100.5, 10),
             ("2026-03-02 15:00", 100.5, 102.0, 100.0, 101.0, 20),
         ]
     )
-    hourly = build_bars(gap, "1h")
+    hourly = build_bars(skips_an_hour, "1h")
     assert list(hourly.index) == list(
         pd.to_datetime(["2026-03-02 13:00", "2026-03-02 15:00"], utc=True)
     )
