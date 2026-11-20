@@ -1,6 +1,10 @@
 # Secrets: real keys live only in .env (see .env.example)
 .env
 
+# Snowflake private keys never enter the repo
+*.p8
+*.pem
+
 # Terraform: providers are downloaded per checkout; state lives outside the repo
 # (SNOWFLAKE_LOCAL_DIR, see infra/README.md), and is ignored here in case one lands.
 .terraform/
@@ -8,10 +12,8 @@
 *.tfstate.*
 *.tfvars
 
-# Private keys never enter the repo
-*.p8
-*.pem
-
-# Python
+# Python and tool caches
 __pycache__/
+*.egg-info/
 .pytest_cache/
+.ruff_cache/

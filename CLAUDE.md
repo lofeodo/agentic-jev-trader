@@ -34,6 +34,37 @@ I'm new to finance and trading. This applies to everything I read: chat, issues,
 - **Reliability first, for now.** Prefer a standard tool used as it comes over our own adjustments to it.
 - **The spec is the source.** Version 1 is specified in the issue [Spec: version 1 of the trading agent with memory](https://github.com/lofeodo/agentic-jev-trader/issues/82) and its comments: ten appendices, then the record of the decisions made while it was assembled. What the spec leaves open is listed at the end of each appendix. `docs/project-breakdown.md` is the original brief, superseded and kept for history: it carries no authority.
 
+## Commands
+
+The conda env is `agentic-jev-trader` (Python 3.12). Install or update the pinned dependencies:
+
+```
+conda run -n agentic-jev-trader python -m pip install -r requirements.txt
+```
+
+The free tests (`tests/unit` and `tests/recorded`, network blocked), exactly as CI runs them:
+
+```
+conda run -n agentic-jev-trader python -m pytest tests/unit tests/recorded --block-network
+```
+
+Style check, as CI runs it (`ruff format .` fixes formatting):
+
+```
+conda run -n agentic-jev-trader python -m ruff check .
+conda run -n agentic-jev-trader python -m ruff format --check .
+```
+
+Hand-run groups (spec appendix 10, section 6):
+
+- `tests/snowflake`: real queries against `TRADING_AGENT_TEST`. Skipped unless the `SNOWFLAKE_*` login in `.env.example` is set. `conda run -n agentic-jev-trader python -m pytest tests/snowflake`
+- `tests/paid`: real LLM or Jev calls. Skipped unless `--run-paid` is given. They cost money: run only with my go-ahead. `conda run -n agentic-jev-trader python -m pytest tests/paid --run-paid`
+
+Gotchas:
+
+- `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
+- `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.
+
 ## Walkthroughs
 
 Two pages are how I read what the models are sent: every message and every reply, word for word on made-up data, with a plain-language note beside each.

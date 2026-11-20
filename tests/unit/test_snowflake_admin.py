@@ -9,7 +9,9 @@ def test_account_identifier_splits_into_organization_and_account():
     assert admin.split_account("MYORG-MY_ACCOUNT") == ("MYORG", "MY_ACCOUNT")
 
 
-@pytest.mark.parametrize("bad", ["", "NOHYPHEN", "-ACCOUNT", "ORG-", "xy12345.ca-central-1.aws"])
+@pytest.mark.parametrize(
+    "bad", ["", "NOHYPHEN", "-ACCOUNT", "ORG-", "xy12345.ca-central-1.aws"]
+)
 def test_account_identifier_without_org_and_account_is_refused(bad):
     with pytest.raises(admin.SetupError):
         admin.split_account(bad)
@@ -61,7 +63,9 @@ def test_settings_keep_keys_and_state_outside_the_repo_by_default(tmp_path):
 
 
 def test_settings_local_folder_can_be_moved(tmp_path):
-    settings = admin.Settings.from_env({**ENV, "SNOWFLAKE_LOCAL_DIR": str(tmp_path / "elsewhere")})
+    settings = admin.Settings.from_env(
+        {**ENV, "SNOWFLAKE_LOCAL_DIR": str(tmp_path / "elsewhere")}
+    )
 
     assert settings.local_dir == tmp_path / "elsewhere"
 
@@ -74,7 +78,9 @@ def test_terraform_gets_account_admin_login_and_key_folder(tmp_path):
     assert env["TF_VAR_organization_name"] == "MYORG"
     assert env["TF_VAR_account_name"] == "MY_ACCOUNT"
     assert env["TF_VAR_admin_user"] == "TRADING_AGENT_TERRAFORM_SVC"
-    assert env["TF_VAR_admin_private_key_path"] == str(tmp_path / "keys" / "terraform.p8")
+    assert env["TF_VAR_admin_private_key_path"] == str(
+        tmp_path / "keys" / "terraform.p8"
+    )
     assert env["TF_VAR_public_keys_dir"] == str(tmp_path / "keys")
     assert env["TF_VAR_private_key_passphrase"] == "s3cret"
 
@@ -92,7 +98,12 @@ def test_schemachange_runs_as_the_migrations_login_on_the_given_database(tmp_pat
     assert value_after("--snowflake-role") == "TRADING_AGENT_MIGRATIONS"
     assert value_after("--snowflake-database") == "TRADING_AGENT_TEST"
     assert value_after("--snowflake-authenticator") == "snowflake_jwt"
-    assert value_after("--snowflake-private-key-file") == str(tmp_path / "keys" / "migrations.p8")
-    assert value_after("--schemachange-change-history-table") == "TRADING_AGENT_TEST.METADATA.CHANGE_HISTORY"
+    assert value_after("--snowflake-private-key-file") == str(
+        tmp_path / "keys" / "migrations.p8"
+    )
+    assert (
+        value_after("--schemachange-change-history-table")
+        == "TRADING_AGENT_TEST.METADATA.CHANGE_HISTORY"
+    )
     assert "--schemachange-create-change-history-table" in argv
     assert "s3cret" not in " ".join(argv)

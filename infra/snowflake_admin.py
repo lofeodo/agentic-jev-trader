@@ -19,16 +19,21 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+
+from snowflake.connector.errors import Error as SnowflakeError
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TERRAFORM_DIR = REPO_ROOT / "infra" / "terraform"
 MIGRATIONS_DIR = REPO_ROOT / "infra" / "migrations"
 
 # These names must match infra/terraform/main.tf.
-DATABASES = ("TRADING_AGENT_TEST", "TRADING_AGENT")  # test first, so a bad file stops there
+DATABASES = (
+    "TRADING_AGENT_TEST",
+    "TRADING_AGENT",
+)  # test first, so a bad file stops there
 WAREHOUSE = "TRADING_AGENT_WH"
 SERVICE_LOGINS = ("builder", "sim", "memory", "api", "migrations")
 TERRAFORM_LOGIN = "terraform"  # made by hand once (infra/README.md), holds ACCOUNTADMIN
@@ -81,11 +86,13 @@ class Settings:
         return self.keys_dir / f"{login}.p8"
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str], home: Path | None = None) -> "Settings":
+    def from_env(cls, env: Mapping[str, str], home: Path | None = None) -> Settings:
         def required(name: str) -> str:
             value = (env.get(name) or "").strip()
             if not value:
-                raise SetupError(f"{name} is not set. Add it to .env (see .env.example).")
+                raise SetupError(
+                    f"{name} is not set. Add it to .env (see .env.example)."
+                )
             return value
 
         account = required("SNOWFLAKE_ACCOUNT")
@@ -120,7 +127,9 @@ def write_key_pair(folder: Path, login: str, passphrase: str) -> str:
     if private_path.exists() and public_path.exists():
         return public_key_body(public_path.read_text())
     if private_path.exists() or public_path.exists():
-        raise SetupError(f"Only half of the key pair for {login!r} exists in {folder}; remove it and run again.")
+        raise SetupError(
+            f"Only half of the key pair for {login!r} exists in {folder}; remove it and run again."
+        )
 
     folder.mkdir(parents=True, exist_ok=True)
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -128,7 +137,9 @@ def write_key_pair(folder: Path, login: str, passphrase: str) -> str:
         key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.BestAvailableEncryption(passphrase.encode()),
+            encryption_algorithm=serialization.BestAvailableEncryption(
+                passphrase.encode()
+            ),
         )
     )
     public_pem = key.public_key().public_bytes(
@@ -146,7 +157,9 @@ def terraform_env(settings: Settings) -> dict[str, str]:
         "TF_VAR_organization_name": organization,
         "TF_VAR_account_name": account,
         "TF_VAR_admin_user": user_name(TERRAFORM_LOGIN),
-        "TF_VAR_admin_private_key_path": str(settings.private_key_path(TERRAFORM_LOGIN)),
+        "TF_VAR_admin_private_key_path": str(
+            settings.private_key_path(TERRAFORM_LOGIN)
+        ),
         "TF_VAR_private_key_passphrase": settings.passphrase,
         "TF_VAR_public_keys_dir": str(settings.keys_dir),
     }
@@ -155,16 +168,28 @@ def terraform_env(settings: Settings) -> dict[str, str]:
 def schemachange_command(settings: Settings, database: str) -> list[str]:
     """schemachange's arguments for one database. The passphrase goes in the environment."""
     return [
-        sys.executable, "-m", "schemachange.cli", "deploy",
-        "--schemachange-root-folder", str(MIGRATIONS_DIR),
-        "--snowflake-account", settings.account,
-        "--snowflake-user", user_name("migrations"),
-        "--snowflake-role", role_name("migrations"),
-        "--snowflake-warehouse", WAREHOUSE,
-        "--snowflake-database", database,
-        "--snowflake-authenticator", "snowflake_jwt",
-        "--snowflake-private-key-file", str(settings.private_key_path("migrations")),
-        "--schemachange-change-history-table", f"{database}.METADATA.CHANGE_HISTORY",
+        sys.executable,
+        "-m",
+        "schemachange.cli",
+        "deploy",
+        "--schemachange-root-folder",
+        str(MIGRATIONS_DIR),
+        "--snowflake-account",
+        settings.account,
+        "--snowflake-user",
+        user_name("migrations"),
+        "--snowflake-role",
+        role_name("migrations"),
+        "--snowflake-warehouse",
+        WAREHOUSE,
+        "--snowflake-database",
+        database,
+        "--snowflake-authenticator",
+        "snowflake_jwt",
+        "--snowflake-private-key-file",
+        str(settings.private_key_path("migrations")),
+        "--schemachange-change-history-table",
+        f"{database}.METADATA.CHANGE_HISTORY",
         # Only creates the table when it is missing, so it is safe on every run.
         "--schemachange-create-change-history-table",
     ]
@@ -186,7 +211,9 @@ def load_settings() -> Settings:
 def cmd_keys(settings: Settings) -> int:
     for login in (TERRAFORM_LOGIN, *SERVICE_LOGINS):
         write_key_pair(settings.keys_dir, login, settings.passphrase)
-    print(f"Key pairs are in {settings.keys_dir} (private keys encrypted with SNOWFLAKE_PRIVATE_KEY_FILE_PWD).")
+    print(
+        f"Key pairs are in {settings.keys_dir} (private keys encrypted with SNOWFLAKE_PRIVATE_KEY_FILE_PWD)."
+    )
     body = public_key_body((settings.keys_dir / f"{TERRAFORM_LOGIN}.pub").read_text())
     sql = (
         "USE ROLE ACCOUNTADMIN;\n"
@@ -199,7 +226,9 @@ def cmd_keys(settings: Settings) -> int:
     )
     sql_path = settings.local_dir / "create_terraform_user.sql"
     sql_path.write_text(sql)
-    print("\nOnce only: run this in a Snowsight SQL worksheet as ACCOUNTADMIN (also saved to")
+    print(
+        "\nOnce only: run this in a Snowsight SQL worksheet as ACCOUNTADMIN (also saved to"
+    )
     print(f"{sql_path}):\n")
     print(sql)
     return 0
@@ -209,20 +238,28 @@ def cmd_terraform(settings: Settings, args: list[str]) -> int:
     settings.local_dir.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, **terraform_env(settings)}
     init = [
-        "terraform", f"-chdir={TERRAFORM_DIR}", "init", "-input=false", "-reconfigure",
+        "terraform",
+        f"-chdir={TERRAFORM_DIR}",
+        "init",
+        "-input=false",
+        "-reconfigure",
         f"-backend-config=path={settings.state_path}",
     ]
-    done = subprocess.run(init, env=env)
+    done = subprocess.run(init, env=env, check=False)
     if done.returncode != 0:
         return done.returncode
-    return subprocess.run(["terraform", f"-chdir={TERRAFORM_DIR}", *args], env=env).returncode
+    return subprocess.run(
+        ["terraform", f"-chdir={TERRAFORM_DIR}", *args], env=env, check=False
+    ).returncode
 
 
 def cmd_migrate(settings: Settings) -> int:
     env = {**os.environ, "SNOWFLAKE_PRIVATE_KEY_FILE_PWD": settings.passphrase}
     for database in DATABASES:
         print(f"--- schemachange on {database}")
-        done = subprocess.run(schemachange_command(settings, database), env=env)
+        done = subprocess.run(
+            schemachange_command(settings, database), env=env, check=False
+        )
         if done.returncode != 0:
             return done.returncode
     return 0
@@ -265,7 +302,7 @@ def try_embed(settings: Settings, login: str) -> tuple[bool, str]:
         if size != EMBEDDING_SIZE:
             return False, f"vector of {size} numbers, expected {EMBEDDING_SIZE}"
         return True, f"vector of {size} numbers"
-    except Exception as exc:  # the error text is the finding
+    except SnowflakeError as exc:  # the error text is the finding
         return False, f"{type(exc).__name__}: {first_line(exc)}"
     finally:
         con.close()
@@ -291,7 +328,9 @@ def cmd_check(settings: Settings) -> int:
     if not any(g["granted_on"] == "DATABASE_ROLE" for g in embed_grants):
         failures.append("builder role does not hold SNOWFLAKE.CORTEX_EMBED_USER")
 
-    print("== 2. What every role gets anyway (new accounts may open every model to every role)")
+    print(
+        "== 2. What every role gets anyway (new accounts may open every model to every role)"
+    )
     for query in (
         "SHOW GRANTS TO ROLE PUBLIC",
         "SHOW GRANTS TO APPLICATION ROLE SNOWFLAKE.PUBLIC",
@@ -301,12 +340,19 @@ def cmd_check(settings: Settings) -> int:
             cur.execute(query)
             rows = fetch_dicts(cur)
             if query.startswith("SHOW PARAMETERS"):
-                print(f"   CORTEX_MODELS_ALLOWLIST = {rows[0]['value'] if rows else '(not shown)'}")
+                print(
+                    f"   CORTEX_MODELS_ALLOWLIST = {rows[0]['value'] if rows else '(not shown)'}"
+                )
                 continue
             cortex = [r for r in rows if "CORTEX" in str(r.get("name", "")).upper()]
-            print(f"   {query}: {len(rows)} grants, Cortex ones: "
-                  + (", ".join(f"{r['granted_on']} {r['name']}" for r in cortex) or "none"))
-        except Exception as exc:
+            print(
+                f"   {query}: {len(rows)} grants, Cortex ones: "
+                + (
+                    ", ".join(f"{r['granted_on']} {r['name']}" for r in cortex)
+                    or "none"
+                )
+            )
+        except SnowflakeError as exc:
             print(f"   {query}: could not run ({first_line(exc)})")
 
     print("== 3. Embedding as the real roles, secondary roles off")
@@ -319,7 +365,9 @@ def cmd_check(settings: Settings) -> int:
     if worked:
         # Not this ticket's grant failing: an account-wide default (section 2 above) opens
         # the model to every role, so the builder's success alone does not prove our grant.
-        warnings.append("the sim role can embed too: an account-wide default opens the model to every role")
+        warnings.append(
+            "the sim role can embed too: an account-wide default opens the model to every role"
+        )
 
     print("== 4. The memory server's role can only read")
     memory_role = role_name("memory")
@@ -329,18 +377,26 @@ def cmd_check(settings: Settings) -> int:
     for database in DATABASES:
         for schema in SCHEMAS:
             cur.execute(f"SHOW FUTURE GRANTS IN SCHEMA {database}.{schema}")
-            future |= {r["privilege"] for r in fetch_dicts(cur) if r.get("grantee_name") == memory_role}
-    print(f"   current privileges: {sorted(privileges)}; future-table privileges: {sorted(future)}")
+            future |= {
+                r["privilege"]
+                for r in fetch_dicts(cur)
+                if r.get("grantee_name") == memory_role
+            }
+    print(
+        f"   current privileges: {sorted(privileges)}; future-table privileges: {sorted(future)}"
+    )
     extra = (privileges | future) - {"USAGE", "SELECT"}
     if extra:
-        failures.append(f"memory role holds more than USAGE and SELECT: {sorted(extra)}")
+        failures.append(
+            f"memory role holds more than USAGE and SELECT: {sorted(extra)}"
+        )
     memory = connect(settings, "memory")
     try:
         mcur = memory.cursor()
         mcur.execute("USE SECONDARY ROLES NONE")
         try:
             mcur.execute(f"CREATE TABLE {DATABASES[0]}.MEMORY.WRITE_PROBE (X INT)")
-        except Exception as exc:
+        except SnowflakeError as exc:
             print(f"   CREATE TABLE as memory: refused ({first_line(exc)})")
         else:
             failures.append("memory role could create a table")
@@ -352,12 +408,17 @@ def cmd_check(settings: Settings) -> int:
     print("== 5. schemachange's history on both databases")
     for database in DATABASES:
         try:
-            cur.execute(f"SELECT VERSION, SCRIPT, STATUS FROM {database}.METADATA.CHANGE_HISTORY ORDER BY INSTALLED_ON")
+            cur.execute(
+                f"SELECT VERSION, SCRIPT, STATUS FROM {database}.METADATA.CHANGE_HISTORY ORDER BY INSTALLED_ON"
+            )
             rows = cur.fetchall()
-            print(f"   {database}: " + ("; ".join(f"{v} {s} {st}" for v, s, st in rows) or "empty"))
+            print(
+                f"   {database}: "
+                + ("; ".join(f"{v} {s} {st}" for v, s, st in rows) or "empty")
+            )
             if not rows:
                 failures.append(f"no migration recorded in {database}")
-        except Exception as exc:
+        except SnowflakeError as exc:
             failures.append(f"no change history in {database}")
             print(f"   {database}: {first_line(exc)}")
     admin.close()
@@ -375,13 +436,22 @@ def cmd_check(settings: Settings) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("keys", help="make the key pairs and print the one-time SQL for Terraform's login")
-    tf = sub.add_parser("terraform", help="run terraform in infra/terraform with the settings from .env")
+    sub.add_parser(
+        "keys",
+        help="make the key pairs and print the one-time SQL for Terraform's login",
+    )
+    tf = sub.add_parser(
+        "terraform", help="run terraform in infra/terraform with the settings from .env"
+    )
     tf.add_argument("args", nargs=argparse.REMAINDER, help="for example: plan, apply")
     sub.add_parser("migrate", help="apply the numbered SQL files to both databases")
-    sub.add_parser("check", help="try the embedding grant and the read-only memory role live")
+    sub.add_parser(
+        "check", help="try the embedding grant and the read-only memory role live"
+    )
     args = parser.parse_args(argv)
     try:
         settings = load_settings()
