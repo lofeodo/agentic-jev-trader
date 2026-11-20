@@ -77,7 +77,7 @@ CREATE TABLE REF.MISSING_BARS (
 );
 
 -- The quality report, part 2. DAY is the day number (1 is the dataset's first day). TEST is
--- 'a zero-volume bar' or 'volume under a quarter of usual'. SHARE_OF_USUAL: 0.08 is 8% of the
+-- 'a zero-volume bar' or 'volume under its share of usual' (a quarter by default). SHARE_OF_USUAL: 0.08 is 8% of the
 -- stock's usual volume per bar.
 CREATE TABLE REF.PARTIAL_VOLUME_DAYS (
     DATASET NUMBER NOT NULL,

@@ -5,11 +5,11 @@ from datetime import UTC, date, datetime
 from jev_trader.dataset.measurements import AssetClass
 from jev_trader.dataset.quality import (
     CleanSeries,
-    Limits,
     MissingBar,
     MissingReason,
     PartialVolumeDay,
     PartialVolumeTest,
+    QualityLimits,
     check_limits,
 )
 
@@ -37,7 +37,7 @@ def test_assets_inside_both_limits_pass():
             "SPY": (AssetClass.STOCK, series(other_missing=5, partial_days=3)),
             "BTC": (AssetClass.CRYPTO, series(other_missing=5, partial_days=0)),
         },
-        Limits(),
+        QualityLimits(),
     )
     assert result.passed
     assert [a.over for a in result.assets] == [[], []]
@@ -53,7 +53,7 @@ def test_the_check_names_which_asset_is_over_which_limit():
             "JPM": (AssetClass.STOCK, series(other_missing=0, partial_days=4)),
             "BTC": (AssetClass.CRYPTO, series(other_missing=6, partial_days=0)),
         },
-        Limits(),
+        QualityLimits(),
     )
     assert not result.passed
     assert [(a.asset, a.over) for a in result.assets if a.over] == [
@@ -70,6 +70,6 @@ def test_the_check_names_which_asset_is_over_which_limit():
 def test_limits_are_settings():
     result = check_limits(
         {"JPM": (AssetClass.STOCK, series(other_missing=0, partial_days=4))},
-        Limits(other_missing=0.005, partial_volume_days=0.05),
+        QualityLimits(other_missing=0.005, partial_volume_days=0.05),
     )
     assert result.passed

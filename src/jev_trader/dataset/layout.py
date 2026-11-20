@@ -26,10 +26,12 @@ from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from typing import get_args
 
 import pandas as pd
 
-from jev_trader.dataset.bar_sizes import BarSize, build_bars
+from jev_trader.dataset import bar_sizes
+from jev_trader.dataset.bar_sizes import BarSize
 from jev_trader.dataset.bars import BAR_LENGTH, STEPS_PER_DAY, Bar
 from jev_trader.dataset.measurements import AssetClass, Session
 from jev_trader.dataset.quality import CleanSeries
@@ -39,8 +41,7 @@ from jev_trader.dataset.settings import AssetSettings, DatasetSettings
 HOUR = timedelta(hours=1)
 VOLUME_SCALE_DAYS = 5
 VOLUME_DECIMALS = 4
-BAR_SIZES: tuple[BarSize, ...] = ("15m", "1h", "1d")
-_LENGTH = {"15m": BAR_LENGTH, "1h": HOUR, "1d": timedelta(days=1)}
+BAR_SIZES: tuple[BarSize, ...] = get_args(BarSize)
 
 
 def masked_id(index: int) -> str:
@@ -113,8 +114,9 @@ def _where(
 ) -> tuple[datetime, int, int | None]:
     """When a bar of `size` starting at `start` ends, its number, and the bars left after it."""
     if sessions is None:  # crypto: numbered within the UTC day
+        length = bar_sizes.BAR_LENGTH[size].to_pytimedelta()
         midnight = start.replace(hour=0, minute=0)
-        return start + _LENGTH[size], (start - midnight) // _LENGTH[size] + 1, None
+        return start + length, (start - midnight) // length + 1, None
     sess = sessions[start.date()]
     if size == "15m":
         number = (start - sess.open) // BAR_LENGTH + 1
@@ -147,7 +149,7 @@ def _place(
     placed: dict[BarSize, list[_Placed]] = {}
     for size in BAR_SIZES:
         placed[size] = []
-        for row in build_bars(frame, size).itertuples():
+        for row in bar_sizes.build_bars(frame, size).itertuples():
             start = row.Index.to_pydatetime()
             ends, number, left = _where(size, start, sessions)
             bar = Bar(start, row.open, row.high, row.low, row.close, row.volume)
@@ -167,9 +169,11 @@ def lay_out(
     dataset_id: int,
     settings: DatasetSettings,
     assets: Sequence[CleanedAsset],
-    progress: Callable[[str], None] = lambda stage: None,
+    before_bars: Callable[[], None] = lambda: None,
 ) -> dict[str, list[dict]]:
-    """Every row the dataset stores apart from its `REF.DATASETS` row, by table name."""
+    """Every row the dataset stores apart from its `REF.DATASETS` row, by table name.
+
+    `before_bars` is called once the asset key is laid out, before the bars are built."""
     clock = Clock(settings.first_day)
     tables: dict[str, list[dict]] = defaultdict(list)
 
@@ -253,7 +257,7 @@ def lay_out(
                 }
             )
         scaled_assets.append(scaled)
-    progress("Build hourly and daily bars")
+    before_bars()
 
     def price(x: float, scale: float) -> float:
         return round(x * scale, settings.price_decimals)

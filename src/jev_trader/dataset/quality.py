@@ -27,8 +27,15 @@ from enum import StrEnum
 from jev_trader.dataset.bars import BAR_LENGTH, STEPS_PER_DAY, Bar
 from jev_trader.dataset.measurements import AssetClass, Session
 
-USUAL_VOLUME_SHARE = 0.25
-USUAL_VOLUME_SESSIONS = 20
+
+@dataclass(frozen=True)
+class UsualVolume:
+    """The partial-volume test's two settings, stored with the dataset: a stock's day is
+    partial-volume when its average volume per bar is under `share` of the median of its
+    previous `sessions` sessions (ADR 0008)."""
+
+    share: float = 0.25
+    sessions: int = 20
 
 
 class MissingReason(StrEnum):
@@ -125,29 +132,29 @@ def clean_stock(
     bars: Iterable[Bar],
     sessions: Sequence[tuple[date, Session]],
     lead_in: Sequence[tuple[date, Session]],
-    usual_share: float = USUAL_VOLUME_SHARE,
-    usual_sessions: int = USUAL_VOLUME_SESSIONS,
+    usual: UsualVolume | None = None,
 ) -> CleanSeries:
     """Clean one stock's bars over the dataset's `sessions` (oldest first).
 
     `bars` are as the provider supplied them, UTC, lead-in sessions included. `lead_in` are the
     sessions just before the dataset's first one: they only supply usual volume and none of
-    their bars is kept. Raises `NotEnoughHistory` if there are fewer than `usual_sessions` of
+    their bars is kept. Raises `NotEnoughHistory` if there are fewer than `usual.sessions` of
     them or the stock has no bar on or before the earliest.
     """
+    usual = usual or UsualVolume()
     bars = list(bars)
-    if len(lead_in) < usual_sessions:
+    if len(lead_in) < usual.sessions:
         raise NotEnoughHistory(
-            f"needs {usual_sessions} sessions before the first day, the calendar gives {len(lead_in)}"
+            f"needs {usual.sessions} sessions before the first day, the calendar gives {len(lead_in)}"
         )
-    earliest = lead_in[-usual_sessions][1]
+    earliest = lead_in[-usual.sessions][1]
     if not any(b.start < earliest.close for b in bars):
         raise NotEnoughHistory(
-            f"the provider has no bar on or before {earliest.open.date()}, {usual_sessions} "
+            f"the provider has no bar on or before {earliest.open.date()}, {usual.sessions} "
             "sessions before the first day"
         )
 
-    lead_in = list(lead_in[-usual_sessions:])
+    lead_in = list(lead_in[-usual.sessions :])
     all_sessions = lead_in + list(sessions)
     by_day = _by_session(bars, all_sessions)
     averages = [_average_volume(by_day.get(day, [])) for day, _ in all_sessions]
@@ -157,15 +164,15 @@ def clean_stock(
     partial: list[PartialVolumeDay] = []
     for i, (day, sess) in enumerate(sessions, start=len(lead_in)):
         day_bars = by_day.get(day, [])
-        earlier = [a for a in averages[i - usual_sessions : i] if a is not None]
-        usual = statistics.median(earlier) if earlier else None
+        earlier = [a for a in averages[i - usual.sessions : i] if a is not None]
+        typical = statistics.median(earlier) if earlier else None
         average = _average_volume(day_bars)
-        share = average / usual if average is not None and usual else None
+        share = average / typical if average is not None and typical else None
 
         test = None
         if any(b.volume == 0 for b in day_bars):
             test = PartialVolumeTest.ZERO_VOLUME_BAR
-        elif share is not None and share < usual_share:
+        elif share is not None and share < usual.share:
             test = PartialVolumeTest.UNDER_USUAL
 
         if test is not None:
@@ -212,7 +219,7 @@ def clean_crypto(bars: Iterable[Bar], first_day: date, last_day: date) -> CleanS
     return CleanSeries(kept, missing, [], days * STEPS_PER_DAY, days)
 
 
-class Limit(StrEnum):
+class QualityLimit(StrEnum):
     """The two limits a build checks."""
 
     OTHER_MISSING = "bars missing for other reasons"
@@ -220,7 +227,7 @@ class Limit(StrEnum):
 
 
 @dataclass(frozen=True)
-class Limits:
+class QualityLimits:
     """The two limits a build checks, as shares: 0.005 is 0.5%. Both are dataset settings.
 
     `other_missing`: an asset's bars missing because they were not supplied, or (crypto)
@@ -236,16 +243,16 @@ class Limits:
 class AssetCheck:
     """One asset's measured values against the limits. `over` names each limit it passes."""
 
-    asset: str  # whatever the caller keys assets by: a ticker, or a masked ID
+    asset: str  # masked ID, such as ASSET_01
     other_missing_share: float
     partial_volume_share: float | None  # None for crypto: the rule covers stocks only
-    over: list[Limit]
+    over: list[QualityLimit]
 
 
 @dataclass(frozen=True)
 class CheckResult:
     assets: list[AssetCheck]
-    limits: Limits
+    limits: QualityLimits
 
     @property
     def passed(self) -> bool:
@@ -259,12 +266,12 @@ class CheckResult:
         lines = ["Over a limit:"]
         for a in self.assets:
             name = names.get(a.asset, a.asset)
-            if Limit.OTHER_MISSING in a.over:
+            if QualityLimit.OTHER_MISSING in a.over:
                 lines.append(
                     f"- {name}: {a.other_missing_share:.1%} of its bars are missing for "
                     f"other reasons (limit {self.limits.other_missing:.1%})"
                 )
-            if Limit.PARTIAL_VOLUME_DAYS in a.over:
+            if QualityLimit.PARTIAL_VOLUME_DAYS in a.over:
                 lines.append(
                     f"- {name}: {a.partial_volume_share:.1%} of its sessions are "
                     f"partial-volume days (limit {self.limits.partial_volume_days:.1%})"
@@ -278,18 +285,18 @@ class CheckResult:
 
 
 def check_limits(
-    series: dict[str, tuple[AssetClass, CleanSeries]], limits: Limits
+    series: dict[str, tuple[AssetClass, CleanSeries]], limits: QualityLimits
 ) -> CheckResult:
     """Compare each asset's cleaned bars with the two limits, in the order given."""
     checks = []
     for asset, (asset_class, clean) in series.items():
         over = []
         if clean.other_missing_share > limits.other_missing:
-            over.append(Limit.OTHER_MISSING)
+            over.append(QualityLimit.OTHER_MISSING)
         partial = None
         if asset_class is AssetClass.STOCK:
             partial = clean.partial_volume_share
             if partial > limits.partial_volume_days:
-                over.append(Limit.PARTIAL_VOLUME_DAYS)
+                over.append(QualityLimit.PARTIAL_VOLUME_DAYS)
         checks.append(AssetCheck(asset, clean.other_missing_share, partial, over))
     return CheckResult(checks, limits)

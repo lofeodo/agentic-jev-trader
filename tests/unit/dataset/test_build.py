@@ -13,7 +13,7 @@ from jev_trader.dataset.build import BuildStopped, build_dataset
 from jev_trader.dataset.exchange_calendar import stock_sessions
 from jev_trader.dataset.measurements import AssetClass
 from jev_trader.dataset.providers import UnknownTicker
-from jev_trader.dataset.quality import Limits
+from jev_trader.dataset.quality import QualityLimits, UsualVolume
 from jev_trader.dataset.settings import AssetSettings, DatasetSettings, Period
 from jev_trader.dataset.store import InMemoryStore
 
@@ -238,7 +238,7 @@ def test_a_dataset_over_a_limit_fails_before_the_slow_part_and_says_why():
 def test_with_the_check_off_a_dataset_over_a_limit_is_published_and_marked():
     result, store = build(
         stocks=FakeStocks(zero_volume_on={date(2023, 7, 5)}),
-        settings=settings(limits=Limits(partial_volume_days=0.03)),
+        settings=settings(limits=QualityLimits(partial_volume_days=0.03)),
         check=False,
     )
     dataset = store.datasets[result.dataset_id]
@@ -342,10 +342,10 @@ provider_symbol = "COINUSDT"
 """
     )
     loaded = load_settings(path)
-    assert loaded.limits == Limits(other_missing=0.01, partial_volume_days=0.03)
+    assert loaded.limits == QualityLimits(other_missing=0.01, partial_volume_days=0.03)
     assert loaded.assets[1].downloaded_as == "COINUSDT"
     assert loaded.test_periods[0].first_day == date(2023, 7, 6)
-    assert loaded.usual_volume_share == 0.25 and loaded.usual_volume_sessions == 20
+    assert loaded.usual_volume == UsualVolume(share=0.25, sessions=20)
     assert loaded.first_day + timedelta(days=4) == loaded.last_day
 
 

@@ -101,8 +101,8 @@ def build_dataset(
             "DATA_PROVIDERS": sorted(
                 {PROVIDERS[a.asset_class] for a in settings.assets}
             ),
-            "PARTIAL_VOLUME_SHARE_OF_USUAL": settings.usual_volume_share,
-            "PARTIAL_VOLUME_SESSIONS": settings.usual_volume_sessions,
+            "PARTIAL_VOLUME_SHARE_OF_USUAL": settings.usual_volume.share,
+            "PARTIAL_VOLUME_SESSIONS": settings.usual_volume.sessions,
             "LIMIT_OTHER_MISSING": settings.limits.other_missing,
             "LIMIT_PARTIAL_VOLUME_DAYS": settings.limits.partial_volume_days,
             "PRICE_DECIMALS": settings.price_decimals,
@@ -133,7 +133,12 @@ def build_dataset(
             return BuildResult(dataset_id, version, False, result, message)
 
         stage("Lay out the clock and the asset key")
-        tables = lay_out(dataset_id, settings, cleaned, progress=stage)
+        tables = lay_out(
+            dataset_id,
+            settings,
+            cleaned,
+            before_bars=lambda: stage("Build hourly and daily bars"),
+        )
 
         stage("Publish")
         store.save(dataset_id, tables)
@@ -173,7 +178,7 @@ def _download_and_clean(
     report: Callable[[str], None],
 ) -> list[CleanedAsset]:
     sessions = stock_sessions(settings.first_day, settings.last_day)
-    lead_in = sessions_before(settings.first_day, settings.usual_volume_sessions)
+    lead_in = sessions_before(settings.first_day, settings.usual_volume.sessions)
     cleaned = []
     for i, asset in enumerate(settings.assets):
         masked = masked_id(i)
@@ -186,8 +191,7 @@ def _download_and_clean(
                     bars,
                     sessions,
                     lead_in,
-                    usual_share=settings.usual_volume_share,
-                    usual_sessions=settings.usual_volume_sessions,
+                    usual=settings.usual_volume,
                 )
             else:
                 bars = crypto.crypto_bars(
@@ -197,7 +201,7 @@ def _download_and_clean(
         except NotEnoughHistory as short:
             raise BuildStopped(
                 f"{asset.ticker}: {short}. Pick a later first day.",
-                f"{masked}: its history does not reach {settings.usual_volume_sessions} "
+                f"{masked}: its history does not reach {settings.usual_volume.sessions} "
                 "sessions before the first day. Pick a later first day.",
             ) from None
         except UnknownTicker as error:

@@ -12,7 +12,7 @@ from datetime import date
 from pathlib import Path
 
 from jev_trader.dataset.measurements import AssetClass
-from jev_trader.dataset.quality import USUAL_VOLUME_SESSIONS, USUAL_VOLUME_SHARE, Limits
+from jev_trader.dataset.quality import QualityLimits, UsualVolume
 
 # Masked prices start at 100; four decimals keep a move of a hundredth of a cent on a $100 stock.
 PRICE_DECIMALS = 4
@@ -50,9 +50,8 @@ class DatasetSettings:
     last_day: date
     assets: list[AssetSettings]
     test_periods: list[Period] = field(default_factory=list)
-    limits: Limits = field(default_factory=Limits)
-    usual_volume_share: float = USUAL_VOLUME_SHARE
-    usual_volume_sessions: int = USUAL_VOLUME_SESSIONS
+    limits: QualityLimits = field(default_factory=QualityLimits)
+    usual_volume: UsualVolume = field(default_factory=UsualVolume)
     price_decimals: int = PRICE_DECIMALS
 
 
@@ -78,13 +77,15 @@ def load_settings(path: Path) -> DatasetSettings:
             Period(p["name"], p["first_day"], p["last_day"])
             for p in raw.get("test_period", [])
         ],
-        limits=Limits(
-            other_missing=limits.get("other_missing", Limits.other_missing),
+        limits=QualityLimits(
+            other_missing=limits.get("other_missing", QualityLimits.other_missing),
             partial_volume_days=limits.get(
-                "partial_volume_days", Limits.partial_volume_days
+                "partial_volume_days", QualityLimits.partial_volume_days
             ),
         ),
-        usual_volume_share=partial.get("share_of_usual", USUAL_VOLUME_SHARE),
-        usual_volume_sessions=partial.get("sessions", USUAL_VOLUME_SESSIONS),
+        usual_volume=UsualVolume(
+            share=partial.get("share_of_usual", UsualVolume.share),
+            sessions=partial.get("sessions", UsualVolume.sessions),
+        ),
         price_decimals=raw.get("price_decimals", PRICE_DECIMALS),
     )
