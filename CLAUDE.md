@@ -68,6 +68,13 @@ Build a dataset from its settings file in `datasets/` (downloads are free; it wr
 conda run -n agentic-jev-trader python -m jev_trader.dataset build datasets/first.toml
 ```
 
+Start a sim on a published dataset, or resume one from its last completed step (logs in as the sim login and writes to Snowflake; only `buy_hold` is built; `--market "falling market"` runs one test period, `--database TRADING_AGENT_TEST` the test database):
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.sim start --dataset 1 --variant buy_hold
+conda run -n agentic-jev-trader python -m jev_trader.sim resume 12
+```
+
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself).

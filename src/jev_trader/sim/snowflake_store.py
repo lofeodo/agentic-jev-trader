@@ -1,0 +1,218 @@
+"""The sim's store and market in Snowflake: the tables of `infra/migrations/V4__sim_tables.sql`.
+
+The connection must use `?` placeholders (`jev_trader.storage.snowflake.connect` does) and log
+in as the sim login, which reads REF, RAW, FEATURES and SIM and writes SIM and MEMORY.
+
+**The step transaction** (spec appendix 6, section 6). `write_steps` opens a transaction and
+first moves the sim's last completed step with an UPDATE that matches only if it still reads
+what the writer last saw and the sim is running. Snowflake locks the table for that UPDATE until
+the transaction ends: a second copy of the sim waits for it, then finds the step moved and stores
+nothing. Other sims' writes wait their turn the same way, for the length of one write. Then the rows go in, and
+the transaction commits; anything that fails rolls it all back. If the program dies with the
+transaction open, Snowflake undoes it after 5 idle minutes when it blocks another transaction
+(otherwise after 4 hours), so a restart may wait up to 5 minutes.
+
+Lists and dictionaries go into VARIANT columns as JSON text read by `PARSE_JSON`, which cannot
+sit in a VALUES list, so such rows go in as `INSERT ... SELECT ... FROM VALUES`.
+"""
+
+import json
+
+from jev_trader.broker import AssetClass, Bar
+from jev_trader.dataset.snowflake_store import MOST_BOUND_VALUES
+from jev_trader.sim.market import BarsByStep, DatasetInfo, Period
+from jev_trader.sim.store import (
+    REPLACED_BY_ID,
+    TABLES,
+    SimStatus,
+    StepAlreadyWritten,
+    now,
+)
+
+# The bars a sim steps through: one per asset per step.
+FIFTEEN_MINUTES = "15m"
+_JSON_COLUMNS = {"SETTINGS", "ACCOUNT_STATE", "DETAILS"}
+
+
+def _is_json(value) -> bool:
+    return isinstance(value, dict | list)
+
+
+def _value(value):
+    return json.dumps(value) if _is_json(value) else value
+
+
+class _Connection:
+    def __init__(self, connection):
+        self.con = connection
+
+    def _run(self, sql: str, params=()):
+        with self.con.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.fetchall() if cur.description else []
+
+
+class SnowflakeSimStore(_Connection):
+    def create(self, row: dict) -> int:
+        [(sim_id,)] = self._run("SELECT SIM.SIM_IDS.NEXTVAL")
+        row = {
+            "ID": sim_id,
+            "STATUS": str(SimStatus.CREATED),
+            "CREATED_AT": now(),
+            **row,
+        }
+        placeholders = ", ".join(
+            "PARSE_JSON(?)" if _is_json(v) else "?" for v in row.values()
+        )
+        self._run(
+            f"INSERT INTO SIM.SIMS ({', '.join(row)}) SELECT {placeholders}",
+            [_value(v) for v in row.values()],
+        )
+        return sim_id
+
+    def sim(self, sim_id: int) -> dict:
+        with self.con.cursor() as cur:
+            cur.execute("SELECT * FROM SIM.SIMS WHERE ID = ?", (sim_id,))
+            found = cur.fetchone()
+            if found is None:
+                raise KeyError(f"no sim {sim_id}")
+            names = [d[0] for d in cur.description]
+        row = dict(zip(names, found, strict=True))
+        for name in _JSON_COLUMNS & row.keys():
+            if isinstance(row[name], str):
+                row[name] = json.loads(row[name])
+        return row
+
+    def update(self, sim_id: int, **columns) -> None:
+        sets = ", ".join(
+            f"{k} = PARSE_JSON(?)" if _is_json(v) else f"{k} = ?"
+            for k, v in columns.items()
+        )
+        self._run(
+            f"UPDATE SIM.SIMS SET {sets} WHERE ID = ? AND STATUS <> ?",
+            [_value(v) for v in columns.values()] + [sim_id, str(SimStatus.FINISHED)],
+        )
+
+    def write_steps(self, sim_id, after_step, through_step, rows, state) -> None:
+        with self.con.cursor() as cur:
+            cur.execute("BEGIN TRANSACTION")
+            try:
+                cur.execute(
+                    "UPDATE SIM.SIMS SET LAST_COMPLETED_STEP = ?, "
+                    "ACCOUNT_STATE = PARSE_JSON(?), LAST_WRITTEN_AT = ? "
+                    "WHERE ID = ? AND EQUAL_NULL(LAST_COMPLETED_STEP, ?) AND STATUS = ?",
+                    (
+                        through_step,
+                        json.dumps(state),
+                        now(),
+                        sim_id,
+                        after_step,
+                        str(SimStatus.RUNNING),
+                    ),
+                )
+                if cur.rowcount != 1:
+                    raise StepAlreadyWritten(
+                        f"sim {sim_id}: its last completed step is no longer {after_step}, "
+                        "or it is not running"
+                    )
+                for name in TABLES:
+                    table_rows = rows.get(name, [])
+                    if not table_rows:
+                        continue
+                    if name in REPLACED_BY_ID:
+                        _delete_ids(cur, name, sim_id, [r["ID"] for r in table_rows])
+                    _insert(cur, name, table_rows)
+                cur.execute("COMMIT")
+            except BaseException:
+                cur.execute("ROLLBACK")
+                raise
+
+    def duplicate_ids(self, sim_id: int) -> dict[str, int]:
+        found = {}
+        for name in TABLES:
+            [(duplicated,)] = self._run(
+                f"SELECT COUNT(*) FROM (SELECT ID FROM {name} WHERE SIM = ? "
+                "GROUP BY ID HAVING COUNT(*) > 1)",
+                (sim_id,),
+            )
+            if duplicated:
+                found[name] = duplicated
+        return found
+
+
+def _delete_ids(cur, table: str, sim_id: int, ids: list[str]) -> None:
+    batch = 1_000  # IDs per IN list
+    for i in range(0, len(ids), batch):
+        part = ids[i : i + batch]
+        cur.execute(
+            f"DELETE FROM {table} WHERE SIM = ? AND ID IN ({', '.join('?' for _ in part)})",
+            [sim_id, *part],
+        )
+
+
+def _insert(cur, table: str, rows: list[dict]) -> None:
+    """Insert rows that share their columns, in batches under the bound-value limit."""
+    columns = list(rows[0])
+    batch = max(1, MOST_BOUND_VALUES // len(columns))
+    json_columns = {c for c in columns if any(_is_json(r[c]) for r in rows)}
+    if not json_columns:
+        sql = (
+            f"INSERT INTO {table} ({', '.join(columns)}) "
+            f"VALUES ({', '.join('?' for _ in columns)})"
+        )
+        for i in range(0, len(rows), batch):
+            cur.executemany(sql, [[r[c] for c in columns] for r in rows[i : i + batch]])
+        return
+    # Rows with JSON: one statement per batch, the JSON parsed from the VALUES list.
+    picked = ", ".join(
+        f"PARSE_JSON(COLUMN{n})" if c in json_columns else f"COLUMN{n}"
+        for n, c in enumerate(columns, start=1)
+    )
+    row_marks = f"({', '.join('?' for _ in columns)})"
+    for i in range(0, len(rows), batch):
+        part = rows[i : i + batch]
+        cur.execute(
+            f"INSERT INTO {table} ({', '.join(columns)}) SELECT {picked} "
+            f"FROM VALUES {', '.join(row_marks for _ in part)}",
+            [_value(r[c]) for r in part for c in columns],
+        )
+
+
+class SnowflakeMarket(_Connection):
+    def dataset(self, dataset_id: int) -> DatasetInfo:
+        found = self._run(
+            "SELECT STATUS, FIRST_STEP, LAST_STEP FROM REF.DATASETS WHERE ID = ?",
+            (dataset_id,),
+        )
+        if not found:
+            raise KeyError(f"no dataset {dataset_id}")
+        [(status, first_step, last_step)] = found
+        periods = self._run(
+            "SELECT KIND, NAME, FIRST_STEP, LAST_STEP FROM REF.DATASET_PERIODS "
+            "WHERE DATASET = ? ORDER BY FIRST_STEP",
+            (dataset_id,),
+        )
+        assets = self._run(
+            "SELECT MASKED_ID, ASSET_CLASS FROM REF.ASSETS WHERE DATASET = ? "
+            "ORDER BY MASKED_ID",
+            (dataset_id,),
+        )
+        return DatasetInfo(
+            dataset_id=dataset_id,
+            status=status,
+            first_step=first_step,
+            last_step=last_step,
+            periods=tuple(Period(*p) for p in periods),
+            assets={masked: AssetClass(cls) for masked, cls in assets},
+        )
+
+    def bars(self, dataset_id: int, first_step: int, last_step: int) -> BarsByStep:
+        by_step: BarsByStep = {}
+        for asset, step, open_, high, low, close in self._run(
+            "SELECT ASSET, STEP, OPEN, HIGH, LOW, CLOSE FROM RAW.BARS "
+            "WHERE DATASET = ? AND BAR_SIZE = ? AND STEP BETWEEN ? AND ? "
+            "ORDER BY STEP, ASSET",
+            (dataset_id, FIFTEEN_MINUTES, first_step, last_step),
+        ):
+            by_step.setdefault(step, {})[asset] = Bar(step, open_, high, low, close)
+        return by_step

@@ -1,0 +1,204 @@
+"""How a step is written, against the real test database (spec appendix 6, sections 6 and 11).
+
+Hand-run: needs `infra/migrations/V4__sim_tables.sql` applied to TRADING_AGENT_TEST and the
+builder's and the sim's keys in `SNOWFLAKE_LOCAL_DIR`. Made-up datasets only.
+
+    conda run -n agentic-jev-trader python -m pytest tests/snowflake/test_sim_store.py -s
+
+The test that kills a sim while it writes can wait up to 5 minutes: Snowflake undoes a dead
+program's open transaction only after it has blocked another one for 5 minutes.
+"""
+
+import os
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+import pytest
+
+from jev_trader.sim import snowflake_store
+from jev_trader.sim.runner import SimRequest, create_sim, run_sim
+from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
+from jev_trader.sim.store import TABLES, InMemorySimStore, StepAlreadyWritten
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+KILLED_SIM = Path(__file__).with_name("killed_sim.py")
+
+
+def new_sim(store, market, dataset_id, remove_sims, last_step):
+    request = SimRequest(
+        dataset=dataset_id,
+        variant="buy_hold",
+        kind="practice",
+        first_step=97,
+        last_step=last_step,
+    )
+    sim_id = create_sim(store, market, request)
+    remove_sims.append(sim_id)
+    return sim_id
+
+
+def records(con, sim_id):
+    """Every record of a sim, table by table, without the sim's ID: comparable across sims."""
+    found = {}
+    with con.cursor() as cur:
+        for table in TABLES:
+            if table == "SIM.SIM_EVENTS":
+                continue
+            cur.execute(
+                f"SELECT * EXCLUDE (ID, SIM) FROM {table} WHERE SIM = ?", (sim_id,)
+            )
+            found[table] = sorted(cur.fetchall(), key=repr)
+    return found
+
+
+@pytest.fixture
+def two_day_sim(sim_login, made_up_dataset, remove_sims):
+    """A holding sim over two days after a one-day warm-up, on two assets: 192 steps."""
+    store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
+    dataset_id = made_up_dataset(days=3, assets=2)
+
+    def make():
+        return new_sim(store, market, dataset_id, remove_sims, last_step=288)
+
+    return store, market, make
+
+
+def test_a_holding_sim_over_a_published_dataset_runs_to_the_end(two_day_sim, sim_login):
+    store, market, make = two_day_sim
+    sim_id = make()
+
+    result = run_sim(store, market, sim_id, steps_per_write=50)
+
+    sim = store.sim(sim_id)
+    assert (sim["STATUS"], sim["LAST_COMPLETED_STEP"]) == ("finished", 288)
+    assert store.duplicate_ids(sim_id) == {}
+    # The same sim on the in-memory stand-in, fed the same bars, ends the same.
+    memory = InMemorySimStore()
+    expected = run_sim(memory, market, create_sim(memory, market, _request_of(sim)))
+    assert result.ending_value == pytest.approx(expected.ending_value, abs=1e-6)
+    with sim_login.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM SIM.ACCOUNT_STEPS WHERE SIM = ?", (sim_id,))
+        assert cur.fetchone() == (192,)
+
+
+def _request_of(sim):
+    return SimRequest(
+        dataset=sim["DATASET"],
+        variant=sim["VARIANT"],
+        kind=sim["KIND"],
+        first_step=sim["FIRST_STEP"],
+        last_step=sim["LAST_STEP"],
+        starting_value=sim["STARTING_VALUE"],
+    )
+
+
+def test_a_write_stopped_halfway_stores_nothing(two_day_sim, monkeypatch):
+    store, market, make = two_day_sim
+    sim_id = make()
+    inserts = 0
+    insert = snowflake_store._insert
+
+    def fails_on_the_second_table(*args, **kwargs):
+        nonlocal inserts
+        inserts += 1
+        if inserts == 2:
+            raise RuntimeError("stopped halfway through the write")
+        return insert(*args, **kwargs)
+
+    monkeypatch.setattr(snowflake_store, "_insert", fails_on_the_second_table)
+    with pytest.raises(RuntimeError, match="halfway"):
+        run_sim(store, market, sim_id, steps_per_write=10)
+
+    assert store.sim(sim_id)["LAST_COMPLETED_STEP"] is None
+    with store.con.cursor() as cur:
+        for table in TABLES:
+            cur.execute(f"SELECT COUNT(*) FROM {table} WHERE SIM = ?", (sim_id,))
+            assert cur.fetchone() == (0,), table
+
+
+def test_two_copies_of_one_sim_cannot_both_write_a_step(
+    two_day_sim, sim_login, another_sim_login
+):
+    store, _market, make = two_day_sim
+    sim_id = make()
+    store.update(sim_id, STATUS="running")
+    row = {"ID": f"{sim_id}-97", "SIM": sim_id, "STEP": 97, "CASH": 1.0, "LOAN": 0.0}
+    row |= {"EXPOSURE": 0.0, "ACCOUNT_VALUE": 1.0, "START_OF_DAY_VALUE": 1.0}
+    row |= {"DAILY_LOSS_REACHED": False}
+    rows = {"SIM.ACCOUNT_STEPS": [row]}
+
+    # Copy one moves the last completed step and holds its transaction open.
+    with sim_login.cursor() as first:
+        first.execute("BEGIN TRANSACTION")
+        first.execute(
+            "UPDATE SIM.SIMS SET LAST_COMPLETED_STEP = 97 "
+            "WHERE ID = ? AND LAST_COMPLETED_STEP IS NULL",
+            (sim_id,),
+        )
+        # Copy two, on its own connection, tries the same step and waits for the lock.
+        second = SnowflakeSimStore(another_sim_login)
+        outcome = {}
+
+        def second_copy():
+            try:
+                second.write_steps(sim_id, None, 97, rows, {})
+                outcome["result"] = "wrote"
+            except StepAlreadyWritten:
+                outcome["result"] = "refused"
+
+        thread = threading.Thread(target=second_copy)
+        thread.start()
+        time.sleep(5)
+        assert thread.is_alive(), "the second copy should be waiting for the lock"
+        first.execute("COMMIT")
+        thread.join(timeout=120)
+
+    assert outcome == {"result": "refused"}
+    with sim_login.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM SIM.ACCOUNT_STEPS WHERE SIM = ?", (sim_id,))
+        assert cur.fetchone() == (0,)
+
+
+@pytest.mark.parametrize("when", ["mid-step", "while-writing"])
+def test_a_sim_killed_and_restarted_ends_with_the_same_records(
+    two_day_sim, sim_login, when
+):
+    store, market, make = two_day_sim
+    never_stopped = make()
+    run_sim(store, market, never_stopped, steps_per_write=20)
+
+    killed = make()
+    # The third write (steps 137 to 156) never lands.
+    finished = subprocess.run(
+        [sys.executable, str(KILLED_SIM), str(killed), "20", when, "3"],
+        check=False,
+        cwd=REPO_ROOT,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
+        timeout=300,
+    )
+    assert finished.returncode == 9, "the sim should have been killed"
+    assert store.sim(killed)["LAST_COMPLETED_STEP"] == 136
+
+    run_sim(store, market, killed, steps_per_write=20)  # may wait for Snowflake to undo
+
+    assert records(sim_login, killed) == records(sim_login, never_stopped)
+    assert store.duplicate_ids(killed) == {}
+    with sim_login.cursor() as cur:
+        cur.execute("SELECT KIND, STEP FROM SIM.SIM_EVENTS WHERE SIM = ?", (killed,))
+        assert cur.fetchall() == [("restarted", 137)]
+
+
+def test_the_duplicate_count_finds_an_id_stored_twice(two_day_sim, sim_login):
+    store, _market, make = two_day_sim
+    sim_id = make()
+    with sim_login.cursor() as cur:
+        for _ in range(2):
+            cur.execute(
+                "INSERT INTO SIM.SIM_EVENTS (ID, SIM, STEP, KIND) VALUES (?, ?, 97, 'test')",
+                (f"{sim_id}-97-test-1", sim_id),
+            )
+
+    assert store.duplicate_ids(sim_id) == {"SIM.SIM_EVENTS": 1}
