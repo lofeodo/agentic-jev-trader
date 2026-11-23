@@ -67,17 +67,17 @@ from jev_trader.dataset.snapshots import (
 )
 from jev_trader.dataset.store import DatasetStore
 
-# Each stage's place on the progress bar: the share done when it starts. Guesses until the
-# first dataset's build is timed.
+# Each stage's place on the progress bar: the share done when it starts. Measured on the first
+# dataset's build (1,526 seconds, about 25 minutes, on 2026-11-23).
 STAGES = {
     "Start and check": 0.0,
-    "Lay out the clock and the asset key": 0.30,
-    "Build hourly and daily bars": 0.32,
-    "Recognise candle patterns": 0.35,
-    "Measure": 0.40,
-    "Write the situation text": 0.50,
-    "Embed": 0.55,
-    "Publish": 0.90,
+    "Lay out the clock and the asset key": 0.15,
+    "Build hourly and daily bars": 0.15,
+    "Recognise candle patterns": 0.15,
+    "Measure": 0.17,
+    "Write the situation text": 0.17,
+    "Embed": 0.50,
+    "Publish": 0.64,
 }
 PROVIDERS = {
     AssetClass.STOCK: "Twelve Data (adjust=all)",

@@ -19,13 +19,7 @@ ENV = {**dotenv_values(".env"), **os.environ}
 
 @pytest.fixture
 def store():
-    con = connect(
-        "builder",
-        database=TEST_DATABASE,
-        env=ENV,
-        user=ENV["SNOWFLAKE_USER"],
-        private_key_file=ENV["SNOWFLAKE_PRIVATE_KEY_FILE"],
-    )
+    con = connect("builder", database=TEST_DATABASE, env=ENV)
     yield SnowflakeStore(con)
     con.close()
 
