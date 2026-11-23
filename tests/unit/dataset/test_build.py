@@ -73,22 +73,37 @@ class FakeStocks:
 
 
 class FakeCrypto:
+    """The same up bar every 15 minutes, except the `doji_bars` (counted from 0 at the first
+    midnight), which close where they open. Four in one clock hour make an hourly doji bar;
+    96 in one UTC day a daily doji bar."""
+
+    def __init__(self, doji_bars=range(0)):
+        self.doji_bars = doji_bars
+
     def crypto_bars(self, symbol, first_day, last_day):
         start = datetime.combine(first_day, datetime.min.time(), tzinfo=UTC)
         n = ((last_day - first_day).days + 1) * 96
         return [
-            Bar(start + i * BAR_LENGTH, 20.0, 21.0, 19.0, 20.5, 4.0) for i in range(n)
+            Bar(
+                start + i * BAR_LENGTH,
+                20.0,
+                21.0,
+                19.0,
+                20.0 if i in self.doji_bars else 20.5,
+                4.0,
+            )
+            for i in range(n)
         ]
 
 
-def build(store=None, stocks=None, **kwargs):
+def build(store=None, stocks=None, crypto=None, **kwargs):
     store = store or InMemoryStore()
     result = build_dataset(
         kwargs.pop("settings", settings()),
         stocks=stocks or FakeStocks(),
-        crypto=FakeCrypto(),
+        crypto=crypto or FakeCrypto(),
         store=store,
-        today=BUILD_DAY,
+        today=kwargs.pop("today", BUILD_DAY),
         report=lambda line: None,
         **kwargs,
     )
@@ -164,10 +179,24 @@ def test_real_names_dates_and_prices_live_only_in_the_asset_key():
     assert key["PRICE_SCALE"] == pytest.approx(2.0)  # $50.00 becomes 100
 
     outside_key = repr(
-        {t: r for t, r in store.tables.items() if not t.startswith("KEYS.")}
-    ) + repr(store.datasets)
+        words_and_dates(
+            [r for t, r in store.tables.items() if not t.startswith("KEYS.")]
+            + list(store.datasets.values())
+        )
+    )
     for secret in ("XYZ", "Made-up", "COIN", "2023"):
         assert secret not in outside_key
+
+
+def words_and_dates(value) -> list:
+    """Every text and date inside `value`; numbers (such as an embedding's) are left out."""
+    if isinstance(value, str | date):
+        return [value]
+    if isinstance(value, dict):
+        value = list(value.values())
+    if isinstance(value, list | tuple):
+        return [found for item in value for found in words_and_dates(item)]
+    return []
 
 
 def test_the_dataset_stores_its_periods_settings_and_the_check_numbers():
@@ -358,3 +387,136 @@ def test_the_first_datasets_settings_match_the_spec():
     assert [a.ticker for a in first.assets] == ["SPY", "AAPL", "JPM", "XOM", "BTC"]
     assert len(stock_sessions(first.first_day, first.last_day)) == 899
     assert [p.name for p in first.test_periods] == ["falling market", "rising market"]
+
+
+def test_every_15_minute_bar_gets_a_stored_snapshot_with_its_embedding():
+    result, store = build()
+
+    stock = rows(store, "FEATURES.SNAPSHOTS", result.dataset_id, ASSET="ASSET_01")
+    coin = rows(store, "FEATURES.SNAPSHOTS", result.dataset_id, ASSET="ASSET_02")
+    assert len(stock) == 92 and len(coin) == 5 * 96  # one per 15-minute bar
+    assert [s["STEP"] for s in stock[:2]] == [55, 56]
+    first = stock[0]
+    assert len(first["MEASUREMENTS"]) == 58
+    assert len(first["FEATURE_VECTOR"]) == 58
+    assert first["SITUATION_TEXT"].startswith("Stock, first hour (bar 1 of 14).")
+    assert len(first["EMBEDDING"]) == 768
+    assert not store.tables["FEATURES.SNAPSHOTS_LOADING"]  # all moved and embedded
+    dataset = store.datasets[result.dataset_id]
+    assert dataset["EMBEDDING_MODEL"] == "snowflake-arctic-embed-m-v1.5"
+    assert dataset["MEASUREMENTS"][0] == "bar_0_direction"
+
+
+def listed(text: str, label: str) -> list[str]:
+    """The names a situation text lists after `label`, such as "Latest hourly bar: "."""
+    return text.split(label)[1].split(".")[0].split(", ")
+
+
+def test_a_snapshot_lists_the_pattern_window_and_the_latest_finished_hourly_bar():
+    # 12:00 to 13:00 UTC on day 1: four doji bars ending at steps 49 to 52, one hourly doji.
+    result, store = build(crypto=FakeCrypto(doji_bars=range(48, 52)))
+
+    patterns = [
+        (p["BAR_SIZE"], p["STEP"], p["PATTERN"])
+        for p in rows(store, "FEATURES.PATTERNS", result.dataset_id, ASSET="ASSET_02")
+    ]
+    assert ("15m", 49, "doji") in patterns
+    assert ("1h", 52, "doji") in patterns  # stored at the step the hour ends
+
+    text = {
+        s["STEP"]: s["SITUATION_TEXT"]
+        for s in rows(store, "FEATURES.SNAPSHOTS", result.dataset_id, ASSET="ASSET_02")
+    }
+    window = "Patterns in the last 4 bars: "
+    assert "doji (this bar)" in listed(text[49], window)
+    assert "doji (3 bars ago)" in listed(text[52], window)  # 49 is 3 steps before 52
+    assert not [n for n in listed(text[56], window) if n.startswith("doji (")]
+    hourly = "Latest hourly bar: "
+    assert "doji" not in listed(text[51], hourly)  # the doji hour has not finished
+    assert "doji" in listed(text[52], hourly)
+    assert "doji" in listed(text[55], hourly)  # still the latest finished hour
+    assert "doji" not in listed(text[56], hourly)
+
+
+def test_a_days_patterns_are_listed_from_the_step_the_day_ends_through_the_next_day():
+    # 3 to 20 July 2023; every bar of day 12 (14 July) is a doji, so its daily bar is one.
+    # Its daily bar ends at step 12 * 96 = 1152, the UTC midnight that ends the day.
+    result, store = build(
+        settings=settings(last_day=date(2023, 7, 20)),
+        crypto=FakeCrypto(doji_bars=range(11 * 96, 12 * 96)),
+        today=date(2023, 7, 21),
+    )
+    text = {
+        s["STEP"]: s["SITUATION_TEXT"]
+        for s in rows(store, "FEATURES.SNAPSHOTS", result.dataset_id, ASSET="ASSET_02")
+    }
+    daily = "Latest daily bar: "
+    assert "doji" not in listed(text[1151], daily)  # the day's last bar has not ended
+    assert "doji" in listed(text[1152], daily)
+    assert "doji" in listed(text[1152 + 95], daily)  # all through the next day
+    assert "doji" not in listed(text[1152 + 96], daily)
+
+
+def test_the_warm_up_averages_and_spreads_are_stored_and_scale_the_feature_vectors():
+    result, store = build()
+
+    stats = rows(store, "REF.WARMUP_STATS", result.dataset_id)
+    assert [s["POSITION"] for s in stats] == list(range(1, 59))
+    assert stats[0]["MEASUREMENT"] == "bar_0_direction"
+    # Every bar of the made-up data is an up bar: direction never varies, so it has no
+    # spread and scores 0 (the average) everywhere.
+    assert (stats[0]["AVERAGE"], stats[0]["SPREAD"]) == (None, None)
+
+    first = rows(store, "FEATURES.SNAPSHOTS", result.dataset_id, ASSET="ASSET_01")[0]
+    assert first["MEASUREMENTS"][0] == 1  # an up bar
+    assert first["FEATURE_VECTOR"][0] == 0.0
+    # "how far through the day": bar 1 of 14, against the warm-up's readings.
+    through = next(s for s in stats if s["MEASUREMENT"] == "through_the_day")
+    assert first["MEASUREMENTS"][56] == pytest.approx(1 / 14)
+    assert first["FEATURE_VECTOR"][56] == pytest.approx(
+        (1 / 14 - through["AVERAGE"]) / through["SPREAD"]
+    )
+    # Earlier in the day than the average snapshot.
+    assert first["FEATURE_VECTOR"][56] < 0
+
+
+def test_the_playbook_is_stored_once_per_ta_lib_version():
+    store = InMemoryStore()
+    build(store=store)
+    build(store=store)
+    playbook = store.tables["REF.PLAYBOOK"]
+    assert len(playbook) == len({(p["PATTERN"], p["LEAN"]) for p in playbook}) > 61
+    assert {"PATTERN": "CDLDOJI", "LEAN": "neutral", "NAME": "doji"}.items() <= next(
+        p for p in playbook if p["PATTERN"] == "CDLDOJI"
+    ).items()
+
+
+def test_a_build_stopped_during_the_embedding_keeps_no_snapshot():
+    class StoppedWhileEmbedding(InMemoryStore):
+        def embed_snapshots(self, dataset_id, asset):
+            if asset == "ASSET_02":
+                raise KeyboardInterrupt
+            return super().embed_snapshots(dataset_id, asset)
+
+    store = StoppedWhileEmbedding()
+    with pytest.raises(KeyboardInterrupt):
+        build(store=store)
+    [dataset] = store.datasets.values()
+    assert dataset["STATUS"] == "failed" and dataset["BUILD_STAGE"] == "Embed"
+    assert not store.tables["FEATURES.SNAPSHOTS"]
+    assert not store.tables["FEATURES.SNAPSHOTS_LOADING"]
+
+
+def test_each_stage_is_timed_in_order():
+    result, _ = build()
+    assert list(result.stage_seconds) == [
+        "Start and check",
+        "Lay out the clock and the asset key",
+        "Build hourly and daily bars",
+        "Recognise candle patterns",
+        "Measure",
+        "Write the situation text",
+        "Embed",
+        "Publish",
+    ]
+    assert all(seconds >= 0 for seconds in result.stage_seconds.values())

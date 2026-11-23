@@ -1,4 +1,4 @@
-"""A dataset build, stage by stage (spec appendix 2, section 8): download, clean, check, publish.
+"""A dataset build, stage by stage (spec appendix 2, section 8).
 
 1. **Start and check.** Download every asset (each stock with its 20 lead-in sessions), drop a
    stock's bars outside its session, find missing bars and partial-volume days, and compare them
@@ -6,22 +6,40 @@
    part, and the message says which asset is over which limit.
 2. **Lay out the clock and the asset key.** Step numbers, masked IDs, both scales.
 3. **Build hourly and daily bars** from the 15-minute bars.
-4. **Publish.** Write every row, then mark the dataset published.
+4. **Recognise candle patterns** on all three bar sizes, and store the playbook.
+5. **Measure.** The 58 measurements of every snapshot; the warm-up averages and spreads, frozen.
+6. **Write the situation text** of every snapshot, with its feature vector, and stage them.
+7. **Embed.** Snowflake's model turns each staged text into 768 numbers as the snapshots are
+   stored, one asset at a time.
+8. **Publish.** Write every other row, then mark the dataset published.
 
-The snapshot stages (candle patterns, measurements, situation text, embeddings) come later and
-sit between 3 and 4. A build that stops for any reason is marked failed, its rows are thrown
-away, and the next build of the same settings is a new version.
-
-Progress shares are guesses until a build has been timed.
+A build that stops for any reason is marked failed, its rows are thrown away, and the next build
+of the same settings is a new version. Each stage is timed and the times are printed at the end,
+to set its share of the progress bar.
 """
 
+import itertools
+import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date
 
+import pandas as pd
+
+from jev_trader.dataset.candle_patterns import TALIB_VERSION
 from jev_trader.dataset.exchange_calendar import sessions_before, stock_sessions
-from jev_trader.dataset.layout import CleanedAsset, Clock, lay_out, masked_id
-from jev_trader.dataset.measurements import AssetClass
+from jev_trader.dataset.layout import (
+    CleanedAsset,
+    Clock,
+    lay_out,
+    masked_bars,
+    masked_id,
+)
+from jev_trader.dataset.measurements import (
+    MEASUREMENT_NAMES,
+    AssetClass,
+    measure_asset,
+)
 from jev_trader.dataset.providers import (
     CryptoProvider,
     ProviderError,
@@ -35,15 +53,31 @@ from jev_trader.dataset.quality import (
     clean_crypto,
     clean_stock,
 )
+from jev_trader.dataset.scaling import WarmUpScales
 from jev_trader.dataset.settings import DatasetSettings
+from jev_trader.dataset.snapshots import (
+    EMBEDDING_MODEL,
+    MEASUREMENT_SETTINGS,
+    AssetBars,
+    find_patterns,
+    pattern_rows,
+    playbook_rows,
+    snapshot_rows,
+    warm_up_rows,
+)
 from jev_trader.dataset.store import DatasetStore
 
-# Each stage's place on the progress bar: the share done when it starts.
+# Each stage's place on the progress bar: the share done when it starts. Measured on the first
+# dataset's build (1,526 seconds, about 25 minutes, on 2026-11-23).
 STAGES = {
     "Start and check": 0.0,
-    "Lay out the clock and the asset key": 0.70,
-    "Build hourly and daily bars": 0.75,
-    "Publish": 0.80,
+    "Lay out the clock and the asset key": 0.15,
+    "Build hourly and daily bars": 0.15,
+    "Recognise candle patterns": 0.15,
+    "Measure": 0.17,
+    "Write the situation text": 0.17,
+    "Embed": 0.50,
+    "Publish": 0.64,
 }
 PROVIDERS = {
     AssetClass.STOCK: "Twelve Data (adjust=all)",
@@ -70,6 +104,8 @@ class BuildResult:
     published: bool
     check: CheckResult
     message: str
+    # Seconds each stage took, in order (empty when the check stopped the build).
+    stage_seconds: dict[str, float] = field(default_factory=dict)
 
 
 def build_dataset(
@@ -106,11 +142,20 @@ def build_dataset(
             "LIMIT_OTHER_MISSING": settings.limits.other_missing,
             "LIMIT_PARTIAL_VOLUME_DAYS": settings.limits.partial_volume_days,
             "PRICE_DECIMALS": settings.price_decimals,
+            "TALIB_VERSION": TALIB_VERSION,
+            "EMBEDDING_MODEL": EMBEDDING_MODEL,
+            "MEASUREMENTS": list(MEASUREMENT_NAMES),
+            "MEASUREMENT_SETTINGS": MEASUREMENT_SETTINGS,
         },
     )
     tickers = {masked_id(i): a.ticker for i, a in enumerate(settings.assets)}
+    # Seconds each stage took, in order; the current stage is the last.
+    seconds: dict[str, float] = {}
+    started = [time.monotonic()]
 
     def stage(name: str) -> None:
+        _time_stage(seconds, started)
+        seconds[name] = 0.0
         share = STAGES[name]
         store.update(dataset_id, BUILD_STAGE=name, BUILD_PROGRESS=share)
         report(f"[{share:4.0%}] {name}")
@@ -139,11 +184,63 @@ def build_dataset(
             cleaned,
             before_bars=lambda: stage("Build hourly and daily bars"),
         )
+        assets = [
+            _asset_bars(asset, key, settings.price_decimals)
+            for asset, key in zip(cleaned, tables["KEYS.ASSET_KEY"], strict=True)
+        ]
+
+        stage("Recognise candle patterns")
+        store.save_playbook(playbook_rows())
+        found = {}
+        tables["FEATURES.PATTERNS"] = []
+        for asset in assets:
+            found[asset.masked_id] = find_patterns(asset, clock)
+            tables["FEATURES.PATTERNS"] += pattern_rows(
+                dataset_id, asset.masked_id, found[asset.masked_id]
+            )
+
+        stage("Measure")
+        measured = {
+            asset.masked_id: measure_asset(
+                asset.bars, asset.asset_class, asset.sessions
+            )
+            for asset in assets
+        }
+        scales = WarmUpScales.from_warm_up(
+            settings.first_day, itertools.chain.from_iterable(measured.values())
+        )
+        tables["REF.WARMUP_STATS"] = warm_up_rows(dataset_id, scales)
+
+        stage("Write the situation text")
+        for asset in assets:
+            store.stage_snapshots(
+                dataset_id,
+                snapshot_rows(
+                    dataset_id,
+                    asset,
+                    measured.pop(asset.masked_id),
+                    scales,
+                    found[asset.masked_id],
+                    clock,
+                ),
+            )
+
+        stage("Embed")
+        total = sum(len(a.bars) for a in assets)
+        done = 0
+        for asset in assets:
+            done += store.embed_snapshots(dataset_id, asset.masked_id)
+            share = STAGES["Embed"] + (STAGES["Publish"] - STAGES["Embed"]) * (
+                done / total if total else 1.0
+            )
+            store.update(dataset_id, BUILD_PROGRESS=share)
+            report(f"       embedded {done} of {total} situation texts")
 
         stage("Publish")
         store.save(dataset_id, tables)
         store.update(dataset_id, BUILD_PROGRESS=1.0)
         store.publish(dataset_id, without_check=not check)
+        _time_stage(seconds, started)
     except KeyboardInterrupt:
         store.fail(dataset_id, "stopped by hand")
         raise
@@ -168,7 +265,41 @@ def build_dataset(
             'without the check":\n' + result.message(names=tickers)
         )
     report(message)
-    return BuildResult(dataset_id, version, True, result, message)
+    report(_stage_times(seconds))
+    return BuildResult(dataset_id, version, True, result, message, seconds)
+
+
+def _time_stage(seconds: dict[str, float], started: list[float]) -> None:
+    """Add the time since `started` to the current (last) stage, and restart the clock."""
+    moment = time.monotonic()
+    if seconds:
+        seconds[next(reversed(seconds))] += moment - started[0]
+    started[0] = moment
+
+
+def _stage_times(seconds: dict[str, float]) -> str:
+    """Each stage's seconds and its share of the whole build: what the progress bar should use."""
+    total = sum(seconds.values()) or 1.0
+    lines = ["Seconds per stage (share of the build):"]
+    lines += [
+        f"  {name}: {spent:.0f} s ({spent / total:.0%})"
+        for name, spent in seconds.items()
+    ]
+    return "\n".join(lines)
+
+
+def _asset_bars(asset: CleanedAsset, key: dict, price_decimals: int) -> AssetBars:
+    """The asset's bars as stored (masked), for the snapshot stages."""
+    stock = asset.settings.asset_class is AssetClass.STOCK
+    return AssetBars(
+        masked_id=key["MASKED_ID"],
+        asset_class=asset.settings.asset_class,
+        bars=masked_bars(
+            asset.clean.bars, key["PRICE_SCALE"], key["VOLUME_SCALE"], price_decimals
+        ),
+        missing=[pd.Timestamp(m.start) for m in asset.clean.missing],
+        sessions=asset.sessions if stock else None,
+    )
 
 
 def _download_and_clean(
