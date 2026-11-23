@@ -1,0 +1,3 @@
+# Generated files are compared byte for byte in CI, so they keep one line ending everywhere.
+openapi.json text eol=lf
+src/api/schema.d.ts text eol=lf

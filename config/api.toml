@@ -1,0 +1,7 @@
+# The API's settings (spec appendix 8).
+
+# The most real money the whole project may pay for Jev and LLM calls, in US dollars.
+spending_ceiling_usd = 75.0
+
+# A sim recorded as running that has stored nothing for this long shows as "not responding".
+not_responding_minutes = 7

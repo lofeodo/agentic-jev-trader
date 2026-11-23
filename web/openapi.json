@@ -1,0 +1,262 @@
+{
+  "components": {
+    "schemas": {
+      "AssetName": {
+        "description": "The real name leads; the masked ID is the disguised label the agent saw.",
+        "properties": {
+          "masked_id": {
+            "title": "Masked Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "masked_id"
+        ],
+        "title": "AssetName",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "SimLine": {
+        "properties": {
+          "account_value": {
+            "title": "Account Value",
+            "type": "number"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/AssetName"
+            },
+            "title": "Assets",
+            "type": "array"
+          },
+          "days_done": {
+            "title": "Days Done",
+            "type": "integer"
+          },
+          "days_total": {
+            "title": "Days Total",
+            "type": "integer"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "holding_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding Value"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "not_responding": {
+            "title": "Not Responding",
+            "type": "boolean"
+          },
+          "spending_cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spending Cap Usd"
+          },
+          "spent_usd": {
+            "title": "Spent Usd",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Reason"
+          },
+          "trades": {
+            "title": "Trades",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "status",
+          "stop_reason",
+          "not_responding",
+          "days_done",
+          "days_total",
+          "first_day",
+          "last_day",
+          "account_value",
+          "holding_value",
+          "trades",
+          "spent_usd",
+          "spending_cap_usd",
+          "assets"
+        ],
+        "title": "SimLine",
+        "type": "object"
+      },
+      "SimsList": {
+        "properties": {
+          "sims": {
+            "items": {
+              "$ref": "#/components/schemas/SimLine"
+            },
+            "title": "Sims",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sims"
+        ],
+        "title": "SimsList",
+        "type": "object"
+      },
+      "SpendingTotal": {
+        "description": "Real dollars paid to Jev and the LLM so far, and the most the project may pay.",
+        "properties": {
+          "ceiling_usd": {
+            "title": "Ceiling Usd",
+            "type": "number"
+          },
+          "spent_usd": {
+            "title": "Spent Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "spent_usd",
+          "ceiling_usd"
+        ],
+        "title": "SpendingTotal",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Jev trader API",
+    "version": "1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/sims": {
+      "get": {
+        "operationId": "listSims",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimsList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sims"
+      }
+    },
+    "/spending/total": {
+      "get": {
+        "operationId": "spendingTotal",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendingTotal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Spending Total"
+      }
+    }
+  }
+}

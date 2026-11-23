@@ -20,3 +20,7 @@ __pycache__/
 
 # Package build leftovers (pip wheel, pip install)
 build/
+
+# The web app's installed packages and build output
+node_modules/
+web/dist/
