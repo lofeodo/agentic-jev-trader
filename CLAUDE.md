@@ -68,11 +68,17 @@ Build a dataset from its settings file in `datasets/` (downloads are free; it wr
 conda run -n agentic-jev-trader python -m jev_trader.dataset build datasets/first.toml
 ```
 
-Start a sim on a published dataset, or resume one from its last completed step (logs in as the sim login and writes to Snowflake; only `buy_hold` is built; `--market "falling market"` runs one test period, `--database TRADING_AGENT_TEST` the test database):
+Start a sim on a published dataset, or resume one from its last completed step (logs in as the sim login and writes to Snowflake; `start` is for `buy_hold`; `--market "falling market"` runs one test period, `--database TRADING_AGENT_TEST` the test database):
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.sim start --dataset 1 --variant buy_hold
 conda run -n agentic-jev-trader python -m jev_trader.sim resume 12
+```
+
+Run a practice sim of the agent without memory: at most one replayed day and 25 cents. It calls Jev, so it costs money: run it only with my go-ahead. It needs `infra/migrations/V5__jev_requests_and_decisions.sql` applied:
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
 ```
 
 Gotchas:

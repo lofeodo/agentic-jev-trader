@@ -28,6 +28,8 @@ TABLES = (
     "SIM.CHARGES",
     "SIM.SIM_EVENTS",
     "SIM.CALLS",
+    "SIM.JEV_REQUESTS",
+    "MEMORY.DECISIONS",
 )
 # Tables whose rows a later step may rewrite, by ID.
 REPLACED_BY_ID = frozenset({"SIM.ORDERS"})
@@ -92,6 +94,12 @@ class SimStore(Protocol):
     def duplicate_ids(self, sim_id: int) -> dict[str, int]:
         """For each table with any, how many of the sim's record IDs appear more than once."""
 
+    def save_reading(self, version: str, opening: str) -> None:
+        """Store the opening of Jev's background, once per reading version."""
+
+    def spent(self, sim_id: int) -> float:
+        """The dollars of the sim's recorded paid calls."""
+
 
 class SimulatedKill(BaseException):
     """The in-memory store stopping the program mid-write, as a kill would.
@@ -110,6 +118,7 @@ class InMemorySimStore:
     def __init__(self):
         self.sims: dict[int, dict] = {}
         self.tables: dict[str, list[dict]] = defaultdict(list)
+        self.readings: dict[str, str] = {}
         self._kill_in: int | None = None
 
     def kill_on_write(self, n: int) -> None:
@@ -176,6 +185,12 @@ class InMemorySimStore:
             if duplicated:
                 found[name] = duplicated
         return found
+
+    def save_reading(self, version: str, opening: str) -> None:
+        self.readings.setdefault(version, opening)
+
+    def spent(self, sim_id: int) -> float:
+        return sum(r["COST_USD"] or 0.0 for r in self.rows("SIM.CALLS", sim_id))
 
     # For tests
 

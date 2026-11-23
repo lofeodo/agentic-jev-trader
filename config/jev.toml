@@ -1,0 +1,18 @@
+# Calling Jev, the hosted decision model (spec appendix 4, sections 8, 11 and 12). Each sim stores
+# the numbers it ran with.
+
+# A moving name: each call records the version that actually answered.
+model = "jev-latest"
+
+# Quick retries after the first try. A call still failing after these stops the sim.
+retries = 3
+
+# What Jev charges per million tokens it reads, in US dollars ($0.042: a 3,000-token background
+# costs about $0.00013). What it writes back is free. An estimate until the first practice sim
+# checks real prices: the TypeSafe dashboard shows no prices (ticket #87).
+dollars_per_million_tokens_read = 0.042
+
+# The longest background sent, in estimated tokens (a token is a small piece of text), at about
+# 2.4 characters per token. A longer one stops the sim with a clear error.
+background_token_cap = 20000
+characters_per_token = 2.4
