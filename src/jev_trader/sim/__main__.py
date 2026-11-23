@@ -218,6 +218,8 @@ def main(argv: list[str] | None = None) -> int:
         if jev is not None:
             for line in screen_report(store, sim):
                 print(line)
+            seconds = time.monotonic() - began
+            print(f"Seconds a step: {seconds / max(1, result.steps_stored):.2f}.")
     except JevFailed as failed:
         reason = str(failed).encode("ascii", "replace").decode("ascii")
         print(f"Sim {sim_id} stopped: {reason}")

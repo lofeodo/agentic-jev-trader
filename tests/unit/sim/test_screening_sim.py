@@ -233,6 +233,21 @@ def test_the_scan_fails_when_a_real_value_reaches_jev(market, leak):
         assert_masked(sent[0]["state"], real_values(prices=[187.44]))
 
 
+def test_the_scan_fails_when_an_unscaled_bar_reaches_jev(market):
+    real_price = 523.18
+    market.bars_by_asset[DATASET][CRYPTO] = [
+        Bar(b.step, real_price, real_price, real_price, real_price)
+        for b in market.bars_by_asset[DATASET][CRYPTO]
+    ]
+    unmasked = with_snapshots(market)
+    store = InMemorySimStore()
+    jev, sent = fake_jev()
+    run_sim(store, unmasked, practice(store, unmasked), jev=jev)
+
+    with pytest.raises(MaskingLeak, match="unscaled price"):
+        assert_masked(sent[0]["state"], real_values(prices=[real_price]))
+
+
 def test_the_same_sim_sends_the_same_requests_every_time(screening_market):
     first_store, second_store = InMemorySimStore(), InMemorySimStore()
     second_store.create({"STATUS": "finished"})  # so the second sim has another ID

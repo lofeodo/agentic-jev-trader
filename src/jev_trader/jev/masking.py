@@ -36,6 +36,8 @@ _RANDOM_ID = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
     r"|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{16,}\b"
 )
+# Words of a company's name that say nothing about which company it is.
+_COMMON_NAME_WORDS = {"&", "co.", "corporation", "etf", "inc.", "trust"}
 # Any number, with its dollar sign if it has one.
 _NUMBER = re.compile(r"(?<![\d.,\w])(\$?)(\d[\d,]*)(?:\.(\d+))?")
 # A bare whole number below this is a count (bar 3 of 26), not a price.
@@ -64,7 +66,12 @@ def real_values(
                 tickers.add(asset["ticker"])
                 if "provider_symbol" in asset:
                     tickers.add(asset["provider_symbol"])
-                names.update((asset["name"], asset["name"].split()[0]))
+                names.add(asset["name"])
+                names.update(
+                    word
+                    for word in asset["name"].split()
+                    if word.lower() not in _COMMON_NAME_WORDS and not word.isdigit()
+                )
     return RealValues(frozenset(tickers), frozenset(names), frozenset(prices))
 
 
