@@ -11,7 +11,9 @@ import { TopBar } from "./TopBar";
 
 const REFRESH_MS = 20_000;
 
-const inProgress = (sim: SimLine) => sim.status === "created" || sim.status === "running";
+// A sim that is not responding has likely crashed, so it doesn't keep the page asking.
+const inProgress = (sim: SimLine) =>
+  sim.status === "created" || (sim.status === "running" && !sim.not_responding);
 
 export function App() {
   const [sims, setSims] = useState<SimLine[] | null>(null);
