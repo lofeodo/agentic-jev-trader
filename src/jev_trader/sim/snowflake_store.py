@@ -1,4 +1,4 @@
-"""The sim's store and market in Snowflake: the tables of `infra/migrations/V3__sim_tables.sql`.
+"""The sim's store and market in Snowflake: the tables of `infra/migrations/V4__sim_tables.sql`.
 
 The connection must use `?` placeholders (`jev_trader.storage.snowflake.connect` does) and log
 in as the sim login, which reads REF, RAW, FEATURES and SIM and writes SIM and MEMORY.

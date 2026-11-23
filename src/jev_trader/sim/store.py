@@ -2,7 +2,7 @@
 
 A sim is one row of `SIM.SIMS` plus rows in the record tables below, each carrying the sim's ID
 in its `SIM` column and an `ID` built from what the row describes (sim, step, asset). Column
-names match `infra/migrations/V3__sim_tables.sql`. The Snowflake version is
+names match `infra/migrations/V4__sim_tables.sql`. The Snowflake version is
 `snowflake_store.SnowflakeSimStore`; `InMemorySimStore` is the stand-in the unit tests use.
 
 **How a step is written.** `write_steps` stores everything one or more steps produced in one

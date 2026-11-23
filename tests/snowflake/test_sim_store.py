@@ -1,6 +1,6 @@
 """How a step is written, against the real test database (spec appendix 6, sections 6 and 11).
 
-Hand-run: needs `infra/migrations/V3__sim_tables.sql` applied to TRADING_AGENT_TEST and the
+Hand-run: needs `infra/migrations/V4__sim_tables.sql` applied to TRADING_AGENT_TEST and the
 builder's and the sim's keys in `SNOWFLAKE_LOCAL_DIR`. Made-up datasets only.
 
     conda run -n agentic-jev-trader python -m pytest tests/snowflake/test_sim_store.py -s
