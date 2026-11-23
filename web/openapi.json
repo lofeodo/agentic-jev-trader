@@ -66,6 +66,10 @@
             ],
             "title": "First Day"
           },
+          "first_step": {
+            "title": "First Step",
+            "type": "integer"
+          },
           "holding_value": {
             "anyOf": [
               {
@@ -96,6 +100,10 @@
               }
             ],
             "title": "Last Day"
+          },
+          "last_step": {
+            "title": "Last Step",
+            "type": "integer"
           },
           "name": {
             "title": "Name",
@@ -149,6 +157,8 @@
           "not_responding",
           "days_done",
           "days_total",
+          "first_step",
+          "last_step",
           "first_day",
           "last_day",
           "account_value",

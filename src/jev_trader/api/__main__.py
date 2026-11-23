@@ -34,7 +34,11 @@ def load_settings(path: Path = CONFIG_DIR / "api.toml") -> dict:
 
 def describe(path: Path) -> None:
     """Write the API's description. It depends on the code alone, so any store will do."""
-    app = create_app(InMemoryApiStore(InMemorySimStore(), []), spending_ceiling=0.0)
+    app = create_app(
+        InMemoryApiStore(InMemorySimStore(), []),
+        spending_ceiling=0.0,
+        not_responding_after=timedelta(0),
+    )
     text = json.dumps(app.openapi(), indent=2, sort_keys=True) + "\n"
     path.write_text(text, encoding="utf-8", newline="\n")
 

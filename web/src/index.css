@@ -25,6 +25,13 @@
   --font-mono: "JetBrains Mono", Consolas, monospace;
 }
 
+/* Fixed-width letters are the light weight, as in the prototype. */
+@layer components {
+  .font-mono {
+    font-weight: 300;
+  }
+}
+
 @layer base {
   html {
     color-scheme: dark;

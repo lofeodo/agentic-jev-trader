@@ -86,6 +86,8 @@ export interface components {
             days_total: number;
             /** First Day */
             first_day: string | null;
+            /** First Step */
+            first_step: number;
             /** Holding Value */
             holding_value: number | null;
             /** Id */
@@ -94,6 +96,8 @@ export interface components {
             kind: string;
             /** Last Day */
             last_day: string | null;
+            /** Last Step */
+            last_step: number;
             /** Name */
             name: string;
             /** Not Responding */

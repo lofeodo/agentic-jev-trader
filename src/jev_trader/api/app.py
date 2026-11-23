@@ -37,7 +37,7 @@ class SpendingTotal(BaseModel):
 def create_app(
     store: ApiStore,
     spending_ceiling: float,
-    not_responding_after: timedelta = timedelta(minutes=7),
+    not_responding_after: timedelta,
     clock: Callable[[], datetime] = now,
 ) -> FastAPI:
     app = FastAPI(title="Jev trader API", version="1")

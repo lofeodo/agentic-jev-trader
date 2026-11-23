@@ -28,7 +28,7 @@ export function TopBar({ spending }: { spending: SpendingTotal | null }) {
         </nav>
         <span className="self-center px-[2ch] py-2 text-dim">
           Models:{" "}
-          <b className="font-normal text-pale">
+          <b className="font-light text-amber">
             {spending ? dollarsAndCents(spending.spent_usd) : "..."}
           </b>
           {spending && ` of ${dollarsAndCents(spending.ceiling_usd)} spent`}

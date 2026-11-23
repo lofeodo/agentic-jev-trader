@@ -27,7 +27,8 @@ function Line({ sim }: { sim: SimLine }) {
       <td className={cell}>
         <div>{sim.name}</div>
         <div className="text-[13.5px] tracking-wider text-dim">
-          {sim.first_day && sim.last_day && `${day(sim.first_day)} to ${day(sim.last_day)} UTC`}
+          {sim.first_day && sim.last_day && `${day(sim.first_day)} to ${day(sim.last_day)} UTC / `}
+          steps {sim.first_step} to {sim.last_step}
         </div>
         <div className="text-[13.5px] tracking-wider text-dim">
           {sim.assets.map((asset, i) => (
@@ -88,7 +89,7 @@ export function SimsScreen({ sims, error }: { sims: SimLine[] | null; error: str
 
   return (
     <section>
-      <h1 className="mb-1 text-center text-[2.1rem] leading-tight tracking-[.02em] text-pale">
+      <h1 className="mb-1 text-center text-[2.1rem] leading-tight tracking-[.02em]">
         Trading sims
       </h1>
       <p className="mb-6 text-center text-[1.1rem] text-dim">
@@ -124,7 +125,7 @@ export function SimsScreen({ sims, error }: { sims: SimLine[] | null; error: str
                   <th
                     key={name}
                     scope="col"
-                    className={`border-b-2 border-rule py-[.4rem] pr-[2ch] font-mono text-[13.5px] font-normal tracking-wider text-dim ${i < 2 ? "text-left" : "text-right"}`}
+                    className={`border-b border-rule py-[.4rem] pr-[2ch] font-mono text-[13.5px] font-light tracking-wider text-dim ${i < 2 ? "text-left" : "text-right"}`}
                   >
                     {name}
                   </th>

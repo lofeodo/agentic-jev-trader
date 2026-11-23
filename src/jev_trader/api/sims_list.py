@@ -5,13 +5,12 @@ A sim is compared with holding at the step the sim has reached, so a sim halfway
 measured against holding halfway through, not against where holding ended.
 """
 
-import math
 from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel
 
 from jev_trader.api.store import ApiStore
-from jev_trader.sim.clock import STEPS_PER_DAY, day_of
+from jev_trader.sim.clock import day_of
 from jev_trader.sim.store import SimStatus
 
 HOLDING = "buy_hold"
@@ -35,10 +34,12 @@ class SimLine(BaseModel):
     not_responding: bool  # worked out when read: running, but quiet for too long
     days_done: int
     days_total: int
+    first_step: int
+    last_step: int
     first_day: date | None  # real UTC dates; None if the dataset has no asset key
     last_day: date | None
     account_value: float
-    holding_value: float | None  # None until holding has reached a stored step
+    holding_value: float | None  # None until holding has reached this sim's step
     trades: int
     spent_usd: float
     spending_cap_usd: float | None
@@ -61,13 +62,13 @@ def _name(sim: dict) -> str:
 
 def _days(sim: dict) -> tuple[int, int]:
     first, last = sim["FIRST_STEP"], sim["LAST_STEP"]
-    total = math.ceil((last - first + 1) / STEPS_PER_DAY)
+    total = day_of(last) - day_of(first) + 1
     reached = sim.get("LAST_COMPLETED_STEP")
     if reached is None:
         return 0, total
     if reached >= last:
         return total, total
-    return (reached - first + 1) // STEPS_PER_DAY, total
+    return day_of(reached + 1) - day_of(first), total  # days whose last step is stored
 
 
 def _not_responding(sim: dict, at: datetime, quiet_limit: timedelta) -> bool:
@@ -77,17 +78,36 @@ def _not_responding(sim: dict, at: datetime, quiet_limit: timedelta) -> bool:
     return last_sign is not None and at - last_sign >= quiet_limit
 
 
-def _holding_sims(all_sims: list[dict]) -> dict[tuple[int, int, int], int]:
-    """The holding sim of each stretch of days: the first made, unless it failed."""
-    found: dict[tuple[int, int, int], int] = {}
+def _reached(sim: dict) -> int:
+    reached = sim.get("LAST_COMPLETED_STEP")
+    return -1 if reached is None else reached
+
+
+def _holding_sims(all_sims: list[dict]) -> dict[tuple, dict]:
+    """The holding sim of each stretch of days: the one that got furthest, unless it failed."""
+    found: dict[tuple, dict] = {}
     for sim in sorted(all_sims, key=lambda s: s["ID"]):
         if sim["VARIANT"] == HOLDING and sim["STATUS"] != SimStatus.FAILED:
-            found.setdefault(_stretch(sim), sim["ID"])
+            best = found.get(_stretch(sim))
+            if best is None or _reached(sim) > _reached(best):
+                found[_stretch(sim)] = sim
     return found
 
 
-def _stretch(sim: dict) -> tuple[int, int, int]:
-    return sim["DATASET"], sim["FIRST_STEP"], sim["LAST_STEP"]
+def _stretch(sim: dict) -> tuple:
+    """What a sim and its holding sim share: the same days, from the same starting amount."""
+    return sim["DATASET"], sim["FIRST_STEP"], sim["LAST_STEP"], sim["STARTING_VALUE"]
+
+
+def _holding_at_same_moment(sim: dict, holding: dict[tuple, dict]) -> int | None:
+    """The holding sim to compare with, if it has stored the step this sim has reached.
+
+    A holding sim stores many steps per write, so it can be behind a sim on the same days.
+    """
+    found = holding.get(_stretch(sim))
+    if found is None or _reached(sim) < 0 or _reached(found) < _reached(sim):
+        return None
+    return found["ID"]
 
 
 def sims_list(store: ApiStore, at: datetime, quiet_limit: timedelta) -> SimsList:
@@ -102,8 +122,9 @@ def sims_list(store: ApiStore, at: datetime, quiet_limit: timedelta) -> SimsList
         reached = sim.get("LAST_COMPLETED_STEP")
         if reached is not None:
             wanted.append((sim["ID"], reached))
-            if _stretch(sim) in holding:
-                wanted.append((holding[_stretch(sim)], reached))
+            holding_id = _holding_at_same_moment(sim, holding)
+            if holding_id is not None:
+                wanted.append((holding_id, reached))
     values = store.account_values_at(wanted) if wanted else {}
     trades, spent = store.trades_by_sim(), store.spent_by_sim()
 
@@ -113,10 +134,10 @@ def sims_list(store: ApiStore, at: datetime, quiet_limit: timedelta) -> SimsList
 
     def line(sim: dict) -> SimLine:
         reached = sim.get("LAST_COMPLETED_STEP")
-        holding_id = holding.get(_stretch(sim))
+        holding_id = _holding_at_same_moment(sim, holding)
         days_done, days_total = _days(sim)
-        keyed = assets.get(sim["DATASET"], [])
-        step_one = keyed[0]["FIRST_DAY"] if keyed else None
+        dataset_assets = assets.get(sim["DATASET"], [])
+        dataset_first_day = dataset_assets[0]["FIRST_DAY"] if dataset_assets else None
         return SimLine(
             id=sim["ID"],
             name=_name(sim),
@@ -126,14 +147,21 @@ def sims_list(store: ApiStore, at: datetime, quiet_limit: timedelta) -> SimsList
             not_responding=_not_responding(sim, at, quiet_limit),
             days_done=days_done,
             days_total=days_total,
-            first_day=step_one and step_one + timedelta(day_of(sim["FIRST_STEP"]) - 1),
-            last_day=step_one and step_one + timedelta(day_of(sim["LAST_STEP"]) - 1),
+            first_step=sim["FIRST_STEP"],
+            last_step=sim["LAST_STEP"],
+            first_day=dataset_first_day
+            and dataset_first_day + timedelta(day_of(sim["FIRST_STEP"]) - 1),
+            last_day=dataset_first_day
+            and dataset_first_day + timedelta(day_of(sim["LAST_STEP"]) - 1),
             account_value=values.get((sim["ID"], reached), sim["STARTING_VALUE"]),
             holding_value=values.get((holding_id, reached)),
             trades=trades.get(sim["ID"], 0),
             spent_usd=spent.get(sim["ID"], 0.0),
             spending_cap_usd=sim.get("SPENDING_CAP"),
-            assets=[AssetName(name=a["NAME"], masked_id=a["MASKED_ID"]) for a in keyed],
+            assets=[
+                AssetName(name=a["NAME"], masked_id=a["MASKED_ID"])
+                for a in dataset_assets
+            ],
         )
 
     ordered = sorted(

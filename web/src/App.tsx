@@ -18,12 +18,18 @@ export function App() {
   const [spending, setSpending] = useState<SpendingTotal | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Asks again only after the last answer, and only while a sim is in progress.
+  // Asks again only after the last answer: on a timer while a sim is in progress, and whenever
+  // the developer comes back to the page (a sim started from the command line then shows up).
+  // With nothing in progress it stays quiet, so an open tab doesn't keep Snowflake awake.
   useEffect(() => {
     let stopped = false;
+    let asking = false;
     let timer: number | undefined;
 
     async function load() {
+      if (asking) return;
+      asking = true;
+      window.clearTimeout(timer);
       let again = false;
       try {
         const [list, total] = await Promise.all([fetchSims(), fetchSpendingTotal()]);
@@ -36,13 +42,18 @@ export function App() {
         if (stopped) return;
         setError(problem instanceof Error ? problem.message : String(problem));
         again = true;
+      } finally {
+        asking = false;
       }
       if (again) timer = window.setTimeout(load, REFRESH_MS);
     }
 
+    const onReturn = () => void load();
+    window.addEventListener("focus", onReturn);
     void load();
     return () => {
       stopped = true;
+      window.removeEventListener("focus", onReturn);
       window.clearTimeout(timer);
     };
   }, []);

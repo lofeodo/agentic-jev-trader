@@ -48,7 +48,12 @@ def paid_call(sims, sim_id, cost):
 
 def client_for(store, client=ON_THIS_COMPUTER, host="localhost"):
     return TestClient(
-        create_app(store, spending_ceiling=75.0, clock=lambda: NOW),
+        create_app(
+            store,
+            spending_ceiling=75.0,
+            not_responding_after=timedelta(minutes=7),
+            clock=lambda: NOW,
+        ),
         base_url=f"http://{host}",
         client=client,
     )
@@ -142,6 +147,7 @@ def test_the_holding_sim_is_never_a_line(sims, store):
 
 def test_a_sim_halfway_is_shown_against_holding_at_the_same_moment(sims, store):
     holding = add_sim(sims, variant="buy_hold")
+    sims.update(holding, STATUS="finished", LAST_COMPLETED_STEP=288)
     account_at(sims, holding, 192, 10_100.0)
     account_at(sims, holding, 288, 10_400.0)  # later than the sim has reached
     sim = add_sim(sims, SPENDING_CAP=1.50)
@@ -179,6 +185,61 @@ def test_a_sim_shows_real_dates_and_real_names_with_masked_ids(sims, store):
         {"name": "Apple", "masked_id": "ASSET_01"},
         {"name": "Bitcoin", "masked_id": "ASSET_02"},
     ]
+
+
+def running_at_192(sims, **columns):
+    sim = add_sim(sims, **columns)
+    sims.update(sim, STATUS="running", LAST_COMPLETED_STEP=192, LAST_WRITTEN_AT=NOW)
+    account_at(sims, sim, 192, 10_250.0)
+    return sim
+
+
+def test_holding_that_has_not_reached_the_sim_shows_no_figure(sims, store):
+    holding = add_sim(sims, variant="buy_hold")
+    sims.update(holding, STATUS="running", LAST_COMPLETED_STEP=150)
+    account_at(sims, holding, 150, 10_050.0)
+    running_at_192(sims)
+
+    assert listed(store)[0]["holding_value"] is None
+
+
+def test_the_holding_sim_that_got_furthest_is_the_one_compared(sims, store):
+    stopped = add_sim(sims, variant="buy_hold")
+    sims.update(stopped, STATUS="stopped", LAST_COMPLETED_STEP=150)
+    account_at(sims, stopped, 150, 10_050.0)
+    finished = add_sim(sims, variant="buy_hold")
+    sims.update(finished, STATUS="finished", LAST_COMPLETED_STEP=288)
+    account_at(sims, finished, 192, 10_100.0)
+    running_at_192(sims)
+
+    assert listed(store)[0]["holding_value"] == 10_100.0
+
+
+def test_holding_with_another_starting_amount_is_not_compared(sims, store):
+    holding = add_sim(sims, variant="buy_hold", STARTING_VALUE=20_000.0)
+    sims.update(holding, STATUS="finished", LAST_COMPLETED_STEP=288)
+    account_at(sims, holding, 192, 20_200.0)
+    running_at_192(sims)
+
+    assert listed(store)[0]["holding_value"] is None
+
+
+def test_a_line_carries_its_step_numbers(sims, store):
+    add_sim(sims)
+
+    [line] = listed(store)
+
+    assert (line["first_step"], line["last_step"]) == (97, 288)
+
+
+def test_days_are_utc_days_for_a_sim_starting_mid_day(sims, store):
+    # Steps 90 to 200 touch days 1, 2 and 3; step 96 ends day 1.
+    sim = add_sim(sims, FIRST_STEP=90, LAST_STEP=200)
+    sims.update(sim, STATUS="running", LAST_COMPLETED_STEP=96, LAST_WRITTEN_AT=NOW)
+
+    [line] = listed(store)
+
+    assert (line["days_done"], line["days_total"]) == (1, 3)
 
 
 def test_a_sim_not_started_is_worth_its_starting_value(sims, store):
