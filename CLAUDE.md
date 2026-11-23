@@ -96,11 +96,13 @@ Gotcha: `conda run` on Windows crashes when a program prints characters outside 
 
 ## Review gate
 
-Per the `review-gate` skill, a PR always gets the `requires-human-review` label when it:
+The `review-gate` skill labels a PR `requires-human-review` only when its blast radius is Wide (the damage would reach outside the code) or its door is one-way (a later PR could not undo the damage). In this project a PR is Wide, and always gets the label, when it:
 
-- places orders (an order is an instruction to buy or sell, such as "buy $1,000 of this stock");
-- changes risk limits (a risk limit is a cap on the account that code enforces, such as never risking more than $100 of a $10,000 account on one trade);
+- places orders with real money (an order is an instruction to buy or sell, such as "buy $1,000 of this stock");
+- changes risk limits that guard real money (a risk limit is a cap on the account that code enforces, such as never risking more than $100 of a $10,000 account on one trade);
 - changes how API keys are stored, sent, logged, or exposed. Code that only reads a key from `.env` the usual way doesn't count.
+
+Sims trade pretend money. Their orders and risk limits don't count: a mistake there shows up as a wrong number in a sim's results, and a later PR fixes it.
 
 ## Agent skills
 
