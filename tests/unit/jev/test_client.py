@@ -63,6 +63,22 @@ def test_an_answer_comes_back_with_its_figures():
     assert body["model"] == "jev-latest"
 
 
+@pytest.mark.parametrize(
+    "answers",
+    [
+        {},
+        {"screen": {"type": "noul", "noul": 1.5}},
+        {"screen": {"type": "noul", "noul": -0.1}},
+    ],
+)
+def test_a_reply_without_a_usable_answer_fails_clearly(answers):
+    body = {**GOOD_BODY, "answers": answers}
+    client, _ = client_answering([httpx2.Response(200, json=body)])
+
+    with pytest.raises(JevFailed, match="screen"):
+        client.ask(REQUEST).noul("screen")
+
+
 def test_a_call_that_succeeds_on_its_last_retry_counts_three_retries():
     client, sent = client_answering([failing(429), failing(503), failing(429), good()])
 

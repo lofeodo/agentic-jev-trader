@@ -61,7 +61,17 @@ class JevReply:
 
     def noul(self, question: str) -> float:
         """The probability of yes, from 0 to 1, for a yes-or-no question."""
-        return json.loads(self.body)["answers"][question]["noul"]
+        try:
+            value = json.loads(self.body)["answers"][question]["noul"]
+        except (KeyError, TypeError, ValueError) as error:
+            raise JevFailed(f"Jev's reply has no answer to {question}") from error
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not 0 <= value <= 1
+        ):
+            raise JevFailed(f"Jev's answer to {question} is not from 0 to 1: {value}")
+        return value
 
 
 class JevClient:

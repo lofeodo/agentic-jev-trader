@@ -21,6 +21,7 @@ from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.masking import MaskingLeak, assert_masked, real_values
 from jev_trader.jev.reading import Reading
 from jev_trader.risk import load_risk_profile
+from jev_trader.sim.__main__ import screen_report
 from jev_trader.sim.agent import ScreeningAgent
 from jev_trader.sim.market import InMemoryMarket, Snapshot
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
@@ -298,6 +299,19 @@ def test_a_practice_sim_stops_at_25_cents(screening_market):
     ]
     with pytest.raises(ValueError, match="cap"):
         run_sim(store, screening_market, sim_id, jev=jev)
+
+
+def test_the_practice_sim_reports_its_share_of_yes_answers(screening_market):
+    store = InMemorySimStore()
+    # One screen in three says yes: 40 of the 120 asked, 33.3%, above the 30% rule.
+    jev, _ = fake_jev(lambda n: 0.5 if n % 3 == 0 else 0.49)
+    sim_id = practice(store, screening_market)
+    run_sim(store, screening_market, sim_id, jev=jev)
+
+    lines = screen_report(store, store.sim(sim_id))
+
+    assert lines[0] == "Screens: 120 asked, 40 said yes (33.3%)."
+    assert "30%" in lines[1]
 
 
 def test_a_practice_sim_is_at_most_one_replayed_day(screening_market):

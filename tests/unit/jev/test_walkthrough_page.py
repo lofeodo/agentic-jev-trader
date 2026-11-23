@@ -88,6 +88,15 @@ def test_the_screens_background_is_the_pages_word_for_word(story):
     assert request.background == story["background"]
 
 
+def test_a_changed_layout_changes_the_reading_version():
+    class Reordered(Reading):
+        def _asset(self, asset):
+            return "\n".join(reversed(super()._asset(asset).split("\n")))
+
+    costs, risk = load_trading_costs(), load_risk_profile()
+    assert Reordered(costs, risk).version != Reading(costs, risk).version
+
+
 def test_the_screens_question_is_the_pages_word_for_word(story):
     _, request = our_request(story)
     assert request.questions == {

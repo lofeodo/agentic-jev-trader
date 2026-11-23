@@ -6,7 +6,8 @@ counts. The tests run this scan over everything sent to a model, and it reports:
 - a real ticker or name, from the settings files in `datasets/`;
 - a calendar date or a clock time;
 - a random ID;
-- an unscaled price: a figure equal, to the cent, to one of the real prices the test gives it.
+- an unscaled price: a figure equal, at the decimals it shows, to a real price the test gives it
+  ($187, 187.4 and 187.44 all match a real $187.44). A bare whole number under 100 is a count.
 
 The sim itself cannot run the last check: its login is not allowed to read real prices.
 """
@@ -35,8 +36,10 @@ _RANDOM_ID = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
     r"|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{16,}\b"
 )
-# A dollar figure, or any number with at least two decimals.
-_PRICE = re.compile(r"\$(\d[\d,]*(?:\.\d+)?)|(?<![\d.])(\d[\d,]*\.\d{2,})")
+# Any number, with its dollar sign if it has one.
+_NUMBER = re.compile(r"(?<![\d.,\w])(\$?)(\d[\d,]*)(?:\.(\d+))?")
+# A bare whole number below this is a count (bar 3 of 26), not a price.
+_SMALLEST_BARE_PRICE = 100
 
 
 class MaskingLeak(AssertionError):
@@ -47,7 +50,7 @@ class MaskingLeak(AssertionError):
 class RealValues:
     tickers: frozenset[str]  # matched with their exact capitals: "SPY", not "spy"
     names: frozenset[str]  # matched in any capitals
-    prices: frozenset[float]  # to the cent
+    prices: frozenset[float]  # compared at as many decimals as the text shows
 
 
 def real_values(
@@ -62,9 +65,7 @@ def real_values(
                 if "provider_symbol" in asset:
                     tickers.add(asset["provider_symbol"])
                 names.update((asset["name"], asset["name"].split()[0]))
-    return RealValues(
-        frozenset(tickers), frozenset(names), frozenset(round(p, 2) for p in prices)
-    )
+    return RealValues(frozenset(tickers), frozenset(names), frozenset(prices))
 
 
 def _whole_word(word: str) -> str:
@@ -83,9 +84,13 @@ def find_leaks(text: str, real: RealValues) -> list[str]:
     leaks += [f"calendar date: {m.group()}" for m in _DATES.finditer(text)]
     leaks += [f"clock time: {m.group()}" for m in _CLOCK_TIME.finditer(text)]
     leaks += [f"random ID: {m.group()}" for m in _RANDOM_ID.finditer(text)]
-    for match in _PRICE.finditer(text):
-        figure = (match.group(1) or match.group(2)).replace(",", "")
-        if round(float(figure), 2) in real.prices:
+    for match in _NUMBER.finditer(text):
+        sign, whole, decimals = match.groups()
+        figure = float(f"{whole.replace(',', '')}.{decimals or 0}")
+        if not (sign or decimals or figure >= _SMALLEST_BARE_PRICE):
+            continue
+        places = len(decimals or "")
+        if any(round(price, places) == figure for price in real.prices):
             leaks.append(f"unscaled price: {match.group()}")
     return leaks
 

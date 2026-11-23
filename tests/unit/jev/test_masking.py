@@ -43,7 +43,9 @@ def test_a_calendar_date_is_a_leak(leak):
     assert find_leaks(f"{CLEAN} On {leak} it rose.", REAL)
 
 
-@pytest.mark.parametrize("leak", ["$187.44", "187.44", "$187.441"])
+@pytest.mark.parametrize(
+    "leak", ["$187.44", "187.44", "$187.4", "187.4", "$187", "187"]
+)
 def test_an_unscaled_price_is_a_leak(leak):
     assert find_leaks(f"{CLEAN} It traded at {leak} today.", REAL)
 

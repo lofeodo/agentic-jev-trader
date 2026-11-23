@@ -3,9 +3,9 @@
 The words live in `prompts/jev_reading.toml`. The same data always gives the same text: nothing
 here reads a clock, a random number, a step number or a sim number.
 
-The **reading version** is a fingerprint worked out from the wording and the opening as this
-sim's settings fill it in, so a changed word or a changed setting gives a new version and nobody
-has to bump a number.
+The **reading version** is a fingerprint worked out from the wording, the opening as this sim's
+settings fill it in, and the layout of a request, so a changed word, setting or section order
+gives a new version and nobody has to bump a number.
 
 Choices the spec leaves to the build:
 
@@ -102,6 +102,17 @@ def load_wording(path: Path = WORDING_PATH) -> dict[str, str]:
         return tomllib.load(file)
 
 
+_LAYOUT_ASSET = AssetView("ASSET", "stock", 100.0, 1.0, "Situation.", ("pattern",))
+_LAYOUT_ACCOUNT = AccountView(
+    value=100.0,
+    cash=50.0,
+    loan=1.0,
+    exposure=50.0,
+    positions=(PositionLine("OTHER", "crypto", "long", 50.0, 1, 1.0, 1.0),),
+)
+_LAYOUT_PLAYBOOK = {"pattern": ("lean", "Shape.")}
+
+
 class Reading:
     """The text of one sim's requests to Jev, given the settings it runs with."""
 
@@ -126,8 +137,15 @@ class Reading:
             daily_loss_limit=_whole_percent(risk.daily_loss_limit),
             forced_close_share=_whole_percent(risk.forced_close_share),
         )
+        # A request written from fixed data carries the layout: the sections' order and joins.
+        sample = self.screen_request(_LAYOUT_ASSET, _LAYOUT_ACCOUNT, _LAYOUT_PLAYBOOK)
         fingerprinted = json.dumps(
-            {"wording": self.wording, "opening": self.opening}, sort_keys=True
+            {
+                "wording": self.wording,
+                "opening": self.opening,
+                "layout": [sample.background, sample.questions],
+            },
+            sort_keys=True,
         )
         self.version = hashlib.sha256(fingerprinted.encode("utf-8")).hexdigest()[
             :VERSION_LENGTH

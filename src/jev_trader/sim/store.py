@@ -100,6 +100,9 @@ class SimStore(Protocol):
     def spent(self, sim_id: int) -> float:
         """The dollars of the sim's recorded paid calls."""
 
+    def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
+        """How many screens Jev answered, and how many of them said yes (at `cut_off` or above)."""
+
 
 class SimulatedKill(BaseException):
     """The in-memory store stopping the program mid-write, as a kill would.
@@ -191,6 +194,14 @@ class InMemorySimStore:
 
     def spent(self, sim_id: int) -> float:
         return sum(r["COST_USD"] or 0.0 for r in self.rows("SIM.CALLS", sim_id))
+
+    def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
+        answers = [
+            r["SCREEN_ANSWER"]
+            for r in self.rows("MEMORY.DECISIONS", sim_id)
+            if r["KIND"] == "screen" and r["SCREEN_ANSWER"] is not None
+        ]
+        return len(answers), sum(1 for a in answers if a >= cut_off)
 
     # For tests
 

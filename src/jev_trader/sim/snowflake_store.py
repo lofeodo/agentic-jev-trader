@@ -167,6 +167,14 @@ class SnowflakeSimStore(_Connection):
         )
         return float(total)
 
+    def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
+        [(asked, yes)] = self._run(
+            "SELECT COUNT(SCREEN_ANSWER), COUNT_IF(SCREEN_ANSWER >= ?) "
+            "FROM MEMORY.DECISIONS WHERE SIM = ? AND KIND = 'screen'",
+            (cut_off, sim_id),
+        )
+        return int(asked), int(yes)
+
 
 def _delete_ids(cur, table: str, sim_id: int, ids: list[str]) -> None:
     batch = 1_000  # IDs per IN list

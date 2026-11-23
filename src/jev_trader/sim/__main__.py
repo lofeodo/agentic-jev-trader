@@ -49,6 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 # Steps stored per write. The holding sim calls nothing paid, so a redone batch costs nothing;
 # the agent's sims will store one step per write.
 HOLDING_STEPS_PER_WRITE = 960  # ten days
+YES_SHARE_TO_STOP_AND_ASK = 0.30  # spec appendix 9, section 12
 
 
 def steps_for(args, market) -> tuple[int, int]:
@@ -98,6 +99,22 @@ def jev_client_for(sim: dict) -> JevClient | None:
     if sim["VARIANT"] == "buy_hold":
         return None
     return JevClient(JevSettings(**sim["SETTINGS"]["jev"]))
+
+
+def screen_report(store, sim: dict) -> list[str]:
+    """The share of screens that said yes, and the spec's stop-and-ask rule above 30%."""
+    cut_off = sim["SETTINGS"]["risk_profile"]["screen_cut_off"]
+    asked, yes = store.screen_counts(sim["ID"], cut_off)
+    if not asked:
+        return ["Screens: none asked."]
+    share = yes / asked
+    lines = [f"Screens: {asked} asked, {yes} said yes ({share:.1%})."]
+    if share > YES_SHARE_TO_STOP_AND_ASK:
+        lines.append(
+            f"Above {YES_SHARE_TO_STOP_AND_ASK:.0%}: the developer decides what to do "
+            "before any measurement sim."
+        )
+    return lines
 
 
 def default_steps_per_write(sim: dict) -> int:
@@ -198,9 +215,16 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as refused:
             print(f"Refused: {refused}")
             return 2
+        if jev is not None:
+            for line in screen_report(store, sim):
+                print(line)
     except JevFailed as failed:
-        print(f"Sim {sim_id} stopped: {failed}")
-        print(f"Carry it on later with: python -m jev_trader.sim resume {sim_id}")
+        reason = str(failed).encode("ascii", "replace").decode("ascii")
+        print(f"Sim {sim_id} stopped: {reason}")
+        print(
+            "Carry it on later with: conda run -n agentic-jev-trader "
+            f"python -m jev_trader.sim resume {sim_id}"
+        )
         return 1
     except StepAlreadyWritten as other_copy:
         print(f"Another copy of this sim is writing it: {other_copy}")
