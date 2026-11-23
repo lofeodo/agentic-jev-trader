@@ -81,6 +81,20 @@ Run a practice sim of the agent without memory: at most one replayed day and 25 
 conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
 ```
 
+Start the API (logs in as the API login, reads only, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173:
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.api serve
+npm run dev --prefix web
+```
+
+After changing what the API answers, regenerate the web app's data types (CI fails if they differ):
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.api describe web/openapi.json
+npm run types --prefix web
+```
+
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself).

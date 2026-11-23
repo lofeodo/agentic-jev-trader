@@ -1,0 +1,57 @@
+/* The look: a 1980s Bloomberg terminal (spec appendix 7, section 12). Sharp letters, no glow. */
+@import "tailwindcss";
+
+@font-face {
+  font-family: Arimo;
+  src: url("/fonts/arimo.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+@theme {
+  --color-screen: #141416;
+  --color-amber: #ffb238;
+  --color-rule: #ff5422;
+  --color-dim: #e0762c;
+  --color-pale: #ffd98a;
+  --font-sans: Arimo, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
+}
+
+/* Fixed-width letters are the light weight, as in the prototype. */
+@layer components {
+  .font-mono {
+    font-weight: 300;
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--color-screen);
+    color: var(--color-amber);
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+
+  ::selection {
+    background: var(--color-amber);
+    color: var(--color-screen);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-pale);
+  }
+}
