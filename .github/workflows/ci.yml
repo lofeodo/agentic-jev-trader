@@ -26,3 +26,18 @@ jobs:
           python -m ruff format --check .
       - name: Tests (unit and recorded, network blocked)
         run: python -m pytest tests/unit tests/recorded --block-network
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install the web app
+        run: npm ci --prefix web
+      # Regenerates the API's description and the web app's types: any difference from what is
+      # committed means the two disagree. The build then fails on code that misuses a type.
+      - name: Types check (the web app agrees with the API)
+        run: |
+          python -m jev_trader.api describe web/openapi.json
+          npm run types --prefix web
+          git diff --exit-code -- web/openapi.json web/src/api/schema.d.ts
+          npm run build --prefix web

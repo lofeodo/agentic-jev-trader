@@ -19,6 +19,12 @@ httpx2==2.16.0
 exchange_calendars==4.13.3
 httpx==0.28.1
 
+# The API the web app talks to
+fastapi==0.162.3
+pydantic==2.14.3
+starlette==1.10.0
+uvicorn==0.54.0
+
 # Tests
 pytest==9.2.0
 pytest-recording==0.14.1
