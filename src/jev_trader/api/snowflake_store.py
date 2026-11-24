@@ -5,7 +5,7 @@ builder that can read the asset key). The connection must use `?` placeholders.
 import json
 
 from jev_trader.dataset.snowflake_store import MOST_BOUND_VALUES
-from jev_trader.sim.snowflake_store import SnowflakeSimStore
+from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
 
 _ACCOUNT_COLUMNS = (
     "SIM",
@@ -161,3 +161,24 @@ class SnowflakeApiStore:
         columns = ("DATASET", "MASKED_ID", "TICKER", "NAME", "PRICE_SCALE", "FIRST_DAY")
         rows = self._run(f"SELECT {', '.join(columns)} FROM KEYS.ASSET_KEY")
         return [dict(zip(columns, row, strict=True)) for row in rows]
+
+    def dataset(self, dataset_id):
+        return SnowflakeMarket(self.con).dataset(dataset_id)
+
+    def create(self, row):
+        return SnowflakeSimStore(self.con).create(row)
+
+    def update(self, sim_id, **columns):
+        SnowflakeSimStore(self.con).update(sim_id, **columns)
+
+    def spent(self, sim_id):
+        return self.spent_on(sim_id)
+
+    def sims_in_progress(self):
+        return SnowflakeSimStore(self.con).sims_in_progress()
+
+    def latest_tier_2_share(self):
+        return SnowflakeSimStore(self.con).latest_tier_2_share()
+
+    def bar_count(self, dataset_id, first_step, last_step):
+        return SnowflakeMarket(self.con).bar_count(dataset_id, first_step, last_step)

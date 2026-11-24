@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from jev_trader.api import sim_page
+from jev_trader.api.sim_jobs import Jobs, Refusal, Refused, Resumption, SimToStart
 from jev_trader.api.sim_page import (
     Chart,
     LiveFigures,
@@ -26,6 +27,7 @@ from jev_trader.api.sim_page import (
 )
 from jev_trader.api.sims_list import SimsList, sims_list
 from jev_trader.api.store import ApiStore
+from jev_trader.jobs import Launcher
 from jev_trader.sim.store import now
 
 LOCAL_CLIENTS = frozenset({"127.0.0.1", "::1"})
@@ -34,6 +36,21 @@ LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 
 class Health(BaseModel):
     status: str
+
+
+class Refusals(BaseModel):
+    """Why a request to start, stop or resume was refused: every reason at once."""
+
+    refusals: list[Refusal]
+
+
+class SimsStarted(BaseModel):
+    sim_ids: list[int]
+
+
+REFUSED = {
+    409: {"model": Refusals, "description": "Refused: the reasons, and how to fix each"}
+}
 
 
 class SpendingTotal(BaseModel):
@@ -47,11 +64,15 @@ def create_app(
     store: ApiStore,
     spending_ceiling: float,
     not_responding_after: timedelta,
+    launcher: Launcher,
     clock: Callable[[], datetime] = now,
     moment_window_steps: int = 8,
 ) -> FastAPI:
-    """`moment_window_steps`: how many steps either side of a moment count as "around then"."""
+    """`moment_window_steps`: how many steps either side of a moment count as "around then".
+
+    `launcher` starts and kills the sims' jobs (the `JOB_LAUNCHER` setting)."""
     app = FastAPI(title="Jev trader API", version="1")
+    jobs = Jobs(store, launcher, spending_ceiling, not_responding_after)
 
     @app.middleware("http")
     async def only_this_computer(request: Request, call_next):
@@ -101,6 +122,36 @@ def create_app(
             return sim_page.moment(store, sim_id, at, moment_window_steps)
         except NoAssetKey as missing:
             raise HTTPException(status_code=409, detail=str(missing)) from missing
+
+    @app.exception_handler(Refused)
+    def refused(request: Request, refused: Refused):
+        body = Refusals(refusals=refused.refusals)
+        return JSONResponse(body.model_dump(), status_code=409)
+
+    @app.post("/sims", operation_id="startSim", status_code=202, responses=REFUSED)
+    def start_sim(wanted: SimToStart) -> SimsStarted:
+        """Store the sim, then start its job. Practice and tuning sims start only from the
+        command line."""
+        return SimsStarted(sim_ids=jobs.start(wanted, clock()))
+
+    @app.post("/sims/{sim_id}/stop", operation_id="stopSim", responses=REFUSED)
+    def stop_sim(sim_id: int) -> SimHeader:
+        """Kill the sim's job at once and mark it stopped by hand. Its half-done step is redone
+        on resume."""
+        jobs.stop(sim_id, clock())
+        return sim_page.header(store, sim_id, clock(), not_responding_after)
+
+    @app.post(
+        "/sims/{sim_id}/resume",
+        operation_id="resumeSim",
+        status_code=202,
+        responses=REFUSED,
+    )
+    def resume_sim(sim_id: int, wanted: Resumption) -> SimHeader:
+        """Start a stopped or not responding sim again from its last stored step. A sim stopped
+        by its spending cap needs a new cap."""
+        jobs.resume(sim_id, wanted, clock())
+        return sim_page.header(store, sim_id, clock(), not_responding_after)
 
     @app.get("/spending/total", operation_id="spendingTotal")
     def spending_total() -> SpendingTotal:

@@ -81,7 +81,7 @@ Run a practice sim of the agent without memory: at most one replayed day and 25 
 conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
 ```
 
-Start the API (logs in as the API login, reads only, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173:
+Start the API (logs in as the API login, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173. The API reads everything; its only writes are a sim's row in `SIM.SIMS` (start, Stop, Resume). Starting or resuming a sim of the agent starts a job that calls Jev, so it costs money: ask first. `JOB_LAUNCHER` in `.env` picks how jobs start (`local`, the default, is the only one built); each job prints to `logs/sims/sim-<id>.log`:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.api serve
@@ -97,10 +97,11 @@ npm run types --prefix web
 
 Gotchas:
 
-- `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself).
+- `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).
+- A sim job started by the API runs the code of the checkout the API runs from, whichever copy is installed.
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
 - `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.
-- Every refusal before a sim starts or resumes comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. `run_sim` keeps its own guards for carrying a sim on (finished, cap already reached, changed wording). The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.
+- Every refusal before a sim starts or resumes comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. `run_sim` keeps its own guards for carrying a sim on (finished, cap already reached, changed wording), and `api/sim_jobs.py` the checks only the API makes (command-line-only kinds, days, a resume's new cap). The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.
 
 ## Walkthroughs
 

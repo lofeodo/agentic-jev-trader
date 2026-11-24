@@ -4,6 +4,7 @@
 
 from typing import Protocol
 
+from jev_trader.sim.market import DatasetInfo, InMemoryMarket
 from jev_trader.sim.store import InMemorySimStore
 
 
@@ -55,6 +56,29 @@ class ApiStore(Protocol):
     def asset_key(self) -> list[dict]:
         """The asset key's DATASET, MASKED_ID, TICKER, NAME, PRICE_SCALE and FIRST_DAY."""
 
+    # What starting, stopping and resuming a sim needs (spec appendix 8, section 8.7). The API's
+    # login may add a sim's row and change it, nothing else of a sim.
+
+    def dataset(self, dataset_id: int) -> DatasetInfo:
+        """A dataset's status, steps, periods and assets. KeyError if there is none."""
+
+    def create(self, row: dict) -> int:
+        """Add a sim's row (status created); returns its ID."""
+
+    def update(self, sim_id: int, **columns) -> None:
+        """Set columns of a sim's row; never on a finished sim."""
+
+    # What the one checker reads (`jev_trader.sim.checker`), as `sim.store.SimStore` and
+    # `sim.market.Market` describe them.
+
+    def spent(self, sim_id: int) -> float: ...
+
+    def sims_in_progress(self) -> list[dict]: ...
+
+    def latest_tier_2_share(self) -> float | None: ...
+
+    def bar_count(self, dataset_id: int, first_step: int, last_step: int) -> int: ...
+
 
 # Left out of the list of every sim: large, and only the sim page needs them.
 _LIST_LEAVES_OUT = ("SETTINGS", "ACCOUNT_STATE")
@@ -64,6 +88,7 @@ class InMemoryApiStore:
     """The API's reads over the in-memory sim store, plus a made-up asset key and closes.
 
     `closes` gives each dataset's rescaled 15-minute closes: dataset, then asset, then step.
+    `market` holds the datasets a sim can start on.
     """
 
     def __init__(
@@ -71,10 +96,12 @@ class InMemoryApiStore:
         sims: InMemorySimStore,
         asset_key: list[dict],
         closes: dict[int, dict[str, dict[int, float]]] | None = None,
+        market: InMemoryMarket | None = None,
     ):
         self._sims = sims
         self._asset_key = asset_key
         self._closes = closes or {}
+        self._market = market or InMemoryMarket(datasets=[], bars={})
 
     def total_spent(self) -> float:
         return sum(r["COST_USD"] or 0.0 for r in self._sims.tables["SIM.CALLS"])
@@ -161,3 +188,24 @@ class InMemoryApiStore:
 
     def asset_key(self) -> list[dict]:
         return [dict(row) for row in self._asset_key]
+
+    def dataset(self, dataset_id):
+        return self._market.dataset(dataset_id)
+
+    def create(self, row):
+        return self._sims.create(row)
+
+    def update(self, sim_id, **columns):
+        self._sims.update(sim_id, **columns)
+
+    def spent(self, sim_id):
+        return self._sims.spent(sim_id)
+
+    def sims_in_progress(self):
+        return self._sims.sims_in_progress()
+
+    def latest_tier_2_share(self):
+        return self._sims.latest_tier_2_share()
+
+    def bar_count(self, dataset_id, first_step, last_step):
+        return self._market.bar_count(dataset_id, first_step, last_step)

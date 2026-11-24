@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.sim.store import InMemorySimStore
+from tests.unit.api.conftest import StandInLauncher
 
 ON_THIS_COMPUTER = ("127.0.0.1", 50000)
 ON_ANOTHER_COMPUTER = ("192.168.1.20", 50000)
@@ -53,6 +54,7 @@ def client_for(store, client=ON_THIS_COMPUTER, host="localhost"):
             spending_ceiling=75.0,
             not_responding_after=timedelta(minutes=7),
             clock=lambda: NOW,
+            launcher=StandInLauncher(),
         ),
         base_url=f"http://{host}",
         client=client,
@@ -273,6 +275,25 @@ def test_a_stopped_sim_is_never_not_responding(sims, store):
     sims.update(sim, STATUS="stopped", LAST_WRITTEN_AT=NOW - timedelta(days=2))
 
     assert listed(store)[0]["not_responding"] is False
+
+
+@pytest.mark.parametrize(
+    ("restarted", "not_responding"),
+    [(timedelta(minutes=1), False), (timedelta(minutes=8), True)],
+)
+def test_a_resumed_sim_is_quiet_from_when_its_job_restarted(
+    sims, store, restarted, not_responding
+):
+    """Its last stored step is hours old; its job started again a moment ago."""
+    sim = add_sim(sims)
+    sims.update(
+        sim,
+        STATUS="running",
+        LAST_WRITTEN_AT=NOW - timedelta(hours=2),
+        STARTED_AT=NOW - restarted,
+    )
+
+    assert listed(store)[0]["not_responding"] is not_responding
 
 
 def test_sims_come_in_kind_order(sims, store):

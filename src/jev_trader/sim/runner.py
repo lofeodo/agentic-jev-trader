@@ -29,7 +29,6 @@ Choices the spec leaves to the build (appendix 1, "Not decided by any ticket"):
 """
 
 import math
-import os
 import subprocess
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -46,6 +45,7 @@ from jev_trader.broker import (
 )
 from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.reading import Reading
+from jev_trader.jobs import this_process
 from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
 from jev_trader.sim.agent import AgentWithoutMemory
@@ -327,8 +327,8 @@ def run_sim(
         STATUS=str(SimStatus.RUNNING),
         STOP_REASON=None,
         FAILURE_REASON=None,
-        RUNNING_ON=f"pid {os.getpid()}",
-        **({} if sim.get("STARTED_AT") else {"STARTED_AT": now()}),
+        RUNNING_ON=this_process(),
+        STARTED_AT=now(),  # when the job last started: a resumed sim is not yet quiet
     )
     batch = _Batch()
     if last_completed is not None and start <= last_step:
