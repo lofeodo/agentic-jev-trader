@@ -73,6 +73,7 @@ export function fetchScorecard(id: number, split: Split[]) {
   for (const part of split) ask.append("split", part);
   return read<Scorecard>(`/sims/${id}/scorecard${split.length ? `?${ask}` : ""}`);
 }
+
 // A request to the API was refused: every reason, each saying how to fix it.
 export class RefusedError extends Error {
   constructor(public refusals: Refusal[]) {

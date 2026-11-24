@@ -25,6 +25,7 @@ import { dayAndTime, dollars, dollarsAndCents, fromApi, signedDollars, units } f
 // A setting (appendix 8, section 8.9), like the 1-second one on the sim page.
 const REPORT_REFRESH_MS = 20_000;
 const PAGE_SIZE = 50;
+const STEP_MINUTES = 15; // one step of the sim's clock
 
 const th = "border-b border-rule py-[.4rem] pr-[2ch] font-mono text-[13.5px] font-light tracking-wider text-dim";
 const td = "py-[.42rem] pr-[2ch] align-top font-mono text-[15px]";
@@ -258,7 +259,7 @@ function NoTradeRow({ line }: { line: TradeLine }) {
       <td className={td}>
         {why}
         {line.screen_answer !== null && (
-          <div className="text-[12.5px]">screen: {Math.round(line.screen_answer * 100)}% worth a closer look</div>
+          <div className="text-[12.5px]">screen: {Math.round(line.screen_answer * 100)}% worth a full evaluation</div>
         )}
       </td>
     </tr>
@@ -460,7 +461,7 @@ function ScorecardTable({ card }: { card: Scorecard }) {
               <td className={`${td} text-right`}>{x.average_gain === null ? "--" : signedDollars(x.average_gain)}</td>
               <td className={`${td} text-right`}>{x.average_loss === null ? "--" : signedDollars(x.average_loss)}</td>
               <td className={`${td} text-right`}>{signedDollars(x.total_profit)}</td>
-              <td className={td}>{x.shown_to_agent ? "Yes" : <span className="text-dim">No: under {card.minimum_sample}</span>}</td>
+              <td className={td}>{x.shown_to_agent ? "Yes" : <span className="text-dim">{x.trades < card.minimum_sample ? `No: under ${card.minimum_sample}` : "No: the agent never reads this split"}</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -484,8 +485,8 @@ const RISK: Record<string, Setting> = {
   position_limit: { label: "Position limit: the most in one position", show: times },
   exposure_limit: { label: "Exposure limit: the most held in all positions together", show: times },
   daily_loss_limit: { label: "Daily loss limit: past this loss since midnight UTC, no new trades that day", show: ofAccount },
-  forced_close_share: { label: "Forced close: every position closes when the account falls below this share of what it holds", show: (v) => pct(v) },
-  no_new_stock_trade_bars: { label: "No new stock trade in a session's last bars", show: (v) => `${v} bars (${v * 15} minutes)` },
+  forced_close_share: { label: "Forced close: every position closes when the account falls below this share of what it holds", show: (v, account) => `${pct(v)} (holding ${dollars(2 * account)}, all closes below ${dollars(v * 2 * account)})` },
+  no_new_stock_trade_bars: { label: "No new stock trade in a session's last bars", show: (v) => `${v} bars (${v * STEP_MINUTES} minutes)` },
   screen_cut_off: { label: "Screen cut-off: Jev's yes needed for a full evaluation", show: (v) => pct(v) },
 };
 
@@ -533,7 +534,7 @@ function SettingsSection({ header, number }: { header: SimHeader; number: number
           ))}
           {stops && (
             <>
-              <SettingRow label="Stop prices: tight, medium and wide, in typical moves from the price" text={(stops.multiples ?? []).join(", ")} />
+              <SettingRow label="Stop prices: tight, medium and wide, in typical moves from the price" text={`${(stops.multiples ?? []).join(", ")} (at $100 with a $0.60 typical move, a long's are ${(stops.multiples ?? []).map((m) => `$${(100 - 0.6 * m).toFixed(2)}`).join(", ")})`} />
               <SettingRow label="Stop price distance cap: the furthest from the price" text={stops.distance_cap === undefined ? "--" : `${pct(stops.distance_cap)} ($${(stops.distance_cap * 100).toFixed(2)} at $100)`} />
             </>
           )}

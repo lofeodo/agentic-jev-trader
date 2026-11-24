@@ -7,11 +7,11 @@ asset class: a trade counts in one group for each 15-minute pattern in the patte
 was decided ("none" if there was none), and stock and crypto trades are never counted together.
 A line can be split further by trend, volume level and part of the day, each taken at entry.
 Each line says whether the agent is shown it: a group under the minimum sample (10 closed trades)
-is hidden from it, and so is a split the track record's ladder never forms (it narrows by trend,
-then volume level, then part of the day). Worked out when asked for, never stored.
+is hidden from it, and so is a split the agent's ladder of groups never forms (it narrows by
+trend, then volume level, then part of the day). Worked out when asked for, never stored.
 
-Which group fits the agent's situation, and the fallback to broader groups, belong to the track
-record itself (ticket #101), not to this page.
+Which group fits the agent's situation, and the fallback to broader groups, belong to the
+agent's side (ticket #101), not to this page.
 
 Choices the spec leaves to the build:
 
@@ -59,8 +59,8 @@ class ScorecardLine(BaseModel):
     average_gain: float | None  # over the trades that made money
     average_loss: float | None  # over the trades that lost money (a negative number)
     total_profit: float
-    # A group under the minimum sample is hidden from the agent, and so is one the track
-    # record's ladder never forms (a split by volume level alone, say).
+    # A group under the minimum sample is hidden from the agent, and so is one the agent's
+    # ladder of groups never forms (a split by volume level alone, say).
     shown_to_agent: bool
 
 

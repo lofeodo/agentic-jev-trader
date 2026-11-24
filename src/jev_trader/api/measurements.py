@@ -643,7 +643,9 @@ def _trader(book: _Book, sim: Sim) -> MeasurementGroup:
 
     per_asset = Counter(sim.asset(t.asset).name for t in trades)
     endings = Counter(t.closing_reason for t in closed)
-    hours = Counter((t.opened_step % STEPS_PER_DAY) * 15 // 60 for t in trades)
+    hours = Counter(
+        int((t.opened_step % STEPS_PER_DAY) * HOURS_PER_STEP) for t in trades
+    )
     return MeasurementGroup(
         key="trader",
         title="What kind of trader it is",
