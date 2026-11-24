@@ -37,6 +37,9 @@ class ApiStore(Protocol):
     def events(self, sim_id: int) -> list[dict]:
         """The sim's notable moments (`SIM.SIM_EVENTS`), in step order."""
 
+    def latest_decisions(self, sim_id: int, limit: int) -> list[dict]:
+        """The sim's last `limit` `MEMORY.DECISIONS` rows: latest step first, then by asset."""
+
     def closes_at(self, dataset: int, step: int) -> dict[str, float]:
         """Each asset's latest 15-minute close (rescaled) at or before `step`, by masked ID."""
 
@@ -121,6 +124,13 @@ class InMemoryApiStore:
             (dict(r) for r in self._sims.rows("SIM.SIM_EVENTS", sim_id)),
             key=lambda r: (r["STEP"], r["ID"]),
         )
+
+    def latest_decisions(self, sim_id, limit):
+        rows = sorted(
+            self._sims.rows("MEMORY.DECISIONS", sim_id),
+            key=lambda r: (-r["STEP"], r["ASSET"]),
+        )
+        return [dict(r) for r in rows[:limit]]
 
     def closes_at(self, dataset, step):
         found = {}

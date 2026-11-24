@@ -17,7 +17,8 @@ Choices the spec leaves to the build:
 - "The other sims that replayed the same days" are the sims of the same kind over the same
   stretch of days and starting amount, holding excluded; for a measurement sim also of the same
   test period and repeat.
-- "Latest decisions" are the latest orders until the agent's decisions are stored.
+- "Latest decisions" are the last 8 rows of the sim's decisions (an asset looked at, at a
+  step); the latest 8 orders come beside them.
 - A position's direction is its entry's side: a buy opens a long, a sell a short.
 """
 
@@ -298,6 +299,21 @@ class Meters(BaseModel):
     exposure_limit_usd: float | None  # the most that may be held; None: no risk profile
 
 
+class DecisionLine(BaseModel):
+    """One asset looked at, at one step, and what came of it."""
+
+    step: int
+    at: datetime | None
+    asset: AssetName
+    kind: str  # "screen" for now
+    tier: int  # 0: code alone, nothing asked; 1: Jev answered the screen
+    screen_answer: (
+        float | None
+    )  # Jev's probability that a closer look is worth it, 0 to 1
+    skipped_because: str | None  # the limit that meant no trade could open
+    action: str  # what was done: "nothing" for now
+
+
 class NewPoint(BaseModel):
     sim_id: int
     step: int
@@ -320,13 +336,14 @@ class LiveFigures(BaseModel):
     spending_cap_usd: float | None
     meters: Meters
     open_positions: list[OpenPosition]
+    latest_decisions: list[DecisionLine]  # newest first
     latest_orders: list[OrderLine]  # newest first
     notable_moments: list[NotableMoment]
     new_points: list[NewPoint]  # every chart line's points after `after_step`
     ticks: list[TradeTick]  # every trade so far, as on the chart
 
 
-LATEST_ORDERS = 8
+LATEST_ORDERS = 8  # and as many decisions
 
 
 def _price(sim: "_Sim", masked_id: str, rescaled: float) -> Price:
@@ -458,6 +475,19 @@ def live(
         ],
         latest_orders=[_order_line(sim, o) for o in newest],
         ticks=_ticks(sim, orders),
+        latest_decisions=[
+            DecisionLine(
+                step=d["STEP"],
+                at=sim.at(d["STEP"]),
+                asset=sim.asset(d["ASSET"]),
+                kind=d["KIND"],
+                tier=d["TIER"],
+                screen_answer=d["SCREEN_ANSWER"],
+                skipped_because=d["SKIPPED_BECAUSE"],
+                action=d["ACTION"],
+            )
+            for d in store.latest_decisions(sim_id, LATEST_ORDERS)
+        ],
         notable_moments=[
             NotableMoment(
                 step=e["STEP"],

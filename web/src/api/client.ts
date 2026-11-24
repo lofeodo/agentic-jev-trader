@@ -12,6 +12,7 @@ export type TradeTick = Schemas["TradeTick"];
 export type LiveFigures = Schemas["LiveFigures"];
 export type Moment = Schemas["Moment"];
 export type OrderLine = Schemas["OrderLine"];
+export type DecisionLine = Schemas["DecisionLine"];
 export type Price = Schemas["Price"];
 export type AssetName = Schemas["AssetName"];
 

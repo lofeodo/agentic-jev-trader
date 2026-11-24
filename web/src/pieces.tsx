@@ -1,5 +1,5 @@
 // Small pieces shared by the sim page and its side panel.
-import type { AssetName, LiveFigures, OrderLine, Price } from "./api/client";
+import type { AssetName, DecisionLine, LiveFigures, OrderLine, Price } from "./api/client";
 import { dollars, price } from "./format";
 
 // The real name leads; the masked ID the agent saw follows as a small tag.
@@ -51,6 +51,23 @@ export function statusWords(sim: Pick<LiveFigures, "status" | "stop_reason" | "n
   if (sim.not_responding) return "Not responding";
   if (sim.status === "stopped" && sim.stop_reason) return `Stopped: ${sim.stop_reason}`;
   return sim.status;
+}
+
+const LIMITS: Record<string, string> = {
+  daily_loss: "the daily loss limit was reached",
+  session_end: "too close to the stock market's close",
+  forced_close: "a forced close was waiting",
+};
+
+// One decision in plain words: "Jev's screen: 31% worth a closer look; did nothing".
+export function decisionWords(d: DecisionLine) {
+  const action = d.action === "nothing" ? "did nothing" : d.action;
+  if (d.tier === 0) {
+    const why = d.skipped_because ? (LIMITS[d.skipped_because] ?? d.skipped_because) : "code alone";
+    return `Not asked: ${why}; ${action}`;
+  }
+  const share = d.screen_answer === null ? "--" : `${Math.round(d.screen_answer * 100)}%`;
+  return `Jev's ${d.kind}: ${share} worth a closer look; ${action}`;
 }
 
 const REASONS: Record<string, string> = {

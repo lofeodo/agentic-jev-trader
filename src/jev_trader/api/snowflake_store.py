@@ -121,6 +121,13 @@ class SnowflakeApiStore:
                 row["DETAILS"] = json.loads(row["DETAILS"])
         return rows
 
+    def latest_decisions(self, sim_id, limit):
+        return self._rows(
+            "SELECT STEP, ASSET, KIND, TIER, SCREEN_ANSWER, SKIPPED_BECAUSE, ACTION "
+            "FROM MEMORY.DECISIONS WHERE SIM = ? ORDER BY STEP DESC, ASSET LIMIT ?",
+            (sim_id, limit),
+        )
+
     def closes_at(self, dataset, step):
         rows = self._run(
             "SELECT ASSET, CLOSE FROM RAW.BARS "

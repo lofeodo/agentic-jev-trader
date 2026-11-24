@@ -325,6 +325,51 @@ def test_the_live_figures_carry_the_latest_orders_and_notable_moments(sims, api)
     ]
 
 
+def decision(sims, sim_id, step, asset, answer=None, skipped_because=None):
+    sims.tables["MEMORY.DECISIONS"].append(
+        {
+            "ID": f"{sim_id}-{step}-{asset}",
+            "SIM": sim_id,
+            "FIRST_WRITTEN_BY": sim_id,
+            "DATASET": 7,
+            "ASSET": asset,
+            "STEP": step,
+            "KIND": "screen",
+            "TIER": 0 if answer is None else 1,
+            "SCREEN_ANSWER": answer,
+            "SKIPPED_BECAUSE": skipped_because,
+            "JEV_VERSION": None,
+            "ACTION": "nothing",
+        }
+    )
+
+
+def test_the_live_figures_carry_the_latest_decisions_newest_first(sims, api):
+    sim, _ = running_sim_at_140(sims)
+    decision(sims, sim, 139, "ASSET_01", answer=0.12)
+    decision(sims, sim, 140, "ASSET_02", answer=0.31)
+    decision(sims, sim, 140, "ASSET_01", skipped_because="session_end")
+
+    latest = api.get(f"/sims/{sim}/live").json()["latest_decisions"]
+
+    assert [(d["step"], d["asset"]["name"]) for d in latest] == [
+        (140, "Apple"),
+        (140, "Bitcoin"),
+        (139, "Apple"),
+    ]
+    assert latest[0] == {
+        "step": 140,
+        "at": "2025-03-02T11:00:00",
+        "asset": {"name": "Apple", "masked_id": "ASSET_01"},
+        "kind": "screen",
+        "tier": 0,
+        "screen_answer": None,
+        "skipped_because": "session_end",
+        "action": "nothing",
+    }
+    assert latest[1]["screen_answer"] == 0.31
+
+
 def test_the_live_figures_carry_only_the_chart_points_after_the_last_asked(sims, api):
     sim, holding = running_sim_at_140(sims)
 

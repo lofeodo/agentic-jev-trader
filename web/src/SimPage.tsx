@@ -18,6 +18,7 @@ import {
   ErrorBox,
   PriceTag,
   SectionHeading,
+  decisionWords,
   orderWords,
   statusWords,
 } from "./pieces";
@@ -328,6 +329,21 @@ function Now({ live, header }: { live: LiveFigures; header: SimHeader }) {
             has made or lost at the price now, after trading costs.
           </p>
         </div>
+      )}
+
+      <div className="mb-2 font-mono text-[13.5px] tracking-wider text-dim">Latest decisions, newest first</div>
+      {live.latest_decisions.length === 0 ? (
+        <p className="mb-6 font-mono text-dim">No decisions yet.</p>
+      ) : (
+        <ol className="mb-6 font-mono text-[15px]">
+          {live.latest_decisions.map((d) => (
+            <li key={`${d.step}-${d.asset.masked_id}`} className="flex flex-wrap gap-x-[2ch] py-[.2rem]">
+              <span className="w-[22ch] text-dim">{d.at ? dayAndTime(fromApi(d.at)) : `step ${d.step}`}</span>
+              <AssetTag asset={d.asset} />
+              <span>{decisionWords(d)}</span>
+            </li>
+          ))}
+        </ol>
       )}
 
       <div className="mb-2 font-mono text-[13.5px] tracking-wider text-dim">Latest orders, newest first</div>

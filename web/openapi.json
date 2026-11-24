@@ -136,6 +136,76 @@
         "title": "ChartPoint",
         "type": "object"
       },
+      "DecisionLine": {
+        "description": "One asset looked at, at one step, and what came of it.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "screen_answer": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screen Answer"
+          },
+          "skipped_because": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Because"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "at",
+          "asset",
+          "kind",
+          "tier",
+          "screen_answer",
+          "skipped_because",
+          "action"
+        ],
+        "title": "DecisionLine",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -190,6 +260,13 @@
           "in_progress": {
             "title": "In Progress",
             "type": "boolean"
+          },
+          "latest_decisions": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionLine"
+            },
+            "title": "Latest Decisions",
+            "type": "array"
           },
           "latest_orders": {
             "items": {
@@ -307,6 +384,7 @@
           "spending_cap_usd",
           "meters",
           "open_positions",
+          "latest_decisions",
           "latest_orders",
           "notable_moments",
           "new_points",

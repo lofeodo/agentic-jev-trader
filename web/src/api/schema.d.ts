@@ -189,6 +189,27 @@ export interface components {
             /** Value */
             value: number;
         };
+        /**
+         * DecisionLine
+         * @description One asset looked at, at one step, and what came of it.
+         */
+        DecisionLine: {
+            /** Action */
+            action: string;
+            asset: components["schemas"]["AssetName"];
+            /** At */
+            at: string | null;
+            /** Kind */
+            kind: string;
+            /** Screen Answer */
+            screen_answer: number | null;
+            /** Skipped Because */
+            skipped_because: string | null;
+            /** Step */
+            step: number;
+            /** Tier */
+            tier: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -211,6 +232,8 @@ export interface components {
             holding_value: number | null;
             /** In Progress */
             in_progress: boolean;
+            /** Latest Decisions */
+            latest_decisions: components["schemas"]["DecisionLine"][];
             /** Latest Orders */
             latest_orders: components["schemas"]["OrderLine"][];
             meters: components["schemas"]["Meters"];
