@@ -615,7 +615,12 @@ def test_a_sim_killed_after_a_reduce_resumes_with_the_same_journal(screening_mar
 
     run_sim(store, screening_market, sim_id, jev=fake_jev()[0])
 
-    compared = ("SIM.JEV_REQUESTS", "MEMORY.DECISIONS", "SIM.ORDERS")
+    compared = (
+        "SIM.JEV_REQUESTS",
+        "MEMORY.DECISIONS",
+        "MEMORY.OUTCOMES",
+        "SIM.ORDERS",
+    )
     got, want = store.all_rows(sim_id), expected.all_rows(sim_id)
     assert {t: got[t] for t in compared} == {t: want[t] for t in compared}
     assert any(
@@ -695,7 +700,12 @@ def test_a_sim_killed_with_positions_open_resumes_to_the_same_records(
     # The crypto is open by then, so the resumed sim's screens all say no, as before the kill.
     run_sim(store, screening_market, sim_id, jev=fake_jev()[0])
 
-    compared = ("SIM.JEV_REQUESTS", "MEMORY.DECISIONS", "SIM.ORDERS")
+    compared = (
+        "SIM.JEV_REQUESTS",
+        "MEMORY.DECISIONS",
+        "MEMORY.OUTCOMES",
+        "SIM.ORDERS",
+    )
     got, want = store.all_rows(sim_id), expected.all_rows(sim_id)
     assert {t: got[t] for t in compared} == {t: want[t] for t in compared}
     assert any(

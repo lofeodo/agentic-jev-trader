@@ -30,6 +30,7 @@ TABLES = (
     "SIM.CALLS",
     "SIM.JEV_REQUESTS",
     "MEMORY.DECISIONS",
+    "MEMORY.OUTCOMES",
 )
 # A decision's KIND. An asset with no position: a screen alone (tier 0 or 1), or a full evaluation
 # (tier 2); both began with the screen, unless code skipped it. An open position: a position
@@ -101,11 +102,14 @@ class SimStore(Protocol):
         through_step: int,
         rows: dict[str, list[dict]],
         state: dict,
+        outcomes_known: dict[str, int] | None = None,
     ) -> None:
         """Store `rows` and move the last completed step from `after_step` to `through_step`, all at once.
 
         `after_step` is the last completed step the writer last saw (None before the first
-        write); `state` is the account after `through_step`. Raises `StepAlreadyWritten`, having
+        write); `state` is the account after `through_step`. `outcomes_known` sets the
+        `OUTCOMES_KNOWN_FROM` step of decisions (by ID) whose outcomes became complete, in the
+        same write. Raises `StepAlreadyWritten`, having
         stored nothing, if the last completed step no longer reads `after_step` or the sim is not running.
         """
 
@@ -185,7 +189,9 @@ class InMemorySimStore:
         if self.sims[sim_id]["STATUS"] != SimStatus.FINISHED:
             self.sims[sim_id].update(columns)
 
-    def write_steps(self, sim_id, after_step, through_step, rows, state) -> None:
+    def write_steps(
+        self, sim_id, after_step, through_step, rows, state, outcomes_known=None
+    ) -> None:
         sim = self.sims[sim_id]
         if (
             sim["LAST_COMPLETED_STEP"] != after_step
@@ -210,6 +216,13 @@ class InMemorySimStore:
             if self._kill_in == 1 and name == TABLES[len(TABLES) // 2]:
                 self._kill_in = None
                 raise SimulatedKill(f"killed while writing up to step {through_step}")
+        known = outcomes_known or {}
+        staged["MEMORY.DECISIONS"] = [
+            {**r, "OUTCOMES_KNOWN_FROM": known[r["ID"]]}
+            if r["SIM"] == sim_id and r["ID"] in known
+            else r
+            for r in staged["MEMORY.DECISIONS"]
+        ]
         if self._kill_in is not None:
             self._kill_in -= 1
         self.tables.update(staged)

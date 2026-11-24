@@ -41,9 +41,10 @@ from pydantic import BaseModel
 
 from jev_trader.api.sim_page import Sim, holding_of
 from jev_trader.api.store import ApiStore
-from jev_trader.api.trades import NO_PATTERN, NO_TRADE, Tally, trades_of
+from jev_trader.api.trades import NO_TRADE, trades_of
 from jev_trader.dataset.bars import STEPS_PER_DAY
 from jev_trader.jev.reading import size_option_name
+from jev_trader.memory.scorecard import NO_PATTERN, Tally
 from jev_trader.sim.clock import day_of
 from jev_trader.sim.store import ACTION_ENTRY, KIND_FULL_EVALUATION
 

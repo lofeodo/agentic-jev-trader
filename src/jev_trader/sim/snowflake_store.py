@@ -115,7 +115,9 @@ class SnowflakeSimStore(_Connection):
             [_value(v) for v in columns.values()] + [sim_id, str(SimStatus.FINISHED)],
         )
 
-    def write_steps(self, sim_id, after_step, through_step, rows, state) -> None:
+    def write_steps(
+        self, sim_id, after_step, through_step, rows, state, outcomes_known=None
+    ) -> None:
         with self.con.cursor() as cur:
             cur.execute("BEGIN TRANSACTION")
             try:
@@ -144,6 +146,8 @@ class SnowflakeSimStore(_Connection):
                     if name in REPLACED_BY_ID:
                         _delete_ids(cur, name, sim_id, [r["ID"] for r in table_rows])
                     _insert(cur, name, table_rows)
+                if outcomes_known:
+                    _set_outcomes_known(cur, sim_id, outcomes_known)
                 cur.execute("COMMIT")
             except BaseException:
                 cur.execute("ROLLBACK")
@@ -252,6 +256,20 @@ def _delete_ids(cur, table: str, sim_id: int, ids: list[str]) -> None:
         cur.execute(
             f"DELETE FROM {table} WHERE SIM = ? AND ID IN ({', '.join('?' for _ in part)})",
             [sim_id, *part],
+        )
+
+
+def _set_outcomes_known(cur, sim_id: int, known: dict[str, int]) -> None:
+    """Mark decisions complete: each one's step from which all its outcomes are known."""
+    pairs = sorted(known.items())
+    batch = MOST_BOUND_VALUES // 2 - 1
+    for i in range(0, len(pairs), batch):
+        part = pairs[i : i + batch]
+        cur.execute(
+            "UPDATE MEMORY.DECISIONS d SET OUTCOMES_KNOWN_FROM = k.COLUMN2 "
+            f"FROM (VALUES {', '.join('(?, ?)' for _ in part)}) AS k "
+            "WHERE d.SIM = ? AND d.ID = k.COLUMN1",
+            [value for pair in part for value in pair] + [sim_id],
         )
 
 

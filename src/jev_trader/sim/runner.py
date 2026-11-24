@@ -103,6 +103,11 @@ class BuyHold:
     first_step: int
     starting_value: float
 
+    def after_step(
+        self, step: int, broker: Broker, bars: dict[str, Bar]
+    ) -> tuple[list[dict], dict[str, int]]:
+        return [], {}  # holding decides nothing, so it has no episodes
+
     def on_step(
         self, step: int, broker: Broker, bars: dict[str, Bar]
     ) -> dict[str, list[dict]]:
@@ -239,8 +244,11 @@ class _Batch:
             "SIM.CALLS": [],
             "SIM.JEV_REQUESTS": [],
             "MEMORY.DECISIONS": [],
+            "MEMORY.OUTCOMES": [],
         }
     )
+    # Decisions whose outcomes the steps made complete, with the step they are complete from.
+    outcomes_known: dict[str, int] = field(default_factory=dict)
 
     def tables(self) -> dict[str, list[dict]]:
         return {"SIM.ORDERS": list(self.orders.values()), **self.rows}
@@ -378,7 +386,14 @@ def run_sim(
                 state = broker.state()
                 if is_agent:  # each open position's situation at entry and journal
                     state["agent"] = strategy.state()
-                store.write_steps(sim_id, last_completed, step, batch.tables(), state)
+                store.write_steps(
+                    sim_id,
+                    last_completed,
+                    step,
+                    batch.tables(),
+                    state,
+                    batch.outcomes_known,
+                )
                 last_completed, steps_stored = step, steps_stored + batch.steps
                 batch = _Batch()
                 report(f"Stored up to step {step} of {last_step}.")
@@ -464,6 +479,9 @@ def _run_step(
         batch.rows[table] += rows
     if step == last_step:
         broker.close_everything(step)
+    learned, known = strategy.after_step(step, broker, bars)
+    batch.rows["MEMORY.OUTCOMES"] += learned
+    batch.outcomes_known.update(known)
 
     def position_of(asset: str) -> int | None:
         position = broker.positions.get(asset)

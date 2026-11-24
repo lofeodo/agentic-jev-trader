@@ -403,6 +403,14 @@ _Avoid_: Reflection, insight
 The number of closed trades a scorecard group needs before the agent is shown it.
 _Avoid_: Threshold, cutoff
 
+**Scorecard ladder**:
+The scorecard groups that fit one moment, broadest first: pattern, direction and asset class alone; then split by trend; by volume level too; by part of the day too. The agent uses the narrowest one that holds the minimum sample.
+_Avoid_: Hierarchy, tree, rungs (outside code)
+
+**Fallback**:
+Using the next broader group on the scorecard ladder when a group holds fewer closed trades than the minimum sample. When no group holds it, the agent is shown only the count.
+_Avoid_: Backoff, default group
+
 **Episode**:
 The stored record of one decision: its situation, action, and outcome.
 _Avoid_: Memory (for a single record), experience
