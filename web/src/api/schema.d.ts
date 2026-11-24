@@ -52,7 +52,7 @@ export interface paths {
         };
         /**
          * Dataset Bars
-         * @description One asset's price chart: each day's close. `asset`: its masked ID.
+         * @description One asset's price chart: each day's close. `ticker`: the asset's real ticker.
          */
         get: operations["datasetBars"];
         put?: never;
@@ -1122,7 +1122,7 @@ export interface operations {
     datasetBars: {
         parameters: {
             query: {
-                asset: string;
+                ticker: string;
             };
             header?: never;
             path: {

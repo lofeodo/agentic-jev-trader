@@ -82,7 +82,7 @@ class LocalLauncher:
     def __init__(
         self,
         log_dir: Path,
-        command_for: Callable[[int], list[str]],
+        command_for: Callable[[int], list[str]] | None,
         log_prefix: str = "sim",
     ):
         self.log_dir = log_dir
@@ -93,6 +93,8 @@ class LocalLauncher:
         ] = []  # kept, so Python does not warn on exit
 
     def start(self, sim_id: int) -> str:
+        if self.command_for is None:
+            raise ValueError("this launcher runs only the commands it is given")
         return self.run(sim_id, self.command_for(sim_id))
 
     def run(self, job_id: int, command: list[str]) -> str:
@@ -189,9 +191,6 @@ class Builds(Protocol):
     def start(self, dataset_id: int, settings_text: str, check: bool) -> None:
         """Start the build of the dataset row `dataset_id` from these settings (TOML)."""
 
-    def is_running(self, dataset_id: int) -> bool:
-        """Whether the dataset's build job is still running."""
-
     def stop(self, dataset_id: int) -> bool:
         """Kill the dataset's build job and wait until it is gone. False if none is running.
         Raises `JobNotKilled` if it will not die."""
@@ -214,7 +213,8 @@ class LocalBuilds:
     ):
         self.folder = folder
         self.command_for = command_for
-        self.jobs = LocalLauncher(folder, lambda job_id: [], log_prefix="dataset")
+        # Only its `run` and `stop` are used: each build's command is made here.
+        self.jobs = LocalLauncher(folder, command_for=None, log_prefix="dataset")
 
     def _file(self, dataset_id: int, ending: str) -> Path:
         return self.folder / f"dataset-{dataset_id}.{ending}"
@@ -231,9 +231,6 @@ class LocalBuilds:
     def _mark(self, dataset_id: int) -> str | None:
         path = self._file(dataset_id, "job")
         return path.read_text(encoding="utf-8").strip() if path.exists() else None
-
-    def is_running(self, dataset_id: int) -> bool:
-        return self.jobs.is_running(self._mark(dataset_id))
 
     def stop(self, dataset_id: int) -> bool:
         return self.jobs.stop(self._mark(dataset_id))

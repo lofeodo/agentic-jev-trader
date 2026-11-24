@@ -65,13 +65,8 @@ function Dataset({ dataset: d, onStopped }: { dataset: DatasetPage; onStopped: (
       {d.status === "failed" && (
         <div className="mb-8">
           <ErrorBox
-            title="The build failed and was thrown away"
-            text={
-              (d.failure_reason ?? "No reason was stored.") +
-              (d.check && !d.check.passed
-                ? ' From this app, "build with the check off" means unticking the check box on the Datasets form.'
-                : "")
-            }
+            title="The build failed"
+            text={`${d.failure_reason ?? "No reason was stored."}\nNo sim can use it. Whatever it wrote is thrown away: by the build itself, or when the next build starts if the build was killed.`}
           />
         </div>
       )}
@@ -92,9 +87,14 @@ function Dataset({ dataset: d, onStopped }: { dataset: DatasetPage; onStopped: (
       {d.asset_key.length > 0 && (
         <div className="mb-10">
           <SectionHeading number={++n} title="Prices" says="Each day's close, real dollars" />
+          <p className="mb-4 text-[15px] text-dim">
+            A day's close is the last price traded that day: if Apple last changed hands at $190.25
+            before the market shut, that is its close. Bitcoin trades all day every day, so its close
+            is its price at midnight UTC.
+          </p>
           <div className="grid gap-6">
             {d.asset_key.map((k) => (
-              <AssetChart key={k.masked_id} datasetId={d.id} asset={k.masked_id} />
+              <AssetChart key={k.masked_id} datasetId={d.id} ticker={k.ticker} />
             ))}
           </div>
         </div>
@@ -113,7 +113,7 @@ function Dataset({ dataset: d, onStopped }: { dataset: DatasetPage; onStopped: (
 
       {(d.asset_key.length > 0 || d.periods.length > 0) && (
         <div className="mb-10">
-          <SectionHeading number={++n} title="Asset key and days" says="Only the API can read this key" />
+          <SectionHeading number={++n} title="Asset key and days" says="Only the API and the dataset builder can read this key" />
           <AssetKey dataset={d} />
         </div>
       )}
@@ -127,7 +127,7 @@ function Progress({ dataset: d, onStopped }: { dataset: DatasetPage; onStopped: 
   const share = Math.max(0, Math.min(1, d.progress ?? 0));
 
   async function stop() {
-    if (!window.confirm("Stop this build now? It is marked failed, stopped by hand, and thrown away.")) return;
+    if (!window.confirm("Stop this build now? It is marked failed, stopped by hand; no sim can use it.")) return;
     setBusy(true);
     setProblem(null);
     try {
@@ -237,11 +237,11 @@ function CheckTable({ dataset: d }: { dataset: DatasetPage }) {
   );
 }
 
-function AssetChart({ datasetId, asset }: { datasetId: number; asset: string }) {
-  const read = useCallback(() => fetchDatasetBars(datasetId, asset), [datasetId, asset]);
+function AssetChart({ datasetId, ticker }: { datasetId: number; ticker: string }) {
+  const read = useCallback(() => fetchDatasetBars(datasetId, ticker), [datasetId, ticker]);
   const { data, error } = useRead<Chart>(read);
-  if (error) return <ErrorBox title={`No chart for ${asset}`} text={error} />;
-  if (data === null) return <p className="font-mono text-dim">Loading {asset}...</p>;
+  if (error) return <ErrorBox title={`No chart for ${ticker}`} text={error} />;
+  if (data === null) return <p className="font-mono text-dim">Loading {ticker}...</p>;
   return (
     <div>
       <div className="mb-1 font-mono">

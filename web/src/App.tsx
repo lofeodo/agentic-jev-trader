@@ -20,27 +20,27 @@ const REFRESH_MS = 20_000;
 const inProgress = (sim: SimLine) =>
   sim.status === "created" || (sim.status === "running" && !sim.not_responding);
 
-// `simId` is a sim's or a dataset's ID, as the screen says.
-type Page = { screen: Screen; simId: number | null };
+// `id`: the sim or dataset the page shows, as its screen says; null on a list.
+type Page = { screen: Screen; id: number | null };
 
 // The address after `#`: `#/sims/12` is sim 12's page, `#/datasets/3` dataset 3's,
 // `#/datasets`, `#/playbook` and `#/spending` their screens; anything else is the list of sims.
 function pageInAddress(): Page {
   const hash = window.location.hash;
   const sim = /^#\/sims\/(\d+)$/.exec(hash);
-  if (sim) return { screen: "sims", simId: Number(sim[1]) };
+  if (sim) return { screen: "sims", id: Number(sim[1]) };
   const dataset = /^#\/datasets\/(\d+)$/.exec(hash);
-  if (dataset) return { screen: "datasets", simId: Number(dataset[1]) };
-  if (hash === "#/datasets") return { screen: "datasets", simId: null };
-  if (hash === "#/playbook") return { screen: "playbook", simId: null };
-  if (hash === "#/spending") return { screen: "spending", simId: null };
-  return { screen: "sims", simId: null };
+  if (dataset) return { screen: "datasets", id: Number(dataset[1]) };
+  if (hash === "#/datasets") return { screen: "datasets", id: null };
+  if (hash === "#/playbook") return { screen: "playbook", id: null };
+  if (hash === "#/spending") return { screen: "spending", id: null };
+  return { screen: "sims", id: null };
 }
 
 export function App() {
   const [page, setPage] = useState<Page>(pageInAddress);
   const [spending, setSpending] = useState<SpendingTotal | null>(null);
-  const { screen, simId } = page;
+  const { screen, id } = page;
 
   useEffect(() => {
     const onMove = () => {
@@ -64,15 +64,15 @@ export function App() {
       stopped = true;
       window.removeEventListener("focus", load);
     };
-  }, [screen, simId]);
+  }, [screen, id]);
 
   return (
     <main className="mx-auto max-w-[1500px] px-6 pt-6 pb-16">
       <TopBar spending={spending} screen={screen} />
-      {screen === "datasets" && (simId === null ? <DatasetsScreen /> : <DatasetScreen key={simId} id={simId} />)}
+      {screen === "datasets" && (id === null ? <DatasetsScreen /> : <DatasetScreen key={id} id={id} />)}
       {screen === "playbook" && <PlaybookScreen />}
       {screen === "spending" && <SpendingScreen />}
-      {screen === "sims" && (simId === null ? <SimsListPage /> : <SimPage key={simId} id={simId} />)}
+      {screen === "sims" && (id === null ? <SimsListPage /> : <SimPage key={id} id={id} />)}
     </main>
   );
 }

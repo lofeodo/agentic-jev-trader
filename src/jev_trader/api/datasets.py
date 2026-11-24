@@ -17,7 +17,7 @@ started it with; one started from the command line keeps its masked IDs.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel, Field
@@ -26,10 +26,11 @@ from jev_trader.api.sim_jobs import Refusal, Refused
 from jev_trader.api.sim_page import Price
 from jev_trader.api.sims_list import AssetName
 from jev_trader.api.store import ApiStore
-from jev_trader.dataset.bars import BAR_LENGTH, STEPS_PER_DAY
+from jev_trader.dataset.bars import BAR_LENGTH
 from jev_trader.dataset.build import STAGES
-from jev_trader.dataset.layout import masked_id
+from jev_trader.dataset.layout import Clock, masked_id
 from jev_trader.dataset.quality import QualityLimits
+from jev_trader.dataset.scaling import first_tradable_day
 from jev_trader.dataset.settings import (
     DatasetSettings,
     Period,
@@ -37,10 +38,9 @@ from jev_trader.dataset.settings import (
     settings_from_tickers,
     settings_toml,
 )
-from jev_trader.dataset.store import DatasetStatus
+from jev_trader.dataset.store import STOPPED_BY_HAND, DatasetStatus
 from jev_trader.jobs import Builds, JobNotKilled
 
-STOPPED_BY_HAND = "stopped by hand"
 MASKED_ID = re.compile(r"ASSET_\d+")
 
 
@@ -163,16 +163,17 @@ class PriceChart(BaseModel):
     points: list[PricePoint]
 
 
-def _refuse(code: str, message: str) -> Refusal:
+def _refusal(code: str, message: str) -> Refusal:
     return Refusal(code=code, message=message)
 
 
 @dataclass(frozen=True)
-class Names:
-    """What turns one dataset's masked IDs, day numbers and steps into real ones."""
+class RealNames:
+    """What turns one dataset's masked IDs, day numbers and steps back into real names, days
+    and times. `tickers` maps each masked ID to its ticker, in masked-ID order."""
 
     names: dict[str, AssetName]
-    tickers: list[str]
+    tickers: dict[str, str]
     first_day: date | None
     last_day: date | None
     price_scales: dict[str, float]
@@ -181,14 +182,19 @@ class Names:
         return self.names.get(masked, AssetName(name=masked, masked_id=masked))
 
     def day(self, number: int) -> date | None:
-        return (
-            None if self.first_day is None else self.first_day + timedelta(number - 1)
-        )
-
-    def step_end(self, step: int) -> datetime | None:
+        """The real day of day `number` (1 is the dataset's first day)."""
         if self.first_day is None:
             return None
-        return datetime.combine(self.first_day, datetime.min.time()) + step * BAR_LENGTH
+        return self.first_day + timedelta(days=number - 1)
+
+    def step_day(self, step: int) -> date | None:
+        return self.day(Clock(self.first_day or date.min).day_number(step))
+
+    def step_end(self, step: int) -> datetime | None:
+        """The real time (UTC, no zone, as the API writes times) at which `step` ends."""
+        if self.first_day is None:
+            return None
+        return Clock(self.first_day).midnight.replace(tzinfo=None) + step * BAR_LENGTH
 
     def text(self, words: str | None) -> str | None:
         """Masked IDs in a stored message, written as real names."""
@@ -240,8 +246,8 @@ class DatasetBuilds:
                 PeriodLine(
                     kind=p["KIND"],
                     name=p["NAME"],
-                    first_day=names.day((p["FIRST_STEP"] - 1) // STEPS_PER_DAY + 1),
-                    last_day=names.day((p["LAST_STEP"] - 1) // STEPS_PER_DAY + 1),
+                    first_day=names.step_day(p["FIRST_STEP"]),
+                    last_day=names.step_day(p["LAST_STEP"]),
                 )
                 for p in periods
             ],
@@ -276,11 +282,14 @@ class DatasetBuilds:
             ],
         )
 
-    def chart(self, dataset_id: int, asset: str) -> PriceChart:
+    def chart(self, dataset_id: int, ticker: str) -> PriceChart:
+        """Requests name assets by their real ticker; the API turns it into the masked ID."""
         names = self._names(self._row(dataset_id))
-        bars = self.store.daily_bars(dataset_id, asset)
+        found = [m for m, t in names.tickers.items() if t == ticker.strip().upper()]
+        bars = self.store.daily_bars(dataset_id, found[0]) if found else []
         if not bars:
-            raise DatasetNotFound(f"{dataset_id} with an asset {asset}")
+            raise DatasetNotFound(f"{dataset_id} with bars for {ticker}")
+        asset = found[0]
         scale = names.price_scales.get(asset)
         return PriceChart(
             asset=names.asset(asset),
@@ -303,9 +312,7 @@ class DatasetBuilds:
         dataset_id, _ = self.store.begin_dataset(
             settings.name,
             {
-                "FIRST_STEP": 1,
-                "LAST_STEP": ((settings.last_day - settings.first_day).days + 1)
-                * STEPS_PER_DAY,
+                # The build sets the steps and its other settings when it carries the row on.
                 "LIMIT_OTHER_MISSING": settings.limits.other_missing,
                 "LIMIT_PARTIAL_VOLUME_DAYS": settings.limits.partial_volume_days,
                 "BUILD_STAGE": next(iter(STAGES)),
@@ -329,24 +336,24 @@ class DatasetBuilds:
         tickers = [t.strip().upper() for t in wanted.tickers if t.strip()]
         if not tickers:
             refusals.append(
-                _refuse("no_tickers", "type at least one ticker, such as AAPL")
+                _refusal("no_tickers", "type at least one ticker, such as AAPL")
             )
         doubled = sorted({t for t in tickers if tickers.count(t) > 1})
         if doubled:
             refusals.append(
-                _refuse(
+                _refusal(
                     "ticker_twice", f"{', '.join(doubled)} is typed twice: keep one"
                 )
             )
         if wanted.first_day > wanted.last_day:
             refusals.append(
-                _refuse(
+                _refusal(
                     "days_order", "the first day comes after the last day: swap them"
                 )
             )
         if wanted.last_day >= today:
             refusals.append(
-                _refuse(
+                _refusal(
                     "last_day_too_recent",
                     f"the last day must be before today ({today}): the provider's bars of "
                     "the current day carry only part of its trading",
@@ -358,7 +365,7 @@ class DatasetBuilds:
         ):
             if not 0 < value < 1:
                 refusals.append(
-                    _refuse(
+                    _refusal(
                         "limit_out_of_range",
                         f"the {name} limit must be between 0% and 100%, not {value:.1%}",
                     )
@@ -372,19 +379,30 @@ class DatasetBuilds:
                 <= wanted.last_day
             ):
                 refusals.append(
-                    _refuse(
+                    _refusal(
                         "period_outside",
                         f'the "{period.name}" test period must run forwards inside the '
                         "dataset's days",
                     )
                 )
+            elif period.first_day < first_tradable_day(wanted.first_day):
+                refusals.append(
+                    _refusal(
+                        "period_in_warm_up",
+                        f'the "{period.name}" test period starts in the warm-up, which no '
+                        "sim trades: start it on or after "
+                        f"{first_tradable_day(wanted.first_day)}",
+                    )
+                )
             if names.count(period.name) > 1:
                 refusals.append(
-                    _refuse("period_twice", f'"{period.name}" is given twice: keep one')
+                    _refusal(
+                        "period_twice", f'"{period.name}" is given twice: keep one'
+                    )
                 )
         if any(r["STATUS"] == DatasetStatus.BEING_BUILT for r in self.store.datasets()):
             refusals.append(
-                _refuse(
+                _refusal(
                     "build_in_progress",
                     "a dataset is being built: wait for it to end, or stop it (two builds "
                     "would share Twelve Data's 8 requests a minute)",
@@ -409,7 +427,7 @@ class DatasetBuilds:
         row = self._row(dataset_id)
         if row["STATUS"] != DatasetStatus.BEING_BUILT:
             raise Refused(
-                _refuse(
+                _refusal(
                     "nothing_to_stop",
                     f"dataset {dataset_id} is {row['STATUS']}: nothing to stop",
                 )
@@ -418,7 +436,7 @@ class DatasetBuilds:
             self.builds.stop(dataset_id)
         except JobNotKilled as error:
             raise Refused(
-                _refuse(
+                _refusal(
                     "job_not_killed",
                     f"{error}; the build is left as it was: end that program by hand, "
                     "then try again",
@@ -445,45 +463,42 @@ class DatasetBuilds:
         text = self.builds.settings_text(dataset_id)
         return None if text is None else load_settings_text(text)
 
-    def _names(self, row: dict) -> Names:
+    def _names(self, row: dict) -> RealNames:
         key = sorted(
             self.store.dataset_rows("KEYS.ASSET_KEY", row["ID"]),
             key=lambda k: k["MASKED_ID"],
         )
-        last_step = row.get("LAST_STEP")
         if key:
-            first_day = min(k["FIRST_DAY"] for k in key)
-            last_day = (
-                None
-                if last_step is None
-                else first_day + timedelta((last_step - 1) // STEPS_PER_DAY)
-            )
-            return Names(
+            known = RealNames(
                 names={
                     k["MASKED_ID"]: AssetName(name=k["NAME"], masked_id=k["MASKED_ID"])
                     for k in key
                 },
-                tickers=[k["TICKER"] for k in key],
-                first_day=first_day,
-                last_day=last_day,
+                tickers={k["MASKED_ID"]: k["TICKER"] for k in key},
+                first_day=min(k["FIRST_DAY"] for k in key),
+                last_day=None,
                 price_scales={k["MASKED_ID"]: k["PRICE_SCALE"] for k in key},
             )
+            last_step = row.get("LAST_STEP")
+            if last_step is None:
+                return known
+            return replace(known, last_day=known.step_day(last_step))
         asked = self._asked(row["ID"])
         if asked is None:
-            return Names({}, [], None, None, {})
-        return Names(
+            return RealNames({}, {}, None, None, {})
+        return RealNames(
             names={
                 masked_id(i): AssetName(name=a.name or a.ticker, masked_id=masked_id(i))
                 for i, a in enumerate(asked.assets)
             },
-            tickers=[a.ticker for a in asked.assets],
+            tickers={masked_id(i): a.ticker for i, a in enumerate(asked.assets)},
             first_day=asked.first_day,
             last_day=asked.last_day,
             price_scales={},
         )
 
     @staticmethod
-    def _line(row: dict, names: Names) -> DatasetLine:
+    def _line(row: dict, names: RealNames) -> DatasetLine:
         check = row.get("CHECK_RESULT")
         return DatasetLine(
             id=row["ID"],
@@ -496,7 +511,7 @@ class DatasetBuilds:
             progress=row.get("BUILD_PROGRESS"),
             first_day=names.first_day,
             last_day=names.last_day,
-            tickers=names.tickers,
+            tickers=list(names.tickers.values()),
             check=None
             if not check
             else QualityCheck(

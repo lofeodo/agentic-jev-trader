@@ -16,9 +16,6 @@ class StandInBuilds:
         self.started.append((dataset_id, settings_text, check))
         self.running.add(dataset_id)
 
-    def is_running(self, dataset_id):
-        return dataset_id in self.running
-
     def stop(self, dataset_id):
         if dataset_id not in self.running:
             return False

@@ -29,9 +29,9 @@ export function PriceChart({ chart }: { chart: Chart }) {
     return <p className="font-mono text-dim">No real prices: this dataset has no asset key.</p>;
   }
 
-  const lows = points.map((p) => p.real);
-  const low = Math.min(...lows);
-  const high = Math.max(...lows);
+  const closes = points.map((p) => p.real);
+  const low = Math.min(...closes);
+  const high = Math.max(...closes);
   const pad = Math.max((high - low) * 0.06, high * 0.005);
   const y = scaleLinear().domain([low - pad, high + pad]).nice(5).range([Y1, Y0]);
   const x = scaleUtc().domain([points[0].when, points[points.length - 1].when]).range([X0, X1]);

@@ -62,7 +62,7 @@ def run_build(datasets, dataset_id=None, stocks=None, check=True, **changes):
 
 FORM = {
     "tickers": ["xyz", "BTC"],
-    "first_day": "2023-07-03",
+    "first_day": "2023-01-03",
     "last_day": "2023-07-07",
     "test_periods": [
         {"name": "falling market", "first_day": "2023-07-06", "last_day": "2023-07-07"}
@@ -92,7 +92,7 @@ def test_asking_for_a_build_adds_its_row_and_starts_its_job_on_the_typed_tickers
     assert line["status"] == "being built"
     assert line["progress"] == 0.0
     assert line["tickers"] == ["XYZ", "BTC"]
-    assert (line["first_day"], line["last_day"]) == ("2023-07-03", "2023-07-07")
+    assert (line["first_day"], line["last_day"]) == ("2023-01-03", "2023-07-07")
 
 
 def test_the_check_switch_off_starts_the_build_without_the_check(api, builds):
@@ -128,6 +128,26 @@ def test_a_bad_request_is_refused_with_every_reason_at_once(api, builds):
         "period_outside",
     }
     assert not builds.started
+
+
+def test_a_test_period_inside_the_warm_up_is_refused(api):
+    """The first three months no sim trades, so no sim could be measured there."""
+    answer = api.post(
+        "/datasets",
+        json={
+            **FORM,
+            "test_periods": [
+                {
+                    "name": "falling market",
+                    "first_day": "2023-02-01",
+                    "last_day": "2023-02-10",
+                }
+            ],
+        },
+    )
+    assert answer.status_code == 409
+    [refusal] = answer.json()["refusals"]
+    assert refusal["code"] == "period_in_warm_up"
 
 
 def test_one_build_at_a_time(api, builds):
@@ -206,7 +226,7 @@ def test_the_price_chart_is_each_days_close_in_real_dollars(api, datasets):
     run_build(datasets)
     [dataset_id] = datasets.datasets
 
-    chart = api.get(f"/datasets/{dataset_id}/bars", params={"asset": "ASSET_01"}).json()
+    chart = api.get(f"/datasets/{dataset_id}/bars", params={"ticker": "xyz"}).json()
 
     assert chart["asset"] == {"name": "Made-up Corp", "masked_id": "ASSET_01"}
     # 3 July closes early at $63.50 (14th bar); 4 July is a holiday; 5 July closes at $75.50.
@@ -215,9 +235,7 @@ def test_the_price_chart_is_each_days_close_in_real_dollars(api, datasets):
         {"day": "2023-07-05", "close": {"real": 75.5, "rescaled": 151.0}},
     ]
     assert (
-        api.get(
-            f"/datasets/{dataset_id}/bars", params={"asset": "ASSET_09"}
-        ).status_code
+        api.get(f"/datasets/{dataset_id}/bars", params={"ticker": "ABC"}).status_code
         == 404
     )
 

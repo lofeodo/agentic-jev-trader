@@ -198,9 +198,9 @@ def create_app(
         return datasets.page(dataset_id)
 
     @app.get("/datasets/{dataset_id}/bars", operation_id="datasetBars")
-    def dataset_bars(dataset_id: int, asset: str) -> PriceChart:
-        """One asset's price chart: each day's close. `asset`: its masked ID."""
-        return datasets.chart(dataset_id, asset)
+    def dataset_bars(dataset_id: int, ticker: str) -> PriceChart:
+        """One asset's price chart: each day's close. `ticker`: the asset's real ticker."""
+        return datasets.chart(dataset_id, ticker)
 
     @app.post(
         "/datasets/{dataset_id}/stop", operation_id="stopDataset", responses=REFUSED

@@ -2478,7 +2478,7 @@
     },
     "/datasets/{dataset_id}/bars": {
       "get": {
-        "description": "One asset's price chart: each day's close. `asset`: its masked ID.",
+        "description": "One asset's price chart: each day's close. `ticker`: the asset's real ticker.",
         "operationId": "datasetBars",
         "parameters": [
           {
@@ -2492,10 +2492,10 @@
           },
           {
             "in": "query",
-            "name": "asset",
+            "name": "ticker",
             "required": true,
             "schema": {
-              "title": "Asset",
+              "title": "Ticker",
               "type": "string"
             }
           }

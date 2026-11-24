@@ -35,6 +35,10 @@ SNAPSHOT_TABLES = ("FEATURES.SNAPSHOTS_LOADING", "FEATURES.SNAPSHOTS")
 DATASET_TABLES = TABLES + SNAPSHOT_TABLES
 
 
+# The failure reason of a build stopped from the app or with Ctrl+C.
+STOPPED_BY_HAND = "stopped by hand"
+
+
 class DatasetStatus(StrEnum):
     BEING_BUILT = "being built"
     PUBLISHED = "published"

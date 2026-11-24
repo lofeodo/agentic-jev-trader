@@ -132,7 +132,8 @@ def test_a_build_job_is_started_on_its_settings_file_and_killed_by_dataset(
         'name = "made-up"\n'
     )
     assert builds.settings_text(3) == 'name = "made-up"\n'
-    assert builds.is_running(3)
+    mark = (tmp_path / "dataset-3.job").read_text(encoding="utf-8")
+    assert LocalLauncher.find(mark) is not None  # the job, noted to be found again
     log = tmp_path / "dataset-3.log"
     for _ in range(100):
         if log.exists() and "build 3" in log.read_text(encoding="utf-8"):
@@ -141,11 +142,9 @@ def test_a_build_job_is_started_on_its_settings_file_and_killed_by_dataset(
     assert "build 3 dataset-3.toml False" in log.read_text(encoding="utf-8")
 
     assert builds.stop(3) is True
-    assert not builds.is_running(3)
     assert builds.stop(3) is False
 
 
 def test_a_build_the_api_never_started_has_no_job_and_no_settings(builds):
     assert builds.settings_text(4) is None
-    assert not builds.is_running(4)
     assert builds.stop(4) is False

@@ -65,7 +65,7 @@ from jev_trader.dataset.snapshots import (
     snapshot_rows,
     warm_up_rows,
 )
-from jev_trader.dataset.store import DatasetStatus, DatasetStore
+from jev_trader.dataset.store import STOPPED_BY_HAND, DatasetStatus, DatasetStore
 
 # Each stage's place on the progress bar: the share done when it starts. Measured on the first
 # dataset's build (1,526 seconds, about 25 minutes, on 2026-11-23).
@@ -171,7 +171,7 @@ def build_dataset(
         """Stop here if the build was stopped from the app (marked failed by the API)."""
         status, reason = store.status(dataset_id)
         if status == DatasetStatus.FAILED:
-            raise BuildStopped(reason or "stopped by hand")
+            raise BuildStopped(reason or STOPPED_BY_HAND)
 
     def stage(name: str) -> None:
         still_wanted()
@@ -261,10 +261,11 @@ def build_dataset(
         stage("Publish")
         store.save(dataset_id, tables)
         store.update(dataset_id, BUILD_PROGRESS=1.0)
+        still_wanted()  # a Stop from the app during the writes above wins
         store.publish(dataset_id, without_check=not check)
         _time_stage(seconds, started)
     except KeyboardInterrupt:
-        store.fail(dataset_id, "stopped by hand")
+        store.fail(dataset_id, STOPPED_BY_HAND)
         raise
     except BuildStopped as stop:
         store.fail(dataset_id, stop.stored_reason)

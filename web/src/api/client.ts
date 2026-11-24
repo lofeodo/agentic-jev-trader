@@ -40,10 +40,10 @@ export const fetchSpending = () => read<Spending>("/spending");
 export const fetchPlaybook = () => read<Playbook>("/playbook");
 export const fetchDatasets = () => read<DatasetsList>("/datasets");
 export const fetchDataset = (id: number) => read<DatasetPage>(`/datasets/${id}`);
-// `asset`: the masked ID, such as ASSET_01.
-export const fetchDatasetBars = (id: number, asset: string) =>
-  read<PriceChart>(`/datasets/${id}/bars?asset=${encodeURIComponent(asset)}`);
-export const fetchSimHeader =(id: number) => read<SimHeader>(`/sims/${id}`);
+// `ticker`: the asset's real ticker, such as AAPL.
+export const fetchDatasetBars = (id: number, ticker: string) =>
+  read<PriceChart>(`/datasets/${id}/bars?ticker=${encodeURIComponent(ticker)}`);
+export const fetchSimHeader = (id: number) => read<SimHeader>(`/sims/${id}`);
 export const fetchChart = (id: number) => read<Chart>(`/sims/${id}/chart`);
 export const fetchLive = (id: number, afterStep: number | null) =>
   read<LiveFigures>(`/sims/${id}/live${afterStep === null ? "" : `?after_step=${afterStep}`}`);
@@ -71,7 +71,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 
 export const buildDataset = (wanted: DatasetToBuild) => post<DatasetStarted>("/datasets", wanted);
 export const stopDataset = (id: number) => post<DatasetPage>(`/datasets/${id}/stop`);
-export const stopSim =(id: number) => post<SimHeader>(`/sims/${id}/stop`);
+export const stopSim = (id: number) => post<SimHeader>(`/sims/${id}/stop`);
 // `spendingCapUsd`: a new cap, needed only when the spending cap stopped the sim.
 export const resumeSim = (id: number, spendingCapUsd: number | null) =>
   post<SimHeader>(`/sims/${id}/resume`, { spending_cap_usd: spendingCapUsd });

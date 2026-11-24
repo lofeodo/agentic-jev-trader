@@ -140,7 +140,9 @@ function BuildForm({ busy }: { busy: boolean }) {
         <span id="tickers-says" className="text-[15px] text-dim">
           A ticker is the short code an asset trades under, such as AAPL for Apple. Separate them with
           spaces. BTC (Bitcoin) and ETH (Ether) are crypto, downloaded from Binance; every other ticker
-          is a stock or fund, downloaded from Twelve Data. The build's check says if one does not exist.
+          is a stock or a fund (a fund is a basket of many stocks traded as one: one $100 share of
+          SPY holds a sliver of 500 large US companies), downloaded from Twelve Data. The build's
+          check says if one does not exist.
         </span>
       </label>
 
@@ -183,8 +185,11 @@ function BuildForm({ busy }: { busy: boolean }) {
       <fieldset className="grid gap-3">
         <legend className={`${label} mb-1`}>Test period (optional)</legend>
         <p className="text-[15px] text-dim">
-          Days kept for the measurement sims only. Naming them here lets code refuse a free sim or a
-          tuning sim on those days, so the agent is never tuned on the days it is judged on.
+          Days kept for the measurement sims only: the sims whose results count toward the
+          project's answer (did memory help?). Naming them here lets code refuse a free sim (one on
+          days you pick) or a tuning sim (one for adjusting the agent's settings) on those days, so
+          the agent is never adjusted on the days it is judged on. Each period must start after the
+          warm-up.
         </p>
         <PeriodFields name="Falling market" period={falling} onChange={setFalling} />
         <PeriodFields name="Rising market" period={rising} onChange={setRising} />

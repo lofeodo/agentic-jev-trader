@@ -277,7 +277,8 @@ class InMemoryApiStore:
         ]
 
     def dataset_rows(self, table, dataset_id):
-        assert table in DATASET_READS
+        if table not in DATASET_READS:
+            raise ValueError(f"the API does not read {table} whole")
         return [
             dict(r) for r in self._datasets.tables[table] if r["DATASET"] == dataset_id
         ]

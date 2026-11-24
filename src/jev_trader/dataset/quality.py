@@ -277,8 +277,9 @@ class CheckResult:
                     f"partial-volume days (limit {self.limits.partial_volume_days:.1%})"
                 )
         lines.append(
-            "Ways out: pick other first and last days, leave the asset out, raise the limit in "
-            "the settings file, or build with the check off (--no-check), which publishes the "
+            "Ways out: pick other first and last days, leave the asset out, raise the limit (on "
+            "the Datasets form, or in the settings file), or build with the check off (untick "
+            "the check box on the form, or --no-check on the command line), which publishes the "
             'dataset marked "published without the check".'
         )
         return "\n".join(lines)
