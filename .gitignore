@@ -24,3 +24,6 @@ build/
 # The web app's installed packages and build output
 node_modules/
 web/dist/
+
+# Logs the Playwright browser tools write while an agent drives a browser
+.playwright-mcp/
