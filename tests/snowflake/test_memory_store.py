@@ -56,6 +56,7 @@ def made_up(sim: int, dataset: int) -> MadeUpMemory:
     m.trade("ASSET_01", 120, position=1, window=[("hammer", 1)], features=vector(0.5))
     m.no_trade("ASSET_02", 200, asset_class="stock", embedding=(0, 1, 0))
     m.no_trade("ASSET_03", 300, window=[("hammer", 0)], features=vector(3.0))
+    m.cancelled("ASSET_02", 260, asset_class="stock")  # decided long, never carried out
     for n in range(10):
         m.trade("ASSET_04", 10 + 10 * n, position=10 + n, window=[("hammer", 0)])
     m.review("ASSET_01", 140, position=30, profit=8.0)

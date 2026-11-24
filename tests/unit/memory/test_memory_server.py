@@ -7,7 +7,7 @@ The server's own code runs over an in-memory stand-in for the database with made
 
 import pytest
 
-from jev_trader.memory.bridge import MemoryToolFailed, Moment
+from jev_trader.memory.bridge import LookupContext, MemoryToolFailed
 from jev_trader.memory.lookups import NotAllowed
 from jev_trader.memory.render import Reader, full_episode, summary_line, track_record
 from tests.unit.memory.conftest import SIM, bridge_to, run, served, vector
@@ -24,11 +24,11 @@ def current(memory, asset=ASSET, **snapshot):
 
 
 def full_evaluation(asset=ASSET):
-    return Moment(sim=SIM, step=NOW, asset=asset)
+    return LookupContext(sim=SIM, step=NOW, asset=asset)
 
 
 def position_review(direction="long"):
-    return Moment(
+    return LookupContext(
         sim=SIM,
         step=NOW,
         asset=ASSET,
@@ -37,9 +37,9 @@ def position_review(direction="long"):
     )
 
 
-def search(memory, moment=None, **filters):
+def search(memory, context=None, **filters):
     async def body():
-        async with bridge_to(memory.store, moment or full_evaluation()) as bridge:
+        async with bridge_to(memory.store, context or full_evaluation()) as bridge:
             return await bridge.search(**filters)
 
     return run(body)
@@ -100,6 +100,24 @@ def test_the_filters_narrow_the_search(memory):
     assert ids(search(memory, decided="long")) == [same_traded]
     assert set(ids(search(memory, decided="no_trade"))) == {other_stock, other_crypto}
     assert ids(search(memory, decided="short")) == []
+
+
+def test_an_entry_never_carried_out_is_filed_and_shown_as_no_trade(memory):
+    current(memory)
+    cancelled = memory.cancelled(ASSET, 100)
+
+    assert ids(search(memory, decided="long")) == []
+    (found,) = search(memory, decided="no_trade").episodes
+    assert found.episode.id == cancelled and found.episode.decided == "no_trade"
+
+
+def test_an_episode_s_volume_word_uses_the_sim_s_own_cut_offs(memory):
+    """Volume 1.5 times normal is high by the version 1 cut-offs, average below 2.0."""
+    current(memory)
+    memory.no_trade(ASSET, 100, volume=1.5)
+    assert search(memory).episodes[0].episode.volume == "high"
+    memory.store.sims[SIM]["SETTINGS"] = {"track_record": {"volume_high_above": 2.0}}
+    assert search(memory).episodes[0].episode.volume == "average"
 
 
 def test_a_review_search_narrows_by_what_was_decided_and_how_the_position_stood(

@@ -139,6 +139,23 @@ def test_a_past_trade_in_full_for_the_llm_and_for_jev():
     )
 
 
+def test_a_trade_stored_without_its_journal_or_percent_reads_without_them():
+    """Records written before the position and the money put in were kept with outcomes."""
+    older = A.model_copy(
+        update={
+            "journal": [],
+            "ended": Ended(reason="jev", bars_after=6, profit=21, percent=None),
+        }
+    )
+    assert full_episode(older, "E1", LLM).splitlines()[2:] == [
+        "Decided: long with a tight stop price (0.6% from the entry price), $6,000.",
+        "Ended: closed by choice after 6 bars, +$21.",
+    ]
+    assert summary_line(older, "E1", LLM).endswith(
+        "closed by choice after 6 bars: +$21"
+    )
+
+
 def test_a_past_no_trade_in_full():
     assert full_episode(C, "E3", LLM) == (
         f"E3: 12 days ago, ASSET_01, stock\nSituation then: {SITUATION}\n"

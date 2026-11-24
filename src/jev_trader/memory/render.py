@@ -15,7 +15,8 @@ read at (for "3 days ago") and the asset looked at (for "same asset").
 Choices the spec leaves to the build:
 
 - A measurement not available at the time leaves its word out of the one-line setting.
-- A trade stored before its best and worst were recorded reads without them.
+- A trade stored before its best and worst, its journal or the money it put in were kept with
+  its outcomes reads without them.
 """
 
 import math
@@ -121,8 +122,10 @@ def _standing(episode: Episode, w: dict) -> str:
     )
 
 
-def _percent_of(ended) -> str:
-    return "" if ended.percent is None else _signed_percent(ended.percent)
+def _percent_of(ended, w: dict) -> str:
+    if ended.percent is None:
+        return ""
+    return w["percent"].format(percent=_signed_percent(ended.percent))
 
 
 def _trade_ended(episode: Episode, separator: str, w: dict) -> str:
@@ -133,7 +136,7 @@ def _trade_ended(episode: Episode, separator: str, w: dict) -> str:
         bars=_count(w["bars"], e.bars_after),
         separator=separator,
         profit=_signed_dollars(e.profit),
-        percent=_percent_of(e),
+        percent=_percent_of(e, w),
     )
 
 
@@ -143,7 +146,7 @@ def _review_ended(episode: Episode, separator: str, w: dict) -> str:
     values = {
         "separator": separator,
         "profit": _signed_dollars(e.profit),
-        "percent": _percent_of(e),
+        "percent": _percent_of(e, w),
     }
     if e.closed_at_this_review:
         return w["closed_at_this_review"].format(**values)
@@ -238,9 +241,10 @@ def full_episode(episode: Episode, label: str, reader: Reader) -> str:
             ),
             w["review_decided"].format(decided=step_text(episode.review, w)),
             w["afterwards"].format(after=_price_after(episode, w)),
-            w["whole_trade"].format(steps=bar_by_bar(episode.journal, w)),
-            w["ended"].format(ended=_review_ended(episode, ", ", w)),
         ]
+        if episode.journal:
+            lines.append(w["whole_trade"].format(steps=bar_by_bar(episode.journal, w)))
+        lines.append(w["ended"].format(ended=_review_ended(episode, ", ", w)))
     elif episode.decided == NO_TRADE:
         lines += [
             w["decided_no_trade"],
@@ -256,7 +260,7 @@ def full_episode(episode: Episode, label: str, reader: Reader) -> str:
                 dollars=_dollars(t.dollars),
             )
         )
-        if not reader.for_jev:
+        if episode.journal and not reader.for_jev:
             lines.append(w["handled"].format(steps=bar_by_bar(episode.journal, w)))
         ended = w["ended"].format(ended=_trade_ended(episode, ", ", w))
         if e.best is not None and e.worst is not None:

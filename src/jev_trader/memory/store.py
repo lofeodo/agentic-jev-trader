@@ -7,16 +7,14 @@ sim), read beside the dataset's snapshots (`FEATURES`, `REF`) and the sim's sett
 memory server's own role, which can only read; `InMemoryMemoryStore` is the stand-in the tests
 use, with made-up embeddings.
 
-**The rule.** Every read takes the current step and returns only what was known by then:
-
-- an episode (a full evaluation or position review) decided before now whose outcomes were all
-  known by now (`OUTCOMES_KNOWN_FROM`);
-- an outcome known by now (`KNOWN_FROM`);
-- a position's bars before now;
-- a closed trade only from the step it closed.
-
-Each store applies it in one place (`_visible` in each), and the agent has no other path to
-these tables.
+**The rule.** Every read takes the current step and returns only what was known by then. Each
+store holds the episode rule once (`_visible`, `_VISIBLE` in Snowflake) and every read of
+episodes goes through it (the search, reading in full, the track record's closed trades): an
+episode (a full evaluation or position review) of this sim's memory, decided before now, whose
+outcomes were all known by now (`OUTCOMES_KNOWN_FROM`). A traded full evaluation is complete
+only once its trade has closed, so the track record counts a trade from the step it closed.
+What is read beside an allowed episode is cut at now too: its outcomes known by now
+(`KNOWN_FROM`), its position's bars before now. The agent has no other path to these tables.
 """
 
 import math
@@ -34,7 +32,6 @@ from jev_trader.sim.store import (
     ACTION_ENTRY,
     ACTION_NOTHING,
     KIND_FULL_EVALUATION,
-    KIND_POSITION_REVIEW,
     POSITION_KINDS,
 )
 
@@ -146,6 +143,16 @@ class InMemoryMemoryStore:
             for p in self.patterns
         )
 
+    def _carried_out(self, row: dict) -> bool:
+        """A full evaluation whose entry was carried out: it traded."""
+        return row["ACTION"] == ACTION_ENTRY and any(
+            o["SIM"] == row["SIM"]
+            and o["DECISION"] == row["ID"]
+            and o["KIND"] == OutcomeKind.ORDER_CARRIED_OUT
+            and o["VALUE"].get("carried_out")
+            for o in self.outcomes_table
+        )
+
     def _allowed(self, row: dict, query: Query, current: dict) -> bool:
         f = query.filters
         s = self.snapshots[(row["DATASET"], row["ASSET"], row["STEP"])]
@@ -156,7 +163,7 @@ class InMemoryMemoryStore:
         if f.pattern != "any" and not self._patterned(row, f.pattern):
             return False
         if query.job == FULL_EVALUATION:
-            traded = row["ACTION"] == ACTION_ENTRY
+            traded = self._carried_out(row)
             decided = row["PICK"].split("_")[0] if traded else "no_trade"
             return f.decided in ("any", decided)
         standing = row["STANDING"]
@@ -171,16 +178,11 @@ class InMemoryMemoryStore:
         return True
 
     def ranked(self, query, current, weights, top):
-        kind = (
-            KIND_FULL_EVALUATION
-            if query.job == FULL_EVALUATION
-            else KIND_POSITION_REVIEW
-        )
         rows = [
             r
             for r in self.decisions_table
             if self._visible(r, query.sim, query.step)
-            and r["KIND"] == kind
+            and r["KIND"] == query.job
             and self._allowed(r, query, current)
         ]
 
@@ -251,9 +253,8 @@ class InMemoryMemoryStore:
             o = closed.get(r["ID"])
             if (
                 o is None
-                or r["SIM"] != sim
                 or r["KIND"] != KIND_FULL_EVALUATION
-                or r["STEP"] >= step
+                or not self._visible(r, sim, step)
             ):
                 continue
             row = self._with_snapshot(r)

@@ -75,6 +75,16 @@ class Episodes(BaseModel):
     episodes: list[Episode]  # in the order asked; one not shown by now is left out
 
 
+def volume_cut_offs(settings: dict | None) -> tuple[float, float]:
+    """The sim's volume levels: below the first is low, above the second high (`track_record`
+    in its settings, else the version 1 cut-offs). Episodes and the track record share them."""
+    found = (settings or {}).get("track_record") or {}
+    return (
+        found.get("volume_low_below", VOLUME_LOW_BELOW),
+        found.get("volume_high_above", VOLUME_HIGH_ABOVE),
+    )
+
+
 def _check(name: str, value: str, allowed: Sequence[str]) -> None:
     if value not in allowed:
         listed = ", ".join(f'"{a}"' for a in allowed)
@@ -124,7 +134,9 @@ class Lookups:
             [candidates[m.id] for m in merged], settings.results
         )
         ranks = {m.id: m for m in merged}
-        found = self._episodes(sim, step, [c.id for c in kept], journals=False)
+        found = self._episodes(
+            sim, step, [c.id for c in kept], journals=False, settings=row["SETTINGS"]
+        )
         return SearchResult(
             episodes=[
                 Found(
@@ -141,13 +153,16 @@ class Lookups:
     def read(self, sim: int, step: int, episode_ids: Sequence[str]) -> Episodes:
         if not 1 <= len(episode_ids) <= MOST_READ:
             raise NotAllowed(f"episode_ids must hold 1 to {MOST_READ} IDs.")
-        self.store.sim(sim)
-        found = self._episodes(sim, step, list(episode_ids), journals=True)
+        settings = self.store.sim(sim)["SETTINGS"]
+        found = self._episodes(
+            sim, step, list(episode_ids), journals=True, settings=settings
+        )
         return Episodes(episodes=[found[i] for i in episode_ids if i in found])
 
     def _episodes(
-        self, sim: int, step: int, ids: list[str], journals: bool
+        self, sim: int, step: int, ids: list[str], journals: bool, settings: dict | None
     ) -> dict[str, Episode]:
+        cut_offs = volume_cut_offs(settings)
         rows = self.store.decisions(sim, step, ids)
         outcomes: dict[str, list[dict]] = {r["ID"]: [] for r in rows}
         for o in self.store.outcomes(sim, step, list(outcomes)):
@@ -171,6 +186,7 @@ class Lookups:
                 r,
                 outcomes[r["ID"]],
                 by_position.get(positions.get(r["ID"]), []) if journals else None,
+                cut_offs,
             )
             for r in rows
         }
@@ -181,8 +197,7 @@ class Lookups:
         _check("direction", direction, DIRECTIONS)
         row = self.store.sim(sim)
         settings = (row["SETTINGS"] or {}).get("track_record") or {}
-        low = settings.get("volume_low_below", VOLUME_LOW_BELOW)
-        high = settings.get("volume_high_above", VOLUME_HIGH_ABOVE)
+        low, high = volume_cut_offs(row["SETTINGS"])
         current = self.store.snapshot(row["DATASET"], asset, step)
         asset_class = current["ASSET_CLASS"]
         trades = [

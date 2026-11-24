@@ -16,7 +16,7 @@ Choices the spec leaves to the build:
 - A trade's stop price distance is the one listed when it was decided, from that step's close.
 - A trade's percent is its profit over the money its entry put in.
 - A position's bars are counted as the agent counts them: bar 0 is the bar it was opened in.
-  A stop price, forced close or end of the run is written at the bar after the last one looked
+  A stop price, forced close or the sim's end is written at the bar after the last one looked
   at, where it happened.
 """
 
@@ -198,14 +198,16 @@ def build(
     decision: dict,
     outcomes: list[dict],
     position_rows: list[dict] | None = None,
+    volume_cut_offs: tuple[float, float] = (VOLUME_LOW_BELOW, VOLUME_HIGH_ABOVE),
 ) -> Episode:
     """An episode from its decision row (with its snapshot's SITUATION_TEXT, MEASUREMENTS and
-    ASSET_CLASS), its outcome rows, and, to read it in full, its position's decision rows."""
+    ASSET_CLASS), its outcome rows, and, to read it in full, its position's decision rows.
+    `volume_cut_offs` are the sim's: below the first is low volume, above the second high."""
     by_kind = {o["KIND"]: o for o in outcomes}
     read = read_situation(decision["SITUATION_TEXT"])
     measured = decision["MEASUREMENTS"]
     trend = measured[_LONG_TERM_TREND]
-    volume = volume_level(measured[_VOLUME], VOLUME_LOW_BELOW, VOLUME_HIGH_ABOVE)
+    volume = volume_level(measured[_VOLUME], *volume_cut_offs)
     episode = {
         "id": decision["ID"],
         "kind": decision["KIND"],

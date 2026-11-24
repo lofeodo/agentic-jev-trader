@@ -14,7 +14,6 @@ from collections.abc import Sequence
 from jev_trader.dataset.situation_text import PATTERN_WINDOW_STEPS
 from jev_trader.memory.search import FULL_EVALUATION, Candidate, Query
 from jev_trader.memory.store import NoSnapshot, UnknownSim
-from jev_trader.sim.store import KIND_FULL_EVALUATION, KIND_POSITION_REVIEW
 
 # The one rule, for the episodes read through `D`: of this sim's memory, decided before now,
 # with every outcome known by now. Its three `?` are the sim, the step and the step.
@@ -26,6 +25,12 @@ _WITH_SNAPSHOT = (
     "JOIN FEATURES.SNAPSHOTS S ON S.DATASET = D.DATASET AND S.ASSET = D.ASSET "
     "AND S.STEP = D.STEP "
     "JOIN REF.ASSETS A ON A.DATASET = D.DATASET AND A.MASKED_ID = D.ASSET"
+)
+# A full evaluation that traded: its entry was carried out (one cancelled shows as no trade).
+_TRADED = (
+    "(D.ACTION = 'entry' AND EXISTS (SELECT 1 FROM MEMORY.OUTCOMES O "
+    "WHERE O.SIM = D.SIM AND O.DECISION = D.ID AND O.KIND = 'order_carried_out' "
+    "AND O.VALUE:carried_out::BOOLEAN))"
 )
 _DECISION_COLUMNS = (
     "ID",
@@ -121,9 +126,9 @@ class SnowflakeMemoryStore:
             params.append(f.pattern)
         if query.job == FULL_EVALUATION:
             if f.decided == "no_trade":
-                sql.append("D.ACTION <> 'entry'")
+                sql.append(f"NOT ({_TRADED})")
             elif f.decided != "any":
-                sql.append("D.ACTION = 'entry' AND SPLIT_PART(D.PICK, '_', 1) = ?")
+                sql.append(f"{_TRADED} AND SPLIT_PART(D.PICK, '_', 1) = ?")
                 params.append(f.decided)
             return " AND ".join(sql), params
         sql.append("D.STANDING:direction::VARCHAR = ?")
@@ -139,11 +144,6 @@ class SnowflakeMemoryStore:
         return " AND ".join(sql), params
 
     def ranked(self, query, current, weights, top):
-        kind = (
-            KIND_FULL_EVALUATION
-            if query.job == FULL_EVALUATION
-            else KIND_POSITION_REVIEW
-        )
         narrowing, narrowing_params = self._filters(query, current)
         rows = self._rows(
             "WITH Q AS (SELECT FEATURE_VECTOR::ARRAY AS FV, EMBEDDING AS E "
@@ -172,7 +172,7 @@ class SnowflakeMemoryStore:
                 query.sim,
                 query.step,
                 query.step,
-                kind,
+                query.job,
                 *narrowing_params,
                 top,
                 top,
@@ -226,7 +226,7 @@ class SnowflakeMemoryStore:
             "FROM MEMORY.DECISIONS D "
             "JOIN MEMORY.OUTCOMES O ON O.SIM = D.SIM AND O.DECISION = D.ID "
             f"AND O.KIND = 'position_closed' {_WITH_SNAPSHOT} "
-            "WHERE D.SIM = ? AND D.KIND = 'full_evaluation' AND D.STEP < ? "
+            f"WHERE {_VISIBLE} AND D.KIND = 'full_evaluation' "
             "AND O.KNOWN_FROM <= ? AND A.ASSET_CLASS = ?",
-            [sim, step, step, asset_class],
+            [sim, step, step, step, asset_class],
         )

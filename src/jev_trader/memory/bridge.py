@@ -2,7 +2,7 @@
 tool definitions written by hand (spec appendix 5, section 4; appendix 10, section 2; ADR 0006).
 
 The LLM sees each lookup tool through its hand-written definition (`definitions`), which has no
-sim or step input. The bridge is made for one moment (`Moment`: the sim, the step, the asset
+sim or step input. The bridge is made for one moment (`LookupContext`: the sim, the step, the asset
 looked at, the job, an open position's direction) and fills those in on every call, so the LLM
 can only ask about the current or earlier moments. A test compares the definitions with the
 server's own tool list, so the two cannot drift apart.
@@ -39,7 +39,7 @@ from jev_trader.memory.search import (
     STANDING_FILTERS,
     Job,
 )
-from jev_trader.memory.server import PATH
+from jev_trader.memory.server import FILLED_IN_BY_CODE, PATH
 from jev_trader.memory.track_record import TrackRecord
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "llm_tools.toml"
@@ -122,7 +122,7 @@ def definitions(job: Job, patterns: Sequence[str]) -> tuple[ToolDefinition, ...]
 
 
 @dataclass(frozen=True)
-class Moment:
+class LookupContext:
     """What code fills in on every call: the sim, the current step, the asset looked at, the
     job, and for a position review the open position's direction."""
 
@@ -158,21 +158,28 @@ def _checked(definition: ToolDefinition, arguments: dict) -> dict:
 class MemoryBridge:
     """The three lookups for one moment, over an MCP client session."""
 
-    def __init__(self, session: ClientSession, moment: Moment, patterns: Sequence[str]):
+    def __init__(
+        self, session: ClientSession, context: LookupContext, patterns: Sequence[str]
+    ):
         self.session = session
-        self.moment = moment
-        self.definitions = {d.name: d for d in definitions(moment.job, patterns)}
+        self.context = context
+        self.definitions = {d.name: d for d in definitions(context.job, patterns)}
 
     def _filled_in(self, name: str) -> dict:
-        m = self.moment
-        filled = {"sim": m.sim, "step": m.step}
-        if name in ("search_episodes", "read_track_record"):
-            filled["asset_looked_at"] = m.asset
-        if name == "search_episodes":
-            filled["job"] = m.job
-            if m.job == POSITION_REVIEW:
-                filled["position_direction"] = m.position_direction
-        return filled
+        """The inputs the server's tool takes from code, from this context."""
+        c = self.context
+        values = {
+            "sim": c.sim,
+            "step": c.step,
+            "asset_looked_at": c.asset,
+            "job": c.job,
+            "position_direction": c.position_direction,
+        }
+        return {
+            key: values[key]
+            for key in FILLED_IN_BY_CODE[name]
+            if values[key] is not None
+        }
 
     async def call(self, name: str, arguments: dict) -> dict:
         """Call a lookup tool with the LLM's inputs; returns the server's structured answer."""

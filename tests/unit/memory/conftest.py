@@ -14,7 +14,7 @@ import pytest
 
 from jev_trader.dataset.measurements import MEASUREMENT_NAMES, AssetClass, Measurements
 from jev_trader.dataset.situation_text import PatternLists, situation_text
-from jev_trader.memory.bridge import MemoryBridge, Moment, connect
+from jev_trader.memory.bridge import LookupContext, MemoryBridge, connect
 from jev_trader.memory.server import build_server, http_app
 from jev_trader.memory.store import InMemoryMemoryStore
 from jev_trader.sim.records import decision_id
@@ -130,6 +130,30 @@ class MadeUpMemory:
         decision = self._decision(
             asset, step, "full_evaluation", "nothing", step + 6, PICK="no_trade"
         )
+        self.prices(decision, step)
+        return decision
+
+    def cancelled(self, asset, step, **snapshot):
+        """A full evaluation whose long was never carried out: judged as no trade."""
+        self.snapshot(asset, step, **snapshot)
+        pick = "long_tight_stop"
+        decision = self._decision(
+            asset,
+            step,
+            "full_evaluation",
+            "entry",
+            step + 6,
+            PICK=pick,
+            CANDIDATE_TRADES=[
+                {
+                    "name": pick,
+                    "direction": "long",
+                    "stop_price": 99.4,
+                    "stop_share": 0.006,
+                }
+            ],
+        )
+        self.outcome(decision, "order_carried_out", {"carried_out": False}, step + 1)
         self.prices(decision, step)
         return decision
 
@@ -275,12 +299,12 @@ async def served(store, allowed_hosts=(f"{HOST}:*", HOST)):
 
 
 @asynccontextmanager
-async def bridge_to(store, moment: Moment):
+async def bridge_to(store, context: LookupContext):
     async with (
         served(store) as http,
         connect(f"http://{HOST}", http_client=http) as session,
     ):
-        yield MemoryBridge(session, moment, PATTERNS)
+        yield MemoryBridge(session, context, PATTERNS)
 
 
 def run(async_fn):
