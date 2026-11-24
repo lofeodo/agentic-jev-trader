@@ -18,8 +18,10 @@ Choices the spec leaves to the build:
   account was first back at that high; None while it has not.
 - "How often the largest size was picked": of the full evaluations Jev sized, the share where
   the largest size had the most probability, its two copies averaged.
-- "How often a limit held it back": looks a risk limit ruled out before anything was asked,
-  and trades a limit trimmed.
+- "How often a limit held it back", three counts: looks a risk limit skipped before Jev was
+  asked (one per asset and step, so it runs high), trades Jev picked that the limits left
+  nothing of, and trades a limit trimmed.
+- Trades per asset are given per day too: trades in the asset over the days stored.
 - Jev's confidence in a trade is the probability its pick copies, averaged, gave the trade's
   direction (every stop price added). Trades are put in tens of percent by it, and each band
   says the share that made money.
@@ -39,7 +41,7 @@ from pydantic import BaseModel
 
 from jev_trader.api.sim_page import Sim, holding_of
 from jev_trader.api.store import ApiStore
-from jev_trader.api.trades import NO_TRADE, trades_of
+from jev_trader.api.trades import NO_PATTERN, NO_TRADE, Tally, trades_of
 from jev_trader.dataset.bars import STEPS_PER_DAY
 from jev_trader.jev.reading import size_option_name
 from jev_trader.sim.clock import day_of
@@ -170,7 +172,10 @@ class _Book:
                 and o["STEP_CARRIED_OUT"] <= through
             )
         ]
-        self.trades = trades_of(orders, store.charges(sim_id))
+        charges = [
+            c for c in store.charges(sim_id) if through is None or c["STEP"] <= through
+        ]
+        self.trades = trades_of(orders, charges)
         self.closed = [t for t in self.trades if t.closed]
         self.decisions = store.decisions(sim_id) if with_decisions else []
         self.calls = store.calls(sim_id) if with_decisions else []
@@ -232,7 +237,7 @@ class _Book:
         """The biggest fall from a high, as dollars and a share of the high, and the days
         taken to be back at that high (None while it is not)."""
         if not self.rows:
-            return 0.0, 0.0, 0
+            return 0.0, 0.0, None
         peak, peak_step = self.start, self.rows[0]["STEP"]
         drop, high, high_step, bottom_step = 0.0, peak, peak_step, peak_step
         for r in self.rows:
@@ -247,7 +252,7 @@ class _Book:
                     r["STEP"],
                 )
         if drop == 0:
-            return 0.0, 0.0, 0
+            return 0.0, 0.0, None
         back = next(
             (
                 r["STEP"]
@@ -523,7 +528,9 @@ def _ride(book: _Book, holding: _Book | None) -> MeasurementGroup:
                 "days",
                 back_days,
                 held_drop and held_drop[2],
-                "It has not climbed back to that high yet."
+                "It never fell below a high it had reached."
+                if drop == 0
+                else "It has not climbed back to that high yet."
                 if back_days is None
                 else f"It took {back_days} day(s) to climb back to that high.",
             ),
@@ -562,8 +569,9 @@ def _ride(book: _Book, holding: _Book | None) -> MeasurementGroup:
                 _or(
                     sharpe,
                     lambda v: (
-                        f"Profit per unit of swing, over a year: {v:.2f}. Above "
-                        "1 is good; below 0 it lost money."
+                        f"Profit per unit of swing, over a year: {v:.2f}. An "
+                        "account making $1,000 a year while swinging $1,000 scores "
+                        "1; above 1 is good, below 0 it lost money."
                     ),
                     "Needs two days with some swing.",
                 ),
@@ -612,11 +620,12 @@ def _trader(book: _Book, sim: Sim) -> MeasurementGroup:
     entries = sum(1 for d in evaluations if d["ACTION"] == ACTION_ENTRY)
     to_evaluation = _ratio(len(evaluations), len(screens))
     to_trade = _ratio(entries, len(evaluations))
-    ruled_out = sum(
+    skipped = sum(
         1
         for d in book.decisions
         if d.get("SKIPPED_BECAUSE") and d["SKIPPED_BECAUSE"] not in NOT_A_LIMIT
-    ) + sum(
+    )
+    blocked = sum(
         1
         for d in evaluations
         if d["ACTION"] != ACTION_ENTRY and d.get("PICK") not in (None, NO_TRADE)
@@ -751,7 +760,7 @@ def _trader(book: _Book, sim: Sim) -> MeasurementGroup:
                 _or(
                     to_evaluation,
                     lambda v: (
-                        f"{_share(v)} of Jev's quick checks led to a full "
+                        f"{_share(v)} of Jev's screens led to a full "
                         f"evaluation ({len(evaluations)} of {len(screens)})."
                     ),
                     "No screens yet.",
@@ -773,12 +782,23 @@ def _trader(book: _Book, sim: Sim) -> MeasurementGroup:
                 ),
             ),
             _figure(
-                "limits_ruled_out",
+                "looks_skipped_by_a_limit",
+                "Risk limit skips",
+                "count",
+                skipped,
+                None,
+                f"{skipped} look(s) at an asset were skipped before Jev was asked, "
+                "because a risk limit ruled out a new trade (the daily loss limit, or a "
+                "stock's last bars of the day). Each asset is looked at every 15 minutes.",
+            ),
+            _figure(
+                "trades_blocked_by_a_limit",
                 "Risk limit blocks",
                 "count",
-                ruled_out,
+                blocked,
                 None,
-                f"A risk limit stopped a trade from opening {ruled_out} time(s).",
+                f"{blocked} time(s) Jev picked a trade and the risk limits left nothing "
+                "of it.",
             ),
             _figure(
                 "trades_trimmed",
@@ -807,17 +827,17 @@ def _trader(book: _Book, sim: Sim) -> MeasurementGroup:
         breakdowns=[
             Breakdown(
                 key="trades_per_asset",
-                name="Trades per asset",
-                unit="count",
-                says="How many trades it opened in each asset.",
+                name="Trade frequency per asset",
+                unit="number",
+                says="Trades opened in each asset, and how many a day.",
                 rows=[
-                    BreakdownRow(label=name, trades=n, value=None)
+                    BreakdownRow(label=name, trades=n, value=_ratio(n, days))
                     for name, n in sorted(per_asset.items())
                 ],
             ),
             Breakdown(
                 key="how_trades_end",
-                name="Exit reasons",
+                name="Closing reasons",
                 unit="count",
                 says="How each closed trade ended.",
                 rows=[
@@ -858,15 +878,13 @@ def _trades(
     book: _Book, holding: _Book | None, sim: Sim, patterns: dict[tuple, list[str]]
 ) -> MeasurementGroup:
     def numbers(b: _Book):
-        profits = [t.profit for t in b.closed]
-        gains = [p for p in profits if p > 0]
-        losses = [p for p in profits if p < 0]
+        tally = Tally([t.profit for t in b.closed])
         return (
             len(b.trades),
-            _ratio(len(gains), len(profits)),
-            _mean(gains),
-            _mean(losses),
-            None if not losses else sum(gains) / -sum(losses),
+            tally.share_made_money,
+            tally.average_gain,
+            tally.average_loss,
+            tally.gains_over_losses,
         )
 
     count, share, gain, loss, factor = numbers(book)
@@ -956,7 +974,7 @@ def _trades(
             _profit_split("Profit by asset", "by_asset", splits["asset"]),
             _profit_split("Profit by direction", "by_direction", splits["direction"]),
             _profit_split("Profit by candle pattern", "by_pattern", splits["pattern"]),
-            _profit_split("Profit by exit reason", "by_ending", splits["ending"]),
+            _profit_split("Profit by closing reason", "by_ending", splits["ending"]),
         ],
     )
 
@@ -1054,11 +1072,40 @@ def _memory(book: _Book, holding: _Book | None) -> MeasurementGroup:
         says="Whether looking back at past trades helped",
         figures=[
             _figure(
-                "took_top_results", "Top-k acceptance", "share", None, None, waiting
+                "took_top_results",
+                "Top-k acceptance",
+                "share",
+                None,
+                None,
+                "How often the LLM simply took the past trades memory ranked first, "
+                f"rather than choosing its own. {waiting}",
             ),
-            _figure("more_one_sided", "Selection bias", "share", None, None, waiting),
             _figure(
-                "ranking_helped", "Text ranking lift", "share", None, None, waiting
+                "more_one_sided",
+                "Selection bias",
+                "share",
+                None,
+                None,
+                "Whether the LLM picked a more one-sided set of past trades than it was "
+                "shown: 5 winners chosen from a setup that wins 3 times in 10, say. "
+                f"{waiting}",
+            ),
+            _figure(
+                "ranking_helped",
+                "Text ranking lift",
+                "share",
+                None,
+                None,
+                "Whether ranking past trades by how alike their descriptions read led "
+                f"to better trades than not. {waiting}",
+            ),
+            _figure(
+                "lookups_used",
+                "Lookups",
+                "count",
+                None,
+                None,
+                f"How many times the LLM searched memory. {waiting}",
             ),
             _figure(
                 "profit_per_day",
@@ -1094,7 +1141,7 @@ def measurements(store: ApiStore, sim_id: int) -> Measurements:
     found = store.entry_details(
         row["DATASET"], sorted({(t.asset, t.decided_step) for t in book.closed})
     )
-    patterns = {pair: (d["PATTERNS"] or ["none"]) for pair, d in found.items()}
+    patterns = {pair: (d["PATTERNS"] or [NO_PATTERN]) for pair, d in found.items()}
     return Measurements(
         through_step=reached,
         holding_sim_id=None if holding_row is None else holding_row["ID"],

@@ -76,8 +76,10 @@ def create_app(
     ) -> Report:
         if key in reports:
             return reports[key]  # type: ignore[return-value]
+        # Checked before the work: a sim that finishes meanwhile may be missing its last steps.
+        finished = sim_page.never_changes(store, sim_id)
         report = work()
-        if sim_page.never_changes(store, sim_id):
+        if finished:
             reports[key] = report
         return report
 

@@ -7,7 +7,8 @@ asset class: a trade counts in one group for each 15-minute pattern in the patte
 was decided ("none" if there was none), and stock and crypto trades are never counted together.
 A line can be split further by trend, volume level and part of the day, each taken at entry.
 Each line says whether the agent is shown it: a group under the minimum sample (10 closed trades)
-is hidden from it. Worked out when asked for, never stored.
+is hidden from it, and so is a split the track record's ladder never forms (it narrows by trend,
+then volume level, then part of the day). Worked out when asked for, never stored.
 
 Which group fits the agent's situation, and the fallback to broader groups, belong to the track
 record itself (ticket #101), not to this page.
@@ -26,7 +27,7 @@ from pydantic import BaseModel
 
 from jev_trader.api.sim_page import Sim
 from jev_trader.api.store import ApiStore
-from jev_trader.api.trades import Trade, trades_of
+from jev_trader.api.trades import NO_PATTERN, Tally, Trade, trades_of
 from jev_trader.dataset.bars import STEPS_PER_DAY
 from jev_trader.dataset.measurements import AssetClass
 from jev_trader.dataset.situation_text import (
@@ -36,7 +37,6 @@ from jev_trader.dataset.situation_text import (
 )
 
 MINIMUM_SAMPLE = 10
-NO_PATTERN = "none"
 NOT_AVAILABLE = "not available"
 
 
@@ -59,7 +59,9 @@ class ScorecardLine(BaseModel):
     average_gain: float | None  # over the trades that made money
     average_loss: float | None  # over the trades that lost money (a negative number)
     total_profit: float
-    shown_to_agent: bool  # a group under the minimum sample is hidden from the agent
+    # A group under the minimum sample is hidden from the agent, and so is one the track
+    # record's ladder never forms (a split by volume level alone, say).
+    shown_to_agent: bool
 
 
 class Scorecard(BaseModel):
@@ -129,6 +131,9 @@ def scorecard(store: ApiStore, sim_id: int, split: list[Split]) -> Scorecard:
             key = (pattern, trade.direction, found["ASSET_CLASS"], *details)
             groups.setdefault(key, []).append(trade.profit)
 
+    # The agent reads only the ladder's groups: the details dropped part of day first, then
+    # volume level, then trend.
+    on_ladder = split == list(Split)[: len(split)]
     lines = []
     for (
         pattern,
@@ -138,8 +143,7 @@ def scorecard(store: ApiStore, sim_id: int, split: list[Split]) -> Scorecard:
         volume,
         part,
     ), profits in groups.items():
-        gains = [p for p in profits if p > 0]
-        losses = [p for p in profits if p < 0]
+        tally = Tally(profits)
         lines.append(
             ScorecardLine(
                 pattern=pattern,
@@ -149,12 +153,12 @@ def scorecard(store: ApiStore, sim_id: int, split: list[Split]) -> Scorecard:
                 volume_level=volume,
                 part_of_day=part,
                 trades=len(profits),
-                made_money=len(gains),
-                share_made_money=len(gains) / len(profits),
-                average_gain=sum(gains) / len(gains) if gains else None,
-                average_loss=sum(losses) / len(losses) if losses else None,
+                made_money=len(tally.gains),
+                share_made_money=tally.share_made_money,
+                average_gain=tally.average_gain,
+                average_loss=tally.average_loss,
                 total_profit=sum(profits),
-                shown_to_agent=len(profits) >= minimum,
+                shown_to_agent=on_ladder and len(profits) >= minimum,
             )
         )
     lines.sort(

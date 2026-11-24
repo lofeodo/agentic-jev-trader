@@ -88,7 +88,7 @@ const FILTERS: { key: keyof TradeFilters & keyof FilterCounts; label: string }[]
   { key: "trimmed", label: "Trimmed by a limit" },
   { key: "stop_price", label: "Closed at the stop price" },
   { key: "overnight", label: "Held overnight" },
-  { key: "no_trade", label: "Add closer looks with no trade" },
+  { key: "no_trade", label: "Add full evaluations with no trade" },
 ];
 
 const ENDINGS: Record<string, string> = {
@@ -122,7 +122,7 @@ function Trades({ id, inProgress, number }: { id: number; inProgress: boolean; n
 
   return (
     <section className="mt-10">
-      <SectionHeading number={number} title="Trades" says="Every trade, and the closer looks that ended in no trade" />
+      <SectionHeading number={number} title="Trades" says="Every trade, and the full evaluations that ended in no trade" />
       <Problem error={error} />
       <div className="mb-3 flex flex-wrap gap-2 font-mono text-[13.5px] tracking-wider">
         {FILTERS.map(({ key, label }) => (
@@ -475,6 +475,8 @@ function ScorecardTable({ card }: { card: Scorecard }) {
 type Setting = { label: string; show: (v: number, account: number) => string };
 const pct = (v: number) => `${+(v * 100).toFixed(3)}%`;
 const ofAccount = (v: number, account: number) => `${pct(v)} of account value (${dollars(v * account)} of ${dollars(account)})`;
+// One night's share (1/365) of a yearly rate on an amount.
+const nightly = (yearly: number, amount: number) => `$${((yearly * amount) / 365).toFixed(2)}`;
 const times = (v: number, account: number) => `${v} times account value (${dollars(v * account)})`;
 
 const RISK: Record<string, Setting> = {
@@ -491,9 +493,9 @@ const COSTS: Record<string, Setting> = {
   slippage: { label: "Slippage: every order is carried out at a price this much worse", show: (v) => `${pct(v)} ($${(v * 100).toFixed(2)} on a $100 price)` },
   stock_commission: { label: "Stock commission, per order", show: (v) => dollarsAndCents(v) },
   crypto_trading_fee: { label: "Crypto trading fee, per order", show: (v) => `${pct(v)} (${dollarsAndCents(v * 2000)} on $2,000)` },
-  stock_borrow_fee_yearly: { label: "Stock borrow fee for a short, a year", show: (v) => pct(v) },
-  crypto_borrow_fee_yearly: { label: "Crypto borrow fee for a short, a year", show: (v) => pct(v) },
-  loan_interest_yearly: { label: "Loan interest on borrowed money, a year", show: (v) => pct(v) },
+  stock_borrow_fee_yearly: { label: "Stock borrow fee for a short kept overnight, a year", show: (v) => `${pct(v)} (${nightly(v, 2000)} a night on $2,000)` },
+  crypto_borrow_fee_yearly: { label: "Crypto borrow fee for a short kept overnight, a year", show: (v) => `${pct(v)} (${nightly(v, 2000)} a night on $2,000)` },
+  loan_interest_yearly: { label: "Loan interest on money owed at midnight, a year", show: (v) => `${pct(v)} (${nightly(v, 10000)} a night on $10,000)` },
 };
 
 function SettingsSection({ header, number }: { header: SimHeader; number: number }) {

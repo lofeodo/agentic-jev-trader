@@ -48,8 +48,8 @@ def entries():
 
 
 @pytest.fixture
-def api(sims, entries):
-    store = InMemoryApiStore(
+def store(sims, entries):
+    return InMemoryApiStore(
         sims,
         asset_key=[
             key_row("ASSET_01", "Apple", 0.5),
@@ -57,6 +57,10 @@ def api(sims, entries):
         ],
         entry_details={7: entries},
     )
+
+
+@pytest.fixture
+def api(store):
     return TestClient(
         create_app(
             store,
@@ -693,3 +697,70 @@ def test_a_finished_sim_s_report_is_worked_out_once(sims, api):
 
     assert api.get(f"/sims/{sim}/trades").json() == first
     assert api.get(f"/sims/{running}/trades").json()["total"] == 1
+
+
+def test_a_report_worked_out_while_the_sim_finished_is_not_kept(
+    sims, store, api, monkeypatch
+):
+    sim = add_sim(sims, status="running", reached=280)
+    read_orders = store.orders
+
+    def orders_as_it_finishes(sim_id):
+        found = read_orders(sim_id)
+        sims.update(
+            sim, STATUS="finished"
+        )  # it finishes while the report is worked out
+        return found
+
+    monkeypatch.setattr(store, "orders", orders_as_it_finishes)
+    api.get(f"/sims/{sim}/trades")
+    monkeypatch.setattr(store, "orders", read_orders)
+    order(sims, sim, 1, "entry", "buy", 285, 1.0, 100.0)  # its last steps' records
+
+    assert api.get(f"/sims/{sim}/trades").json()["total"] == 1
+
+
+def test_a_sim_that_never_fell_has_no_recovery_time(sims, api):
+    sim = add_sim(sims)
+    for step, value in ((97, 10_000.0), (150, 10_100.0), (288, 10_200.0)):
+        account(sims, sim, step, value)
+
+    m = api.get(f"/sims/{sim}/measurements").json()
+
+    recovery = figure(m, "ride", "days_to_climb_back")
+    assert recovery["sim"] is None
+    assert recovery["says"] == "It never fell below a high it had reached."
+
+
+def test_only_the_track_record_s_own_groups_are_shown_to_the_agent(sims, entries, api):
+    """The agent reads groups narrowed in one order: trend, then volume, then part of day."""
+    sim = add_sim(sims)
+    for n in range(10):
+        order(sims, sim, n, "entry", "buy", 100 + 2 * n, 1.0, 100.0)
+        order(sims, sim, n, "close", "sell", 101 + 2 * n, 1.0, 101.0)
+        entries[("ASSET_01", 99 + 2 * n)] = measured("stock", ["hammer"])
+
+    def shown(split):
+        [line] = api.get(f"/sims/{sim}/scorecard", params={"split": split}).json()[
+            "lines"
+        ]
+        return line["shown_to_agent"]
+
+    assert shown(["trend"]) is True
+    assert shown(["trend", "volume"]) is True
+    assert shown(["volume"]) is False  # not a group the agent is ever shown
+    assert shown(["trend", "part_of_day"]) is False
+
+
+def test_trades_per_asset_are_counted_per_day(sims, api):
+    holding = add_sim(sims, variant="buy_hold")
+    sim = two_trades(sims)
+    two_days(sims, sim, holding)
+
+    m = api.get(f"/sims/{sim}/measurements").json()
+
+    # One trade each over two days: half a trade a day.
+    assert breakdown(m, "trader", "trades_per_asset") == {
+        "Apple": (1, 0.5),
+        "Bitcoin": (1, 0.5),
+    }
