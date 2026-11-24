@@ -47,6 +47,8 @@ ACTION_ENTRY = "entry"
 ACTION_CLOSE = "close"
 ACTION_REDUCE = "reduce"
 ACTION_ADD = "add"
+# The statuses of a sim in progress (spec appendix 8, section 8.8).
+IN_PROGRESS = ("created", "running")
 # Tables whose rows a later step may rewrite, by ID.
 REPLACED_BY_ID = frozenset({"SIM.ORDERS"})
 
@@ -115,6 +117,17 @@ class SimStore(Protocol):
 
     def spent(self, sim_id: int) -> float:
         """The dollars of the sim's recorded paid calls."""
+
+    def total_spent(self) -> float:
+        """The dollars of every recorded paid call, those made outside a sim included."""
+
+    def sims_in_progress(self) -> list[dict]:
+        """Each sim created or running, holding sims included, in ID order: its ID, KIND,
+        VARIANT, STATUS and SPENDING_CAP, and SPENT, the dollars of its recorded calls."""
+
+    def latest_tier_2_share(self) -> float | None:
+        """The share of checks that led to Tier 2 in the latest practice sim of the
+        agent that made any; None if there is none."""
 
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
         """How many screens Jev answered, and how many of them said yes (at `cut_off` or above)."""
@@ -220,6 +233,30 @@ class InMemorySimStore:
 
     def spent(self, sim_id: int) -> float:
         return sum(r["COST_USD"] or 0.0 for r in self.rows("SIM.CALLS", sim_id))
+
+    def total_spent(self) -> float:
+        return sum(r["COST_USD"] or 0.0 for r in self.tables["SIM.CALLS"])
+
+    def sims_in_progress(self) -> list[dict]:
+        shown = ("ID", "KIND", "VARIANT", "STATUS", "SPENDING_CAP")
+        return [
+            {**{k: sim.get(k) for k in shown}, "SPENT": self.spent(sim_id)}
+            for sim_id, sim in sorted(self.sims.items())
+            if sim["STATUS"] in IN_PROGRESS
+        ]
+
+    def latest_tier_2_share(self) -> float | None:
+        for sim_id, sim in sorted(self.sims.items(), reverse=True):
+            if sim.get("KIND") != "practice" or sim.get("VARIANT") == "buy_hold":
+                continue
+            kinds = [
+                r["KIND"]
+                for r in self.rows("MEMORY.DECISIONS", sim_id)
+                if r["KIND"] in SCREENED_KINDS
+            ]
+            if kinds:
+                return kinds.count(KIND_FULL_EVALUATION) / len(kinds)
+        return None
 
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
         return self._answered(sim_id, cut_off, SCREENED_KINDS)

@@ -382,3 +382,58 @@ def test_the_duplicate_count_finds_an_id_stored_twice(two_day_sim, sim_login):
             )
 
     assert store.duplicate_ids(sim_id) == {"SIM.SIM_EVENTS": 1}
+
+
+def test_what_the_checker_reads_spending_sims_in_progress_and_the_tier_2_share(
+    sim_login, made_up_dataset, remove_sims
+):
+    """Needs V5 and V6 applied. The latest practice sim of the agent is the one made here."""
+    store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
+    dataset_id = made_up_dataset(days=2, assets=2)
+    sim_id = new_sim(store, market, dataset_id, remove_sims, last_step=192)
+    store.update(sim_id, STATUS="running", VARIANT="memory_off", SPENDING_CAP=0.25)
+    paid_before = store.total_spent()
+    no = JevReply('{"answers":{"screen":{"noul":0.2}}}', "jev-1", 10, 2, 0.03, 0.1, 0)
+    yes = JevReply('{"answers":{"screen":{"noul":0.8}}}', "jev-1", 10, 2, 0.04, 0.1, 0)
+    evaluation = Evaluation(
+        candidates=candidate_trades(100.0, 0.5, load_stop_price_settings()),
+        answers={"pick_1": {"long_tight_stop": 0.7, "no_trade": 0.3}},
+        pick="long_tight_stop",
+        rating=2.5,
+        size_chosen=3000.0,
+        size_after_trimming=2500.0,
+        limited_by="trade_risk",
+    )
+    store.write_steps(
+        sim_id,
+        None,
+        97,
+        {
+            "MEMORY.DECISIONS": [
+                records_of.decision_row(sim_id, 1, 97, "ASSET_01", None, no),
+                records_of.decision_row(
+                    sim_id, 1, 97, "ASSET_02", None, yes, evaluation, "entry"
+                ),
+            ],
+            "SIM.CALLS": [
+                records_of.jev_call_row(sim_id, 97, "ASSET_01", no),
+                records_of.jev_call_row(sim_id, 97, "ASSET_02", yes),
+            ],
+        },
+        {},
+    )
+
+    assert store.total_spent() == pytest.approx(paid_before + 0.07)
+    [mine] = [s for s in store.sims_in_progress() if s["ID"] == sim_id]
+    assert mine == {
+        "ID": sim_id,
+        "KIND": "practice",
+        "VARIANT": "memory_off",
+        "STATUS": "running",
+        "SPENDING_CAP": 0.25,
+        "SPENT": pytest.approx(0.07),
+    }
+    # One screen of two led to a full evaluation.
+    assert store.latest_tier_2_share() == pytest.approx(0.5)
+    # Two crypto assets with a bar at every step of day 2.
+    assert market.bar_count(dataset_id, 97, 192) == 2 * 96

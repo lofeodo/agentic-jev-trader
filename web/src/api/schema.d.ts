@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/playbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Playbook */
+        get: operations["playbook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sims": {
         parameters: {
             query?: never;
@@ -157,6 +174,23 @@ export interface paths {
          *     on resume.
          */
         post: operations["stopSim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/spending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Spending */
+        get: operations["spending"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -422,6 +456,24 @@ export interface components {
             /** Value Usd */
             value_usd: number | null;
         };
+        /** Pattern */
+        Pattern: {
+            /** Detector */
+            detector: string;
+            /** Lean */
+            lean: string;
+            /** Name */
+            name: string;
+            /** Shape */
+            shape: string;
+        };
+        /** Playbook */
+        Playbook: {
+            /** Patterns */
+            patterns: components["schemas"]["Pattern"][];
+            /** Talib Version */
+            talib_version: string | null;
+        };
         /** PositionThen */
         PositionThen: {
             asset: components["schemas"]["AssetName"];
@@ -594,6 +646,40 @@ export interface components {
             /** Sim Ids */
             sim_ids: number[];
         };
+        /** Spending */
+        Spending: {
+            /** Ceiling Usd */
+            ceiling_usd: number;
+            /** Items */
+            items: components["schemas"]["SpendingItem"][];
+            /** Jev Usd */
+            jev_usd: number;
+            /** Left Usd */
+            left_usd: number;
+            /** Llm Usd */
+            llm_usd: number;
+            /** Reserved Usd */
+            reserved_usd: number;
+            /** Spent Usd */
+            spent_usd: number;
+        };
+        /** SpendingItem */
+        SpendingItem: {
+            /** Calls */
+            calls: number;
+            /** Jev Usd */
+            jev_usd: number;
+            /** Kind */
+            kind: string;
+            /** Llm Usd */
+            llm_usd: number;
+            /** Name */
+            name: string;
+            /** Sim Id */
+            sim_id: number | null;
+            /** Total Usd */
+            total_usd: number;
+        };
         /**
          * SpendingTotal
          * @description Real dollars paid to Jev and the LLM so far, and the most the project may pay.
@@ -657,6 +743,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    playbook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Playbook"];
                 };
             };
         };
@@ -931,6 +1037,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    spending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Spending"];
                 };
             };
         };

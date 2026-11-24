@@ -1,39 +1,52 @@
 import type { SpendingTotal } from "./api/client";
-import { dollarsAndCents } from "./format";
+import { dollarsAndCents, modelDollars } from "./format";
 
-// Only Trading sims exists so far; the rest of the menu is shown dimmed until it is built.
-const LATER_SCREENS = ["Comparison", "Datasets", "Playbook", "Spending"];
+export type Screen = "sims" | "playbook" | "spending";
 
-export function TopBar({ spending }: { spending: SpendingTotal | null }) {
+// The menu in the spec's order (appendix 7, section 4). A screen with no address is not built
+// yet and is shown dimmed.
+const SCREENS: { screen: Screen | null; title: string; href: string | null }[] = [
+  { screen: "sims", title: "Trading sims", href: "#/" },
+  { screen: null, title: "Comparison", href: null },
+  { screen: null, title: "Datasets", href: null },
+  { screen: "playbook", title: "Playbook", href: "#/playbook" },
+  { screen: "spending", title: "Spending", href: "#/spending" },
+];
+
+export function TopBar({ spending, screen }: { spending: SpendingTotal | null; screen: Screen }) {
   return (
     <header className="font-mono text-[13.5px] tracking-widest">
       <div className="flex flex-wrap items-stretch border-[1.5px] border-rule">
         <span className="border-r-[1.5px] border-rule px-[2ch] py-2">Jev/Trader</span>
         <nav className="mr-auto flex flex-wrap" aria-label="Screens">
-          <a
-            href="#/"
-            aria-current="page"
-            className="border-r-[1.5px] border-rule bg-amber px-[2ch] py-2 text-screen"
-          >
-            Trading sims
-          </a>
-          {LATER_SCREENS.map((screen) => (
-            <span
-              key={screen}
-              title="Not built yet"
-              className="border-r-[1.5px] border-rule px-[2ch] py-2 text-dim"
-            >
-              {screen}
-            </span>
-          ))}
+          {SCREENS.map((s) =>
+            s.href === null ? (
+              <span
+                key={s.title}
+                title="Not built yet"
+                className="border-r-[1.5px] border-rule px-[2ch] py-2 text-dim"
+              >
+                {s.title}
+              </span>
+            ) : (
+              <a
+                key={s.title}
+                href={s.href}
+                aria-current={s.screen === screen ? "page" : undefined}
+                className={`border-r-[1.5px] border-rule px-[2ch] py-2 ${s.screen === screen ? "bg-amber text-screen" : "hover:text-pale"}`}
+              >
+                {s.title}
+              </a>
+            ),
+          )}
         </nav>
-        <span className="self-center px-[2ch] py-2 text-dim">
+        <a href="#/spending" className="self-center px-[2ch] py-2 text-dim hover:text-pale">
           Models:{" "}
           <b className="font-normal text-amber">
-            {spending ? dollarsAndCents(spending.spent_usd) : "..."}
+            {spending ? modelDollars(spending.spent_usd) : "..."}
           </b>
           {spending && ` of ${dollarsAndCents(spending.ceiling_usd)} spent`}
-        </span>
+        </a>
       </div>
       <div className="mb-11 flex w-fit border-x-[1.5px] border-b-[1.5px] border-rule">
         <span className="border-r-[1.5px] border-rule px-[2ch] py-1.5 text-dim">Command:</span>

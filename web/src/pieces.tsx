@@ -33,9 +33,50 @@ export function ErrorBox({ title, text }: { title: string; text: string }) {
   );
 }
 
-export function SectionHeading({ number, title, says }: { number: number; title: string; says: string }) {
+// A label sharing a box with its value, split by a line.
+export function Pair({ name, value }: { name: string; value: string }) {
   return (
-    <div className="mb-4 flex items-stretch border-[1.5px] border-rule">
+    <span className="flex border-[1.5px] border-rule">
+      <span className="border-r-[1.5px] border-rule px-[1.5ch] py-1 text-dim">{name}</span>
+      <span className="px-[1.5ch] py-1 text-pale">{value}</span>
+    </span>
+  );
+}
+
+// One of a page's key figures, in an outlined box. The first one on a page is the one to read first.
+export function KeyFigure({ name, figure, says, first }: { name: string; figure: string; says: string; first?: boolean }) {
+  return (
+    <div className="border-[1.5px] border-rule px-[2ch] py-3">
+      <div className="font-mono text-[13.5px] tracking-wider text-dim">{name}</div>
+      <div className={`font-mono text-[1.9rem] leading-tight ${first ? "text-pale" : ""}`}>{figure}</div>
+      <div className="text-[14px] text-dim">{says}</div>
+    </div>
+  );
+}
+
+// The kinds of sim, in the order screens list them, each with what it is for.
+export const KINDS: { kind: string; title: string; says: string }[] = [
+  { kind: "measurement", title: "Measurement", says: "Their results count" },
+  { kind: "build-up", title: "Build-up", says: "Fills the base memory; never counts" },
+  { kind: "free", title: "Free", says: "Days of your choice; never counts" },
+  { kind: "tuning", title: "Tuning", says: "Command-line tool; never counts" },
+  { kind: "practice", title: "Practice", says: "Command-line tool; never counts" },
+];
+
+// `space`: the room under it; a heading inside a table row has none.
+export function SectionHeading({
+  number,
+  title,
+  says,
+  space = "mb-4",
+}: {
+  number: number;
+  title: string;
+  says: string;
+  space?: string;
+}) {
+  return (
+    <div className={`${space} flex items-stretch border-[1.5px] border-rule`}>
       <span className="border-r-[1.5px] border-rule px-[1.6ch] py-2 font-mono text-[15px]">
         {String(number).padStart(2, "0")}
       </span>

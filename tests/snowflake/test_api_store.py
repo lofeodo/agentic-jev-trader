@@ -7,8 +7,10 @@ from datetime import date, datetime, timedelta
 import pytest
 
 from jev_trader.api import sim_page
+from jev_trader.api.playbook import playbook
 from jev_trader.api.sims_list import sims_list
 from jev_trader.api.snowflake_store import SnowflakeApiStore
+from jev_trader.api.spending import spending
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
 from jev_trader.sim.store import now
@@ -123,6 +125,18 @@ def test_the_sims_list_reads_real_tables(
     assert line.first_day == date(2025, 3, 2)
     assert [(a.name, a.masked_id) for a in line.assets] == [("Bitcoin", "ASSET_01")]
     assert api.total_spent() == pytest.approx(spent_before + 0.5)
+
+    [item] = [i for i in spending(api, 75.0).items if i.sim_id == sim]
+    assert (item.kind, item.jev_usd, item.llm_usd, item.calls) == ("free", 0.5, 0.0, 1)
+
+
+def test_the_playbook_reads_the_real_table(api_login):
+    """The playbook is filled by the first dataset build; an empty one is still a good read."""
+    read = playbook(SnowflakeApiStore(api_login))
+
+    if read.patterns:
+        assert read.talib_version
+        assert {p.lean for p in read.patterns} <= {"bullish", "bearish", "neutral"}
 
 
 def test_the_sim_page_reads_real_tables_and_times_the_one_second_call(

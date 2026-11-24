@@ -8,13 +8,14 @@
   sure its old job is gone. A sim its spending cap stopped needs a new cap, above what it has
   spent and not able to take total spending past the ceiling.
 
-Every refusal comes back together with a code and a message saying what to change. The full
-checker (the limit of sims in progress, the ceiling for a new sim) comes with its own ticket and
-takes over the start's check; until then a start is refused only by `runner.check_request`.
+Every refusal comes back together with a code and a message saying what to change. A start goes
+through the one checker (`jev_trader.sim.checker`) inside `create_sim`; a resume goes through its
+`check_resume` (the ceiling, with the new cap if one is given, and the limit of sims in
+progress). The checks only the API makes (command-line-only kinds, days, the new cap) stay here.
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel
@@ -24,7 +25,9 @@ from jev_trader.api.sims_list import is_not_responding
 from jev_trader.api.store import ApiStore
 from jev_trader.dataset.bars import STEPS_PER_DAY
 from jev_trader.jobs import JobNotKilled, Launcher
+from jev_trader.sim import checker
 from jev_trader.sim.runner import SimRequest, create_sim
+from jev_trader.sim.spending import SpendingSettings, load_spending_settings
 from jev_trader.sim.store import SimStatus, StopReason
 
 IN_PROGRESS = (SimStatus.CREATED, SimStatus.RUNNING)
@@ -44,6 +47,16 @@ class Refused(Exception):
 
 def _refuse(code: str, message: str) -> Refused:
     return Refused(Refusal(code=code, message=message))
+
+
+def _from_checker(refused: checker.Refused) -> Refused:
+    """The one checker's refusals, each with its fix, as the API answers them."""
+    return Refused(
+        *(
+            Refusal(code=r.code, message=f"{r.problem}. Fix: {r.fix}")
+            for r in refused.refusals
+        )
+    )
 
 
 class SimToStart(BaseModel):
@@ -96,7 +109,9 @@ class Jobs:
             market=wanted.market,
         )
         try:
-            sim_id = create_sim(self.store, self.store, request)
+            sim_id = create_sim(self.store, self.store, request, self._spending())
+        except checker.Refused as refused:
+            raise _from_checker(refused) from None
         except ValueError as refused:
             raise _refuse("not_allowed", str(refused)) from None
         self._launch(sim_id, at, {})
@@ -173,6 +188,11 @@ class Jobs:
                 f"sim {sim_id} is {status}: only a stopped or not responding sim resumes",
             )
         new_cap = self._new_cap(sim, wanted.spending_cap_usd)
+        refusals = checker.check_resume(
+            {**sim, **new_cap}, self.store, self._spending()
+        )
+        if refusals:
+            raise _from_checker(checker.Refused(refusals))
         self._kill(sim)  # a not responding sim's job may hang on
         self._launch(sim_id, at, new_cap)
 
@@ -211,6 +231,10 @@ class Jobs:
                 f"${self.spending_ceiling:.2f} ceiling: lower the cap to ${most:.2f} or less",
             )
         return {"SPENDING_CAP": cap, "STOPPED_BY_CAP": False}
+
+    def _spending(self) -> SpendingSettings:
+        """The spending settings, with the ceiling the API was started with."""
+        return replace(load_spending_settings(), ceiling_usd=self.spending_ceiling)
 
     def _room_under_ceiling(self, sim_id: int) -> float:
         """The ceiling, less money already spent and the unspent caps of other sims in progress."""

@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from jev_trader.api import sim_page
+from jev_trader.api.playbook import Playbook, playbook
 from jev_trader.api.sim_jobs import Jobs, Refusal, Refused, Resumption, SimToStart
 from jev_trader.api.sim_page import (
     Chart,
@@ -26,6 +27,7 @@ from jev_trader.api.sim_page import (
     SimNotFound,
 )
 from jev_trader.api.sims_list import SimsList, sims_list
+from jev_trader.api.spending import Spending, spending
 from jev_trader.api.store import ApiStore
 from jev_trader.jobs import Launcher
 from jev_trader.sim.store import now
@@ -122,6 +124,14 @@ def create_app(
             return sim_page.moment(store, sim_id, at, moment_window_steps)
         except NoAssetKey as missing:
             raise HTTPException(status_code=409, detail=str(missing)) from missing
+
+    @app.get("/playbook", operation_id="playbook")
+    def read_playbook() -> Playbook:
+        return playbook(store)
+
+    @app.get("/spending", operation_id="spending")
+    def read_spending() -> Spending:
+        return spending(store, spending_ceiling)
 
     @app.exception_handler(Refused)
     def refused(request: Request, refused: Refused):
