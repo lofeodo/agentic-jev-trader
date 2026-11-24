@@ -2,7 +2,14 @@
 
 The position screen is the cheap yes-or-no question Jev (the hosted decision model) answers about each open position at every step (every 15 minutes): should this position get a closer look now? A yes (0.5 or above) runs a position review, where Jev decides to hold the position, close it, reduce it (sell part) or add to it (ADR 0010). Asked "is the position worth a review?", Jev said yes to 27 of 27 position screens on the first practice day with open positions. The gate let everything through: every position was reviewed every 15 minutes, and each review was a fresh chance to close a good trade on a wobble in Jev's answer. In that sim the reviews closed 5 positions, all while losing $52 to $76 and well before their stop prices (the price at which code closes a losing position by itself).
 
-So the position screen's question now names what makes a day trader look again at a trade they hold, and what does not, as ADR 0014 did for the screen. What counts: a hard move against the position on volume well above normal, the price near its stop price, a strong bar back against the trade after it had gone its way, or a good gain that has stopped moving (a $10,000 long that was up $80 and has sat at $50 for several bars that go nowhere). What does not: the price drifting the trade's way, small bars that go up and down without getting anywhere (choppy), and average volume. It ends by saying that most positions at most steps need no action.
+So the position screen's question now names what makes a day trader look again at a trade they hold, and what does not, as ADR 0014 did for the screen. A bar is one 15-minute stretch of trading: its opening, highest, lowest and closing price. Volume is how much was traded in it, compared with what is usual for that asset. What counts:
+
+- a hard move against the position on volume well above normal: a long (a bet that the price rises) of $10,000 drops $60 in one bar while twice the usual amount trades;
+- the price near its stop price;
+- a strong bar back against the trade after it had gone its way: the same long was up $50 over four bars, then gives back $40 in one;
+- a good gain that has stopped moving: the long was up $80 and has sat at $50 for several bars that go nowhere.
+
+What does not: the price drifting the trade's way, small bars that go up and down without getting anywhere (choppy), and average volume. It ends by saying that most positions at most steps need no action.
 
 This extends ADR 0014's exception to the rule that Jev's text holds no rules of thumb: the exception now covers the screen's question and the position screen's question. The background, the full evaluation and the position review still carry facts, not advice.
 
