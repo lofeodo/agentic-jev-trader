@@ -43,7 +43,11 @@ from jev_trader.broker import (
     load_trading_costs,
 )
 from jev_trader.dataset.store import DatasetStatus
+from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
+from jev_trader.jev.reading import Reading
+from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
+from jev_trader.sim.agent import ScreeningAgent
 from jev_trader.sim.clock import midnights_between
 from jev_trader.sim.market import DatasetInfo, Market
 from jev_trader.sim.store import (
@@ -56,8 +60,11 @@ from jev_trader.sim.store import (
 
 KINDS = ("practice", "tuning", "build-up", "measurement", "free")
 VARIANTS = ("buy_hold", "memory_off", "memory_on")
-BUILT_VARIANTS = ("buy_hold",)
+BUILT_VARIANTS = ("buy_hold", "memory_off")
 REPO_ROOT = Path(__file__).resolve().parents[3]
+# A practice sim of the agent: at most one replayed day and 25 cents (spec appendix 9, section 2).
+PRACTICE_MOST_STEPS = 96
+PRACTICE_SPENDING_CAP = 0.25
 
 
 class DuplicateRecords(Exception):
@@ -81,6 +88,7 @@ class SimResult:
     sim_id: int
     ending_value: float
     steps_stored: int
+    stopped_by_cap: bool = False
 
 
 @dataclass
@@ -90,9 +98,11 @@ class BuyHold:
     first_step: int
     starting_value: float
 
-    def on_step(self, step: int, broker: Broker, bars: dict[str, Bar]) -> None:
+    def on_step(
+        self, step: int, broker: Broker, bars: dict[str, Bar]
+    ) -> dict[str, list[dict]]:
         if step != self.first_step:
-            return
+            return {}
         share = self.starting_value / len(broker.asset_classes)
         for asset, asset_class in sorted(broker.asset_classes.items()):
             if asset_class is AssetClass.STOCK:
@@ -100,6 +110,7 @@ class BuyHold:
             else:
                 amount = share / (1 + broker.costs.crypto_trading_fee)
             broker.buy_and_hold(asset, _cents_down(amount), step)
+        return {}
 
 
 def _cents_down(amount: float) -> float:
@@ -109,17 +120,32 @@ def _cents_down(amount: float) -> float:
 # Starting a sim
 
 
-def settings_document(starting_value: float) -> dict:
+def settings_document(starting_value: float, variant: str = "buy_hold") -> dict:
     """Every setting the sim runs with, stored on its row so a resumed sim uses the same ones.
 
-    The holding sim applies no risk profile, so it stores none. The agent's sims add theirs.
+    The holding sim applies no risk profile and calls no model, so it stores neither. The agent's
+    sims add their risk profile, how Jev is called, and the reading version.
     """
-    return {
+    costs = load_trading_costs()
+    document = {
         "starting_value": starting_value,
         "risk_profile": None,
-        "trading_costs": asdict(load_trading_costs()),
+        "trading_costs": asdict(costs),
         "stop_prices": asdict(load_stop_price_settings()),
     }
+    if variant != "buy_hold":
+        risk = load_risk_profile()
+        document["risk_profile"] = asdict(risk)
+        document["jev"] = asdict(load_jev_settings())
+        document["reading_version"] = Reading(costs, risk).version
+    return document
+
+
+def _risk_from(settings: dict) -> RiskProfile | None:
+    stored = settings["risk_profile"]
+    if stored is None:
+        return None
+    return RiskProfile(**{**stored, "size_buckets": tuple(stored["size_buckets"])})
 
 
 def code_version() -> str:
@@ -161,14 +187,24 @@ def check_request(request: SimRequest, info: DatasetInfo) -> None:
         raise ValueError(
             f"no sim runs in the warm-up period: start after step {info.warm_up_last_step}"
         )
-    if request.kind == "free":
+    agent_practice = request.variant != "buy_hold" and request.kind == "practice"
+    if request.variant != "buy_hold" and not agent_practice:
+        raise ValueError("only practice sims of the agent are built so far")
+    if (
+        agent_practice
+        and request.last_step - request.first_step + 1 > PRACTICE_MOST_STEPS
+    ):
+        raise ValueError(
+            f"a practice sim is at most one replayed day ({PRACTICE_MOST_STEPS} steps)"
+        )
+    if request.kind == "free" or agent_practice:
         for period in info.test_periods():
             if (
                 request.first_step <= period.last_step
                 and period.first_step <= request.last_step
             ):
                 raise ValueError(
-                    f'a free sim cannot use test period days ("{period.name}", steps '
+                    f'a {request.kind} sim cannot use test period days ("{period.name}", steps '
                     f"{period.first_step} to {period.last_step})"
                 )
     if not request.starting_value > 0:
@@ -188,8 +224,13 @@ def create_sim(store: SimStore, market: Market, request: SimRequest) -> int:
             "LAST_STEP": request.last_step,
             "STARTING_VALUE": request.starting_value,
             "RANDOM_SEED": request.random_seed,
-            "SETTINGS": settings_document(request.starting_value),
+            "SETTINGS": settings_document(request.starting_value, request.variant),
             "CODE_VERSION": code_version(),
+            **(
+                {"SPENDING_CAP": PRACTICE_SPENDING_CAP}
+                if request.variant != "buy_hold"
+                else {}
+            ),
         }
     )
 
@@ -208,6 +249,9 @@ class _Batch:
             "SIM.ACCOUNT_STEPS": [],
             "SIM.CHARGES": [],
             "SIM.SIM_EVENTS": [],
+            "SIM.CALLS": [],
+            "SIM.JEV_REQUESTS": [],
+            "MEMORY.DECISIONS": [],
         }
     )
 
@@ -221,13 +265,23 @@ def run_sim(
     sim_id: int,
     steps_per_write: int = 1,
     report: Callable[[str], None] = lambda line: None,
+    jev: JevClient | None = None,
 ) -> SimResult:
-    """Run the sim from its first step, or resume it after its last completed step."""
+    """Run the sim from its first step, or resume it after its last completed step.
+
+    The agent's sims need `jev`, store one step per write, and stop at their spending cap. A call
+    to Jev that still fails after its retries stops the sim and raises `JevFailed`.
+    """
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
         raise ValueError(f"sim {sim_id} is finished: code writes nothing more to it")
     if sim["VARIANT"] not in BUILT_VARIANTS:
         raise ValueError(f"the {sim['VARIANT']} variant is not built yet")
+    is_agent = sim["VARIANT"] != "buy_hold"
+    if is_agent and jev is None:
+        raise ValueError(f"the {sim['VARIANT']} variant needs a Jev client")
+    if is_agent and steps_per_write != 1:
+        raise ValueError("the agent's sims store one step per write")
     info = market.dataset(sim["DATASET"])
     first_step, last_step = sim["FIRST_STEP"], sim["LAST_STEP"]
     settings = sim["SETTINGS"]
@@ -236,6 +290,26 @@ def run_sim(
         multiples=tuple(settings["stop_prices"]["multiples"]),
         distance_cap=settings["stop_prices"]["distance_cap"],
     )
+    risk = _risk_from(settings)
+    cap = sim.get("SPENDING_CAP")
+    spent = store.spent(sim_id) if is_agent else 0.0
+    if cap is not None and spent >= cap:
+        raise ValueError(
+            f"sim {sim_id} has spent ${spent:.4f} of its ${cap:.2f} cap: "
+            "it needs a higher cap to carry on"
+        )
+    strategy = BuyHold(first_step, sim["STARTING_VALUE"])
+    if is_agent:
+        reading = Reading(costs, risk)
+        if reading.version != settings["reading_version"]:
+            raise ValueError(
+                f"sim {sim_id} started on reading version {settings['reading_version']}, "
+                f"and the wording is now {reading.version}: it cannot carry on"
+            )
+        store.save_reading(reading.version, reading.opening)
+        strategy = ScreeningAgent(
+            sim_id, info.dataset_id, last_step, market, jev, reading
+        )
 
     last_completed = sim["LAST_COMPLETED_STEP"]
     if last_completed is None:
@@ -244,11 +318,12 @@ def run_sim(
             asset_classes=dict(info.assets),
             costs=costs,
             stop_settings=stops,
+            risk=risk,
         )
         start, previous = first_step, first_step
     else:
         broker = Broker.from_state(
-            sim["ACCOUNT_STATE"], dict(info.assets), costs, stops
+            sim["ACCOUNT_STATE"], dict(info.assets), costs, stops, risk
         )
         start, previous = last_completed + 1, last_completed
         report(f"Resuming sim {sim_id} after step {last_completed}.")
@@ -261,7 +336,6 @@ def run_sim(
         RUNNING_ON=f"pid {os.getpid()}",
         **({} if sim.get("STARTED_AT") else {"STARTED_AT": now()}),
     )
-    strategy = BuyHold(first_step, sim["STARTING_VALUE"])
     batch = _Batch()
     if last_completed is not None and start <= last_step:
         batch.rows["SIM.SIM_EVENTS"].append(
@@ -293,14 +367,44 @@ def run_sim(
             )
             previous = step
             if batch.steps >= steps_per_write or step == last_step:
+                spent += sum(r["COST_USD"] for r in batch.rows["SIM.CALLS"])
+                cap_reached = cap is not None and spent >= cap and step != last_step
+                if cap_reached:
+                    batch.rows["SIM.SIM_EVENTS"].append(
+                        records.event_row(
+                            sim_id,
+                            step,
+                            "spending cap reached",
+                            1,
+                            {"spent": spent, "cap": cap},
+                        )
+                    )
                 store.write_steps(
                     sim_id, last_completed, step, batch.tables(), broker.state()
                 )
                 last_completed, steps_stored = step, steps_stored + batch.steps
                 batch = _Batch()
                 report(f"Stored up to step {step} of {last_step}.")
+                if cap_reached:
+                    store.update(
+                        sim_id,
+                        STATUS=str(SimStatus.STOPPED),
+                        STOP_REASON=str(StopReason.SPENDING_CAP),
+                        STOPPED_BY_CAP=True,
+                        ENDED_AT=now(),
+                    )
+                    return SimResult(sim_id, broker.account_value(), steps_stored, True)
     except StepAlreadyWritten:
         raise  # another copy is running it: leave its row alone
+    except JevFailed as error:
+        store.update(
+            sim_id,
+            STATUS=str(SimStatus.STOPPED),
+            STOP_REASON=str(StopReason.JEV_FAILED),
+            FAILURE_REASON=str(error),
+            ENDED_AT=now(),
+        )
+        raise
     except KeyboardInterrupt:
         store.update(
             sim_id,
@@ -343,7 +447,7 @@ def _run_step(
     previous: int,
     last_step: int,
     broker: Broker,
-    strategy: BuyHold,
+    strategy: BuyHold | ScreeningAgent,
     bars: dict[str, Bar],
     batch: _Batch,
 ) -> None:
@@ -357,8 +461,10 @@ def _run_step(
         broker.charge_overnight(midnight)
     for asset in sorted(bars):
         broker.on_bar(asset, bars[asset])
-    strategy.on_step(step, broker, bars)
+    # The account is checked first, so the agent is not asked about a trade the limits now forbid.
     broker.check_account(step)
+    for table, rows in strategy.on_step(step, broker, bars).items():
+        batch.rows[table] += rows
     if step == last_step:
         broker.close_everything(step)
 

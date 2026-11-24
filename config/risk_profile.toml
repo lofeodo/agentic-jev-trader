@@ -5,7 +5,6 @@
 #
 # Two rows of the spec's table live in other files, so that each number has one home: the loan
 # interest rate in `trading_costs.toml` and the stop price distance cap in `stop_prices.toml`.
-# The screen cut-off belongs to deciding, which is built later.
 
 name = "medium"
 
@@ -37,3 +36,7 @@ forced_close_share = 0.25
 # is still allowed at the second-to-last bar (it is decided in the end-of-session review), never
 # at the last one, whose order would be carried out at the next morning's open.
 no_new_stock_trade_bars = 2
+
+# Screen cut-off: Jev's probability, from 0 to 1, at or above which a full evaluation (the thorough
+# look at a possible trade) runs. At 0.62 it runs; at 0.49 nothing more happens.
+screen_cut_off = 0.5

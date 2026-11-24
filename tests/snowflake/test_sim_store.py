@@ -18,6 +18,11 @@ from pathlib import Path
 
 import pytest
 
+from jev_trader.broker import load_trading_costs
+from jev_trader.jev.client import JevReply
+from jev_trader.jev.reading import JevRequest, Reading
+from jev_trader.risk import load_risk_profile
+from jev_trader.sim import records as records_of
 from jev_trader.sim import snowflake_store
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
@@ -82,6 +87,61 @@ def test_a_holding_sim_over_a_published_dataset_runs_to_the_end(two_day_sim, sim
     with sim_login.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM SIM.ACCOUNT_STEPS WHERE SIM = ?", (sim_id,))
         assert cur.fetchone() == (192,)
+
+
+def test_a_screens_records_are_written_and_its_cost_is_summed(
+    sim_login, made_up_dataset, remove_sims
+):
+    """Needs `infra/migrations/V5__jev_requests_and_decisions.sql` applied."""
+    store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
+    sim_id = new_sim(store, market, made_up_dataset(days=2), remove_sims, last_step=192)
+    store.update(sim_id, STATUS="running")
+    reply = JevReply(
+        '{"answers":{"screen":{"noul":0.62}}}', "jev-1", 10, 2, 0.5, 0.1, 0
+    )
+    reading = Reading(load_trading_costs(), load_risk_profile())
+    request = JevRequest(
+        reading.opening + "\n\nThe rest.",
+        {"screen": {"type": "noul", "instructions": "Worth a look?"}},
+    )
+
+    store.save_reading(reading.version, reading.opening)
+    store.save_reading(reading.version, reading.opening)  # stored once
+    store.write_steps(
+        sim_id,
+        None,
+        97,
+        {
+            "MEMORY.DECISIONS": [
+                records_of.decision_row(sim_id, 1, 97, "ASSET_01", None, reply)
+            ],
+            "SIM.JEV_REQUESTS": [
+                records_of.jev_request_row(
+                    sim_id, 97, "ASSET_01", reading, request, reply
+                )
+            ],
+            "SIM.CALLS": [records_of.jev_call_row(sim_id, 97, "ASSET_01", reply)],
+        },
+        {},
+    )
+
+    assert store.spent(sim_id) == pytest.approx(0.5)
+    with sim_login.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) FROM SIM.JEV_READINGS WHERE READING_VERSION = ?",
+            (reading.version,),
+        )
+        assert cur.fetchone() == (1,)
+        cur.execute(
+            "SELECT BACKGROUND_AFTER_OPENING, QUESTIONS:screen:instructions::VARCHAR "
+            "FROM SIM.JEV_REQUESTS WHERE SIM = ?",
+            (sim_id,),
+        )
+        assert cur.fetchone() == ("The rest.", "Worth a look?")
+        cur.execute(
+            "SELECT SCREEN_ANSWER FROM MEMORY.DECISIONS WHERE SIM = ?", (sim_id,)
+        )
+        assert cur.fetchone() == (0.62,)
 
 
 def _request_of(sim):

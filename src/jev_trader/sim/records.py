@@ -7,10 +7,14 @@ so a record stored twice by mistake shows up in the duplicate count at the end o
 - The account at a step: sim and step.
 - A nightly charge: sim, the midnight's step, its kind, and the position (or "loan").
 - A notable moment: sim, step, kind, and its number among that step's moments of that kind.
+- A decision: sim, step and asset. A Jev request and its paid call: the same, and their purpose.
 """
 
 from jev_trader.broker import Broker, Charge, Fill, Order, OrderKind
+from jev_trader.jev.client import JevReply
+from jev_trader.jev.reading import JevRequest, Reading
 from jev_trader.sim.market import instrument
+from jev_trader.sim.store import now
 
 
 def order_id(sim_id: int, step_decided: int, asset: str, number: int) -> str:
@@ -100,6 +104,81 @@ def charge_row(sim_id: int, charge: Charge) -> dict:
         "CHARGED_ON": charge.charged_on,
         "YEARLY_RATE": charge.yearly_rate,
         "AMOUNT": charge.amount,
+    }
+
+
+def decision_id(sim_id: int, step: int, asset: str) -> str:
+    return f"{sim_id}-{step}-{asset}"
+
+
+def decision_row(
+    sim_id: int,
+    dataset: int,
+    step: int,
+    asset: str,
+    skipped_because: str | None,
+    reply: JevReply | None = None,
+) -> dict:
+    """One asset looked at, at one step. Tier 0: code alone. Tier 1: Jev answered the screen."""
+    return {
+        "ID": decision_id(sim_id, step, asset),
+        "SIM": sim_id,
+        "FIRST_WRITTEN_BY": sim_id,
+        "DATASET": dataset,
+        "ASSET": asset,
+        "STEP": step,
+        "KIND": "screen",
+        "TIER": 0 if reply is None else 1,
+        "SCREEN_ANSWER": None if reply is None else reply.noul("screen"),
+        "SKIPPED_BECAUSE": skipped_because,
+        "JEV_VERSION": None if reply is None else reply.model,
+        "ACTION": "nothing",
+    }
+
+
+def jev_request_row(
+    sim_id: int,
+    step: int,
+    asset: str,
+    reading: Reading,
+    request: JevRequest,
+    reply: JevReply,
+) -> dict:
+    """A request and its answer, word for word. The opening is stored once per reading version."""
+    return {
+        "ID": f"{sim_id}-{step}-{asset}-screen",
+        "SIM": sim_id,
+        "STEP": step,
+        "ASSET": asset,
+        "DECISION": decision_id(sim_id, step, asset),
+        "PURPOSE": "screen",
+        "READING_VERSION": reading.version,
+        "BACKGROUND_AFTER_OPENING": reading.after_opening(request.background),
+        "QUESTIONS": request.questions,
+        "ANSWER": reply.body,
+        "JEV_VERSION": reply.model,
+    }
+
+
+def jev_call_row(sim_id: int, step: int, asset: str, reply: JevReply) -> dict:
+    return {
+        "ID": f"{sim_id}-{step}-{asset}-screen",
+        "SIM": sim_id,
+        "PURPOSE": "screen",
+        "STEP": step,
+        "ASSET": asset,
+        "DECISION": decision_id(sim_id, step, asset),
+        "SERVICE": "jev",
+        "MODEL": reply.model,
+        "TOKENS_IN": reply.tokens_in,
+        "CACHED_TOKENS": None,
+        "TOKENS_OUT": reply.tokens_out,
+        "THINKING_TOKENS": None,
+        "COST_USD": reply.cost_usd,
+        "LATENCY_SECONDS": reply.latency_seconds,
+        "RETRIES": reply.retries,
+        "ERROR": None,
+        "CALLED_AT": now(),
     }
 
 

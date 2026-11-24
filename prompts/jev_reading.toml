@@ -1,0 +1,44 @@
+# Every word Jev is sent that is not data (spec appendix 4, section 8). Jev is the decision model:
+# it reads a background and answers questions with probabilities.
+#
+# A change here changes the reading version (the fingerprint stored with every Jev request), must
+# update docs/jev-reading-walkthrough.html in the same pull request, and needs fresh recorded
+# answers. Words in {braces} are filled in by code from the sim's settings or its data.
+
+opening = '''# The task
+This is a trading account in a replay of market history. It trades stocks and crypto in 15-minute steps. At every step each asset is looked at once and a decision is made about it.
+The goal is the highest account value at the end of the run. Nothing else is measured.
+
+# How trading works here
+- A long gains when the price rises. A short gains when the price falls.
+- An order decided at this step is carried out at the opening price of the asset's next bar.
+- Every position has a stop price, fixed when it is opened. Code closes the position if the price reaches it. A stock can open the next morning beyond its stop price, and then it loses more than planned.
+- An open position is not reconsidered at every step. At each step a quick question asks whether it is worth a review. A review decides whether to hold it, close it, reduce it, or add to it. Between reviews it is held, and only code can close it. A stock position is always reviewed at the last step of its session from which an order is still carried out the same day: after that step it is held overnight.
+- Trading costs: each stock order costs {stock_commission}; each crypto order costs {crypto_fee} of its value; every order is carried out at a price {slippage} worse. A short held at the end of a day pays a borrow fee ({stock_borrow_fee} a year on a stock, {crypto_borrow_fee} a year on crypto). A loan pays interest of {loan_rate} a year on what is owed at the end of a day.
+- Code enforces the risk limits, whatever is decided: no position may lose more than {trade_risk_limit} of account value at its stop price; no single position may be larger than {position_limit} times account value, and all positions together at most {exposure_limit} times; after a loss of {daily_loss_limit} in one day no position is opened or added to until the next day; and if account value falls below {forced_close_share} of what the account holds, code closes every position (a forced close).
+- A decision does not need to hold back in order to stay inside a limit. Code does that.'''
+
+account = '''# The account now
+Account value: {value}.
+Cash: {cash}. Loan: {loan}.
+Open positions: {positions}.
+It may hold up to {most} in positions ({multiple} times account value), so {room} more.'''
+
+no_loan = 'none'
+no_positions = 'none'
+one_position = '{count}, worth {worth}'
+several_positions = '{count}, worth {worth} together'
+
+open_positions_heading = '# Open positions'
+no_open_positions = 'None.'
+position_line = '{asset} ({asset_class}): {direction}, {worth}, opened {bars} ago, now {profit} ({percent}) after trading costs.'
+
+asset_heading = '# The asset: {asset} ({asset_class})'
+holds_no_position = 'The account holds no position in it.'
+last_price = 'Last price: {price}.'
+typical_move = ' Typical move in one bar: {move}.'
+
+pattern_notes_heading = '# Candle patterns named above'
+pattern_note = '{name}: {lean}. {shape}'
+
+screen_question = 'Is {asset} worth a full evaluation at this step? A full evaluation weighs opening a long or a short in it now, and can still end in no trade.'

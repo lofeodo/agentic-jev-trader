@@ -50,6 +50,7 @@ class RiskProfile:
     daily_loss_limit: float
     forced_close_share: float
     no_new_stock_trade_bars: int
+    screen_cut_off: float
 
     def chosen_size(
         self, probabilities: Sequence[float], account_value: float

@@ -2,15 +2,19 @@
 
     conda run -n agentic-jev-trader python -m jev_trader.sim start --dataset 1 --variant buy_hold
     conda run -n agentic-jev-trader python -m jev_trader.sim resume 12
+    conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
 
-`start` runs the sim over the dataset's steps after its warm-up, or over one test period with
-`--market "falling market"`, or over `--first-step` to `--last-step`. `resume` carries a sim on
-from its last completed step: one killed mid-step, stopped by hand, or failed. Only the holding
-sim (`buy_hold`) is built so far. `--database TRADING_AGENT_TEST` runs against the test database.
+`start` runs the holding sim over the dataset's steps after its warm-up, or over one test period
+with `--market "falling market"`, or over `--first-step` to `--last-step`. `resume` carries a sim
+on from its last completed step: one killed mid-step, stopped by hand, or failed.
+
+`practice` runs the agent without memory for at most one replayed day and 25 cents, from
+`--first-step` or the first step after the warm-up. It calls Jev, which costs money: for now it
+only asks the screen, about a cent a day. `--database TRADING_AGENT_TEST` uses the test database.
 
 Logs in as the sim login (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`,
-the key `sim.p8` in `SNOWFLAKE_LOCAL_DIR`). Output is plain ASCII: `conda run` on Windows fails
-on other characters.
+the key `sim.p8` in `SNOWFLAKE_LOCAL_DIR`); Jev's key is `TYPESAFE_API_KEY` in `.env`. Output is
+plain ASCII: `conda run` on Windows fails on other characters.
 """
 
 import argparse
@@ -19,9 +23,18 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
+from typesafe_sdk import TypeSafeError
 
+from jev_trader.jev.client import (
+    JevClient,
+    JevFailed,
+    JevSettings,
+    load_jev_settings,
+)
 from jev_trader.sim.runner import (
     KINDS,
+    PRACTICE_MOST_STEPS,
+    PRACTICE_SPENDING_CAP,
     VARIANTS,
     DuplicateRecords,
     SimRequest,
@@ -36,6 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 # Steps stored per write. The holding sim calls nothing paid, so a redone batch costs nothing;
 # the agent's sims will store one step per write.
 HOLDING_STEPS_PER_WRITE = 960  # ten days
+YES_SHARE_TO_STOP_AND_ASK = 0.30  # spec appendix 9, section 12
 
 
 def steps_for(args, market) -> tuple[int, int]:
@@ -51,6 +65,56 @@ def steps_for(args, market) -> tuple[int, int]:
         args.first_step or info.warm_up_last_step + 1,
         args.last_step or info.last_step,
     )
+
+
+def practice_steps(args, market) -> tuple[int, int]:
+    """One replayed day: from `--first-step`, or from the first step after the warm-up."""
+    info = market.dataset(args.dataset)
+    first_step = args.first_step or info.warm_up_last_step + 1
+    return first_step, min(first_step + PRACTICE_MOST_STEPS - 1, info.last_step)
+
+
+def start_practice(args, store, market) -> int:
+    first_step, last_step = practice_steps(args, market)
+    sim_id = create_sim(
+        store,
+        market,
+        SimRequest(
+            dataset=args.dataset,
+            variant="memory_off",
+            kind="practice",
+            first_step=first_step,
+            last_step=last_step,
+        ),
+    )
+    print(
+        f"Practice sim {sim_id}: steps {first_step} to {last_step}, "
+        f"at most ${PRACTICE_SPENDING_CAP:.2f}."
+    )
+    return sim_id
+
+
+def jev_client_for(sim: dict) -> JevClient | None:
+    """The agent's sims call Jev with the settings they started with; the holding sim does not."""
+    if sim["VARIANT"] == "buy_hold":
+        return None
+    return JevClient(JevSettings(**sim["SETTINGS"]["jev"]))
+
+
+def screen_report(store, sim: dict) -> list[str]:
+    """The share of screens that said yes, and the spec's stop-and-ask rule above 30%."""
+    cut_off = sim["SETTINGS"]["risk_profile"]["screen_cut_off"]
+    asked, yes = store.screen_counts(sim["ID"], cut_off)
+    if not asked:
+        return ["Screens: none asked."]
+    share = yes / asked
+    lines = [f"Screens: {asked} asked, {yes} said yes ({share:.1%})."]
+    if share > YES_SHARE_TO_STOP_AND_ASK:
+        lines.append(
+            f"Above {YES_SHARE_TO_STOP_AND_ASK:.0%}: the developer decides what to do "
+            "before any measurement sim."
+        )
+    return lines
 
 
 def default_steps_per_write(sim: dict) -> int:
@@ -91,6 +155,15 @@ def main(argv: list[str] | None = None) -> int:
         "resume", help="carry a sim on from its last stored step"
     )
     resume.add_argument("sim", type=int, help="the sim's ID")
+    practice = commands.add_parser(
+        "practice",
+        help="run the agent without memory for one day, at most 25 cents (calls Jev)",
+    )
+    practice.add_argument(
+        "--dataset", type=int, required=True, help="a published dataset's ID"
+    )
+    practice.add_argument("--first-step", type=int)
+    practice.add_argument("--database", default=DATABASE)
     for command in (start, resume):
         command.add_argument("--database", default=DATABASE)
         command.add_argument(
@@ -107,25 +180,54 @@ def main(argv: list[str] | None = None) -> int:
         print(missing)
         return 2
     store, market = SnowflakeSimStore(connection), SnowflakeMarket(connection)
+    jev = None
     try:
         try:
-            sim_id = (
-                start_sim(args, store, market) if args.command == "start" else args.sim
-            )
+            if args.command == "practice":
+                # Checked first, so a missing key leaves no sim row behind.
+                JevClient(load_jev_settings()).close()
+                sim_id = start_practice(args, store, market)
+            elif args.command == "start":
+                sim_id = start_sim(args, store, market)
+            else:
+                sim_id = args.sim
             sim = store.sim(sim_id)
             if sim["STATUS"] == "finished":
                 raise ValueError(f"sim {sim_id} is finished")
+            jev = jev_client_for(sim)
         except (ValueError, KeyError) as refused:
             print(f"Refused: {refused}")
             return 2
+        except TypeSafeError:
+            print("Refused: set a valid TYPESAFE_API_KEY in .env to call Jev.")
+            return 2
         began = time.monotonic()
-        result = run_sim(
-            store,
-            market,
-            sim_id,
-            steps_per_write=args.steps_per_write or default_steps_per_write(sim),
-            report=lambda line: print(line, flush=True),
+        try:
+            result = run_sim(
+                store,
+                market,
+                sim_id,
+                steps_per_write=getattr(args, "steps_per_write", None)
+                or default_steps_per_write(sim),
+                report=lambda line: print(line, flush=True),
+                jev=jev,
+            )
+        except ValueError as refused:
+            print(f"Refused: {refused}")
+            return 2
+        if jev is not None:
+            for line in screen_report(store, sim):
+                print(line)
+            seconds = time.monotonic() - began
+            print(f"Seconds a step: {seconds / max(1, result.steps_stored):.2f}.")
+    except JevFailed as failed:
+        reason = str(failed).encode("ascii", "replace").decode("ascii")
+        print(f"Sim {sim_id} stopped: {reason}")
+        print(
+            "Carry it on later with: conda run -n agentic-jev-trader "
+            f"python -m jev_trader.sim resume {sim_id}"
         )
+        return 1
     except StepAlreadyWritten as other_copy:
         print(f"Another copy of this sim is writing it: {other_copy}")
         return 1
@@ -135,7 +237,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     finally:
+        if jev is not None:
+            jev.close()
         connection.close()
+    if result.stopped_by_cap:
+        print(f"Sim {sim_id} stopped at its spending cap.")
+        return 0
     print(
         f"Sim {sim_id} finished: ending account value ${result.ending_value:,.2f}, "
         f"{result.steps_stored} steps stored in {time.monotonic() - began:,.0f} s."

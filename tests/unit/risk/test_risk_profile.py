@@ -18,6 +18,7 @@ MEDIUM = RiskProfile(
     daily_loss_limit=0.05,
     forced_close_share=0.25,
     no_new_stock_trade_bars=2,
+    screen_cut_off=0.5,
 )
 
 
