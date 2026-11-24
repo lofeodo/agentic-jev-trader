@@ -10,12 +10,13 @@ export function TopBar({ spending }: { spending: SpendingTotal | null }) {
       <div className="flex flex-wrap items-stretch border-[1.5px] border-rule">
         <span className="border-r-[1.5px] border-rule px-[2ch] py-2">Jev/Trader</span>
         <nav className="mr-auto flex flex-wrap" aria-label="Screens">
-          <span
+          <a
+            href="#/"
             aria-current="page"
             className="border-r-[1.5px] border-rule bg-amber px-[2ch] py-2 text-screen"
           >
             Trading sims
-          </span>
+          </a>
           {LATER_SCREENS.map((screen) => (
             <span
               key={screen}

@@ -25,7 +25,9 @@ function Line({ sim }: { sim: SimLine }) {
   return (
     <tr className="hover:bg-amber hover:text-screen [&:hover_*]:text-screen">
       <td className={cell}>
-        <div>{sim.name}</div>
+        <a href={`#/sims/${sim.id}`} className="underline decoration-rule underline-offset-4">
+          {sim.name}
+        </a>
         <div className="text-[13.5px] tracking-wider text-dim">
           {sim.first_day && sim.last_day && `${day(sim.first_day)} to ${day(sim.last_day)} UTC / `}
           steps {sim.first_step} to {sim.last_step}

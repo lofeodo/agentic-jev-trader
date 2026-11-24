@@ -10,11 +10,20 @@ It has no login, so it answers only the developer's own computer, checked twice:
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from jev_trader.api import sim_page
+from jev_trader.api.sim_page import (
+    Chart,
+    LiveFigures,
+    Moment,
+    NoAssetKey,
+    SimHeader,
+    SimNotFound,
+)
 from jev_trader.api.sims_list import SimsList, sims_list
 from jev_trader.api.store import ApiStore
 from jev_trader.sim.store import now
@@ -39,7 +48,9 @@ def create_app(
     spending_ceiling: float,
     not_responding_after: timedelta,
     clock: Callable[[], datetime] = now,
+    moment_window_steps: int = 8,
 ) -> FastAPI:
+    """`moment_window_steps`: how many steps either side of a moment count as "around then"."""
     app = FastAPI(title="Jev trader API", version="1")
 
     @app.middleware("http")
@@ -59,6 +70,37 @@ def create_app(
     @app.get("/sims", operation_id="listSims")
     def list_sims() -> SimsList:
         return sims_list(store, clock(), not_responding_after)
+
+    @app.exception_handler(SimNotFound)
+    def no_such_sim(request: Request, missing: SimNotFound):
+        return JSONResponse({"detail": f"There is no sim {missing}."}, status_code=404)
+
+    @app.get("/sims/{sim_id}", operation_id="simHeader")
+    def sim_header(sim_id: int) -> SimHeader:
+        return sim_page.header(store, sim_id, clock(), not_responding_after)
+
+    @app.get("/sims/{sim_id}/chart", operation_id="simChart")
+    def sim_chart(sim_id: int) -> Chart:
+        return sim_page.chart(store, sim_id, moment_window_steps)
+
+    @app.get("/sims/{sim_id}/live", operation_id="simLive")
+    def sim_live(sim_id: int, after_step: int | None = None) -> LiveFigures:
+        """The quick figures, asked for every second while the sim is in progress.
+
+        `after_step`: the last step the page has chart points for; only later ones are sent.
+        """
+        return sim_page.live(store, sim_id, clock(), not_responding_after, after_step)
+
+    @app.get("/sims/{sim_id}/moment", operation_id="simMoment")
+    def sim_moment(sim_id: int, at: datetime) -> Moment:
+        """The account, its positions, and the trades around one moment.
+
+        `at`: a real time, UTC. The moment is the step that ended at or just before it.
+        """
+        try:
+            return sim_page.moment(store, sim_id, at, moment_window_steps)
+        except NoAssetKey as missing:
+            raise HTTPException(status_code=409, detail=str(missing)) from missing
 
     @app.get("/spending/total", operation_id="spendingTotal")
     def spending_total() -> SpendingTotal:

@@ -1,6 +1,39 @@
 {
   "components": {
     "schemas": {
+      "AccountThen": {
+        "properties": {
+          "account_value": {
+            "title": "Account Value",
+            "type": "number"
+          },
+          "cash": {
+            "title": "Cash",
+            "type": "number"
+          },
+          "exposure": {
+            "title": "Exposure",
+            "type": "number"
+          },
+          "loan": {
+            "title": "Loan",
+            "type": "number"
+          },
+          "start_of_day_value": {
+            "title": "Start Of Day Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "account_value",
+          "cash",
+          "loan",
+          "exposure",
+          "start_of_day_value"
+        ],
+        "title": "AccountThen",
+        "type": "object"
+      },
       "AssetName": {
         "description": "The real name leads; the masked ID is the disguised label the agent saw.",
         "properties": {
@@ -20,6 +53,102 @@
         "title": "AssetName",
         "type": "object"
       },
+      "Chart": {
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ChartLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "starting_value": {
+            "title": "Starting Value",
+            "type": "number"
+          },
+          "ticks": {
+            "items": {
+              "$ref": "#/components/schemas/TradeTick"
+            },
+            "title": "Ticks",
+            "type": "array"
+          },
+          "window_steps": {
+            "title": "Window Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "starting_value",
+          "lines",
+          "ticks",
+          "window_steps"
+        ],
+        "title": "Chart",
+        "type": "object"
+      },
+      "ChartLine": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/ChartPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "sim_id": {
+            "title": "Sim Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sim_id",
+          "role",
+          "label",
+          "points"
+        ],
+        "title": "ChartLine",
+        "type": "object"
+      },
+      "ChartPoint": {
+        "properties": {
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "step",
+          "value"
+        ],
+        "title": "ChartPoint",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -31,6 +160,877 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "LiveFigures": {
+        "properties": {
+          "account_value": {
+            "title": "Account Value",
+            "type": "number"
+          },
+          "days_done": {
+            "title": "Days Done",
+            "type": "integer"
+          },
+          "days_total": {
+            "title": "Days Total",
+            "type": "integer"
+          },
+          "holding_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding Value"
+          },
+          "in_progress": {
+            "title": "In Progress",
+            "type": "boolean"
+          },
+          "latest_orders": {
+            "items": {
+              "$ref": "#/components/schemas/OrderLine"
+            },
+            "title": "Latest Orders",
+            "type": "array"
+          },
+          "meters": {
+            "$ref": "#/components/schemas/Meters"
+          },
+          "new_points": {
+            "items": {
+              "$ref": "#/components/schemas/NewPoint"
+            },
+            "title": "New Points",
+            "type": "array"
+          },
+          "not_responding": {
+            "title": "Not Responding",
+            "type": "boolean"
+          },
+          "notable_moments": {
+            "items": {
+              "$ref": "#/components/schemas/NotableMoment"
+            },
+            "title": "Notable Moments",
+            "type": "array"
+          },
+          "open_positions": {
+            "items": {
+              "$ref": "#/components/schemas/OpenPosition"
+            },
+            "title": "Open Positions",
+            "type": "array"
+          },
+          "replayed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replayed At"
+          },
+          "spending_cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spending Cap Usd"
+          },
+          "spent_usd": {
+            "title": "Spent Usd",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "step_reached": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Reached"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Reason"
+          },
+          "ticks": {
+            "items": {
+              "$ref": "#/components/schemas/TradeTick"
+            },
+            "title": "Ticks",
+            "type": "array"
+          },
+          "trades": {
+            "title": "Trades",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "stop_reason",
+          "not_responding",
+          "in_progress",
+          "days_done",
+          "days_total",
+          "step_reached",
+          "replayed_at",
+          "account_value",
+          "holding_value",
+          "trades",
+          "spent_usd",
+          "spending_cap_usd",
+          "meters",
+          "open_positions",
+          "latest_orders",
+          "notable_moments",
+          "new_points",
+          "ticks"
+        ],
+        "title": "LiveFigures",
+        "type": "object"
+      },
+      "Meters": {
+        "description": "The three thin meters, the spending one aside (its figures are the key figures).",
+        "properties": {
+          "daily_loss_limit_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Loss Limit Usd"
+          },
+          "daily_loss_reached": {
+            "title": "Daily Loss Reached",
+            "type": "boolean"
+          },
+          "day_change": {
+            "title": "Day Change",
+            "type": "number"
+          },
+          "exposure_limit_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposure Limit Usd"
+          },
+          "held_usd": {
+            "title": "Held Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "day_change",
+          "daily_loss_limit_usd",
+          "daily_loss_reached",
+          "held_usd",
+          "exposure_limit_usd"
+        ],
+        "title": "Meters",
+        "type": "object"
+      },
+      "Moment": {
+        "properties": {
+          "account": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountThen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "holding_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding Value"
+          },
+          "nearby": {
+            "items": {
+              "$ref": "#/components/schemas/OrderLine"
+            },
+            "title": "Nearby",
+            "type": "array"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PositionThen"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "since_midnight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since Midnight"
+          },
+          "since_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since Start"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "window_steps": {
+            "title": "Window Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "at",
+          "account",
+          "since_midnight",
+          "since_start",
+          "holding_value",
+          "positions",
+          "window_steps",
+          "nearby"
+        ],
+        "title": "Moment",
+        "type": "object"
+      },
+      "NewPoint": {
+        "properties": {
+          "sim_id": {
+            "title": "Sim Id",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sim_id",
+          "step",
+          "value"
+        ],
+        "title": "NewPoint",
+        "type": "object"
+      },
+      "NotableMoment": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "at",
+          "kind",
+          "details"
+        ],
+        "title": "NotableMoment",
+        "type": "object"
+      },
+      "OpenPosition": {
+        "properties": {
+          "amount_chosen": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Chosen"
+          },
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "entry_price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "limited_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limited By"
+          },
+          "opened_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened At"
+          },
+          "opened_step": {
+            "title": "Opened Step",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "price_now": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Price"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profit_so_far": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit So Far"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Price"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "units": {
+            "title": "Units",
+            "type": "number"
+          },
+          "value_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Usd"
+          }
+        },
+        "required": [
+          "position",
+          "asset",
+          "direction",
+          "units",
+          "entry_price",
+          "price_now",
+          "stop_price",
+          "value_usd",
+          "profit_so_far",
+          "opened_step",
+          "opened_at",
+          "amount_chosen",
+          "limited_by"
+        ],
+        "title": "OpenPosition",
+        "type": "object"
+      },
+      "OrderLine": {
+        "description": "One order: what the agent (or code) decided, and whether it was carried out.",
+        "properties": {
+          "amount_chosen": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Chosen"
+          },
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "limited_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limited By"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Side"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "step_carried_out": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Carried Out"
+          },
+          "step_decided": {
+            "title": "Step Decided",
+            "type": "integer"
+          },
+          "value_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Usd"
+          }
+        },
+        "required": [
+          "step_decided",
+          "decided_at",
+          "asset",
+          "kind",
+          "side",
+          "reason",
+          "status",
+          "step_carried_out",
+          "value_usd",
+          "amount_chosen",
+          "limited_by"
+        ],
+        "title": "OrderLine",
+        "type": "object"
+      },
+      "PositionThen": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "average_price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "price_then": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Price"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "units": {
+            "title": "Units",
+            "type": "number"
+          },
+          "value_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Usd"
+          }
+        },
+        "required": [
+          "position",
+          "asset",
+          "direction",
+          "units",
+          "average_price",
+          "price_then",
+          "value_usd"
+        ],
+        "title": "PositionThen",
+        "type": "object"
+      },
+      "Price": {
+        "description": "A price as it really was, and as the agent saw it (rescaled).",
+        "properties": {
+          "real": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Real"
+          },
+          "rescaled": {
+            "title": "Rescaled",
+            "type": "number"
+          }
+        },
+        "required": [
+          "real",
+          "rescaled"
+        ],
+        "title": "Price",
+        "type": "object"
+      },
+      "SimHeader": {
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/AssetName"
+            },
+            "title": "Assets",
+            "type": "array"
+          },
+          "code_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Version"
+          },
+          "dataset": {
+            "title": "Dataset",
+            "type": "integer"
+          },
+          "days_done": {
+            "title": "Days Done",
+            "type": "integer"
+          },
+          "days_total": {
+            "title": "Days Total",
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Usd"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "first_step": {
+            "title": "First Step",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "in_progress": {
+            "title": "In Progress",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "last_step": {
+            "title": "Last Step",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "not_responding": {
+            "title": "Not Responding",
+            "type": "boolean"
+          },
+          "replayed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replayed At"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "title": "Settings",
+            "type": "object"
+          },
+          "spending_cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spending Cap Usd"
+          },
+          "starting_value": {
+            "title": "Starting Value",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "step_reached": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Reached"
+          },
+          "steps_start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Start At"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Reason"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "variant",
+          "dataset",
+          "status",
+          "stop_reason",
+          "failure_reason",
+          "not_responding",
+          "in_progress",
+          "days_done",
+          "days_total",
+          "first_step",
+          "last_step",
+          "first_day",
+          "last_day",
+          "steps_start_at",
+          "step_reached",
+          "replayed_at",
+          "starting_value",
+          "spending_cap_usd",
+          "estimated_cost_usd",
+          "code_version",
+          "settings",
+          "assets"
+        ],
+        "title": "SimHeader",
         "type": "object"
       },
       "SimLine": {
@@ -205,6 +1205,86 @@
         ],
         "title": "SpendingTotal",
         "type": "object"
+      },
+      "TradeTick": {
+        "description": "One trade: a tick on the chart where it opened.",
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "closed_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Step"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "opened_step": {
+            "title": "Opened Step",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position",
+          "asset",
+          "direction",
+          "opened_step",
+          "closed_step"
+        ],
+        "title": "TradeTick",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
@@ -248,6 +1328,190 @@
           }
         },
         "summary": "List Sims"
+      }
+    },
+    "/sims/{sim_id}": {
+      "get": {
+        "operationId": "simHeader",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimHeader"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Header"
+      }
+    },
+    "/sims/{sim_id}/chart": {
+      "get": {
+        "operationId": "simChart",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Chart"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Chart"
+      }
+    },
+    "/sims/{sim_id}/live": {
+      "get": {
+        "description": "The quick figures, asked for every second while the sim is in progress.\n\n`after_step`: the last step the page has chart points for; only later ones are sent.",
+        "operationId": "simLive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_step",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After Step"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveFigures"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Live"
+      }
+    },
+    "/sims/{sim_id}/moment": {
+      "get": {
+        "description": "The account, its positions, and the trades around one moment.\n\n`at`: a real time, UTC. The moment is the step that ended at or just before it.",
+        "operationId": "simMoment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "at",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "At",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Moment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Moment"
       }
     },
     "/spending/total": {

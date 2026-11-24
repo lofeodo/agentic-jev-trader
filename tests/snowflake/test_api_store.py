@@ -1,9 +1,12 @@
 """The API's real queries, read as the API login from what the sim login wrote."""
 
-from datetime import date, timedelta
+import statistics
+import time
+from datetime import date, datetime, timedelta
 
 import pytest
 
+from jev_trader.api import sim_page
 from jev_trader.api.sims_list import sims_list
 from jev_trader.api.snowflake_store import SnowflakeApiStore
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
@@ -120,3 +123,67 @@ def test_the_sims_list_reads_real_tables(
     assert line.first_day == date(2025, 3, 2)
     assert [(a.name, a.masked_id) for a in line.assets] == [("Bitcoin", "ASSET_01")]
     assert api.total_spent() == pytest.approx(spent_before + 0.5)
+
+
+def test_the_sim_page_reads_real_tables_and_times_the_one_second_call(
+    builder, sim_login, api_login, made_up_dataset, remove_sims
+):
+    """The sim page's four reads on a finished holding sim, and how long `/live` takes.
+
+    Run with `-s` to see the timing: the median of 10 calls of the live figures, each a round
+    of the queries the page sends every second (spec appendix 8, section 8.9).
+    """
+    dataset = made_up_dataset(days=3, assets=2)
+    with builder.cursor() as cur:
+        for masked_id, name in (("ASSET_01", "Bitcoin"), ("ASSET_02", "Ether")):
+            cur.execute(
+                "INSERT INTO KEYS.ASSET_KEY (DATASET, MASKED_ID, TICKER, "
+                "PROVIDER_SYMBOL, NAME, PRICE_SCALE, VOLUME_SCALE, FIRST_DAY) "
+                "VALUES (?, ?, ?, ?, ?, 0.5, 1, '2025-03-01')",
+                (dataset, masked_id, name[:3].upper(), name, name),
+            )
+    sims, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
+    api = SnowflakeApiStore(api_login)
+    holding = create_sim(
+        sims, market, SimRequest(dataset, "buy_hold", "practice", 97, 288)
+    )
+    remove_sims.append(holding)
+    result = run_sim(sims, market, holding, steps_per_write=96)
+    quiet = timedelta(minutes=7)
+
+    header = sim_page.header(api, holding, now(), quiet)
+    chart = sim_page.chart(api, holding, 8)
+    live = sim_page.live(api, holding, now(), quiet, after_step=200)
+    moment = sim_page.moment(api, holding, datetime(2025, 3, 2, 12, 0), 8)
+
+    assert header.replayed_at == datetime(2025, 3, 3, 0, 0)  # step 288 ends at midnight
+    assert [a.name for a in header.assets] == ["Bitcoin", "Ether"]
+    [line] = chart.lines
+    assert line.points[-1].value == pytest.approx(result.ending_value)
+    assert [(t.asset.name, t.closed_step) for t in chart.ticks] == [
+        ("Bitcoin", 288),
+        ("Ether", 288),
+    ]
+    assert live.account_value == pytest.approx(result.ending_value)
+    assert live.in_progress is False
+    assert live.new_points and all(p.step > 200 for p in live.new_points)
+    assert [p.asset.name for p in moment.positions] == ["Bitcoin", "Ether"]
+    for position in moment.positions:
+        assert position.price_then.real == pytest.approx(
+            position.price_then.rescaled * 2
+        )
+
+    timings = []
+    for _ in range(10):
+        started = time.perf_counter()
+        sim_page.live(api, holding, now(), quiet, after_step=result_step(header))
+        timings.append(time.perf_counter() - started)
+    print(
+        f"\nlive figures: median {statistics.median(timings):.3f} s, "
+        f"slowest {max(timings):.3f} s over {len(timings)} calls"
+    )
+
+
+def result_step(header):
+    """The page's usual question: nothing new since the step it last saw."""
+    return header.step_reached
