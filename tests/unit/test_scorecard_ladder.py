@@ -1,11 +1,13 @@
-"""The track record's ladder of groups and its fallback (spec appendix 3, section 5.2).
+"""The scorecard's ladder of groups and its fallback (spec appendix 3, section 5.2).
 
 A group names a candle pattern, a direction and an asset class, and may narrow by trend, then
 volume level, then part of the day. The narrowest group that fits the moment and holds at least
 10 closed trades is the one used; below 10 at every level only the count is shown.
 """
 
-from jev_trader.memory.track_record import FiledTrade, Moment, ladder
+from dataclasses import replace
+
+from jev_trader.memory.scorecard import FiledTrade, Moment, ladder
 
 NOW = Moment(
     pattern="hammer",
@@ -51,7 +53,7 @@ def test_the_narrowest_group_holding_ten_closed_trades_is_used():
 
     # Broadest first: pattern, direction and asset class; then trend; volume; part of day.
     assert [r.trades for r in found.rungs] == [12, 11, 10, 4]
-    assert found.used.details == ("trend", "volume")
+    assert found.used.splits == ("trend", "volume")
     assert [r.trades for r in found.shown] == [12, 11, 10]
 
 
@@ -77,9 +79,9 @@ def test_a_trade_counts_once_for_each_of_its_patterns():
     trades = [trade(patterns=("hammer", "doji")) for _ in range(10)]
 
     assert ladder(trades, NOW).count == 10
-    doji = Moment(**{**NOW.__dict__, "pattern": "doji"})
+    doji = replace(NOW, pattern="doji")
     assert ladder(trades, doji).count == 10
-    none = Moment(**{**NOW.__dict__, "pattern": "none"})
+    none = replace(NOW, pattern="none")
     assert ladder([trade(patterns=()) for _ in range(3)], none).count == 3
 
 

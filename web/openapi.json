@@ -2029,6 +2029,7 @@
         "type": "object"
       },
       "Split": {
+        "description": "A detail that narrows a group, in the order the ladder adds them.",
         "enum": [
           "trend",
           "volume",

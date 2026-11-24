@@ -90,38 +90,6 @@ class Trade:
         return last is not None and day_of(last) != day_of(self.opened_step)
 
 
-@dataclass(frozen=True)
-class Tally:
-    """How some closed trades' profits add up. A trade at exactly $0 neither made nor lost."""
-
-    profits: list[float]
-
-    @property
-    def gains(self) -> list[float]:
-        return [p for p in self.profits if p > 0]
-
-    @property
-    def losses(self) -> list[float]:
-        return [p for p in self.profits if p < 0]
-
-    @property
-    def share_made_money(self) -> float | None:
-        return len(self.gains) / len(self.profits) if self.profits else None
-
-    @property
-    def average_gain(self) -> float | None:
-        return sum(self.gains) / len(self.gains) if self.gains else None
-
-    @property
-    def average_loss(self) -> float | None:
-        return sum(self.losses) / len(self.losses) if self.losses else None
-
-    @property
-    def gains_over_losses(self) -> float | None:
-        """Total gains over total losses (the profit factor); None with no loss."""
-        return sum(self.gains) / -sum(self.losses) if self.losses else None
-
-
 def trades_of(orders: list[dict], charges: list[dict]) -> list[Trade]:
     """The sim's trades, in the order they opened."""
     trades: dict[int, Trade] = {}

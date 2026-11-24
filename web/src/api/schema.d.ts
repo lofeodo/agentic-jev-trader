@@ -902,6 +902,7 @@ export interface components {
         };
         /**
          * Split
+         * @description A detail that narrows a group, in the order the ladder adds them.
          * @enum {string}
          */
         Split: "trend" | "volume" | "part_of_day";

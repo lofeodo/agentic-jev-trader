@@ -48,6 +48,7 @@ and `jev_trader.jev.position_review`.
 """
 
 import copy
+from typing import NamedTuple
 
 from jev_trader.broker import Bar, Broker, Direction, Position, StopPriceSettings
 from jev_trader.jev.client import JevClient, JevReply
@@ -95,6 +96,14 @@ _STEPS_LOADED_AT_ONCE = 96  # a day
 NO_TYPICAL_MOVE = "no_typical_move"
 
 
+class _Told(NamedTuple):
+    """How much of the broker's history the episodes waiting for outcomes have been told."""
+
+    fills: int = 0
+    cancelled_orders: int = 0
+    closed_trades: int = 0
+
+
 class AgentWithoutMemory:
     def __init__(
         self,
@@ -126,7 +135,7 @@ class AgentWithoutMemory:
         # The episodes waiting for their outcomes, and how much of the broker's history
         # (fills, cancelled orders, closed trades) they have been told about.
         self.outcomes = Outcomes(sim_id)
-        self._told = (0, 0, 0)
+        self._told = _Told()
 
     def on_step(
         self, step: int, broker: Broker, bars: dict[str, Bar]
@@ -158,11 +167,9 @@ class AgentWithoutMemory:
     ) -> tuple[list[dict], dict[str, int]]:
         """Once the step's orders are carried out (the sim's end closes included): the episodes'
         outcomes it taught, and the decisions it made complete, each with its step."""
-        fills, cancelled, closed = self._told
-        self._told = (
-            len(broker.fills),
-            len(broker.cancelled_orders),
-            len(broker.closed_trades),
+        told = self._told
+        self._told = _Told(
+            len(broker.fills), len(broker.cancelled_orders), len(broker.closed_trades)
         )
         snapshots = self._snapshots_at(step) if bars else {}
         return self.outcomes.on_step(
@@ -174,9 +181,9 @@ class AgentWithoutMemory:
                 if asset in snapshots
                 and is_last_bar_of_day(step, snapshots[asset].bars_left)
             },
-            broker.fills[fills:],
-            broker.cancelled_orders[cancelled:],
-            broker.closed_trades[closed:],
+            broker.fills[told.fills :],
+            broker.cancelled_orders[told.cancelled_orders :],
+            broker.closed_trades[told.closed_trades :],
         )
 
     # What the agent keeps between steps

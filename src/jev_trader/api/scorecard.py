@@ -7,7 +7,7 @@ asset class: a trade counts in one group for each 15-minute pattern in the patte
 was decided ("none" if there was none), and stock and crypto trades are never counted together.
 A line can be split further by trend, volume level and part of the day, each taken at entry.
 Worked out when asked for, never stored, with the same filing rules and ladder the agent reads
-(`jev_trader.memory.track_record`).
+(`jev_trader.memory.scorecard`).
 
 Each line says whether the agent is shown it: a group under the minimum sample (10 closed trades)
 is hidden from it, and so is a split the agent's ladder of groups never forms (it narrows by
@@ -23,41 +23,36 @@ Choices the spec leaves to the build:
   (`track_record`) when stored there, else the version 1 defaults (10, 0.9 and 1.1).
 """
 
-from enum import StrEnum
-
 from pydantic import BaseModel
 
 from jev_trader.api.sim_page import Sim
 from jev_trader.api.store import ApiStore
 from jev_trader.api.trades import trades_of
 from jev_trader.dataset.bars import STEPS_PER_DAY
-from jev_trader.dataset.situation_text import VOLUME_HIGH_ABOVE, VOLUME_LOW_BELOW
-from jev_trader.memory.track_record import (
+from jev_trader.dataset.measurements import AssetClass
+from jev_trader.dataset.situation_text import (
+    VOLUME_HIGH_ABOVE,
+    VOLUME_LOW_BELOW,
+    part_of_day,
+)
+from jev_trader.memory.scorecard import (
     LADDER,
     MINIMUM_SAMPLE,
-    Detail,
     FiledTrade,
     Moment,
-    Rung,
+    Split,
+    Tally,
     ladder,
-    part_of_the_day,
     trend,
     volume_level,
 )
 
 
-class Split(StrEnum):
-    TREND = "trend"
-    VOLUME = "volume"
-    PART_OF_DAY = "part_of_day"
-
-
 class Fallback(BaseModel):
     """The broader group the agent reads in place of a line under the minimum sample."""
 
-    split: list[
-        Split
-    ]  # the details it keeps: [] is pattern, direction and asset class alone
+    # The splits it keeps: [] is pattern, direction and asset class alone.
+    split: list[Split]
     trades: int
 
 
@@ -113,8 +108,8 @@ def _filed(store: ApiStore, sim: Sim, low_below: float, high_above: float):
                 volume_level=volume_level(
                     found["VOLUME_AGAINST_NORMAL"], low_below, high_above
                 ),
-                part_of_day=part_of_the_day(
-                    found["ASSET_CLASS"],
+                part_of_day=part_of_day(
+                    AssetClass(found["ASSET_CLASS"]),
                     found["BAR_NUMBER"],
                     STEPS_PER_DAY
                     if bars_left is None
@@ -131,8 +126,7 @@ def scorecard(store: ApiStore, sim_id: int, split: list[Split]) -> Scorecard:
     sim = Sim(store, sim_id)
     settings = (sim.row.get("SETTINGS") or {}).get("track_record") or {}
     minimum = settings.get("minimum_sample", MINIMUM_SAMPLE)
-    split = [s for s in Split if s in split]
-    details = tuple(Detail(s) for s in split)
+    splits = tuple(s for s in Split if s in split)
     filed, closed = _filed(
         store,
         sim,
@@ -140,35 +134,24 @@ def scorecard(store: ApiStore, sim_id: int, split: list[Split]) -> Scorecard:
         settings.get("volume_high_above", VOLUME_HIGH_ABOVE),
     )
 
-    # Each line is a group: its pattern, direction and asset class, and the details split by.
+    # Each line is a group: its pattern, direction and asset class, and the splits asked for.
     groups: dict[Moment, list[float]] = {}
     for t in filed:
         for m in t.moments():
-            group = Moment(
-                m.pattern,
-                m.direction,
-                m.asset_class,
-                m.trend if Detail.TREND in details else None,
-                m.volume_level if Detail.VOLUME in details else None,
-                m.part_of_day if Detail.PART_OF_DAY in details else None,
-            )
-            groups.setdefault(group, []).append(t.profit)
+            groups.setdefault(m.group(splits), []).append(t.profit)
 
-    # The agent reads only the ladder's groups: the details dropped part of day first, then
+    # The agent reads only the ladder's groups: the splits dropped part of day first, then
     # volume level, then trend.
-    on_ladder = details == LADDER[: len(details)]
+    on_ladder = splits == LADDER[: len(splits)]
     lines = []
     for group, profits in groups.items():
-        rung = Rung(details, tuple(profits))
+        rung = Tally(profits)
         shown = on_ladder and rung.trades >= minimum
         fallback = None
         if on_ladder and not shown:
-            broader = ladder(filed, group, minimum).rungs[: len(details)]
-            used = [r for r in broader if r.trades >= minimum]
-            if used:
-                fallback = Fallback(
-                    split=[Split(d) for d in used[-1].details], trades=used[-1].trades
-                )
+            used = ladder(filed, group, minimum).above(splits).used
+            if used is not None:
+                fallback = Fallback(split=list(used.splits), trades=used.trades)
         lines.append(
             ScorecardLine(
                 pattern=group.pattern,
@@ -200,7 +183,7 @@ def scorecard(store: ApiStore, sim_id: int, split: list[Split]) -> Scorecard:
     )
     return Scorecard(
         minimum_sample=minimum,
-        split=split,
+        split=list(splits),
         on_ladder=on_ladder,
         closed_trades=closed,
         lines=lines,

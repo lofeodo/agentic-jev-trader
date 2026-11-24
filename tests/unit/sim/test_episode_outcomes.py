@@ -16,6 +16,7 @@ from jev_trader.sim.runner import run_sim
 from jev_trader.sim.store import InMemorySimStore
 from tests.unit.sim.conftest import CRYPTO, DATASET, LAST_STEP, STOCK
 from tests.unit.sim.test_agent_without_memory import (
+    SCREENS_ASKED,
     crypto_decisions,
     fake_jev,
     practice,
@@ -130,6 +131,41 @@ def test_a_full_evaluation_that_traded_is_complete_once_its_position_closed(
     assert "closed_at_this_review" not in closed["VALUE"]
     # Searchable from the close, before the day has ended.
     assert evaluation["OUTCOMES_KNOWN_FROM"] == 103
+
+
+def test_a_trade_still_open_at_the_sims_end_closes_with_the_sim_ended(
+    rising_market,
+):
+    store = InMemorySimStore()
+    jev, _ = fake_jev(lambda n: 0.9 if n == 1 else 0.3, pick={"long_tight_stop": 1.0})
+    sim_id = practice(store, rising_market)
+
+    run_sim(store, rising_market, sim_id, jev=jev)
+
+    evaluation = crypto_decisions(store, sim_id)[97]
+    closed = outcomes_of(store, sim_id, evaluation)["position_closed"]
+    # Bought at step 98's open, closed at the last close ($109.50) at step 192 (ADR 0009).
+    assert closed["VALUE"]["closing_reason"] == "sim_ended"
+    assert (closed["KNOWN_FROM"], closed["VALUE"]["bars_after"]) == (192, 95)
+    assert evaluation["OUTCOMES_KNOWN_FROM"] == 192
+
+
+def test_an_entry_cancelled_at_the_sims_end_never_becomes_searchable(rising_market):
+    store = InMemorySimStore()
+    # Only the last screen says yes: the crypto's at step 192, the sim's last step.
+    jev, _ = fake_jev(
+        lambda n: 0.9 if n == SCREENS_ASKED else 0.3, pick={"long_tight_stop": 1.0}
+    )
+    sim_id = practice(store, rising_market)
+
+    run_sim(store, rising_market, sim_id, jev=jev)
+
+    evaluation = crypto_decisions(store, sim_id)[192]
+    assert evaluation["ACTION"] == "entry"
+    entry = outcomes_of(store, sim_id, evaluation)["order_carried_out"]
+    assert (entry["KNOWN_FROM"], entry["VALUE"]) == (192, {"carried_out": False})
+    assert evaluation["OUTCOMES_KNOWN_FROM"] is None
+    assert not searchable(evaluation, 10_000)
 
 
 def test_a_no_trade_episode_is_complete_once_its_three_prices_are_in(rising_market):

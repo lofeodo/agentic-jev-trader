@@ -34,6 +34,12 @@ Choices the spec leaves to the build:
 - A decision made at its day's last bar has its end-of-day price at once: its own close.
 - The three prices are recorded for every episode, also those that need only how the trade
   ended; they then show in memory from their own steps.
+- A position review is complete once all its outcomes are known (appendix 5, section 1), the
+  price after 4 bars included: a review in an asset's last 4 bars of a sim stays out of search,
+  as a "no trade" there does, and a stock review in a session's last 3 bars becomes searchable
+  at its 4th bar, the next morning.
+- An entry still waiting when the sim ends is cancelled; its decision then waits for prices
+  past the sim's last step and stays out of search.
 """
 
 import copy
@@ -128,17 +134,9 @@ class Outcomes:
             "known": {},  # outcome kind to the step it became known
         }
         self._waiting[decision["ID"]] = episode
-        rows = []
         if last_bar_of_day:
-            rows.append(
-                self._learned(
-                    episode,
-                    OutcomeKind.PRICE_AT_END_OF_DAY,
-                    decision["STEP"],
-                    self._price(episode, price),
-                )
-            )
-        return rows
+            return self._end_of_day(episode, decision["STEP"], price)
+        return []
 
     def on_step(
         self,
@@ -174,49 +172,49 @@ class Outcomes:
 
     def _bar(self, episode: dict, step: int, close: float, last_of_day: bool):
         rows = []
-        end_of_day = str(OutcomeKind.PRICE_AT_END_OF_DAY)
-        if end_of_day not in episode["known"] and day_of(step) > day_of(
-            episode["step"]
-        ):
+        same_day = day_of(step) == day_of(episode["step"])
+        if not same_day:
             # The day's last bar was missing: its end is the last close seen that day.
-            rows.append(
-                self._learned(
-                    episode,
-                    OutcomeKind.PRICE_AT_END_OF_DAY,
-                    step,
-                    self._price(episode, episode["last_close"]),
-                )
-            )
+            rows += self._end_of_day(episode, step, episode["last_close"])
         episode["bars"] += 1
-        if day_of(step) == day_of(episode["step"]):
+        if same_day:
             episode["last_close"] = close
         after = _AFTER_BARS.get(episode["bars"])
         if after is not None:
             rows.append(
                 self._learned(episode, after, step, self._price(episode, close))
             )
-        if (
-            last_of_day
-            and day_of(step) == day_of(episode["step"])
-            and end_of_day not in episode["known"]
-        ):
-            rows.append(
-                self._learned(
-                    episode,
-                    OutcomeKind.PRICE_AT_END_OF_DAY,
-                    step,
-                    self._price(episode, close),
-                )
-            )
+        if same_day and last_of_day:
+            rows += self._end_of_day(episode, step, close)
         return rows
 
-    def _fill(self, fill: Fill) -> list[dict]:
-        if fill.kind is not OrderKind.ENTRY or fill.reason is not ClosingReason.JEV:
+    def _end_of_day(self, episode: dict, step: int, close: float) -> list[dict]:
+        """The price at the end of the decision's day, unless already known."""
+        if OutcomeKind.PRICE_AT_END_OF_DAY in episode["known"]:
             return []
+        return [
+            self._learned(
+                episode,
+                OutcomeKind.PRICE_AT_END_OF_DAY,
+                step,
+                self._price(episode, close),
+            )
+        ]
+
+    def _waiting_entry(self, order: Fill | Order) -> dict | None:
+        """The traded full evaluation waiting to hear whether this entry was carried out."""
+        if order.kind is not OrderKind.ENTRY or order.reason is not ClosingReason.JEV:
+            return None
         episode = self._waiting.get(
-            decision_id(self.sim_id, fill.step_decided, fill.asset)
+            decision_id(self.sim_id, order.step_decided, order.asset)
         )
         if episode is None or OutcomeKind.ORDER_CARRIED_OUT not in episode["needs"]:
+            return None
+        return episode
+
+    def _fill(self, fill: Fill) -> list[dict]:
+        episode = self._waiting_entry(fill)
+        if episode is None:
             return []
         episode["position"] = fill.position_id
         return [
@@ -233,12 +231,8 @@ class Outcomes:
         ]
 
     def _cancelled(self, order: Order, step: int) -> list[dict]:
-        if order.kind is not OrderKind.ENTRY or order.reason is not ClosingReason.JEV:
-            return []
-        episode = self._waiting.get(
-            decision_id(self.sim_id, order.step_decided, order.asset)
-        )
-        if episode is None or OutcomeKind.ORDER_CARRIED_OUT not in episode["needs"]:
+        episode = self._waiting_entry(order)
+        if episode is None:
             return []
         # Never carried out: the decision is now judged by where the price went, like no trade.
         episode["needs"] = [str(OutcomeKind.ORDER_CARRIED_OUT), *map(str, PRICES)]

@@ -1,41 +1,35 @@
-"""The track record: the agent's own totals over its closed trades, by group (spec appendix 3,
-section 5; ADR 0001). The web app calls it the scorecard.
+"""The scorecard: the agent's own totals over its closed trades, by group (spec appendix 3,
+section 5; ADR 0001). The text sent to Jev and the LLM calls it the track record.
 
 Worked out from stored records whenever it is asked for, never stored. Example: "hammer, long,
 stocks, with the trend, high volume: 18 trades, 5 made money, average loss $12".
 
 **What a trade is filed under.** A candle pattern (each name in the pattern window when the trade
 was decided, so one trade counts in several groups, or "none"), a direction (a long bets on a
-rise, a short on a fall) and an asset class (stocks and crypto never mix). Three details, taken at
+rise, a short on a fall) and an asset class (stocks and crypto never mix). Three splits, taken at
 entry, can narrow a group: the trend, the volume level and the part of the day.
 
-**The ladder and its fallback.** Narrowest first: all three details; without the part of the day;
-without the volume level too; then pattern, direction and asset class alone. The narrowest group
-that fits the moment and holds at least the minimum sample (10 closed trades) is the one used.
-Below that at every level, only the count is shown ("6 closed trades, too few to show totals").
-A trade counts only from the step it closed.
+**The ladder and its fallback.** The ladder is the groups that fit one moment, broadest first:
+pattern, direction and asset class alone; then split by trend; by volume level too; by part of
+the day too. The narrowest group holding at least the minimum sample (10 closed trades) is the
+one used; a smaller group falls back to the next broader one that holds it. Below that at every
+level, only the count is shown ("6 closed trades, too few to show totals"). A trade counts only
+from the step it closed.
 
 Choices the spec leaves to the build:
 
-- A measurement not available at entry files the trade under "not available" for that detail.
+- A measurement not available at entry files the trade under "not available" for that split.
 """
 
 from dataclasses import dataclass
 from enum import StrEnum
-
-from jev_trader.dataset.measurements import AssetClass
-from jev_trader.dataset.situation_text import (
-    VOLUME_HIGH_ABOVE,
-    VOLUME_LOW_BELOW,
-    part_of_day,
-)
 
 MINIMUM_SAMPLE = 10
 NOT_AVAILABLE = "not available"
 NO_PATTERN = "none"  # what a trade opened beside no candle pattern is filed under
 
 
-class Detail(StrEnum):
+class Split(StrEnum):
     """A detail that narrows a group, in the order the ladder adds them."""
 
     TREND = "trend"
@@ -43,7 +37,7 @@ class Detail(StrEnum):
     PART_OF_DAY = "part_of_day"
 
 
-LADDER = tuple(Detail)
+LADDER = tuple(Split)
 
 
 def trend(direction: str, long_term_trend: float | None) -> str:
@@ -56,10 +50,10 @@ def trend(direction: str, long_term_trend: float | None) -> str:
 
 
 def volume_level(
-    volume_against_normal: float | None,
-    low_below: float = VOLUME_LOW_BELOW,
-    high_above: float = VOLUME_HIGH_ABOVE,
+    volume_against_normal: float | None, low_below: float, high_above: float
 ) -> str:
+    """Low below `low_below` times the usual volume at that time of day, high above
+    `high_above`, average between (0.9 and 1.1 in version 1)."""
     if volume_against_normal is None:
         return NOT_AVAILABLE
     if volume_against_normal < low_below:
@@ -67,14 +61,9 @@ def volume_level(
     return "high" if volume_against_normal > high_above else "average"
 
 
-def part_of_the_day(asset_class: str, bar_number: int, bars_in_day: int | None) -> str:
-    """Stocks: first hour, middle, last hour. Crypto: Asian, European, American hours."""
-    return part_of_day(AssetClass(asset_class), bar_number, bars_in_day)
-
-
 @dataclass(frozen=True)
 class Moment:
-    """What the present moment (or one group) is filed under, for one pattern and direction.
+    """What a moment, or a scorecard group, is filed under, for one pattern and direction.
 
     A group not split by a detail leaves it None."""
 
@@ -85,12 +74,21 @@ class Moment:
     volume_level: str | None
     part_of_day: str | None
 
-    def detail(self, detail: Detail) -> str | None:
+    def split(self, split: Split) -> str | None:
         return {
-            Detail.TREND: self.trend,
-            Detail.VOLUME: self.volume_level,
-            Detail.PART_OF_DAY: self.part_of_day,
-        }[detail]
+            Split.TREND: self.trend,
+            Split.VOLUME: self.volume_level,
+            Split.PART_OF_DAY: self.part_of_day,
+        }[split]
+
+    def group(self, splits: tuple[Split, ...]) -> "Moment":
+        """The scorecard group this falls in, split only by `splits`."""
+        return Moment(
+            self.pattern,
+            self.direction,
+            self.asset_class,
+            *(self.split(s) if s in splits else None for s in LADDER),
+        )
 
 
 @dataclass(frozen=True)
@@ -122,37 +120,54 @@ class FiledTrade:
 
 
 @dataclass(frozen=True)
-class Rung:
-    """One group of the ladder: the details it keeps, and the profits of its closed trades."""
+class Tally:
+    """How some closed trades' profits add up. A trade at exactly $0 neither made nor lost."""
 
-    details: tuple[Detail, ...]
-    profits: tuple[float, ...]
+    profits: tuple[float, ...] | list[float]
 
     @property
     def trades(self) -> int:
         return len(self.profits)
 
     @property
+    def gains(self) -> list[float]:
+        return [p for p in self.profits if p > 0]
+
+    @property
+    def losses(self) -> list[float]:
+        return [p for p in self.profits if p < 0]
+
+    @property
     def made_money(self) -> int:
-        return sum(1 for p in self.profits if p > 0)
+        return len(self.gains)
 
     @property
     def share_made_money(self) -> float | None:
-        return self.made_money / self.trades if self.trades else None
+        return len(self.gains) / len(self.profits) if self.profits else None
 
     @property
     def average_gain(self) -> float | None:
-        gains = [p for p in self.profits if p > 0]
-        return sum(gains) / len(gains) if gains else None
+        return sum(self.gains) / len(self.gains) if self.gains else None
 
     @property
     def average_loss(self) -> float | None:
-        losses = [p for p in self.profits if p < 0]
-        return sum(losses) / len(losses) if losses else None
+        return sum(self.losses) / len(self.losses) if self.losses else None
 
     @property
     def total_profit(self) -> float:
         return sum(self.profits)
+
+    @property
+    def gains_over_losses(self) -> float | None:
+        """Total gains over total losses (the profit factor); None with no loss."""
+        return sum(self.gains) / -sum(self.losses) if self.losses else None
+
+
+@dataclass(frozen=True)
+class Rung(Tally):
+    """One group of the ladder: the splits it keeps, and its closed trades' profits."""
+
+    splits: tuple[Split, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -176,6 +191,10 @@ class Ladder:
         shown = self.shown
         return shown[-1] if shown else None
 
+    def above(self, splits: tuple[Split, ...]) -> "Ladder":
+        """The broader groups only: those split by fewer than `splits`."""
+        return Ladder(self.rungs[: len(splits)], self.minimum)
+
 
 def ladder(
     trades: list[FiledTrade],
@@ -187,21 +206,14 @@ def ladder(
     them when None)."""
     rungs = []
     for depth in range(len(LADDER) + 1):
-        details = LADDER[:depth]
+        splits = LADDER[:depth]
+        group = moment.group(splits)
         profits = tuple(
             t.profit
             for t in trades
             if step is None or t.closed_step <= step
             for m in t.moments()
-            if in_group(m, moment, details)
+            if m.group(splits) == group
         )
-        rungs.append(Rung(details, profits))
+        rungs.append(Rung(profits=profits, splits=splits))
     return Ladder(tuple(rungs), minimum)
-
-
-def in_group(filed: Moment, group: Moment, details: tuple[Detail, ...]) -> bool:
-    """Whether a trade filed under `filed` counts in `group` narrowed by `details`."""
-    return (
-        (filed.pattern, filed.direction, filed.asset_class)
-        == (group.pattern, group.direction, group.asset_class)
-    ) and all(filed.detail(d) == group.detail(d) for d in details)
