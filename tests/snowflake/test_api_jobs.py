@@ -53,8 +53,9 @@ def test_a_restarted_api_finds_and_kills_the_job_and_the_sim_resumes_to_the_same
         """A newly started API: it knows its jobs only from the database."""
         launcher = LocalLauncher(
             tmp_path,
-            lambda sim_id: sim_job_command(sim_id, TEST_DATABASE)
-            + ["--steps-per-write", "1"],
+            lambda sim_id: (
+                sim_job_command(sim_id, TEST_DATABASE) + ["--steps-per-write", "1"]
+            ),
         )
         app = create_app(
             SnowflakeApiStore(api_login),
@@ -106,7 +107,9 @@ def test_a_restarted_api_finds_and_kills_the_job_and_the_sim_resumes_to_the_same
         assert records(sim_login, sim_id) == records(sim_login, never_stopped)
         assert store.duplicate_ids(sim_id) == {}
         with sim_login.cursor() as cur:
-            cur.execute("SELECT KIND, STEP FROM SIM.SIM_EVENTS WHERE SIM = ?", (sim_id,))
+            cur.execute(
+                "SELECT KIND, STEP FROM SIM.SIM_EVENTS WHERE SIM = ?", (sim_id,)
+            )
             assert cur.fetchall() == [("restarted", stopped_after + 1)]
     finally:
         for sim_id in remove_sims[1:]:  # a failed run leaves no job behind

@@ -65,7 +65,7 @@ export function SimPage({ id }: { id: number }) {
   const [live, setLive] = useState<LiveFigures | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [momentStep, setMomentStep] = useState<number | null>(null);
-  const [readings, setReadings] = useState(0); // goes up to read the sim again after Stop or Resume
+  const [reloads, setReloads] = useState(0); // goes up after Stop or Resume: the sim is read again
   const linesRef = useRef<ChartLine[]>([]);
 
   useEffect(() => {
@@ -125,7 +125,7 @@ export function SimPage({ id }: { id: number }) {
       stopped = true;
       window.clearTimeout(timer);
     };
-  }, [id, readings]);
+  }, [id, reloads]);
 
   if (!header || !chart || !live) {
     return (
@@ -155,7 +155,7 @@ export function SimPage({ id }: { id: number }) {
         <Pair name="Replaying" value={replayed} />
         <Pair name="Step" value={`${live.step_reached ?? "--"} of ${header.last_step}`} />
         <Pair name="Kind" value={header.kind} />
-        <StopOrResume live={live} header={header} onDone={() => setReadings((n) => n + 1)} />
+        <StopOrResume live={live} header={header} onDone={() => setReloads((n) => n + 1)} />
       </div>
       {header.failure_reason && (
         <div className="mb-6">

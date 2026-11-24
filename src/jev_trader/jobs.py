@@ -10,7 +10,8 @@ it starts, and by the API the moment it launches one: `pid 1234 started 17640000
 process number and the time that process started. The API reads it back to find the job even
 after the API itself restarted. Windows reuses process numbers, so a process is taken for the
 job only if its start time matches too. A mark with no start time (`pid 1234`, written before
-start times were noted) is matched by its command line instead.
+start times were noted) cannot be confirmed, so it is never killed: such a job, if still alive,
+finds its sim stopped at its next write and ends there.
 """
 
 import os
@@ -31,6 +32,10 @@ SECONDS_TO_DIE = 30
 SAME_START = 0.01
 
 
+class JobNotKilled(Exception):
+    """The job was found but would not die: no right to end it, or still alive after the wait."""
+
+
 class Launcher(Protocol):
     def start(self, sim_id: int) -> str:
         """Start the sim's job; returns where it runs, as noted on the sim's row."""
@@ -40,7 +45,8 @@ class Launcher(Protocol):
 
     def stop(self, running_on: str | None) -> bool:
         """Kill the job noted by `running_on` and wait until it is gone. Returns False, killing
-        nothing, if no such job is running (gone already, or the number now names another program)."""
+        nothing, if no such job is running (gone already, or the number now names another program).
+        Raises `JobNotKilled` if it is running and will not die."""
 
 
 def this_process() -> str:
@@ -118,10 +124,11 @@ class LocalLauncher:
             process = psutil.Process(int(words[1]))
             if process.status() == psutil.STATUS_ZOMBIE:
                 return None
-            if len(words) >= 4 and words[2] == "started":
-                same = abs(process.create_time() - float(words[3])) < SAME_START
-            else:
-                same = "jev_trader.sim" in " ".join(process.cmdline())
+            same = (
+                len(words) >= 4
+                and words[2] == "started"
+                and abs(process.create_time() - float(words[3])) < SAME_START
+            )
         except (ValueError, IndexError, psutil.Error):
             return None
         return process if same else None
@@ -140,6 +147,10 @@ class LocalLauncher:
             process.wait(timeout=SECONDS_TO_DIE)
         except psutil.NoSuchProcess:
             pass  # it ended by itself meanwhile
+        except (psutil.AccessDenied, psutil.TimeoutExpired) as error:
+            raise JobNotKilled(
+                f"the job at {running_on} would not die: {error}"
+            ) from error
         return True
 
 

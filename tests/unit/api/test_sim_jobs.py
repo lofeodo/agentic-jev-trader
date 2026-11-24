@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.broker import AssetClass
+from jev_trader.jobs import JobNotKilled
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket, Period
 from jev_trader.sim.store import InMemorySimStore
 from tests.unit.api.conftest import StandInLauncher
@@ -334,3 +335,42 @@ def test_a_new_cap_is_only_for_a_sim_the_cap_stopped(api, sims):
 
     assert answer.status_code == 409
     assert answer.json()["refusals"][0]["code"] == "cap_not_reached"
+
+
+def test_a_sim_whose_job_died_at_once_resumes_without_waiting_7_minutes(
+    api, sims, launcher
+):
+    """Its job never got going (a login error, say): the row says running, the job is gone."""
+    sim_id = started(api)
+    launcher.running.clear()
+
+    answer = api.post(f"/sims/{sim_id}/resume", json={})
+
+    assert answer.status_code == 202
+    assert launcher.started == [sim_id, sim_id]
+
+
+def test_a_job_that_cannot_be_killed_is_a_refusal_and_the_sim_stays_running(
+    api, sims, launcher
+):
+    sim_id = started(api)
+
+    def cannot(running_on):
+        raise JobNotKilled(f"{running_on} would not die")
+
+    launcher.stop = cannot
+
+    answer = api.post(f"/sims/{sim_id}/stop")
+
+    assert answer.status_code == 409
+    assert answer.json()["refusals"][0]["code"] == "job_not_killed"
+    assert sims.sim(sim_id)["STATUS"] == "running"
+
+
+def test_the_most_a_cap_can_be_is_rounded_down_to_the_cent(api, sims):
+    sim_id = stopped_by_cap(api, sims, spent=1.00)
+    paid_call(sims, None, 70.994)  # leaves $3.006 of room, $4.006 with what it spent
+
+    refused = api.post(f"/sims/{sim_id}/resume", json={"spending_cap_usd": 9.00})
+
+    assert "$4.00 or less" in refused.json()["refusals"][0]["message"]

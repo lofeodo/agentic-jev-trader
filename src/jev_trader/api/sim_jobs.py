@@ -13,6 +13,7 @@ checker (the limit of sims in progress, the ceiling for a new sim) comes with it
 takes over the start's check; until then a start is refused only by `runner.check_request`.
 """
 
+import math
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -22,7 +23,7 @@ from jev_trader.api.sim_page import SimNotFound
 from jev_trader.api.sims_list import is_not_responding
 from jev_trader.api.store import ApiStore
 from jev_trader.dataset.bars import STEPS_PER_DAY
-from jev_trader.jobs import Launcher
+from jev_trader.jobs import JobNotKilled, Launcher
 from jev_trader.sim.runner import SimRequest, create_sim
 from jev_trader.sim.store import SimStatus, StopReason
 
@@ -144,7 +145,7 @@ class Jobs:
             raise _refuse(
                 "nothing_to_stop", f"sim {sim_id} is {sim['STATUS']}: nothing to stop"
             )
-        self.launcher.stop(sim.get("RUNNING_ON"))
+        self._kill(sim)
         # The job may have ended by itself meanwhile (finished, or stopped at its cap).
         if self._sim(sim_id)["STATUS"] in IN_PROGRESS:
             self.store.update(
@@ -157,8 +158,11 @@ class Jobs:
     def resume(self, sim_id: int, wanted: Resumption, at: datetime) -> None:
         sim = self._sim(sim_id)
         status = sim["STATUS"]
-        if status == SimStatus.RUNNING and not is_not_responding(
-            sim, at, self.quiet_limit
+        # Running but quiet, or running with its job gone (it died before storing anything).
+        if (
+            status == SimStatus.RUNNING
+            and not is_not_responding(sim, at, self.quiet_limit)
+            and self.launcher.is_running(sim.get("RUNNING_ON"))
         ):
             raise _refuse(
                 "not_resumable", f"sim {sim_id} is still running: nothing to resume"
@@ -169,9 +173,7 @@ class Jobs:
                 f"sim {sim_id} is {status}: only a stopped or not responding sim resumes",
             )
         new_cap = self._new_cap(sim, wanted.spending_cap_usd)
-        self.launcher.stop(
-            sim.get("RUNNING_ON")
-        )  # a not responding sim's job may hang on
+        self._kill(sim)  # a not responding sim's job may hang on
         self._launch(sim_id, at, new_cap)
 
     def _new_cap(self, sim: dict, cap: float | None) -> dict:
@@ -198,7 +200,10 @@ class Jobs:
                 "cap_not_above_spent",
                 f"sim {sim['ID']} has spent ${spent:.2f}: give a cap above that",
             )
-        most = self._room_under_ceiling(sim["ID"]) + spent
+        # Rounded down, so that following the advice is never refused.
+        most = (
+            math.floor((self._room_under_ceiling(sim["ID"]) + spent) * 100 + 1e-6) / 100
+        )
         if cap > most + 1e-9:
             raise _refuse(
                 "over_ceiling",
@@ -222,25 +227,31 @@ class Jobs:
     def _launch(self, sim_id: int, at: datetime, columns: dict) -> None:
         """Mark the sim running, then start its job. The sim is marked first so that a job quick
         to stop by itself is not marked running again afterwards."""
-        before = self._sim(sim_id)
-        self.store.update(
-            sim_id,
-            STATUS=str(SimStatus.RUNNING),
-            STOP_REASON=None,
-            FAILURE_REASON=None,
-            ENDED_AT=None,
-            STARTED_AT=at,
+        running = {
+            "STATUS": str(SimStatus.RUNNING),
+            "STOP_REASON": None,
+            "FAILURE_REASON": None,
+            "ENDED_AT": None,
+            "STARTED_AT": at,
             **columns,
-        )
+        }
+        before = self._sim(sim_id)
+        self.store.update(sim_id, **running)
         try:
             running_on = self.launcher.start(sim_id)
         except Exception:
-            self.store.update(
-                sim_id,
-                **{k: before.get(k) for k in ("STATUS", "STOP_REASON", "ENDED_AT")},
-            )
+            self.store.update(sim_id, **{k: before.get(k) for k in running})
             raise
         self.store.update(sim_id, RUNNING_ON=running_on)
+
+    def _kill(self, sim: dict) -> None:
+        try:
+            self.launcher.stop(sim.get("RUNNING_ON"))
+        except JobNotKilled as error:
+            raise _refuse(
+                "job_not_killed",
+                f"{error}; the sim is left as it was: end that program by hand, then try again",
+            ) from None
 
     def _sim(self, sim_id: int) -> dict:
         sim = self.store.sim(sim_id)

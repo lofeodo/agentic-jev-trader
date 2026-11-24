@@ -96,3 +96,11 @@ def test_only_the_local_launcher_is_built_so_far(tmp_path):
         launcher_named("kubernetes", tmp_path, "TRADING_AGENT")
     with pytest.raises(ValueError, match="local"):
         launcher_named("ssh", tmp_path, "TRADING_AGENT")
+
+
+def test_a_mark_without_a_start_time_cannot_be_confirmed_so_nothing_is_killed(launcher):
+    """`pid 1234` alone could name any program now, another sim's job included."""
+    mark = launcher.start(12)
+
+    assert launcher.stop(f"pid {pid_of(mark)}") is False
+    assert launcher.is_running(mark)

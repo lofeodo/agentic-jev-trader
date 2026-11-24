@@ -33,14 +33,14 @@ export const fetchLive = (id: number, afterStep: number | null) =>
 export const fetchMoment = (id: number, at: string) =>
   read<Moment>(`/sims/${id}/moment?at=${encodeURIComponent(at)}`);
 
-// An order to the API was refused: every reason, each saying how to fix it.
+// A request to the API was refused: every reason, each saying how to fix it.
 export class RefusedError extends Error {
   constructor(public refusals: Refusal[]) {
     super(refusals.map((r) => r.message).join("; "));
   }
 }
 
-async function order<T>(path: string, body?: unknown): Promise<T> {
+async function post<T>(path: string, body?: unknown): Promise<T> {
   const answer = await fetch(`/api${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -51,7 +51,7 @@ async function order<T>(path: string, body?: unknown): Promise<T> {
   return answer.json() as Promise<T>;
 }
 
-export const stopSim = (id: number) => order<SimHeader>(`/sims/${id}/stop`);
+export const stopSim = (id: number) => post<SimHeader>(`/sims/${id}/stop`);
 // `spendingCapUsd`: a new cap, needed only when the spending cap stopped the sim.
 export const resumeSim = (id: number, spendingCapUsd: number | null) =>
-  order<SimHeader>(`/sims/${id}/resume`, { spending_cap_usd: spendingCapUsd });
+  post<SimHeader>(`/sims/${id}/resume`, { spending_cap_usd: spendingCapUsd });
