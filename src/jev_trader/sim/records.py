@@ -208,7 +208,14 @@ def position_decision_row(
     }
 
 
-def _decision_columns(sim_id, dataset, step, asset, skipped_because, reply) -> dict:
+def _decision_columns(
+    sim_id: int,
+    dataset: int,
+    step: int,
+    asset: str,
+    skipped_because: str | None,
+    reply: JevReply | None,
+) -> dict:
     return {
         "ID": decision_id(sim_id, step, asset),
         "SIM": sim_id,

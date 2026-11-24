@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from jev_trader.broker import load_stop_price_settings, load_trading_costs
+from jev_trader.broker import Direction, load_stop_price_settings, load_trading_costs
 from jev_trader.jev.full_evaluation import candidate_trades
 from jev_trader.jev.reading import (
     AccountView,
@@ -233,7 +233,7 @@ def position_views(story, since=None, end_of_session=False):
         {**story, "asset": story["later"], "account": story["accountLater"]}
     )
     position = PositionView(
-        direction=p["direction"],
+        direction=Direction(p["direction"]),
         put_in=p["putIn"],
         bars_ago=p["barsAgo"],
         entry_price=p["entryPrice"],

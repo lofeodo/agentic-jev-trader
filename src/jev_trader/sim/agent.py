@@ -27,8 +27,8 @@ For each asset with an open position:
    how much in request 2, smallest first and largest first.
 
 Every full evaluation and every position review is stored as an episode on its decision record.
-In the agent without memory the background holds no track record and no past episodes, and says
-nothing about their absence.
+In the agent without memory the background holds no scorecard lines and no past episodes, and
+says nothing about their absence.
 
 What the agent keeps between steps, saved with the account so a resumed sim carries on the same:
 for each open position, the situation it was opened in and its journal (what was done at each
@@ -411,7 +411,7 @@ class _PositionAtStep(_AssetAtStep):
         put_in = p.units * p.average_price
         profit = broker.profit_if_closed(self.asset)
         return PositionView(
-            direction=str(p.direction),
+            direction=p.direction,
             put_in=put_in,
             bars_ago=self.bar_number,
             entry_price=p.entry_price,
@@ -446,16 +446,7 @@ class _PositionAtStep(_AssetAtStep):
         answers = {q: reply.choice(q, names) for q in copies}
         thesis_intact = reply.noul("thesis_intact")
         review = Review(
-            standing={
-                "direction": position.direction,
-                "put_in": position.put_in,
-                "bars_open": position.bars_ago,
-                "profit": position.profit,
-                "percent": position.percent,
-                "stop_distance": position.stop_share(self.view.price),
-                "best": position.best,
-                "worst": position.worst,
-            },
+            standing=position.standing(self.view.price),
             end_of_session=position.end_of_session,
             answers={**answers, "thesis_intact": thesis_intact},
             action=read_action(average_copies(list(answers.values()))),

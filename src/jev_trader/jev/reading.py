@@ -80,7 +80,7 @@ class AssetView:
 class PositionView:
     """The open position under a position screen or review: its journal, as Jev reads it."""
 
-    direction: str  # "long" or "short"
+    direction: Direction
     put_in: float  # dollars put into what is held now
     bars_ago: int  # bars since the one it was opened in
     entry_price: float
@@ -97,7 +97,7 @@ class PositionView:
 
     @property
     def is_long(self) -> bool:
-        return self.direction == str(Direction.LONG)
+        return self.direction is Direction.LONG
 
     def stop_share(self, price: float) -> float:
         """How far the stop price is from `price`, as a share of it."""
@@ -106,6 +106,20 @@ class PositionView:
     def risk_used(self, price: float) -> float:
         """What the whole position loses if the price goes from `price` to the stop price."""
         return self.worth * self.stop_share(price)
+
+    def standing(self, price: float) -> dict:
+        """How the position stands at `price`, as a review's episode stores it: "open 6 bars,
+        +$18, stop price 0.9% away"."""
+        return {
+            "direction": str(self.direction),
+            "put_in": self.put_in,
+            "bars_open": self.bars_ago,
+            "profit": self.profit,
+            "percent": self.percent,
+            "stop_distance": self.stop_share(price),
+            "best": self.best,
+            "worst": self.worst,
+        }
 
 
 @dataclass(frozen=True)
@@ -176,7 +190,7 @@ _LAYOUT_TRADES = (
 _LAYOUT_ORDERS = [[t.name for t in _LAYOUT_TRADES] + [NO_TRADE]] * SHUFFLED_COPIES
 # An end-of-session long, so the layout carries every line a position's record can have.
 _LAYOUT_POSITION = PositionView(
-    direction="long",
+    direction=Direction.LONG,
     put_in=10.0,
     bars_ago=2,
     entry_price=99.0,
@@ -370,7 +384,7 @@ class Reading:
         options = {
             HOLD: w["action_hold"],
             CLOSE: w["action_close"].format(
-                closes="sell" if position.is_long else "buy back",
+                closes=w["close_verb"][str(position.direction)],
                 profit=_signed_dollars(position.profit),
             ),
             REDUCE: w["action_reduce"],
@@ -471,7 +485,17 @@ class Reading:
             for first, last, text in runs
         )
 
-    def _decided_request(self, asset, account, playbook, position, decided, options):
+    def _decided_request(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        position: PositionView,
+        decided: str,
+        options: dict[str, str],
+    ) -> JevRequest:
+        """Request 2: the background ending with what was decided ("reduce" or "add"), and how
+        much, asked smallest first and largest first."""
         w = self.wording
         background = self._position_background(asset, account, playbook, position)
         background += f"\n\n{w['decided_heading']}\n{w['decided_' + decided]}"
@@ -639,22 +663,22 @@ class Reading:
 
     def _position(self, asset: AssetView, position: PositionView) -> str:
         w = self.wording
-        long = position.is_long
+        direction = str(position.direction)
         lines = [
             w["position_heading"].format(
                 asset=asset.asset_id, asset_class=asset.asset_class
             ),
             w["position_opened"].format(
-                direction=position.direction.capitalize(),
+                direction=w["position_direction"][direction],
                 put_in=dollars(position.put_in),
                 bars=_bars(position.bars_ago),
                 entry=_price(position.entry_price),
             ),
             w["position_stop"].format(
                 stop=_price(position.stop_price),
-                closes="sells" if long else "buys back",
+                closes=w["stop_closes"][direction],
                 distance=_percent(position.stop_share(asset.price)),
-                side="below" if long else "above",
+                side=w["stop_side"][direction],
             ),
             w["position_now"].format(
                 worth=dollars(position.worth),

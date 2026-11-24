@@ -73,7 +73,7 @@ def candidate_trades(
 
 # Probabilities a few floating-point steps apart count as equal: Jev's are rounded to two
 # decimals, so 0.1 + 0.2 + 0.1 and 0.4 are a tie.
-_TIE = 9
+TIE_DECIMALS = 9
 
 
 def shuffled_orders(
@@ -103,10 +103,11 @@ def read_pick(
     Long 0.64 (0.34 tight, 0.21 medium, 0.09 wide), no trade 0.29, short 0.07 picks the long
     with the tight stop price.
     """
-    totals = {NO_TRADE: round(probabilities[NO_TRADE], _TIE)}
+    totals = {NO_TRADE: round(probabilities[NO_TRADE], TIE_DECIMALS)}
     for direction in Direction:
         totals[direction] = round(
-            sum(probabilities[t.name] for t in trades if t.direction is direction), _TIE
+            sum(probabilities[t.name] for t in trades if t.direction is direction),
+            TIE_DECIMALS,
         )
     best = max(totals.values())
     winners = [d for d, total in totals.items() if total == best]
@@ -115,7 +116,7 @@ def read_pick(
     # Tightest first, and max keeps the first of equals.
     return max(
         (t for t in trades if t.direction is winners[0]),
-        key=lambda t: round(probabilities[t.name], _TIE),
+        key=lambda t: round(probabilities[t.name], TIE_DECIMALS),
     ).name
 
 

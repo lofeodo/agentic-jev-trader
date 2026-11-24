@@ -17,11 +17,12 @@ Choices the spec leaves to the build (appendix 4, "Not decided by any ticket"):
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from jev_trader.jev.full_evaluation import TIE_DECIMALS
+
 HOLD, CLOSE, REDUCE, ADD = "hold", "close", "reduce", "add"
 ACTIONS = (HOLD, CLOSE, REDUCE, ADD)
 # A quarter, half, or three quarters of the position.
 REDUCE_SHARES = (0.25, 0.5, 0.75)
-_TIE = 9  # probabilities this many decimals apart are equal (see `full_evaluation`)
 
 
 def reduce_option_name(share: float) -> str:
@@ -31,7 +32,9 @@ def reduce_option_name(share: float) -> str:
 
 def read_action(probabilities: Mapping[str, float]) -> str:
     """The action with the highest averaged probability; a tie goes to the one listed first."""
-    rounded = {a: round(probabilities[a], _TIE) for a in ACTIONS if a in probabilities}
+    rounded = {
+        a: round(probabilities[a], TIE_DECIMALS) for a in ACTIONS if a in probabilities
+    }
     best = max(rounded.values())
     return next(a for a in ACTIONS if rounded.get(a) == best)
 
