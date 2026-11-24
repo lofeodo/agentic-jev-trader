@@ -32,10 +32,15 @@ from jev_trader.sim.market import (
     SnapshotsByStep,
 )
 from jev_trader.sim.store import (
+    ACTION_ADD,
+    ACTION_CLOSE,
     ACTION_ENTRY,
+    ACTION_REDUCE,
     IN_PROGRESS,
     KIND_FULL_EVALUATION,
+    KIND_POSITION_REVIEW,
     KIND_SCREEN,
+    POSITION_KINDS,
     REPLACED_BY_ID,
     SCREENED_KINDS,
     TABLES,
@@ -207,6 +212,29 @@ class SnowflakeSimStore(_Connection):
             (cut_off, sim_id, *SCREENED_KINDS),
         )
         return int(asked), int(yes)
+
+    def position_screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
+        [(asked, yes)] = self._run(
+            "SELECT COUNT(SCREEN_ANSWER), COUNT_IF(SCREEN_ANSWER >= ?) "
+            "FROM MEMORY.DECISIONS WHERE SIM = ? AND KIND IN (?, ?)",
+            (cut_off, sim_id, *POSITION_KINDS),
+        )
+        return int(asked), int(yes)
+
+    def position_review_counts(self, sim_id: int) -> dict[str, int]:
+        [(reviews, end_of_session, closes, reduces, adds)] = self._run(
+            "SELECT COUNT(*), COUNT_IF(END_OF_SESSION), COUNT_IF(ACTION = ?), "
+            "COUNT_IF(ACTION = ?), COUNT_IF(ACTION = ?) FROM MEMORY.DECISIONS "
+            "WHERE SIM = ? AND KIND = ?",
+            (ACTION_CLOSE, ACTION_REDUCE, ACTION_ADD, sim_id, KIND_POSITION_REVIEW),
+        )
+        return {
+            "reviews": int(reviews),
+            "end_of_session": int(end_of_session),
+            ACTION_CLOSE: int(closes),
+            ACTION_REDUCE: int(reduces),
+            ACTION_ADD: int(adds),
+        }
 
     def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
         [(evaluations, entries)] = self._run(

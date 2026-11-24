@@ -123,22 +123,36 @@ def jev_client_for(sim: dict) -> JevClient | None:
 
 
 def screen_report(store, sim: dict) -> list[str]:
-    """The share of screens that said yes, with the spec's stop-and-ask rule above 30%, and how
-    many full evaluations ran and opened a trade."""
+    """The shares of screens and of position screens that said yes, with the spec's stop-and-ask
+    rule when the two together are above 30% (appendix 4, section 13), and what the full
+    evaluations and position reviews did."""
     cut_off = sim["SETTINGS"]["risk_profile"]["screen_cut_off"]
     asked, yes = store.screen_counts(sim["ID"], cut_off)
-    if not asked:
-        return ["Screens: none asked."]
-    share = yes / asked
-    lines = [f"Screens: {asked} asked, {yes} said yes ({share:.1%})."]
-    if share > YES_SHARE_TO_STOP_AND_ASK:
+    held, held_yes = store.position_screen_counts(sim["ID"], cut_off)
+    lines = [
+        _yes_share("Screens", asked, yes),
+        _yes_share("Position screens", held, held_yes),
+    ]
+    if asked + held and (yes + held_yes) / (asked + held) > YES_SHARE_TO_STOP_AND_ASK:
         lines.append(
-            f"Above {YES_SHARE_TO_STOP_AND_ASK:.0%}: the developer decides what to do "
-            "before any measurement sim."
+            f"Above {YES_SHARE_TO_STOP_AND_ASK:.0%} together: the developer decides what "
+            "to do before any measurement sim."
         )
     evaluations, entries = store.full_evaluation_counts(sim["ID"])
     lines.append(f"Full evaluations: {evaluations}, trades opened: {entries}.")
+    reviews = store.position_review_counts(sim["ID"])
+    lines.append(
+        f"Position reviews: {reviews['reviews']}, {reviews['end_of_session']} at the end "
+        f"of a session; closed {reviews['close']}, reduced {reviews['reduce']}, "
+        f"added {reviews['add']}."
+    )
     return lines
+
+
+def _yes_share(name: str, asked: int, yes: int) -> str:
+    if not asked:
+        return f"{name}: none asked."
+    return f"{name}: {asked} asked, {yes} said yes ({yes / asked:.1%})."
 
 
 def default_steps_per_write(sim: dict) -> int:
