@@ -18,8 +18,9 @@ from pathlib import Path
 
 import pytest
 
-from jev_trader.broker import load_trading_costs
+from jev_trader.broker import load_stop_price_settings, load_trading_costs
 from jev_trader.jev.client import JevReply
+from jev_trader.jev.full_evaluation import Evaluation, candidate_trades
 from jev_trader.jev.reading import JevRequest, Reading
 from jev_trader.risk import load_risk_profile
 from jev_trader.sim import records as records_of
@@ -92,7 +93,7 @@ def test_a_holding_sim_over_a_published_dataset_runs_to_the_end(two_day_sim, sim
 def test_a_screens_records_are_written_and_its_cost_is_summed(
     sim_login, made_up_dataset, remove_sims
 ):
-    """Needs `infra/migrations/V5__jev_requests_and_decisions.sql` applied."""
+    """Needs `infra/migrations/V5__jev_requests_and_decisions.sql` and V6 applied."""
     store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
     sim_id = new_sim(store, market, made_up_dataset(days=2), remove_sims, last_step=192)
     store.update(sim_id, STATUS="running")
@@ -142,6 +143,60 @@ def test_a_screens_records_are_written_and_its_cost_is_summed(
             "SELECT SCREEN_ANSWER FROM MEMORY.DECISIONS WHERE SIM = ?", (sim_id,)
         )
         assert cur.fetchone() == (0.62,)
+
+
+def test_a_full_evaluation_is_written_beside_a_screen_and_both_are_counted(
+    sim_login, made_up_dataset, remove_sims
+):
+    """Needs `infra/migrations/V6__full_evaluation_columns.sql` applied."""
+    store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
+    sim_id = new_sim(store, market, made_up_dataset(days=2), remove_sims, last_step=192)
+    store.update(sim_id, STATUS="running")
+    no = JevReply('{"answers":{"screen":{"noul":0.2}}}', "jev-1", 10, 2, 0.0, 0.1, 0)
+    yes = JevReply('{"answers":{"screen":{"noul":0.8}}}', "jev-1", 10, 2, 0.0, 0.1, 0)
+    trades = candidate_trades(100.0, 0.5, load_stop_price_settings())
+    evaluation = Evaluation(
+        candidates=trades,
+        answers={"pick_1": {"long_tight_stop": 0.7, "no_trade": 0.3}},
+        pick="long_tight_stop",
+        rating=2.5,
+        size_chosen=3000.0,
+        size_after_trimming=2500.0,
+        limited_by="trade_risk",
+    )
+
+    store.write_steps(
+        sim_id,
+        None,
+        97,
+        {
+            "MEMORY.DECISIONS": [
+                records_of.decision_row(sim_id, 1, 97, "ASSET_01", None, no),
+                records_of.decision_row(
+                    sim_id, 1, 97, "ASSET_02", None, yes, evaluation, "entry"
+                ),
+            ]
+        },
+        {},
+    )
+
+    assert store.screen_counts(sim_id, 0.5) == (2, 1)
+    with sim_login.cursor() as cur:
+        cur.execute(
+            "SELECT KIND, PICK, ANSWERS:pick_1:long_tight_stop::FLOAT, "
+            "ARRAY_SIZE(CANDIDATE_TRADES), SIZE_AFTER_TRIMMING, LIMITED_BY, ACTION "
+            "FROM MEMORY.DECISIONS WHERE SIM = ? AND TIER = 2",
+            (sim_id,),
+        )
+        assert cur.fetchone() == (
+            "full_evaluation",
+            "long_tight_stop",
+            0.7,
+            6,
+            2500.0,
+            "trade_risk",
+            "entry",
+        )
 
 
 def _request_of(sim):

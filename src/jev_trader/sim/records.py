@@ -7,26 +7,41 @@ so a record stored twice by mistake shows up in the duplicate count at the end o
 - The account at a step: sim and step.
 - A nightly charge: sim, the midnight's step, its kind, and the position (or "loan").
 - A notable moment: sim, step, kind, and its number among that step's moments of that kind.
-- A decision: sim, step and asset. A Jev request and its paid call: the same, and their purpose.
+- A decision: sim, step and asset. A Jev request and its paid call: the same, and their purpose
+  (screen, pick or size).
+
+An order Jev decided carries its decision's ID; code's own orders (a stop price, a forced close,
+the sim's end, the holding sim's purchases) carry none.
 """
 
-from jev_trader.broker import Broker, Charge, Fill, Order, OrderKind
+from jev_trader.broker import Broker, Charge, ClosingReason, Fill, Order, OrderKind
 from jev_trader.jev.client import JevReply
+from jev_trader.jev.full_evaluation import Evaluation
 from jev_trader.jev.reading import JevRequest, Reading
 from jev_trader.sim.market import instrument
-from jev_trader.sim.store import now
+from jev_trader.sim.store import (
+    ACTION_NOTHING,
+    KIND_FULL_EVALUATION,
+    KIND_SCREEN,
+    now,
+)
 
 
 def order_id(sim_id: int, step_decided: int, asset: str, number: int) -> str:
     return f"{sim_id}-{step_decided}-{asset}-{number}"
 
 
-def _order_row(sim_id: int, step_decided: int, asset: str, number: int) -> dict:
+def _order_row(
+    sim_id: int, step_decided: int, asset: str, number: int, reason: ClosingReason
+) -> dict:
+    decided_by_jev = reason is ClosingReason.JEV
     return {
         "ID": order_id(sim_id, step_decided, asset, number),
         "SIM": sim_id,
         "INSTRUMENT": instrument(asset),
-        "DECISION": None,  # the decision behind it: the agent's sims fill this in
+        "DECISION": decision_id(sim_id, step_decided, asset)
+        if decided_by_jev
+        else None,
         "STEP_DECIDED": step_decided,
     }
 
@@ -34,7 +49,9 @@ def _order_row(sim_id: int, step_decided: int, asset: str, number: int) -> dict:
 def waiting_order_row(sim_id: int, order: Order, position_id: int | None) -> dict:
     """An order placed and waiting for its asset's next bar. An entry has no position yet."""
     return {
-        **_order_row(sim_id, order.step_decided, order.asset, order.order_id),
+        **_order_row(
+            sim_id, order.step_decided, order.asset, order.order_id, order.reason
+        ),
         "POSITION": position_id,
         "KIND": str(order.kind),
         "REASON": str(order.reason),
@@ -60,7 +77,7 @@ def cancelled_order_row(sim_id: int, order: Order, position_id: int | None) -> d
 def filled_order_row(sim_id: int, fill: Fill) -> dict:
     grows = fill.kind in (OrderKind.ENTRY, OrderKind.ADD)
     return {
-        **_order_row(sim_id, fill.step_decided, fill.asset, fill.order_id),
+        **_order_row(sim_id, fill.step_decided, fill.asset, fill.order_id, fill.reason),
         "POSITION": fill.position_id,
         "KIND": str(fill.kind),
         "REASON": str(fill.reason),
@@ -118,8 +135,18 @@ def decision_row(
     asset: str,
     skipped_because: str | None,
     reply: JevReply | None = None,
+    evaluation: Evaluation | None = None,
+    action: str = ACTION_NOTHING,
 ) -> dict:
-    """One asset looked at, at one step. Tier 0: code alone. Tier 1: Jev answered the screen."""
+    """One asset looked at, at one step. Tier 0: code alone. Tier 1: Jev answered the screen.
+
+    Tier 2: the screen said yes and a full evaluation ran. Its record is the episode: the
+    candidate trades, Jev's answers copy by copy, the pick, the size chosen, what the limits left
+    of it and which limit trimmed it, and what was done ("entry" or "nothing"). Every row has
+    every column, so rows of all tiers are written together.
+    """
+    tier = 0 if reply is None else 1 if evaluation is None else 2
+    e = evaluation
     return {
         "ID": decision_id(sim_id, step, asset),
         "SIM": sim_id,
@@ -127,12 +154,19 @@ def decision_row(
         "DATASET": dataset,
         "ASSET": asset,
         "STEP": step,
-        "KIND": "screen",
-        "TIER": 0 if reply is None else 1,
+        "KIND": KIND_FULL_EVALUATION if tier == 2 else KIND_SCREEN,
+        "TIER": tier,
         "SCREEN_ANSWER": None if reply is None else reply.noul("screen"),
         "SKIPPED_BECAUSE": skipped_because,
         "JEV_VERSION": None if reply is None else reply.model,
-        "ACTION": "nothing",
+        "CANDIDATE_TRADES": e and [t.as_record() for t in e.candidates],
+        "ANSWERS": e and e.answers,
+        "PICK": e and e.pick,
+        "RATING": e and e.rating,
+        "SIZE_CHOSEN": e and e.size_chosen,
+        "SIZE_AFTER_TRIMMING": e and e.size_after_trimming,
+        "LIMITED_BY": e and e.limited_by,
+        "ACTION": action,
     }
 
 
@@ -143,15 +177,16 @@ def jev_request_row(
     reading: Reading,
     request: JevRequest,
     reply: JevReply,
+    purpose: str = "screen",
 ) -> dict:
     """A request and its answer, word for word. The opening is stored once per reading version."""
     return {
-        "ID": f"{sim_id}-{step}-{asset}-screen",
+        "ID": f"{sim_id}-{step}-{asset}-{purpose}",
         "SIM": sim_id,
         "STEP": step,
         "ASSET": asset,
         "DECISION": decision_id(sim_id, step, asset),
-        "PURPOSE": "screen",
+        "PURPOSE": purpose,
         "READING_VERSION": reading.version,
         "BACKGROUND_AFTER_OPENING": reading.after_opening(request.background),
         "QUESTIONS": request.questions,
@@ -160,11 +195,13 @@ def jev_request_row(
     }
 
 
-def jev_call_row(sim_id: int, step: int, asset: str, reply: JevReply) -> dict:
+def jev_call_row(
+    sim_id: int, step: int, asset: str, reply: JevReply, purpose: str = "screen"
+) -> dict:
     return {
-        "ID": f"{sim_id}-{step}-{asset}-screen",
+        "ID": f"{sim_id}-{step}-{asset}-{purpose}",
         "SIM": sim_id,
-        "PURPOSE": "screen",
+        "PURPOSE": purpose,
         "STEP": step,
         "ASSET": asset,
         "DECISION": decision_id(sim_id, step, asset),

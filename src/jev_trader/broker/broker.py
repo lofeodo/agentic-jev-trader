@@ -532,6 +532,30 @@ class Broker:
             new,
         )
 
+    def profit_if_closed(self, asset: str) -> float:
+        """What the position would have made, after every trading cost, if closed at the last price.
+
+        $4,000 of crypto bought at $100.05 for $4,004 with its fee, sold at $100 less slippage
+        ($99.95) and a 0.1% fee, leaves about -$12.
+        """
+        position = self.positions[asset]
+        is_long = position.direction is Direction.LONG
+        closing_side = Side.SELL if is_long else Side.BUY
+        value = position.units * self._price_paid(self.last_prices[asset], closing_side)
+        fee = self._commission_or_fee(asset, value)
+        return position.cash_flow + (value if is_long else -value) - fee
+
+    def _price_paid(self, base_price: float, side: Side) -> float:
+        """The price an order is carried out at: slippage makes it worse for either side."""
+        slippage = self.costs.slippage if side is Side.BUY else -self.costs.slippage
+        return base_price * (1 + slippage)
+
+    def _commission_or_fee(self, asset: str, value: float) -> float:
+        """A stock order's flat commission, or a crypto order's trading fee on its value."""
+        if self.asset_classes[asset] is AssetClass.STOCK:
+            return self.costs.stock_commission
+        return value * self.costs.crypto_trading_fee
+
     def loan(self) -> float:
         """What the account owes for the positions it bought beyond its own cash.
 
@@ -706,8 +730,7 @@ class Broker:
         grows = order.kind.grows
         is_long = position.direction is Direction.LONG
         side = Side.BUY if grows == is_long else Side.SELL
-        slippage = self.costs.slippage if side is Side.BUY else -self.costs.slippage
-        price = base_price * (1 + slippage)
+        price = self._price_paid(base_price, side)
         if grows:
             units = order.amount / price
         elif order.kind is OrderKind.REDUCE:
@@ -715,10 +738,7 @@ class Broker:
         else:
             units = position.units
         value = units * price
-        if self.asset_classes[order.asset] is AssetClass.STOCK:
-            commission_or_trading_fee = self.costs.stock_commission
-        else:
-            commission_or_trading_fee = value * self.costs.crypto_trading_fee
+        commission_or_trading_fee = self._commission_or_fee(order.asset, value)
         slippage_cost = units * abs(price - base_price)
 
         cash_change = (

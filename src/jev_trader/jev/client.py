@@ -61,17 +61,40 @@ class JevReply:
 
     def noul(self, question: str) -> float:
         """The probability of yes, from 0 to 1, for a yes-or-no question."""
+        return _probability(question, self._answer(question, "noul"))
+
+    def choice(self, question: str, options: list[str]) -> dict[str, float]:
+        """The probability of each of `options`, by name, for a choice question."""
+        given = self._answer(question, "probabilities")
+        if not isinstance(given, dict) or set(given) != set(options):
+            raise JevFailed(f"Jev's answer to {question} does not give each option")
+        return {name: _probability(question, given[name]) for name in options}
+
+    def score(self, question: str) -> tuple[float, dict[str, float]]:
+        """The expected level of a score question, and each level's probability."""
+        given = self._answer(question, "probabilities")
+        if not isinstance(given, dict):
+            raise JevFailed(f"Jev's answer to {question} has no probabilities")
+        score = self._answer(question, "score")
+        if isinstance(score, bool) or not isinstance(score, int | float):
+            raise JevFailed(f"Jev's answer to {question} has no score: {score}")
+        return score, {n: _probability(question, p) for n, p in given.items()}
+
+    def _answer(self, question: str, field: str):
         try:
-            value = json.loads(self.body)["answers"][question]["noul"]
+            return json.loads(self.body)["answers"][question][field]
         except (KeyError, TypeError, ValueError) as error:
             raise JevFailed(f"Jev's reply has no answer to {question}") from error
-        if (
-            isinstance(value, bool)
-            or not isinstance(value, int | float)
-            or not 0 <= value <= 1
-        ):
-            raise JevFailed(f"Jev's answer to {question} is not from 0 to 1: {value}")
-        return value
+
+
+def _probability(question: str, value) -> float:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not 0 <= value <= 1
+    ):
+        raise JevFailed(f"Jev's answer to {question} is not from 0 to 1: {value}")
+    return value
 
 
 class JevClient:

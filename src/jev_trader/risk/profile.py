@@ -57,15 +57,23 @@ class RiskProfile:
     ) -> float:
         """Jev's size: the size buckets averaged, each weighted by the probability Jev gave it.
 
-        50% on $4,000 and 50% on $8,000 gives $6,000.
+        50% on $4,000 and 50% on $8,000 gives $6,000. Jev's probabilities are rounded, so they
+        may not add up to exactly 1: the average divides by their total (0.49 and 0.49 still
+        give $6,000).
         """
         if len(probabilities) != len(self.size_buckets):
             raise ValueError(
                 f"{len(probabilities)} probabilities for {len(self.size_buckets)} size buckets"
             )
-        return sum(
-            p * bucket * account_value
-            for p, bucket in zip(probabilities, self.size_buckets, strict=True)
+        total = sum(probabilities)
+        if total <= 0:
+            raise ValueError("no probability was given to any size")
+        return (
+            sum(
+                p * bucket * account_value
+                for p, bucket in zip(probabilities, self.size_buckets, strict=True)
+            )
+            / total
         )
 
     def largest_size(
