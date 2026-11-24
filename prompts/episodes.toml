@@ -19,14 +19,16 @@ column_separator = ' | '
 # A full evaluation that traded, and how it ended
 trade = '{direction}, {stop} stop, {dollars}'
 closing_reasons = { jev = 'closed by choice', stop_price = 'closed at its stop price', forced_close = 'forced close', sim_ended = 'closed because the run ended' }
-trade_ended = '{reason} after {bars}{separator}{profit} ({percent})'
+trade_ended = '{reason} after {bars}{separator}{profit}{percent}'
+# The percent beside a profit; left out for a trade stored without the money it put in
+percent = ' ({percent})'
 # Where the price went after a decision
 price_after = 'price went {one} after 1 bar, {four} after 4 bars, {end} by the end of the day'
 
 # A position review: the position's standing, and how the trade ended counted from the review
 standing = '{direction}, {dollars}, open {bars}, {profit} ({percent}), stop price {stop} away'
-review_ended = '{reason} {bars} later{separator}{profit} ({percent})'
-closed_at_this_review = 'closed at this review{separator}{profit} ({percent})'
+review_ended = '{reason} {bars} later{separator}{profit}{percent}'
+closed_at_this_review = 'closed at this review{separator}{profit}{percent}'
 
 # A bar of the trade: the same words as an open position's journal (prompts/jev_reading.toml)
 step_bar = 'bar {bar} {entry}'
