@@ -116,6 +116,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sims/{sim_id}/measurements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sim Measurements
+         * @description The six groups of measurements, each beside holding the five assets.
+         */
+        get: operations["simMeasurements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sims/{sim_id}/moment": {
         parameters: {
             query?: never;
@@ -159,6 +179,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sims/{sim_id}/scorecard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sim Scorecard
+         * @description How the sim's closed trades did, by candle pattern, direction and asset class.
+         *
+         *     `split` (repeatable): also split each line by trend, volume level or part of the day.
+         */
+        get: operations["simScorecard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sims/{sim_id}/stop": {
         parameters: {
             query?: never;
@@ -174,6 +216,30 @@ export interface paths {
          *     on resume.
          */
         post: operations["stopSim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sims/{sim_id}/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sim Trades
+         * @description The trades table, a page at a time, oldest first.
+         *
+         *     Each of `lost_money`, `trimmed` (by a risk limit), `stop_price` (closed at it) and
+         *     `overnight` (held past midnight UTC) keeps only the trades it names; `no_trade` adds the
+         *     full evaluations that ended in no trade.
+         */
+        get: operations["simTrades"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -241,6 +307,28 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** Breakdown */
+        Breakdown: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Rows */
+            rows: components["schemas"]["BreakdownRow"][];
+            /** Says */
+            says: string;
+            /** Unit */
+            unit: string;
+        };
+        /** BreakdownRow */
+        BreakdownRow: {
+            /** Label */
+            label: string;
+            /** Trades */
+            trades: number;
+            /** Value */
+            value: number | null;
+        };
         /** Chart */
         Chart: {
             /** Lines */
@@ -271,6 +359,20 @@ export interface components {
             value: number;
         };
         /**
+         * DayMark
+         * @description Something the page marks beside the table, at the step it happened.
+         */
+        DayMark: {
+            /** Amount Usd */
+            amount_usd: number | null;
+            /** At */
+            at: string | null;
+            /** Kind */
+            kind: string;
+            /** Step */
+            step: number;
+        };
+        /**
          * DecisionLine
          * @description One asset looked at, at one step, and what came of it.
          */
@@ -290,6 +392,39 @@ export interface components {
             step: number;
             /** Tier */
             tier: number;
+        };
+        /** Figure */
+        Figure: {
+            /** Holding */
+            holding: number | null;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Says */
+            says: string;
+            /** Sim */
+            sim: number | null;
+            /** Unit */
+            unit: string;
+        };
+        /**
+         * FilterCounts
+         * @description How many lines each filter would keep, so each filter can say so.
+         */
+        FilterCounts: {
+            /** Lost Money */
+            lost_money: number;
+            /** No Trade */
+            no_trade: number;
+            /** Overnight */
+            overnight: number;
+            /** Stop Price */
+            stop_price: number;
+            /** Trades */
+            trades: number;
+            /** Trimmed */
+            trimmed: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -342,6 +477,28 @@ export interface components {
             ticks: components["schemas"]["TradeTick"][];
             /** Trades */
             trades: number;
+        };
+        /** MeasurementGroup */
+        MeasurementGroup: {
+            /** Breakdowns */
+            breakdowns: components["schemas"]["Breakdown"][];
+            /** Figures */
+            figures: components["schemas"]["Figure"][];
+            /** Key */
+            key: string;
+            /** Says */
+            says: string;
+            /** Title */
+            title: string;
+        };
+        /** Measurements */
+        Measurements: {
+            /** Groups */
+            groups: components["schemas"]["MeasurementGroup"][];
+            /** Holding Sim Id */
+            holding_sim_id: number | null;
+            /** Through Step */
+            through_step: number | null;
         };
         /**
          * Meters
@@ -518,6 +675,46 @@ export interface components {
             /** Spending Cap Usd */
             spending_cap_usd?: number | null;
         };
+        /** Scorecard */
+        Scorecard: {
+            /** Closed Trades */
+            closed_trades: number;
+            /** Lines */
+            lines: components["schemas"]["ScorecardLine"][];
+            /** Minimum Sample */
+            minimum_sample: number;
+            /** Split */
+            split: components["schemas"]["Split"][];
+        };
+        /** ScorecardLine */
+        ScorecardLine: {
+            /** Asset Class */
+            asset_class: string;
+            /** Average Gain */
+            average_gain: number | null;
+            /** Average Loss */
+            average_loss: number | null;
+            /** Direction */
+            direction: string;
+            /** Made Money */
+            made_money: number;
+            /** Part Of Day */
+            part_of_day: string | null;
+            /** Pattern */
+            pattern: string;
+            /** Share Made Money */
+            share_made_money: number;
+            /** Shown To Agent */
+            shown_to_agent: boolean;
+            /** Total Profit */
+            total_profit: number;
+            /** Trades */
+            trades: number;
+            /** Trend */
+            trend: string | null;
+            /** Volume Level */
+            volume_level: string | null;
+        };
         /** SimHeader */
         SimHeader: {
             /** Assets */
@@ -691,6 +888,64 @@ export interface components {
             spent_usd: number;
         };
         /**
+         * Split
+         * @enum {string}
+         */
+        Split: "trend" | "volume" | "part_of_day";
+        /**
+         * TradeLine
+         * @description A trade, or a full evaluation that ended in no trade (`kind` "no trade").
+         */
+        TradeLine: {
+            /** Amount Chosen */
+            amount_chosen: number | null;
+            asset: components["schemas"]["AssetName"];
+            /** Closed At */
+            closed_at: string | null;
+            /** Closed Step */
+            closed_step: number | null;
+            /** Closing Reason */
+            closing_reason: string | null;
+            /** Decided At */
+            decided_at: string | null;
+            /** Decided Step */
+            decided_step: number;
+            /** Decision */
+            decision: string | null;
+            /** Direction */
+            direction: string | null;
+            entry_price: components["schemas"]["Price"] | null;
+            exit_price: components["schemas"]["Price"] | null;
+            /** Held Overnight */
+            held_overnight: boolean;
+            /** Kind */
+            kind: string;
+            /** Limited By */
+            limited_by: string | null;
+            /** Opened At */
+            opened_at: string | null;
+            /** Opened Step */
+            opened_step: number | null;
+            /** Pick */
+            pick: string | null;
+            /** Position */
+            position: number | null;
+            /** Profit Usd */
+            profit_usd: number | null;
+            /** Put In Usd */
+            put_in_usd: number | null;
+            /** Rating */
+            rating: number | null;
+            /** Screen Answer */
+            screen_answer: number | null;
+            /** Trading Costs Usd */
+            trading_costs_usd: number | null;
+            /** Trimmed */
+            trimmed: boolean;
+            /** Units */
+            units: number | null;
+        };
+        /**
          * TradeTick
          * @description One trade: a tick on the chart where it opened.
          */
@@ -704,6 +959,20 @@ export interface components {
             opened_step: number;
             /** Position */
             position: number;
+        };
+        /** TradesTable */
+        TradesTable: {
+            counts: components["schemas"]["FilterCounts"];
+            /** Lines */
+            lines: components["schemas"]["TradeLine"][];
+            /** Marks */
+            marks: components["schemas"]["DayMark"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -924,6 +1193,37 @@ export interface operations {
             };
         };
     };
+    simMeasurements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Measurements"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     simMoment: {
         parameters: {
             query: {
@@ -1001,6 +1301,39 @@ export interface operations {
             };
         };
     };
+    simScorecard: {
+        parameters: {
+            query?: {
+                split?: components["schemas"]["Split"][] | null;
+            };
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Scorecard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     stopSim: {
         parameters: {
             query?: never;
@@ -1028,6 +1361,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Refusals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simTrades: {
+        parameters: {
+            query?: {
+                lost_money?: boolean;
+                trimmed?: boolean;
+                stop_price?: boolean;
+                overnight?: boolean;
+                no_trade?: boolean;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradesTable"];
                 };
             };
             /** @description Validation Error */

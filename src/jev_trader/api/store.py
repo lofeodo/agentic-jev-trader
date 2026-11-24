@@ -56,6 +56,30 @@ class ApiStore(Protocol):
     def asset_key(self) -> list[dict]:
         """The asset key's DATASET, MASKED_ID, TICKER, NAME, PRICE_SCALE and FIRST_DAY."""
 
+    def charges(self, sim_id: int) -> list[dict]:
+        """The sim's nightly charges (`SIM.CHARGES`), borrow fees and loan interest, by step."""
+
+    def decisions(self, sim_id: int) -> list[dict]:
+        """Every one of the sim's `MEMORY.DECISIONS` rows, by step then asset, without their
+        candidate trades (no report needs them)."""
+
+    def calls(self, sim_id: int) -> list[dict]:
+        """The sim's paid calls (`SIM.CALLS`): at least DECISION, PURPOSE, COST_USD and
+        LATENCY_SECONDS."""
+
+    def entry_details(
+        self, dataset: int, wanted: list[tuple[str, int]]
+    ) -> dict[tuple[str, int], dict]:
+        """What the dataset measured about each (asset, step) wanted, for the scorecard:
+
+        - ASSET_CLASS: "stock" or "crypto";
+        - PATTERNS: the 15-minute candle patterns of the pattern window ending at the step;
+        - LONG_TERM_TREND and VOLUME_AGAINST_NORMAL: those measurements, None if not available;
+        - BAR_NUMBER and BARS_LEFT: the bar's place in its session or UTC day (BARS_LEFT is
+          None for crypto).
+
+        A pair with no snapshot is left out."""
+
     def playbook(self) -> list[dict]:
         """Every `REF.PLAYBOOK` row, of every TA-Lib version stored."""
 
@@ -95,6 +119,7 @@ class InMemoryApiStore:
     """The API's reads over the in-memory sim store, plus a made-up asset key and closes.
 
     `closes` gives each dataset's rescaled 15-minute closes: dataset, then asset, then step.
+    `entry_details` gives each dataset's `entry_details` answers, by (asset, step).
     `playbook` gives the `REF.PLAYBOOK` rows.
     `market` holds the datasets a sim can start on.
     """
@@ -104,12 +129,14 @@ class InMemoryApiStore:
         sims: InMemorySimStore,
         asset_key: list[dict],
         closes: dict[int, dict[str, dict[int, float]]] | None = None,
+        entry_details: dict[int, dict[tuple[str, int], dict]] | None = None,
         market: InMemoryMarket | None = None,
         playbook: list[dict] | None = None,
     ):
         self._sims = sims
         self._asset_key = asset_key
         self._closes = closes or {}
+        self._entry_details = entry_details or {}
         self._playbook = playbook or []
         self._market = market or InMemoryMarket(datasets=[], bars={})
 
@@ -198,6 +225,28 @@ class InMemoryApiStore:
 
     def asset_key(self) -> list[dict]:
         return [dict(row) for row in self._asset_key]
+
+    def charges(self, sim_id):
+        return sorted(
+            (dict(r) for r in self._sims.rows("SIM.CHARGES", sim_id)),
+            key=lambda r: (r["STEP"], r["ID"]),
+        )
+
+    def decisions(self, sim_id):
+        return sorted(
+            (
+                {k: v for k, v in r.items() if k != "CANDIDATE_TRADES"}
+                for r in self._sims.rows("MEMORY.DECISIONS", sim_id)
+            ),
+            key=lambda r: (r["STEP"], r["ASSET"]),
+        )
+
+    def calls(self, sim_id):
+        return [dict(r) for r in self._sims.rows("SIM.CALLS", sim_id)]
+
+    def entry_details(self, dataset, wanted):
+        known = self._entry_details.get(dataset, {})
+        return {pair: dict(known[pair]) for pair in wanted if pair in known}
 
     def playbook(self) -> list[dict]:
         return [dict(row) for row in self._playbook]

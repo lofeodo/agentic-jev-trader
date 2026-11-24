@@ -77,7 +77,7 @@ class SimHeader(BaseModel):
 # Shared facts about one sim
 
 
-class _Sim:
+class Sim:
     """One sim's row, with its dataset's asset key, and the sims drawn beside it."""
 
     def __init__(self, store: ApiStore, sim_id: int):
@@ -174,16 +174,26 @@ def _same_days(all_sims: list[dict], row: dict) -> list[dict]:
     return sorted((s for s in all_sims if alike(s)), key=lambda s: s["ID"])
 
 
-def _holding_of(all_sims: list[dict], row: dict) -> dict | None:
+def holding_of(all_sims: list[dict], row: dict) -> dict | None:
+    """The holding sim over the same days, drawn and measured beside this one."""
     if row["VARIANT"] == HOLDING:
         return None
     return holding_sims(all_sims).get(stretch(row))
 
 
+def never_changes(store: ApiStore, sim_id: int) -> bool:
+    """The sim has finished, and so has the holding sim it is measured beside, if any."""
+    row = store.sim(sim_id)
+    if row is None or row["STATUS"] != SimStatus.FINISHED:
+        return False
+    holding = holding_of(store.sims(), row)
+    return holding is None or holding["STATUS"] == SimStatus.FINISHED
+
+
 def _lines_drawn(all_sims: list[dict], row: dict) -> list[tuple[int, str, str]]:
     """(sim, role, label) for every line on the sim's chart, the sim's own first."""
     drawn = [(row["ID"], "sim", sim_name(row))]
-    holding = _holding_of(all_sims, row)
+    holding = holding_of(all_sims, row)
     if holding is not None:
         drawn.append((holding["ID"], "holding", HOLDING_LABEL))
     others = _same_days(all_sims, row)
@@ -199,30 +209,30 @@ def _points(rows: list[dict]) -> list[ChartPoint]:
     return [ChartPoint(step=r["STEP"], value=r["ACCOUNT_VALUE"]) for r in rows]
 
 
-def _carried_out(orders: list[dict]) -> list[dict]:
+def carried_out(orders: list[dict]) -> list[dict]:
     return sorted(
         (o for o in orders if o["STATUS"] == "carried out"),
         key=lambda o: (o["STEP_CARRIED_OUT"], o["ID"]),
     )
 
 
-def _asset_of(order: dict) -> str:
+def asset_of(order: dict) -> str:
     return order["INSTRUMENT"].removesuffix("_SPOT")
 
 
-def _direction(entry: dict) -> str:
+def direction_of(entry: dict) -> str:
     """An entry's side gives its position's direction: a buy opens a long, a sell a short."""
     return "long" if entry["SIDE"] == "buy" else "short"
 
 
-def _ticks(sim: "_Sim", orders: list[dict]) -> list[TradeTick]:
+def _ticks(sim: Sim, orders: list[dict]) -> list[TradeTick]:
     ticks: dict[int, TradeTick] = {}
-    for order in _carried_out(orders):
+    for order in carried_out(orders):
         if order["KIND"] == "entry":
             ticks[order["POSITION"]] = TradeTick(
                 position=order["POSITION"],
-                asset=sim.asset(_asset_of(order)),
-                direction=_direction(order),
+                asset=sim.asset(asset_of(order)),
+                direction=direction_of(order),
                 opened_step=order["STEP_CARRIED_OUT"],
                 closed_step=None,
             )
@@ -232,7 +242,7 @@ def _ticks(sim: "_Sim", orders: list[dict]) -> list[TradeTick]:
 
 
 def chart(store: ApiStore, sim_id: int, window_steps: int) -> Chart:
-    sim = _Sim(store, sim_id)
+    sim = Sim(store, sim_id)
     drawn = _lines_drawn(store.sims(), sim.row)
     rows = store.account_steps([line_sim for line_sim, _, _ in drawn])
     return Chart(
@@ -351,17 +361,17 @@ class LiveFigures(BaseModel):
 LATEST_ORDERS = 8  # and as many decisions
 
 
-def _price(sim: "_Sim", masked_id: str, rescaled: float) -> Price:
+def price_of(sim: Sim, masked_id: str, rescaled: float) -> Price:
     key = sim.key.get(masked_id)
     return Price(real=rescaled / key["PRICE_SCALE"] if key else None, rescaled=rescaled)
 
 
-def _real_units(sim: "_Sim", masked_id: str, units: float) -> float:
+def real_units(sim: Sim, masked_id: str, units: float) -> float:
     key = sim.key.get(masked_id)
     return units * key["PRICE_SCALE"] if key else units
 
 
-def _open_position(sim: "_Sim", held: dict, last_prices: dict) -> OpenPosition:
+def _open_position(sim: Sim, held: dict, last_prices: dict) -> OpenPosition:
     asset = held["asset"]
     last = last_prices.get(asset)
     sign = 1 if held["direction"] == "long" else -1
@@ -369,10 +379,10 @@ def _open_position(sim: "_Sim", held: dict, last_prices: dict) -> OpenPosition:
         position=held["position_id"],
         asset=sim.asset(asset),
         direction=held["direction"],
-        units=_real_units(sim, asset, held["units"]),
-        entry_price=_price(sim, asset, held["entry_price"]),
-        price_now=None if last is None else _price(sim, asset, last),
-        stop_price=held["stop_price"] and _price(sim, asset, held["stop_price"]),
+        units=real_units(sim, asset, held["units"]),
+        entry_price=price_of(sim, asset, held["entry_price"]),
+        price_now=None if last is None else price_of(sim, asset, last),
+        stop_price=held["stop_price"] and price_of(sim, asset, held["stop_price"]),
         value_usd=None if last is None else held["units"] * last,
         profit_so_far=None
         if last is None
@@ -384,11 +394,11 @@ def _open_position(sim: "_Sim", held: dict, last_prices: dict) -> OpenPosition:
     )
 
 
-def _order_line(sim: "_Sim", order: dict) -> OrderLine:
+def _order_line(sim: Sim, order: dict) -> OrderLine:
     return OrderLine(
         step_decided=order["STEP_DECIDED"],
         decided_at=sim.at(order["STEP_DECIDED"]),
-        asset=sim.asset(_asset_of(order)),
+        asset=sim.asset(asset_of(order)),
         kind=order["KIND"],
         side=order.get("SIDE"),
         reason=order["REASON"],
@@ -435,7 +445,7 @@ def live(
     quiet_limit: timedelta,
     after_step: int | None = None,
 ) -> LiveFigures:
-    sim = _Sim(store, sim_id)
+    sim = Sim(store, sim_id)
     row = sim.row
     all_sims = store.sims()
     reached = row.get("LAST_COMPLETED_STEP")
@@ -443,7 +453,7 @@ def live(
     value = now_row["ACCOUNT_VALUE"] if now_row else row["STARTING_VALUE"]
     start_of_day = now_row["START_OF_DAY_VALUE"] if now_row else row["STARTING_VALUE"]
 
-    holding = _holding_of(all_sims, row)
+    holding = holding_of(all_sims, row)
     holding_value = (
         None if reached is None else _holding_value_at(store, holding, reached)
     )
@@ -553,17 +563,17 @@ class NoAssetKey(ValueError):
     """The dataset has no asset key, so a real time cannot be turned into a step."""
 
 
-def _positions_then(sim: "_Sim", orders: list[dict], step: int) -> list[PositionThen]:
+def _positions_then(sim: Sim, orders: list[dict], step: int) -> list[PositionThen]:
     held: dict[int, dict] = {}
-    for order in _carried_out(orders):
+    for order in carried_out(orders):
         if order["STEP_CARRIED_OUT"] > step:
             break
         position = held.setdefault(
             order["POSITION"],
-            {"asset": _asset_of(order), "units": 0.0, "bought": 0.0, "paid": 0.0},
+            {"asset": asset_of(order), "units": 0.0, "bought": 0.0, "paid": 0.0},
         )
         if order["KIND"] == "entry":
-            position["direction"] = _direction(order)
+            position["direction"] = direction_of(order)
         if order["KIND"] in ("entry", "add"):
             position["units"] += order["UNITS"]
             position["bought"] += order["UNITS"]
@@ -581,9 +591,9 @@ def _positions_then(sim: "_Sim", orders: list[dict], step: int) -> list[Position
                 position=number,
                 asset=sim.asset(p["asset"]),
                 direction=p["direction"],
-                units=_real_units(sim, p["asset"], p["units"]),
-                average_price=_price(sim, p["asset"], p["paid"] / p["bought"]),
-                price_then=None if close is None else _price(sim, p["asset"], close),
+                units=real_units(sim, p["asset"], p["units"]),
+                average_price=price_of(sim, p["asset"], p["paid"] / p["bought"]),
+                price_then=None if close is None else price_of(sim, p["asset"], close),
                 value_usd=None if close is None else p["units"] * close,
             )
         )
@@ -591,7 +601,7 @@ def _positions_then(sim: "_Sim", orders: list[dict], step: int) -> list[Position
 
 
 def moment(store: ApiStore, sim_id: int, at: datetime, window_steps: int) -> Moment:
-    sim = _Sim(store, sim_id)
+    sim = Sim(store, sim_id)
     row = sim.row
     if sim.steps_start_at is None:
         raise NoAssetKey(f"dataset {row['DATASET']} has no asset key")
@@ -603,11 +613,11 @@ def moment(store: ApiStore, sim_id: int, at: datetime, window_steps: int) -> Mom
     step = (at - sim.steps_start_at) // BAR_LENGTH
     step = max(min(step, last), row["FIRST_STEP"])
     then = store.account_at(sim_id, step)
-    holding_value = _holding_value_at(store, _holding_of(store.sims(), row), step)
+    holding_value = _holding_value_at(store, holding_of(store.sims(), row), step)
     orders = store.orders(sim_id)
     nearby = [
         o
-        for o in _carried_out(orders)
+        for o in carried_out(orders)
         if abs(o["STEP_CARRIED_OUT"] - step) <= window_steps
     ]
     return Moment(
@@ -638,7 +648,7 @@ def moment(store: ApiStore, sim_id: int, at: datetime, window_steps: int) -> Mom
 def header(
     store: ApiStore, sim_id: int, at: datetime, quiet_limit: timedelta
 ) -> SimHeader:
-    sim = _Sim(store, sim_id)
+    sim = Sim(store, sim_id)
     row = sim.row
     days_done, days_total = days_of(row)
     reached = row.get("LAST_COMPLETED_STEP")

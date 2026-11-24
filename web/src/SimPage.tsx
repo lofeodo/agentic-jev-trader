@@ -1,8 +1,9 @@
-// The Trading sim page, its top half (spec appendix 7, section 5): the header and key figures, the
-// chart, the three meters, open positions and latest orders, and the notable moments. While the
-// sim is in progress the quick figures are asked for every second, never before the last answer
-// came back; a finished or stopped sim's page asks once. Stop and Resume sit in the header
-// (appendix 8, section 8.7); after either, the page reads the sim again.
+// The Trading sim page (spec appendix 7, section 5). This file holds its top half: the header and
+// key figures, the chart, the three meters, open positions and latest orders, and the notable
+// moments; `SimReport` the bottom half. While the sim is in progress the quick figures are asked
+// for every second, never before the last answer came back; a finished or stopped sim's page asks
+// once. Stop and Resume sit in the header (appendix 8, section 8.7); after either, the page reads
+// the sim again.
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -30,6 +31,7 @@ import {
 } from "./pieces";
 import { MomentPanel } from "./MomentPanel";
 import { SimChart } from "./SimChart";
+import { SimReport } from "./SimReport";
 import {
   dayAndTime,
   dollars,
@@ -40,7 +42,7 @@ import {
   units,
 } from "./format";
 
-// Both are settings (appendix 8, section 8.9). The 20-second one belongs to part two.
+// A setting (appendix 8, section 8.9); the 20-second one is in `SimReport`.
 const LIVE_REFRESH_MS = 1_000;
 
 // New points are added to their line; a point the line already has is skipped.
@@ -214,6 +216,8 @@ export function SimPage({ id }: { id: number }) {
         </div>
         <NotableMoments live={live} />
       </div>
+
+      <SimReport id={id} header={header} inProgress={running} firstNumber={running ? 2 : 1} />
 
       {momentStep !== null && header.steps_start_at && (
         <MomentPanel
