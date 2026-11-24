@@ -7,10 +7,13 @@ from datetime import date, datetime, timedelta
 import pytest
 
 from jev_trader.api import sim_page
+from jev_trader.api.measurements import measurements
 from jev_trader.api.playbook import playbook
+from jev_trader.api.scorecard import Split, scorecard
 from jev_trader.api.sims_list import sims_list
 from jev_trader.api.snowflake_store import SnowflakeApiStore
 from jev_trader.api.spending import spending
+from jev_trader.api.trades import Filters, trades_table
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
 from jev_trader.sim.store import now
@@ -196,6 +199,35 @@ def test_the_sim_page_reads_real_tables_and_times_the_one_second_call(
         f"\nlive figures: median {statistics.median(timings):.3f} s, "
         f"slowest {max(timings):.3f} s over {len(timings)} calls"
     )
+
+
+def test_the_sim_page_reports_read_real_tables(
+    builder, sim_login, api_login, made_up_dataset, remove_sims
+):
+    """The trades table, the measurements and the scorecard of a finished holding sim."""
+    dataset = made_up_dataset(days=3, assets=2)
+    sims, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
+    api = SnowflakeApiStore(api_login)
+    holding = create_sim(
+        sims, market, SimRequest(dataset, "buy_hold", "practice", 97, 288)
+    )
+    remove_sims.append(holding)
+    result = run_sim(sims, market, holding, steps_per_write=96)
+
+    table = trades_table(api, holding, Filters(), page=1, page_size=50)
+    report = measurements(api, holding)
+    card = scorecard(api, holding, list(Split))
+
+    assert table.total == 2
+    assert {line.closing_reason for line in table.lines} == {"sim_ended"}
+    assert all(line.held_overnight for line in table.lines)
+    [money] = [g for g in report.groups if g.key == "money"]
+    [value] = [f for f in money.figures if f.key == "ending_value"]
+    assert value.sim == pytest.approx(result.ending_value)
+    assert card.closed_trades == 2
+    # The made-up dataset has no snapshots, so no trade has anything to be filed under.
+    assert card.lines == []
+    assert api.entry_details(dataset, [("ASSET_01", 97)]) == {}
 
 
 def result_step(header):

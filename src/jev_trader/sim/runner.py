@@ -319,6 +319,8 @@ def run_sim(
         broker = Broker.from_state(
             sim["ACCOUNT_STATE"], dict(info.assets), costs, stops, risk
         )
+        if is_agent:
+            strategy.restore(sim["ACCOUNT_STATE"].get("agent"))
         start, previous = last_completed + 1, last_completed
         report(f"Resuming sim {sim_id} after step {last_completed}.")
 
@@ -373,9 +375,10 @@ def run_sim(
                             {"spent": spent, "cap": cap},
                         )
                     )
-                store.write_steps(
-                    sim_id, last_completed, step, batch.tables(), broker.state()
-                )
+                state = broker.state()
+                if is_agent:  # each open position's situation at entry and journal
+                    state["agent"] = strategy.state()
+                store.write_steps(sim_id, last_completed, step, batch.tables(), state)
                 last_completed, steps_stored = step, steps_stored + batch.steps
                 batch = _Batch()
                 report(f"Stored up to step {step} of {last_step}.")

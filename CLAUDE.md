@@ -75,7 +75,7 @@ conda run -n agentic-jev-trader python -m jev_trader.sim start --dataset 1 --var
 conda run -n agentic-jev-trader python -m jev_trader.sim resume 12
 ```
 
-Run a practice sim of the agent without memory: at most one replayed day and 25 cents (`--spending-cap 0.40` raises the cap for that one sim). It calls Jev, so it costs money: run it only with my go-ahead. It needs `infra/migrations/V5__jev_requests_and_decisions.sql` and `V6__full_evaluation_columns.sql` applied:
+Run a practice sim of the agent without memory: at most one replayed day and 25 cents (`--spending-cap 0.40` raises the cap for that one sim). It calls Jev, so it costs money: run it only with my go-ahead. It needs `infra/migrations/V5__jev_requests_and_decisions.sql`, `V6__full_evaluation_columns.sql` and `V7__position_review_columns.sql` applied:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
@@ -104,6 +104,7 @@ conda run -n agentic-jev-trader python -m jev_trader.storage save
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).
+- `.env` is gitignored, so it lives only in the main checkout: a git worktree has none. There, `tests/snowflake` skips with "Snowflake login not set" (the login is set; the worktree just can't see it), and anything else that reads `.env` finds nothing. Load the main checkout's `.env` into the environment first, never copy it: a short Python script that calls `dotenv.load_dotenv("<main checkout>/.env")` and then `pytest.main([...])`, run from the worktree.
 - A sim job started by the API runs the code of the checkout the API runs from, whichever copy is installed.
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
 - `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.

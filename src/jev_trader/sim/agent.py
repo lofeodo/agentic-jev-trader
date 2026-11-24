@@ -1,5 +1,5 @@
-"""The agent without memory: the screen, then the full evaluation (spec appendix 4, sections 3.1,
-4, 5 and 6).
+"""The agent without memory: the screen and the full evaluation for an asset with no position, the
+position screen and the position review for an open one (spec appendix 4, sections 3 to 7).
 
 At each step, for each asset with a bar and no position:
 
@@ -13,19 +13,43 @@ At each step, for each asset with a bar and no position:
    five sizes averaged with Jev's probabilities; the broker trims it to the limits and places the
    order, carried out at the asset's next bar's open.
 
-Every full evaluation is stored as an episode on its decision record, the ones ending in no
-trade included. In the agent without memory the background holds no scorecard lines and no past
-episodes, and says nothing about their absence.
+For each asset with an open position:
 
-An open position is left to code (its stop price, a forced close, the sim's last step) until the
-position screen and review arrive (ticket #100): its asset gets no decision record meanwhile.
+1. At a stock's last bar of the session nothing is asked (an order decided there would only be
+   carried out the next morning): tier 0, and the position is held.
+2. At a stock's second-to-last bar, the end-of-session review runs with no position screen first,
+   so holding a stock overnight is always decided.
+3. Otherwise the position screen: is a review worth running? Below the cut-off the position is
+   held: tier 1.
+4. The position review (tier 2). Request 1: hold, close, reduce or add, asked as five shuffled
+   copies (add left out when nothing can be added), and whether the reason for opening it still
+   holds (recorded only). The likeliest action wins. Close places the order; reduce and add ask
+   how much in request 2, smallest first and largest first.
 
-Choice the spec leaves to the build (appendix 4, "Not decided by any ticket"): an asset with no
-typical move is not screened, since no candidate trade can be built for it. The choices about the
-pick itself are in `jev_trader.jev.full_evaluation`.
+Every full evaluation and every position review is stored as an episode on its decision record.
+In the agent without memory the background holds no scorecard lines and no past episodes, and
+says nothing about their absence.
+
+What the agent keeps between steps, saved with the account so a resumed sim carries on the same:
+for each open position, the situation it was opened in and its journal (what was done at each
+of its bars). A position's bars are counted from the one it was opened in, bar 0.
+
+Choices the spec leaves to the build (appendix 4, "Not decided by any ticket"):
+
+- An asset with no typical move is not screened, since no candidate trade can be built for it.
+- A position is looked at from the bar it was opened in (bar 0) on, like any open position.
+- A stock whose second-to-last bar is missing gets no end-of-session review that day.
+- The journal's reduce says what that part would have made at the last price when it was
+  decided, as the reduce option said it; an add says what was placed after the limits. An add
+  the limits left nothing of reads "hold", since nothing changed.
+
+The choices about the pick and the action themselves are in `jev_trader.jev.full_evaluation`
+and `jev_trader.jev.position_review`.
 """
 
-from jev_trader.broker import Bar, Broker, Direction, StopPriceSettings
+import copy
+
+from jev_trader.broker import Bar, Broker, Direction, Position, StopPriceSettings
 from jev_trader.jev.client import JevClient, JevReply
 from jev_trader.jev.full_evaluation import (
     NO_TRADE,
@@ -35,17 +59,36 @@ from jev_trader.jev.full_evaluation import (
     read_pick,
     shuffled_orders,
 )
+from jev_trader.jev.position_review import (
+    ADD,
+    CLOSE,
+    HOLD,
+    REDUCE,
+    REDUCE_SHARES,
+    Review,
+    read_action,
+    reduce_option_name,
+    reduce_share,
+)
 from jev_trader.jev.reading import (
     AccountView,
     AssetView,
     JevRequest,
     PositionLine,
+    PositionView,
     Reading,
     size_option_name,
 )
+from jev_trader.risk import RiskLimit
 from jev_trader.sim import records
 from jev_trader.sim.market import Market, Snapshot
-from jev_trader.sim.store import ACTION_ENTRY, ACTION_NOTHING
+from jev_trader.sim.store import (
+    ACTION_ADD,
+    ACTION_CLOSE,
+    ACTION_ENTRY,
+    ACTION_NOTHING,
+    ACTION_REDUCE,
+)
 
 _STEPS_LOADED_AT_ONCE = 96  # a day
 NO_TYPICAL_MOVE = "no_typical_move"
@@ -75,6 +118,10 @@ class AgentWithoutMemory:
         self._snapshots: dict[int, dict[str, Snapshot]] = {}
         self._loaded_through = -1
         self._bar_steps: dict[str, list[int]] | None = None  # for "opened N bars ago"
+        # The situation an entry was decided in, by asset, until its position opens.
+        self._entries: dict[str, dict] = {}
+        # Each open position's situation at entry and its journal, by position ID (as text).
+        self._positions: dict[str, dict] = {}
 
     def on_step(
         self, step: int, broker: Broker, bars: dict[str, Bar]
@@ -86,18 +133,44 @@ class AgentWithoutMemory:
             "SIM.CALLS": [],
         }
         self._note_bars(step, broker, bars)
+        open_ids = {str(p.position_id) for p in broker.positions.values()}
+        self._positions = {k: v for k, v in self._positions.items() if k in open_ids}
         if not bars:
             return rows
         snapshots = self._snapshots_at(step)
         for asset in sorted(bars):
-            if asset in broker.positions:
-                continue  # left to code until ticket #100
-            _DecisionAtStep(
+            looked_at = (
+                _PositionAtStep if asset in broker.positions else _DecisionAtStep
+            )
+            looked_at(
                 self, step, broker, asset, bars[asset], snapshots[asset], rows
             ).run()
         return rows
 
     # What the agent keeps between steps
+
+    def state(self) -> dict:
+        """What a resumed sim needs to carry on as if it had never stopped, as plain data: a
+        copy, so later steps do not change what was saved."""
+        return copy.deepcopy({"entries": self._entries, "positions": self._positions})
+
+    def restore(self, state: dict | None) -> None:
+        if state:
+            self._entries = copy.deepcopy(state["entries"])
+            self._positions = copy.deepcopy(state["positions"])
+
+    def entry_decided(self, asset: str, snapshot: Snapshot) -> None:
+        self._entries[asset] = {
+            "situation": snapshot.situation_text,
+            "patterns": list(snapshot.patterns),
+        }
+
+    def position_record(self, position: Position) -> dict:
+        """The position's situation at entry and journal, begun when it is first looked at."""
+        key = str(position.position_id)
+        if key not in self._positions:
+            self._positions[key] = {**self._entries.pop(position.asset), "journal": []}
+        return self._positions[key]
 
     def _snapshots_at(self, step: int) -> dict[str, Snapshot]:
         if step > self._loaded_through:
@@ -155,8 +228,8 @@ class AgentWithoutMemory:
         )
 
 
-class _DecisionAtStep:
-    """One asset looked at, at one step: what is asked, decided and stored for it."""
+class _AssetAtStep:
+    """One asset looked at, at one step: what is asked of Jev and stored for it."""
 
     def __init__(
         self,
@@ -179,6 +252,49 @@ class _DecisionAtStep:
             situation=snapshot.situation_text,
             patterns=snapshot.patterns,
         )
+
+    def _ask(self, request: JevRequest, purpose: str) -> JevReply:
+        sim_id = self.agent.sim_id
+        reply = self.agent.jev.ask(request)
+        self.rows["SIM.JEV_REQUESTS"].append(
+            records.jev_request_row(
+                sim_id, self.step, self.asset, self.reading, request, reply, purpose
+            )
+        )
+        self.rows["SIM.CALLS"].append(
+            records.jev_call_row(sim_id, self.step, self.asset, reply, purpose)
+        )
+        return reply
+
+    def _shuffled(self, names: list[str]) -> list[list[str]]:
+        return shuffled_orders(names, self.agent.random_seed, self.step, self.asset)
+
+    def _placed(self, order_id: int) -> tuple[float, str | None]:
+        """An entry or add just placed: what the limits left of it, and the limit that trimmed it.
+
+        Nothing left means the broker cancelled it; it then says which limit did.
+        """
+        waiting = {o.order_id: o for o in self.broker.waiting_orders}
+        if order_id in waiting:
+            order = waiting[order_id]
+            return order.amount, order.limited_by and str(order.limited_by)
+        return 0.0, str(self.broker.blocked_orders[order_id])
+
+    def _chosen_size(self, reply: JevReply, question: str, account: AccountView):
+        """The size Jev chose, from the two mirrored copies of `question`, and its answers."""
+        risk = self.reading.risk
+        names = [size_option_name(share) for share in risk.size_buckets]
+        copies = {
+            f"{question}_{order}": reply.choice(f"{question}_{order}", names)
+            for order in ("small_first", "large_first")
+        }
+        averaged = average_copies(list(copies.values()))
+        size = risk.chosen_size([averaged[name] for name in names], account.value)
+        return size, copies
+
+
+class _DecisionAtStep(_AssetAtStep):
+    """An asset with no position: the screen, then the full evaluation."""
 
     def run(self) -> None:
         blocked_by = self.broker.entry_blocked_by(self.asset, self.snapshot.bars_left)
@@ -206,9 +322,8 @@ class _DecisionAtStep:
             self.view.price, self.snapshot.typical_move, self.agent.stop_settings
         )
         names = [t.name for t in trades] + [NO_TRADE]
-        orders = shuffled_orders(names, self.agent.random_seed, self.step, self.asset)
         request = self.reading.pick_request(
-            self.view, account, self.agent.playbook, trades, orders
+            self.view, account, self.agent.playbook, trades, self._shuffled(names)
         )
         reply = self._ask(request, "pick")
         answers = {q: reply.choice(q, names) for q in request.questions}
@@ -217,27 +332,17 @@ class _DecisionAtStep:
 
     def _size_and_order(self, account: AccountView, evaluation: Evaluation) -> str:
         """Ask the size, place the order, and say what was done: an entry, or nothing."""
-        risk = self.reading.risk
         trade = next(t for t in evaluation.candidates if t.name == evaluation.pick)
         request = self.reading.size_request(
             self.view, account, self.agent.playbook, trade
         )
         reply = self._ask(request, "size")
-        names = [size_option_name(share) for share in risk.size_buckets]
-        copies = [
-            reply.choice(q, names) for q in ("size_small_first", "size_large_first")
-        ]
+        evaluation.size_chosen, copies = self._chosen_size(reply, "size", account)
         score, levels = reply.score("rating")
         evaluation.answers.update(
-            size_small_first=copies[0],
-            size_large_first=copies[1],
-            rating={"score": score, "probabilities": levels},
+            copies, rating={"score": score, "probabilities": levels}
         )
         evaluation.rating = score
-        averaged = average_copies(copies)
-        evaluation.size_chosen = risk.chosen_size(
-            [averaged[name] for name in names], account.value
-        )
         order_id = self.broker.enter(
             self.asset,
             trade.direction,
@@ -246,29 +351,11 @@ class _DecisionAtStep:
             self.step,
             self.snapshot.bars_left,
         )
-        waiting = {o.order_id: o for o in self.broker.waiting_orders}
-        if order_id in waiting:
-            order = waiting[order_id]
-            evaluation.size_after_trimming = order.amount
-            evaluation.limited_by = order.limited_by and str(order.limited_by)
+        evaluation.size_after_trimming, evaluation.limited_by = self._placed(order_id)
+        if evaluation.size_after_trimming > 0:
+            self.agent.entry_decided(self.asset, self.snapshot)
             return ACTION_ENTRY
-        # The limits left nothing of it: the broker cancelled it and says which limit.
-        evaluation.size_after_trimming = 0.0
-        evaluation.limited_by = str(self.broker.blocked_orders[order_id])
         return ACTION_NOTHING
-
-    def _ask(self, request: JevRequest, purpose: str) -> JevReply:
-        sim_id = self.agent.sim_id
-        reply = self.agent.jev.ask(request)
-        self.rows["SIM.JEV_REQUESTS"].append(
-            records.jev_request_row(
-                sim_id, self.step, self.asset, self.reading, request, reply, purpose
-            )
-        )
-        self.rows["SIM.CALLS"].append(
-            records.jev_call_row(sim_id, self.step, self.asset, reply, purpose)
-        )
-        return reply
 
     def _store_decision(
         self,
@@ -286,6 +373,153 @@ class _DecisionAtStep:
                 skipped_because,
                 screen,
                 evaluation,
+                action,
+            )
+        )
+
+
+class _PositionAtStep(_AssetAtStep):
+    """An open position: the position screen, then the position review."""
+
+    def run(self) -> None:
+        self.position = self.broker.positions[self.asset]
+        self.record = self.agent.position_record(self.position)
+        self.bar_number = self.agent.bars_since(self.asset, self.position.step_opened)
+        bars_left = self.snapshot.bars_left
+        if bars_left == 0:  # a stock's last bar: only code acts on it
+            self._store_decision(str(RiskLimit.SESSION_END))
+            return
+        end_of_session = bars_left == 1
+        account = self.agent.account_view(self.broker)
+        position = self._position_view(end_of_session)
+        screen = None
+        if not end_of_session:
+            screen = self._ask(
+                self.reading.position_screen_request(
+                    self.view, account, self.agent.playbook, position
+                ),
+                "position_screen",
+            )
+            if screen.noul("position_screen") < self.reading.risk.screen_cut_off:
+                self._store_decision(None, screen)
+                return
+        review, action = self._review(account, position)
+        self._store_decision(None, screen, review, action)
+
+    def _position_view(self, end_of_session: bool) -> PositionView:
+        p, broker = self.position, self.broker
+        put_in = p.units * p.average_price
+        profit = broker.profit_if_closed(self.asset)
+        return PositionView(
+            direction=p.direction,
+            put_in=put_in,
+            bars_ago=self.bar_number,
+            entry_price=p.entry_price,
+            stop_price=p.stop_price,
+            worth=p.units * broker.last_prices[self.asset],
+            profit=profit,
+            percent=100 * profit / put_in,
+            best=profit if p.best is None else p.best,
+            worst=profit if p.worst is None else p.worst,
+            situation_at_entry=self.record["situation"],
+            patterns_at_entry=tuple(self.record["patterns"]),
+            since=self.reading.since(self.record["journal"]),
+            end_of_session=end_of_session,
+        )
+
+    def _review(
+        self, account: AccountView, position: PositionView
+    ) -> tuple[Review, str]:
+        """Ask the action, then how much if it is a reduce or an add, and place the order."""
+        playbook = self.agent.playbook
+        add_allowed = (
+            self.broker.add_blocked_by(self.asset, self.snapshot.bars_left) is None
+        )
+        names = list(
+            self.reading.action_options(self.view, account, position, add_allowed)
+        )
+        request = self.reading.action_request(
+            self.view, account, playbook, position, self._shuffled(names), add_allowed
+        )
+        reply = self._ask(request, "action")
+        copies = [q for q in request.questions if q.startswith("action_")]
+        answers = {q: reply.choice(q, names) for q in copies}
+        thesis_intact = reply.noul("thesis_intact")
+        review = Review(
+            standing=position.standing(self.view.price),
+            end_of_session=position.end_of_session,
+            answers={**answers, "thesis_intact": thesis_intact},
+            action=read_action(average_copies(list(answers.values()))),
+            thesis_intact=thesis_intact,
+        )
+        if review.action == CLOSE:
+            self.broker.close(self.asset, self.step)
+            return review, ACTION_CLOSE
+        if review.action == REDUCE:
+            return review, self._reduce(account, position, review)
+        if review.action == ADD:
+            return review, self._add(account, position, review)
+        return review, ACTION_NOTHING
+
+    def _reduce(self, account: AccountView, position: PositionView, review: Review):
+        request = self.reading.reduce_request(
+            self.view, account, self.agent.playbook, position
+        )
+        reply = self._ask(request, "reduce")
+        names = [reduce_option_name(share) for share in REDUCE_SHARES]
+        copies = {q: reply.choice(q, names) for q in request.questions}
+        review.answers.update(copies)
+        review.reduce_share = reduce_share(average_copies(list(copies.values())))
+        self.broker.reduce(
+            self.asset, review.reduce_share * self.position.units, self.step
+        )
+        self._journal(
+            REDUCE,
+            share=review.reduce_share,
+            profit=review.reduce_share * position.profit,
+        )
+        return ACTION_REDUCE
+
+    def _add(self, account: AccountView, position: PositionView, review: Review):
+        request = self.reading.add_request(
+            self.view, account, self.agent.playbook, position
+        )
+        reply = self._ask(request, "add")
+        review.size_chosen, copies = self._chosen_size(reply, "add", account)
+        review.answers.update(copies)
+        order_id = self.broker.add(
+            self.asset, review.size_chosen, self.step, self.snapshot.bars_left
+        )
+        review.size_after_trimming, review.limited_by = self._placed(order_id)
+        if review.size_after_trimming > 0:
+            self._journal(ADD, amount=review.size_after_trimming)
+            return ACTION_ADD
+        return ACTION_NOTHING
+
+    def _journal(self, action: str, **details) -> None:
+        self.record["journal"].append(
+            {"bar": self.bar_number, "action": action, **details}
+        )
+
+    def _store_decision(
+        self,
+        skipped_because: str | None,
+        screen: JevReply | None = None,
+        review: Review | None = None,
+        action: str = ACTION_NOTHING,
+    ) -> None:
+        if action == ACTION_NOTHING:
+            self._journal(HOLD)
+        self.rows["MEMORY.DECISIONS"].append(
+            records.position_decision_row(
+                self.agent.sim_id,
+                self.agent.dataset,
+                self.step,
+                self.asset,
+                self.position.position_id,
+                skipped_because,
+                screen,
+                review,
                 action,
             )
         )

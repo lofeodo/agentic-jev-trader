@@ -5,9 +5,32 @@ builder that can read the asset key). The connection must use `?` placeholders.
 import json
 
 from jev_trader.api.store import DATASET_COLUMNS, DATASET_READS
+from jev_trader.dataset.measurements import MEASUREMENT_NAMES
+from jev_trader.dataset.situation_text import PATTERN_WINDOW_STEPS
 from jev_trader.dataset.snowflake_store import MOST_BOUND_VALUES
 from jev_trader.dataset.snowflake_store import SnowflakeStore as DatasetStore
 from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
+
+_LONG_TERM_TREND = MEASUREMENT_NAMES.index("long_term_trend")
+_VOLUME_AGAINST_NORMAL = MEASUREMENT_NAMES.index("volume_against_normal")
+
+# Every column of a decision but its candidate trades, which no report needs.
+_DECISION_COLUMNS = (
+    "ID",
+    "STEP",
+    "ASSET",
+    "KIND",
+    "TIER",
+    "SCREEN_ANSWER",
+    "SKIPPED_BECAUSE",
+    "ACTION",
+    "PICK",
+    "RATING",
+    "SIZE_CHOSEN",
+    "SIZE_AFTER_TRIMMING",
+    "LIMITED_BY",
+    "ANSWERS",
+)
 
 _ACCOUNT_COLUMNS = (
     "SIM",
@@ -163,6 +186,74 @@ class SnowflakeApiStore:
         columns = ("DATASET", "MASKED_ID", "TICKER", "NAME", "PRICE_SCALE", "FIRST_DAY")
         rows = self._run(f"SELECT {', '.join(columns)} FROM KEYS.ASSET_KEY")
         return [dict(zip(columns, row, strict=True)) for row in rows]
+
+    def charges(self, sim_id):
+        return self._rows(
+            "SELECT * FROM SIM.CHARGES WHERE SIM = ? ORDER BY STEP, ID", (sim_id,)
+        )
+
+    def decisions(self, sim_id):
+        rows = self._rows(
+            f"SELECT {', '.join(_DECISION_COLUMNS)} FROM MEMORY.DECISIONS "
+            "WHERE SIM = ? ORDER BY STEP, ASSET",
+            (sim_id,),
+        )
+        for row in rows:
+            if isinstance(row["ANSWERS"], str):
+                row["ANSWERS"] = json.loads(row["ANSWERS"])
+        return rows
+
+    def calls(self, sim_id):
+        return self._rows(
+            "SELECT DECISION, PURPOSE, COST_USD, LATENCY_SECONDS FROM SIM.CALLS "
+            "WHERE SIM = ?",
+            (sim_id,),
+        )
+
+    def entry_details(self, dataset, wanted):
+        found: dict[tuple[str, int], dict] = {}
+        pairs = sorted(set(wanted))
+        batch = MOST_BOUND_VALUES // 2 - 1
+        for i in range(0, len(pairs), batch):
+            part = pairs[i : i + batch]
+            marks = ", ".join("(?, ?)" for _ in part)
+            values = [value for pair in part for value in pair]
+            for asset, step, asset_class, trend, volume, bar, left in self._run(
+                "SELECT W.COLUMN1, W.COLUMN2, A.ASSET_CLASS, "
+                f"S.MEASUREMENTS[{_LONG_TERM_TREND}]::FLOAT, "
+                f"S.MEASUREMENTS[{_VOLUME_AGAINST_NORMAL}]::FLOAT, "
+                "B.BAR_NUMBER, B.BARS_LEFT "
+                f"FROM (VALUES {marks}) AS W "
+                "JOIN FEATURES.SNAPSHOTS S ON S.DATASET = ? AND S.ASSET = W.COLUMN1 "
+                "AND S.STEP = W.COLUMN2 "
+                "JOIN RAW.BARS B ON B.DATASET = S.DATASET AND B.ASSET = S.ASSET "
+                "AND B.STEP = S.STEP AND B.BAR_SIZE = '15m' "
+                "JOIN REF.ASSETS A ON A.DATASET = S.DATASET AND A.MASKED_ID = S.ASSET",
+                [*values, dataset],
+            ):
+                found[(asset, int(step))] = {
+                    "ASSET_CLASS": asset_class,
+                    "PATTERNS": [],
+                    "LONG_TERM_TREND": trend,
+                    "VOLUME_AGAINST_NORMAL": volume,
+                    "BAR_NUMBER": int(bar),
+                    "BARS_LEFT": None if left is None else int(left),
+                }
+            # Newest bar first, as the situation text lists them.
+            for asset, step, pattern in self._run(
+                "SELECT W.COLUMN1, W.COLUMN2, P.PATTERN "
+                f"FROM (VALUES {marks}) AS W "
+                "JOIN FEATURES.PATTERNS P ON P.DATASET = ? AND P.ASSET = W.COLUMN1 "
+                "AND P.BAR_SIZE = '15m' "
+                f"AND P.STEP BETWEEN W.COLUMN2 - {PATTERN_WINDOW_STEPS - 1} "
+                "AND W.COLUMN2 "
+                "ORDER BY W.COLUMN1, W.COLUMN2, P.STEP DESC, P.PATTERN",
+                [*values, dataset],
+            ):
+                names = found.get((asset, int(step)), {}).get("PATTERNS")
+                if names is not None and pattern not in names:
+                    names.append(pattern)
+        return found
 
     def spending_by_item(self) -> list[dict]:
         rows = self._rows(

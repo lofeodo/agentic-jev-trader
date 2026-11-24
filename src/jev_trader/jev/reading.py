@@ -24,6 +24,15 @@ from pathlib import Path
 
 from jev_trader.broker import Direction, TradingCosts
 from jev_trader.jev.full_evaluation import NO_TRADE, SHUFFLED_COPIES, CandidateTrade
+from jev_trader.jev.position_review import (
+    ACTIONS,
+    ADD,
+    CLOSE,
+    HOLD,
+    REDUCE,
+    REDUCE_SHARES,
+    reduce_option_name,
+)
 from jev_trader.risk import RiskLimit, RiskProfile
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "jev_reading.toml"
@@ -65,6 +74,52 @@ class AssetView:
     typical_move: float | None
     situation: str
     patterns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PositionView:
+    """The open position under a position screen or review: its journal, as Jev reads it."""
+
+    direction: Direction
+    put_in: float  # dollars put into what is held now
+    bars_ago: int  # bars since the one it was opened in
+    entry_price: float
+    stop_price: float
+    worth: float  # at the last price
+    profit: float  # what closing now would leave, after trading costs
+    percent: float  # the same, as a percentage of what was put in: 0.4 is 0.4%
+    best: float  # its best and worst profit so far, after trading costs
+    worst: float
+    situation_at_entry: str
+    patterns_at_entry: tuple[str, ...]
+    since: tuple[str, ...]  # "since then", runs already merged: ("bars 1 to 4 hold",)
+    end_of_session: bool = False  # a stock's end-of-session review
+
+    @property
+    def is_long(self) -> bool:
+        return self.direction is Direction.LONG
+
+    def stop_share(self, price: float) -> float:
+        """How far the stop price is from `price`, as a share of it."""
+        return abs(price - self.stop_price) / price
+
+    def risk_used(self, price: float) -> float:
+        """What the whole position loses if the price goes from `price` to the stop price."""
+        return self.worth * self.stop_share(price)
+
+    def standing(self, price: float) -> dict:
+        """How the position stands at `price`, as a review's episode stores it: "open 6 bars,
+        +$18, stop price 0.9% away"."""
+        return {
+            "direction": str(self.direction),
+            "put_in": self.put_in,
+            "bars_open": self.bars_ago,
+            "profit": self.profit,
+            "percent": self.percent,
+            "stop_distance": self.stop_share(price),
+            "best": self.best,
+            "worst": self.worst,
+        }
 
 
 @dataclass(frozen=True)
@@ -133,6 +188,23 @@ _LAYOUT_TRADES = (
     CandidateTrade("short_tight_stop", Direction.SHORT, "tight", 101.0, 0.01),
 )
 _LAYOUT_ORDERS = [[t.name for t in _LAYOUT_TRADES] + [NO_TRADE]] * SHUFFLED_COPIES
+# An end-of-session long, so the layout carries every line a position's record can have.
+_LAYOUT_POSITION = PositionView(
+    direction=Direction.LONG,
+    put_in=10.0,
+    bars_ago=2,
+    entry_price=99.0,
+    stop_price=98.0,
+    worth=10.0,
+    profit=1.0,
+    percent=1.0,
+    best=1.0,
+    worst=-1.0,
+    situation_at_entry="Situation.",
+    patterns_at_entry=("pattern",),
+    since=("bars 0 to 1 hold",),
+    end_of_session=True,
+)
 
 
 class Reading:
@@ -161,10 +233,15 @@ class Reading:
         )
         # A request written from fixed data carries the layout: the sections' order and joins.
         views = (_LAYOUT_ASSET, _LAYOUT_ACCOUNT, _LAYOUT_PLAYBOOK)
+        held = (*views, _LAYOUT_POSITION)
         samples = [
             self.screen_request(*views),
             self.pick_request(*views, _LAYOUT_TRADES, _LAYOUT_ORDERS),
             *(self.size_request(*views, trade) for trade in _LAYOUT_TRADES),
+            self.position_screen_request(*held),
+            self.action_request(*held, [list(ACTIONS)] * SHUFFLED_COPIES),
+            self.reduce_request(*held),
+            self.add_request(*held),
         ]
         fingerprinted = json.dumps(
             {
@@ -246,6 +323,194 @@ class Reading:
             },
         )
 
+    def position_screen_request(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        position: PositionView,
+    ) -> JevRequest:
+        """The position screen: is a review of this open position worth running now?"""
+        question = self.wording["position_screen_question"].format(asset=asset.asset_id)
+        return JevRequest(
+            background=self._position_background(asset, account, playbook, position),
+            questions={"position_screen": {"type": "noul", "instructions": question}},
+        )
+
+    def action_request(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        position: PositionView,
+        orders: list[list[str]],
+        add_allowed: bool = True,
+    ) -> JevRequest:
+        """Request 1 of a position review: hold, close, reduce or add, asked once per order, and
+        whether the reason for opening it still holds (recorded only).
+
+        `orders` lists the option names in the order each copy sends them. Without memory the
+        background is the position screen's.
+        """
+        w = self.wording
+        options = self.action_options(asset, account, position, add_allowed)
+        instructions = w["action_question"].format(asset=asset.asset_id)
+        questions = {
+            f"action_{n}": {
+                "type": "choice",
+                "instructions": instructions,
+                "criteria": {name: options[name] for name in order},
+            }
+            for n, order in enumerate(orders, start=1)
+        }
+        questions["thesis_intact"] = {
+            "type": "noul",
+            "instructions": w["thesis_intact_question"],
+        }
+        return JevRequest(
+            background=self._position_background(asset, account, playbook, position),
+            questions=questions,
+        )
+
+    def action_options(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        position: PositionView,
+        add_allowed: bool = True,
+    ) -> dict[str, str]:
+        """The actions by name, in code's own order. Add only if allowed and the limits leave room."""
+        w = self.wording
+        options = {
+            HOLD: w["action_hold"],
+            CLOSE: w["action_close"].format(
+                closes=w["close_verb"][str(position.direction)],
+                profit=_signed_dollars(position.profit),
+            ),
+            REDUCE: w["action_reduce"],
+        }
+        room, _ = self.add_room(asset, account, position)
+        if add_allowed and room > 0:
+            options[ADD] = w["action_add"].format(amount=dollars(room))
+        return options
+
+    def add_room(
+        self, asset: AssetView, account: AccountView, position: PositionView
+    ) -> tuple[float, RiskLimit]:
+        """The most code adds to the position at the last price, and the limit that sets it."""
+        return self.risk.largest_size(
+            account_value=account.value,
+            price=asset.price,
+            stop_price=position.stop_price,
+            position_value=position.worth,
+            exposure=account.exposure,
+        )
+
+    def reduce_request(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        position: PositionView,
+    ) -> JevRequest:
+        """Request 2 after a reduce: how much, asked smallest first and largest first."""
+        w = self.wording
+        options = {}
+        for rank, share in zip(w["reduce_ranks"], REDUCE_SHARES, strict=True):
+            options[reduce_option_name(share)] = w["reduce_option"].format(
+                rank=rank,
+                amount=dollars(share * position.worth),
+                profit=_signed_dollars(share * position.profit),
+                left=dollars((1 - share) * position.worth),
+            )
+        return self._decided_request(
+            asset, account, playbook, position, "reduce", options
+        )
+
+    def add_request(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        position: PositionView,
+    ) -> JevRequest:
+        """Request 2 after an add: how much more, in the five sizes of a new trade."""
+        w = self.wording
+        largest, limit = self.add_room(asset, account, position)
+        why = self._limit_words(limit)
+        stop_share = position.stop_share(asset.price)
+        options = {}
+        for rank, share in zip(w["size_ranks"], self.risk.size_buckets, strict=True):
+            asked = share * account.value
+            actual = min(asked, largest)
+            text = w["add_option"].format(
+                rank=rank, asked=dollars(asked), share=_whole_percent(share)
+            )
+            if actual < asked:
+                text += w["add_cut"].format(actual=dollars(actual), why=why)
+            text += self._borrowing(account, actual, position.is_long)
+            loss = position.risk_used(asset.price) + actual * stop_share
+            text += w["add_loss"].format(loss=dollars(loss))
+            options[size_option_name(share)] = text
+        return self._decided_request(asset, account, playbook, position, "add", options)
+
+    def since(self, journal: list[dict]) -> tuple[str, ...]:
+        """A position's "since then", from its journal: one entry a bar, runs of the same merged.
+
+        An entry is {"bar": 3, "action": "hold"}, {"bar": 4, "action": "reduce", "share": 0.25,
+        "profit": 7.0} or {"bar": 5, "action": "add", "amount": 2000.0}. A share that is not a
+        quarter, half or three quarters reads as a whole percentage ("38%").
+        """
+        w = self.wording
+        runs: list[list] = []  # [first bar, last bar, text]
+        for entry in journal:
+            if entry["action"] == REDUCE:
+                words = dict(zip(REDUCE_SHARES, w["reduce_share_words"], strict=True))
+                text = w["journal_reduce"].format(
+                    share=words.get(entry["share"], _whole_percent(entry["share"])),
+                    profit=_signed_dollars(entry["profit"]),
+                )
+            elif entry["action"] == ADD:
+                text = w["journal_add"].format(amount=dollars(entry["amount"]))
+            else:
+                text = w["journal_hold"]
+            if runs and runs[-1][2] == text:
+                runs[-1][1] = entry["bar"]
+            else:
+                runs.append([entry["bar"], entry["bar"], text])
+        return tuple(
+            w["journal_bar"].format(bar=first, entry=text)
+            if first == last
+            else w["journal_bars"].format(first=first, last=last, entry=text)
+            for first, last, text in runs
+        )
+
+    def _decided_request(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        position: PositionView,
+        decided: str,
+        options: dict[str, str],
+    ) -> JevRequest:
+        """Request 2: the background ending with what was decided ("reduce" or "add"), and how
+        much, asked smallest first and largest first."""
+        w = self.wording
+        background = self._position_background(asset, account, playbook, position)
+        background += f"\n\n{w['decided_heading']}\n{w['decided_' + decided]}"
+        question = {"type": "choice", "instructions": w[f"{decided}_question"]}
+        return JevRequest(
+            background=background,
+            questions={
+                f"{decided}_small_first": {**question, "criteria": options},
+                f"{decided}_large_first": {
+                    **question,
+                    "criteria": dict(reversed(list(options.items()))),
+                },
+            },
+        )
+
     def pick_options(
         self,
         asset: AssetView,
@@ -268,11 +533,7 @@ class Reading:
         """The five sizes by name, smallest first, each with what it borrows and loses."""
         w = self.wording
         largest, limit = self.largest_size(asset, account, trade)
-        why = {
-            RiskLimit.TRADE_RISK: w["limit_trade_risk"],
-            RiskLimit.POSITION: w["limit_position"],
-            RiskLimit.EXPOSURE: w["limit_exposure"],
-        }[limit]
+        why = self._limit_words(limit)
         options = {}
         for rank, share in zip(w["size_ranks"], self.risk.size_buckets, strict=True):
             asked = share * account.value
@@ -282,21 +543,29 @@ class Reading:
             )
             if actual < asked:
                 text += w["size_cut"].format(actual=dollars(actual), why=why)
-            if trade.direction is Direction.LONG:
-                # What the loan grows by: cash beyond the shorts' sale money pays first.
-                borrowed = (
-                    max(0.0, account.shorts - account.cash + actual) - account.loan
-                )
-                text += (
-                    w["size_borrowed"].format(borrowed=dollars(borrowed))
-                    if borrowed > 0
-                    else w["size_from_cash"]
-                )
-            else:
-                text += w["size_short"]
+            text += self._borrowing(account, actual, trade.direction is Direction.LONG)
             text += w["size_loss"].format(loss=dollars(actual * trade.stop_share))
             options[size_option_name(share)] = text
         return options
+
+    def _limit_words(self, limit: RiskLimit) -> str:
+        w = self.wording
+        return {
+            RiskLimit.TRADE_RISK: w["limit_trade_risk"],
+            RiskLimit.POSITION: w["limit_position"],
+            RiskLimit.EXPOSURE: w["limit_exposure"],
+        }[limit]
+
+    def _borrowing(self, account: AccountView, amount: float, long: bool) -> str:
+        """How much of `amount` is borrowed: for a long, what the loan grows by."""
+        w = self.wording
+        if not long:
+            return w["size_short"]
+        # Cash beyond the shorts' sale money pays first.
+        borrowed = max(0.0, account.shorts - account.cash + amount) - account.loan
+        if borrowed > 0:
+            return w["size_borrowed"].format(borrowed=dollars(borrowed))
+        return w["size_from_cash"]
 
     def largest_size(
         self, asset: AssetView, account: AccountView, trade: CandidateTrade
@@ -361,7 +630,9 @@ class Reading:
             room=dollars(max(0.0, most - account.exposure)),
         )
 
-    def _open_positions(self, positions: tuple[PositionLine, ...]) -> str:
+    def _open_positions(
+        self, positions: tuple[PositionLine, ...], heading: str | None = None
+    ) -> str:
         w = self.wording
         lines = [
             w["position_line"].format(
@@ -376,19 +647,74 @@ class Reading:
             for p in positions
         ]
         body = "\n".join(lines) if lines else w["no_open_positions"]
-        return f"{w['open_positions_heading']}\n{body}"
+        return f"{heading or w['open_positions_heading']}\n{body}"
 
-    def _asset(self, asset: AssetView) -> str:
+    def _asset(self, asset: AssetView, held: bool = False) -> str:
+        """The asset: for a position screen or review, "the asset now", after the position."""
         w = self.wording
         prices = w["last_price"].format(price=f"${asset.price:.2f}")
         if asset.typical_move is not None:
             prices += w["typical_move"].format(move=f"${asset.typical_move:.2f}")
-        heading = w["asset_heading"].format(
+        heading = w["asset_now_heading" if held else "asset_heading"].format(
             asset=asset.asset_id, asset_class=asset.asset_class
         )
-        return "\n".join(
-            [heading, w["holds_no_position"], prices, asset.situation],
-        )
+        holding = [] if held else [w["holds_no_position"]]
+        return "\n".join([heading, *holding, prices, asset.situation])
+
+    def _position(self, asset: AssetView, position: PositionView) -> str:
+        w = self.wording
+        direction = str(position.direction)
+        lines = [
+            w["position_heading"].format(
+                asset=asset.asset_id, asset_class=asset.asset_class
+            ),
+            w["position_opened"].format(
+                direction=w["position_direction"][direction],
+                put_in=dollars(position.put_in),
+                bars=_bars(position.bars_ago),
+                entry=_price(position.entry_price),
+            ),
+            w["position_stop"].format(
+                stop=_price(position.stop_price),
+                closes=w["stop_closes"][direction],
+                distance=_percent(position.stop_share(asset.price)),
+                side=w["stop_side"][direction],
+            ),
+            w["position_now"].format(
+                worth=dollars(position.worth),
+                profit=_signed_dollars(position.profit),
+                percent=_signed_percent(position.percent),
+                best=_signed_dollars(position.best),
+                worst=_signed_dollars(position.worst),
+            ),
+            w["position_entry_situation"].format(situation=position.situation_at_entry),
+            w["position_since"].format(
+                since="; ".join(position.since) or w["position_since_nothing"]
+            ),
+        ]
+        if position.end_of_session:
+            lines.append(w["end_of_session"])
+        return "\n".join(lines)
+
+    def _position_background(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        position: PositionView,
+    ) -> str:
+        """A position screen's background, which is also a position review's without memory."""
+        w = self.wording
+        others = tuple(p for p in account.positions if p.asset != asset.asset_id)
+        sections = [
+            self.opening,
+            self._account(account),
+            self._open_positions(others, w["other_positions_heading"]),
+            self._position(asset, position),
+            self._asset(asset, held=True),
+            self._pattern_notes(asset.patterns + position.patterns_at_entry, playbook),
+        ]
+        return "\n\n".join(s for s in sections if s)
 
     def _pattern_notes(
         self, names: tuple[str, ...], playbook: Mapping[str, tuple[str, str]]

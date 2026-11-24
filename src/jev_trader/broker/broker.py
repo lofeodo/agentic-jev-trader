@@ -165,6 +165,10 @@ class Position:
     amount_chosen: float | None = None
     amount_entered: float = 0.0
     limited_by: RiskLimit | None = None
+    # Its best and worst point so far: what closing would have left, after trading costs, at
+    # each of its bars' closes. None until its first bar has closed.
+    best: float | None = None
+    worst: float | None = None
 
 
 @dataclass(frozen=True)
@@ -440,6 +444,15 @@ class Broker:
             if stop_fill is not None:
                 fills.append(stop_fill)
         self.last_prices[asset] = bar.close
+        position = self.positions.get(asset)
+        if position is not None:
+            profit = self.profit_if_closed(asset)
+            position.best = (
+                profit if position.best is None else max(position.best, profit)
+            )
+            position.worst = (
+                profit if position.worst is None else min(position.worst, profit)
+            )
         return fills
 
     def charge_overnight(self, step: int) -> list[Charge]:

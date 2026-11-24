@@ -90,6 +90,72 @@
         "title": "AssetName",
         "type": "object"
       },
+      "Breakdown": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BreakdownRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "says": {
+            "title": "Says",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "unit",
+          "says",
+          "rows"
+        ],
+        "title": "Breakdown",
+        "type": "object"
+      },
+      "BreakdownRow": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "trades": {
+            "title": "Trades",
+            "type": "integer"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "label",
+          "trades",
+          "value"
+        ],
+        "title": "BreakdownRow",
+        "type": "object"
+      },
       "Chart": {
         "properties": {
           "lines": {
@@ -573,6 +639,50 @@
         "title": "DatasetsList",
         "type": "object"
       },
+      "DayMark": {
+        "description": "Something the page marks beside the table, at the step it happened.",
+        "properties": {
+          "amount_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Usd"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "at",
+          "kind",
+          "amount_usd"
+        ],
+        "title": "DayMark",
+        "type": "object"
+      },
       "DecisionLine": {
         "description": "One asset looked at, at one step, and what came of it.",
         "properties": {
@@ -641,6 +751,97 @@
           "action"
         ],
         "title": "DecisionLine",
+        "type": "object"
+      },
+      "Figure": {
+        "properties": {
+          "holding": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "says": {
+            "title": "Says",
+            "type": "string"
+          },
+          "sim": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sim"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "unit",
+          "sim",
+          "holding",
+          "says"
+        ],
+        "title": "Figure",
+        "type": "object"
+      },
+      "FilterCounts": {
+        "description": "How many lines each filter would keep, so each filter can say so.",
+        "properties": {
+          "lost_money": {
+            "title": "Lost Money",
+            "type": "integer"
+          },
+          "no_trade": {
+            "title": "No Trade",
+            "type": "integer"
+          },
+          "overnight": {
+            "title": "Overnight",
+            "type": "integer"
+          },
+          "stop_price": {
+            "title": "Stop Price",
+            "type": "integer"
+          },
+          "trades": {
+            "title": "Trades",
+            "type": "integer"
+          },
+          "trimmed": {
+            "title": "Trimmed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "trades",
+          "lost_money",
+          "trimmed",
+          "stop_price",
+          "overnight",
+          "no_trade"
+        ],
+        "title": "FilterCounts",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -866,6 +1067,85 @@
           "ticks"
         ],
         "title": "LiveFigures",
+        "type": "object"
+      },
+      "MeasurementGroup": {
+        "properties": {
+          "breakdowns": {
+            "items": {
+              "$ref": "#/components/schemas/Breakdown"
+            },
+            "title": "Breakdowns",
+            "type": "array"
+          },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/Figure"
+            },
+            "title": "Figures",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "says": {
+            "title": "Says",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "says",
+          "figures",
+          "breakdowns"
+        ],
+        "title": "MeasurementGroup",
+        "type": "object"
+      },
+      "Measurements": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "holding_sim_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holding Sim Id"
+          },
+          "through_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Through Step"
+          }
+        },
+        "required": [
+          "through_step",
+          "holding_sim_id",
+          "groups"
+        ],
+        "title": "Measurements",
         "type": "object"
       },
       "Meters": {
@@ -1681,6 +1961,148 @@
         "title": "Resumption",
         "type": "object"
       },
+      "Scorecard": {
+        "properties": {
+          "closed_trades": {
+            "title": "Closed Trades",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ScorecardLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "minimum_sample": {
+            "title": "Minimum Sample",
+            "type": "integer"
+          },
+          "split": {
+            "items": {
+              "$ref": "#/components/schemas/Split"
+            },
+            "title": "Split",
+            "type": "array"
+          }
+        },
+        "required": [
+          "minimum_sample",
+          "split",
+          "closed_trades",
+          "lines"
+        ],
+        "title": "Scorecard",
+        "type": "object"
+      },
+      "ScorecardLine": {
+        "properties": {
+          "asset_class": {
+            "title": "Asset Class",
+            "type": "string"
+          },
+          "average_gain": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Gain"
+          },
+          "average_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Loss"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "made_money": {
+            "title": "Made Money",
+            "type": "integer"
+          },
+          "part_of_day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Of Day"
+          },
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          },
+          "share_made_money": {
+            "title": "Share Made Money",
+            "type": "number"
+          },
+          "shown_to_agent": {
+            "title": "Shown To Agent",
+            "type": "boolean"
+          },
+          "total_profit": {
+            "title": "Total Profit",
+            "type": "number"
+          },
+          "trades": {
+            "title": "Trades",
+            "type": "integer"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend"
+          },
+          "volume_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Level"
+          }
+        },
+        "required": [
+          "pattern",
+          "direction",
+          "asset_class",
+          "trend",
+          "volume_level",
+          "part_of_day",
+          "trades",
+          "made_money",
+          "share_made_money",
+          "average_gain",
+          "average_loss",
+          "total_profit",
+          "shown_to_agent"
+        ],
+        "title": "ScorecardLine",
+        "type": "object"
+      },
       "SimHeader": {
         "properties": {
           "assets": {
@@ -2241,6 +2663,15 @@
         "title": "SpendingTotal",
         "type": "object"
       },
+      "Split": {
+        "enum": [
+          "trend",
+          "volume",
+          "part_of_day"
+        ],
+        "title": "Split",
+        "type": "string"
+      },
       "Stage": {
         "properties": {
           "name": {
@@ -2284,6 +2715,280 @@
         "title": "TestPeriodAsked",
         "type": "object"
       },
+      "TradeLine": {
+        "description": "A trade, or a full evaluation that ended in no trade (`kind` \"no trade\").",
+        "properties": {
+          "amount_chosen": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Chosen"
+          },
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "closed_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Step"
+          },
+          "closing_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closing Reason"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_step": {
+            "title": "Decided Step",
+            "type": "integer"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "entry_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Price"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exit_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Price"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "held_overnight": {
+            "title": "Held Overnight",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "limited_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limited By"
+          },
+          "opened_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened At"
+          },
+          "opened_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened Step"
+          },
+          "pick": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pick"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "profit_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Usd"
+          },
+          "put_in_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Put In Usd"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "screen_answer": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screen Answer"
+          },
+          "trading_costs_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trading Costs Usd"
+          },
+          "trimmed": {
+            "title": "Trimmed",
+            "type": "boolean"
+          },
+          "units": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units"
+          }
+        },
+        "required": [
+          "kind",
+          "decision",
+          "position",
+          "asset",
+          "direction",
+          "decided_step",
+          "decided_at",
+          "opened_step",
+          "opened_at",
+          "closed_step",
+          "closed_at",
+          "units",
+          "entry_price",
+          "exit_price",
+          "put_in_usd",
+          "profit_usd",
+          "trading_costs_usd",
+          "closing_reason",
+          "amount_chosen",
+          "limited_by",
+          "trimmed",
+          "held_overnight",
+          "screen_answer",
+          "pick",
+          "rating"
+        ],
+        "title": "TradeLine",
+        "type": "object"
+      },
       "TradeTick": {
         "description": "One trade: a tick on the chart where it opened.",
         "properties": {
@@ -2322,6 +3027,49 @@
           "closed_step"
         ],
         "title": "TradeTick",
+        "type": "object"
+      },
+      "TradesTable": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/FilterCounts"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/TradeLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "marks": {
+            "items": {
+              "$ref": "#/components/schemas/DayMark"
+            },
+            "title": "Marks",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "page",
+          "page_size",
+          "lines",
+          "counts",
+          "marks"
+        ],
+        "title": "TradesTable",
         "type": "object"
       },
       "ValidationError": {
@@ -2810,6 +3558,46 @@
         "summary": "Sim Live"
       }
     },
+    "/sims/{sim_id}/measurements": {
+      "get": {
+        "description": "The six groups of measurements, each beside holding the five assets.",
+        "operationId": "simMeasurements",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Measurements"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Measurements"
+      }
+    },
     "/sims/{sim_id}/moment": {
       "get": {
         "description": "The account, its positions, and the trades around one moment.\n\n`at`: a real time, UTC. The moment is the step that ended at or just before it.",
@@ -2920,6 +3708,65 @@
         "summary": "Resume Sim"
       }
     },
+    "/sims/{sim_id}/scorecard": {
+      "get": {
+        "description": "How the sim's closed trades did, by candle pattern, direction and asset class.\n\n`split` (repeatable): also split each line by trend, volume level or part of the day.",
+        "operationId": "simScorecard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "split",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Split"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Split"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scorecard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Scorecard"
+      }
+    },
     "/sims/{sim_id}/stop": {
       "post": {
         "description": "Kill the sim's job at once and mark it stopped by hand. Its half-done step is redone\non resume.",
@@ -2968,6 +3815,119 @@
           }
         },
         "summary": "Stop Sim"
+      }
+    },
+    "/sims/{sim_id}/trades": {
+      "get": {
+        "description": "The trades table, a page at a time, oldest first.\n\nEach of `lost_money`, `trimmed` (by a risk limit), `stop_price` (closed at it) and\n`overnight` (held past midnight UTC) keeps only the trades it names; `no_trade` adds the\nfull evaluations that ended in no trade.",
+        "operationId": "simTrades",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lost_money",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Lost Money",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "trimmed",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Trimmed",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stop_price",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Stop Price",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "overnight",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Overnight",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "no_trade",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "No Trade",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradesTable"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Trades"
       }
     },
     "/spending": {
