@@ -15,6 +15,17 @@ export type OrderLine = Schemas["OrderLine"];
 export type DecisionLine = Schemas["DecisionLine"];
 export type Price = Schemas["Price"];
 export type AssetName = Schemas["AssetName"];
+export type TradesTable = Schemas["TradesTable"];
+export type TradeLine = Schemas["TradeLine"];
+export type DayMark = Schemas["DayMark"];
+export type FilterCounts = Schemas["FilterCounts"];
+export type Measurements = Schemas["Measurements"];
+export type MeasurementGroup = Schemas["MeasurementGroup"];
+export type Figure = Schemas["Figure"];
+export type Breakdown = Schemas["Breakdown"];
+export type Scorecard = Schemas["Scorecard"];
+export type ScorecardLine = Schemas["ScorecardLine"];
+export type Split = Schemas["Split"];
 
 async function read<T>(path: string): Promise<T> {
   const answer = await fetch(`/api${path}`);
@@ -31,3 +42,27 @@ export const fetchLive = (id: number, afterStep: number | null) =>
 // `at` is a real UTC time as the API writes it, such as 2025-03-02T11:00:00.
 export const fetchMoment = (id: number, at: string) =>
   read<Moment>(`/sims/${id}/moment?at=${encodeURIComponent(at)}`);
+
+// The trades table's filters: each true one keeps only the trades it names; `no_trade` adds the
+// full evaluations that ended in no trade.
+export type TradeFilters = {
+  lost_money: boolean;
+  trimmed: boolean;
+  stop_price: boolean;
+  overnight: boolean;
+  no_trade: boolean;
+};
+
+export function fetchTrades(id: number, filters: TradeFilters, page: number, pageSize: number) {
+  const ask = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  for (const [name, on] of Object.entries(filters)) if (on) ask.set(name, "true");
+  return read<TradesTable>(`/sims/${id}/trades?${ask}`);
+}
+
+export const fetchMeasurements = (id: number) => read<Measurements>(`/sims/${id}/measurements`);
+
+export function fetchScorecard(id: number, split: Split[]) {
+  const ask = new URLSearchParams();
+  for (const part of split) ask.append("split", part);
+  return read<Scorecard>(`/sims/${id}/scorecard${split.length ? `?${ask}` : ""}`);
+}

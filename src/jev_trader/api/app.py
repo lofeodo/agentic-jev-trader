@@ -9,13 +9,16 @@ It has no login, so it answers only the developer's own computer, checked twice:
 
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from jev_trader.api import sim_page
+from jev_trader.api.measurements import Measurements, measurements
+from jev_trader.api.scorecard import Scorecard, Split, scorecard
 from jev_trader.api.sim_page import (
     Chart,
     LiveFigures,
@@ -26,6 +29,7 @@ from jev_trader.api.sim_page import (
 )
 from jev_trader.api.sims_list import SimsList, sims_list
 from jev_trader.api.store import ApiStore
+from jev_trader.api.trades import Filters, TradesTable, trades_table
 from jev_trader.sim.store import now
 
 LOCAL_CLIENTS = frozenset({"127.0.0.1", "::1"})
@@ -62,6 +66,20 @@ def create_app(
         return await call_next(request)
 
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=LOCAL_HOSTS)
+
+    # A finished sim never changes, so its reports are worked out once and kept here, in memory
+    # only (appendix 8, section 8.9). Nothing stores a finished report.
+    reports: dict[tuple, BaseModel] = {}
+
+    def kept[Report: BaseModel](
+        key: tuple, sim_id: int, work: Callable[[], Report]
+    ) -> Report:
+        if key in reports:
+            return reports[key]  # type: ignore[return-value]
+        report = work()
+        if sim_page.never_changes(store, sim_id):
+            reports[key] = report
+        return report
 
     @app.get("/health", operation_id="health")
     def health() -> Health:
@@ -101,6 +119,52 @@ def create_app(
             return sim_page.moment(store, sim_id, at, moment_window_steps)
         except NoAssetKey as missing:
             raise HTTPException(status_code=409, detail=str(missing)) from missing
+
+    @app.get("/sims/{sim_id}/trades", operation_id="simTrades")
+    def sim_trades(
+        sim_id: int,
+        lost_money: bool = False,
+        trimmed: bool = False,
+        stop_price: bool = False,
+        overnight: bool = False,
+        no_trade: bool = False,
+        page: Annotated[int, Query(ge=1)] = 1,
+        page_size: Annotated[int, Query(ge=1, le=500)] = 50,
+    ) -> TradesTable:
+        """The trades table, a page at a time, oldest first.
+
+        Each of `lost_money`, `trimmed` (by a risk limit), `stop_price` (closed at it) and
+        `overnight` (held past midnight UTC) keeps only the trades it names; `no_trade` adds the
+        full evaluations that ended in no trade.
+        """
+        filters = Filters(lost_money, trimmed, stop_price, overnight, no_trade)
+        return kept(
+            ("trades", sim_id, filters, page, page_size),
+            sim_id,
+            lambda: trades_table(store, sim_id, filters, page, page_size),
+        )
+
+    @app.get("/sims/{sim_id}/measurements", operation_id="simMeasurements")
+    def sim_measurements(sim_id: int) -> Measurements:
+        """The six groups of measurements, each beside holding the five assets."""
+        return kept(
+            ("measurements", sim_id), sim_id, lambda: measurements(store, sim_id)
+        )
+
+    @app.get("/sims/{sim_id}/scorecard", operation_id="simScorecard")
+    def sim_scorecard(
+        sim_id: int, split: Annotated[list[Split] | None, Query()] = None
+    ) -> Scorecard:
+        """How the sim's closed trades did, by candle pattern, direction and asset class.
+
+        `split` (repeatable): also split each line by trend, volume level or part of the day.
+        """
+        parts = sorted(set(split or []))
+        return kept(
+            ("scorecard", sim_id, tuple(parts)),
+            sim_id,
+            lambda: scorecard(store, sim_id, parts),
+        )
 
     @app.get("/spending/total", operation_id="spendingTotal")
     def spending_total() -> SpendingTotal:
