@@ -1,7 +1,6 @@
 import { fetchSpending, type SpendingItem } from "./api/client";
 import { dollarsAndCents, modelDollars } from "./format";
-import { ErrorBox, KeyFigure } from "./pieces";
-import { KINDS } from "./SimsScreen";
+import { ErrorBox, KeyFigure, KINDS, SectionHeading } from "./pieces";
 import { useRead } from "./useRead";
 
 const GROUPS = [
@@ -39,18 +38,12 @@ function Group({ n, title, says, items }: { n: number; title: string; says: stri
     <tbody>
       <tr>
         <td colSpan={COLUMNS.length} className="pt-7 pb-2">
-          <div className="flex items-stretch border-[1.5px] border-rule">
-            <span className="border-r-[1.5px] border-rule px-[1.6ch] py-2 font-mono text-[15px]">
-              {String(n).padStart(2, "0")}
-            </span>
-            <h2 className="flex flex-1 items-center gap-[2ch] px-[2ch] py-2 text-[1.15rem] tracking-[.14em] whitespace-nowrap after:flex-1 after:border-t-[1.5px] after:border-rule after:content-['']">
-              {title}
-            </h2>
-            <span className="self-center pr-[2ch] font-mono text-[13.5px] tracking-wider whitespace-nowrap text-dim">
-              {says && `${says} / `}
-              {modelDollars(total)}
-            </span>
-          </div>
+          <SectionHeading
+            number={n}
+            title={title}
+            says={`${says ? `${says} / ` : ""}${modelDollars(total)}`}
+            space=""
+          />
         </td>
       </tr>
       {items.map((item) => (
@@ -101,7 +94,11 @@ export function SpendingScreen() {
             <KeyFigure
               name="Left under the ceiling"
               figure={dollarsAndCents(spending.left_usd)}
-              says="A sim whose cap could pass it is refused"
+              says={
+                spending.reserved_usd > 0
+                  ? `After the ${modelDollars(spending.reserved_usd)} sims in progress may still spend`
+                  : "No sim in progress holds any back"
+              }
             />
             <KeyFigure name="Paid to Jev" figure={modelDollars(spending.jev_usd)} says="The decision model's answers" />
             <KeyFigure name="Paid to the LLM" figure={modelDollars(spending.llm_usd)} says="Picking past episodes from memory" />
@@ -118,9 +115,10 @@ export function SpendingScreen() {
           </div>
           <p className="mb-6 font-mono text-[13.5px] tracking-wider text-dim">
             The ceiling is the most the whole project may pay for model calls. Each sim also has its own
-            cap, one and a half times its estimate: a sim estimated at $3.00 stops itself at $4.50. A new
-            sim is refused if its cap, added to what is spent and to what running sims may still spend,
-            would pass the ceiling.
+            cap, one and a half times its estimate: a sim estimated at $3.00 stops itself at $4.50. What a
+            sim in progress has not yet spent of its cap is held back: with $10 spent and a sim in
+            progress at $1.50 of its $4.50 cap, $75 - $10 - $3 = $62 is left. A new sim is refused if its
+            cap would pass what is left.
           </p>
 
           {groups.length === 0 && (

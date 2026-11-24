@@ -54,9 +54,29 @@ export function KeyFigure({ name, figure, says, first }: { name: string; figure:
   );
 }
 
-export function SectionHeading({ number, title, says }: { number: number; title: string; says: string }) {
+// The kinds of sim, in the order screens list them, each with what it is for.
+export const KINDS: { kind: string; title: string; says: string }[] = [
+  { kind: "measurement", title: "Measurement", says: "Their results count" },
+  { kind: "build-up", title: "Build-up", says: "Fills the base memory; never counts" },
+  { kind: "free", title: "Free", says: "Days of your choice; never counts" },
+  { kind: "tuning", title: "Tuning", says: "Command-line tool; never counts" },
+  { kind: "practice", title: "Practice", says: "Command-line tool; never counts" },
+];
+
+// `space`: the room under it; a heading inside a table row has none.
+export function SectionHeading({
+  number,
+  title,
+  says,
+  space = "mb-4",
+}: {
+  number: number;
+  title: string;
+  says: string;
+  space?: string;
+}) {
   return (
-    <div className="mb-4 flex items-stretch border-[1.5px] border-rule">
+    <div className={`${space} flex items-stretch border-[1.5px] border-rule`}>
       <span className="border-r-[1.5px] border-rule px-[1.6ch] py-2 font-mono text-[15px]">
         {String(number).padStart(2, "0")}
       </span>

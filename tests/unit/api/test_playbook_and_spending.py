@@ -135,6 +135,7 @@ def test_spending_has_a_line_per_sim_in_kind_order_then_calls_outside_sims():
     assert answer.json() == {
         "spent_usd": 5.25,
         "ceiling_usd": 75.0,
+        "reserved_usd": 0.0,
         "left_usd": 69.75,
         "jev_usd": 1.75,
         "llm_usd": 3.50,
@@ -170,12 +171,38 @@ def test_spending_has_a_line_per_sim_in_kind_order_then_calls_outside_sims():
     }
 
 
+def test_what_sims_in_progress_may_still_spend_is_not_left_under_the_ceiling():
+    sims = InMemorySimStore()
+    running = add_sim(sims, "free", "memory_off")
+    sims.update(running, STATUS="running", SPENDING_CAP=4.50)
+    paid_call(sims, running, "jev", 1.50)
+    waiting = add_sim(sims, "practice", "memory_off")
+    sims.update(
+        waiting, SPENDING_CAP=0.25
+    )  # created, not started: may still spend it all
+    finished = add_sim(sims, "practice", "memory_off")
+    sims.update(finished, STATUS="finished", SPENDING_CAP=9.00)
+    paid_call(sims, finished, "jev", 8.50)
+    over = add_sim(sims, "practice", "memory_off")
+    sims.update(over, STATUS="running", SPENDING_CAP=0.25)
+    paid_call(sims, over, "jev", 0.30)  # past its cap: may spend nothing more
+
+    answer = client_for(InMemoryApiStore(sims, [])).get("/spending").json()
+
+    assert answer["spent_usd"] == 10.30
+    assert (
+        answer["reserved_usd"] == 3.25
+    )  # $3.00 of the first cap, all $0.25 of the second
+    assert answer["left_usd"] == 61.45  # $75 - $10.30 - $3.25
+
+
 def test_spending_before_any_paid_call_leaves_the_whole_ceiling():
     answer = client_for(InMemoryApiStore(InMemorySimStore(), [])).get("/spending")
 
     assert answer.json() == {
         "spent_usd": 0.0,
         "ceiling_usd": 75.0,
+        "reserved_usd": 0.0,
         "left_usd": 75.0,
         "jev_usd": 0.0,
         "llm_usd": 0.0,

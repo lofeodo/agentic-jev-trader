@@ -1,15 +1,17 @@
 import type { SpendingTotal } from "./api/client";
-import { dollarsAndCents } from "./format";
+import { dollarsAndCents, modelDollars } from "./format";
 
 export type Screen = "sims" | "playbook" | "spending";
 
-const SCREENS: { screen: Screen; title: string; href: string }[] = [
+// The menu in the spec's order (appendix 7, section 4). A screen with no address is not built
+// yet and is shown dimmed.
+const SCREENS: { screen: Screen | null; title: string; href: string | null }[] = [
   { screen: "sims", title: "Trading sims", href: "#/" },
+  { screen: null, title: "Comparison", href: null },
+  { screen: null, title: "Datasets", href: null },
   { screen: "playbook", title: "Playbook", href: "#/playbook" },
   { screen: "spending", title: "Spending", href: "#/spending" },
 ];
-// Shown dimmed until they are built.
-const LATER_SCREENS = ["Comparison", "Datasets"];
 
 export function TopBar({ spending, screen }: { spending: SpendingTotal | null; screen: Screen }) {
   return (
@@ -17,30 +19,31 @@ export function TopBar({ spending, screen }: { spending: SpendingTotal | null; s
       <div className="flex flex-wrap items-stretch border-[1.5px] border-rule">
         <span className="border-r-[1.5px] border-rule px-[2ch] py-2">Jev/Trader</span>
         <nav className="mr-auto flex flex-wrap" aria-label="Screens">
-          {SCREENS.map((s) => (
-            <a
-              key={s.screen}
-              href={s.href}
-              aria-current={s.screen === screen ? "page" : undefined}
-              className={`border-r-[1.5px] border-rule px-[2ch] py-2 ${s.screen === screen ? "bg-amber text-screen" : "hover:text-pale"}`}
-            >
-              {s.title}
-            </a>
-          ))}
-          {LATER_SCREENS.map((later) => (
-            <span
-              key={later}
-              title="Not built yet"
-              className="border-r-[1.5px] border-rule px-[2ch] py-2 text-dim"
-            >
-              {later}
-            </span>
-          ))}
+          {SCREENS.map((s) =>
+            s.href === null ? (
+              <span
+                key={s.title}
+                title="Not built yet"
+                className="border-r-[1.5px] border-rule px-[2ch] py-2 text-dim"
+              >
+                {s.title}
+              </span>
+            ) : (
+              <a
+                key={s.title}
+                href={s.href}
+                aria-current={s.screen === screen ? "page" : undefined}
+                className={`border-r-[1.5px] border-rule px-[2ch] py-2 ${s.screen === screen ? "bg-amber text-screen" : "hover:text-pale"}`}
+              >
+                {s.title}
+              </a>
+            ),
+          )}
         </nav>
         <a href="#/spending" className="self-center px-[2ch] py-2 text-dim hover:text-pale">
           Models:{" "}
           <b className="font-normal text-amber">
-            {spending ? dollarsAndCents(spending.spent_usd) : "..."}
+            {spending ? modelDollars(spending.spent_usd) : "..."}
           </b>
           {spending && ` of ${dollarsAndCents(spending.ceiling_usd)} spent`}
         </a>

@@ -562,6 +562,8 @@ export interface components {
             left_usd: number;
             /** Llm Usd */
             llm_usd: number;
+            /** Reserved Usd */
+            reserved_usd: number;
             /** Spent Usd */
             spent_usd: number;
         };

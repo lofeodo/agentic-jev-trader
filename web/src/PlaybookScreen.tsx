@@ -3,9 +3,9 @@ import { ErrorBox, Pair } from "./pieces";
 import { useRead } from "./useRead";
 
 const LEANS: { lean: string; says: string }[] = [
-  { lean: "bullish", says: "bets the price rises" },
-  { lean: "bearish", says: "bets the price falls" },
-  { lean: "neutral", says: "no bet either way" },
+  { lean: "bullish", says: "hints the price will rise" },
+  { lean: "bearish", says: "hints the price will fall" },
+  { lean: "neutral", says: "indecision" },
 ];
 
 const th = "border-b border-rule py-[.4rem] pr-[2ch] text-left font-mono text-[13.5px] font-light tracking-wider text-dim";
@@ -46,11 +46,13 @@ export function PlaybookScreen() {
             <Pair name="TA-Lib" value={playbook.talib_version ?? "--"} />
           </div>
           <p className="mb-6 font-mono text-[13.5px] tracking-wider text-dim">
-            A candle (a bar) shows one stretch of trading: where the price opened, its high, its low and where it
-            closed. A candle pattern is a shape the last few candles make, such as a big rising candle
-            that swallows the falling one before it (bullish engulfing). The lean is what the pattern
-            bets on: bullish, the price rises ($100 to $103); bearish, it falls; neutral, no bet. The
-            shape is TA-Lib's own description: TA-Lib is the library that spots the patterns.
+            A bar shows 15 minutes of trading: where the price opened, its high, its low and where it
+            closed. A candle pattern is a shape one to five bars in a row make, such as a big rising bar
+            that swallows the falling one before it (bullish engulfing). The lean is the hint traders read
+            in it: bullish, the price will rise (say from $100 to $103); bearish, it will fall; neutral,
+            indecision. A lean is only a hint, not a trade. The shape is TA-Lib's own description: TA-Lib
+            is the library that spots the patterns, and the small name under each pattern is its
+            detector in TA-Lib.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full border-separate border-spacing-0">

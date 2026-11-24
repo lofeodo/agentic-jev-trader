@@ -1346,6 +1346,10 @@
             "title": "Llm Usd",
             "type": "number"
           },
+          "reserved_usd": {
+            "title": "Reserved Usd",
+            "type": "number"
+          },
           "spent_usd": {
             "title": "Spent Usd",
             "type": "number"
@@ -1354,6 +1358,7 @@
         "required": [
           "spent_usd",
           "ceiling_usd",
+          "reserved_usd",
           "left_usd",
           "jev_usd",
           "llm_usd",
