@@ -5,12 +5,15 @@
 
 `serve` logs in to Snowflake as the API login (`SNOWFLAKE_ACCOUNT` and
 `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`, the key `api.p8` in `SNOWFLAKE_LOCAL_DIR`) and
-listens on this computer only. `describe` needs no login. Output is plain ASCII: `conda run` on
+listens on this computer only. It starts sims' jobs as `JOB_LAUNCHER` in `.env` says (`local`,
+the default: programs on this computer, each printing to `logs/sims/sim-<id>.log`), on the
+database it serves. `describe` needs no login. Output is plain ASCII: `conda run` on
 Windows fails on other characters.
 """
 
 import argparse
 import json
+import os
 import sys
 import tomllib
 from datetime import timedelta
@@ -21,10 +24,12 @@ from dotenv import load_dotenv
 from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.broker.config import CONFIG_DIR
+from jev_trader.jobs import launcher_named
 from jev_trader.sim.store import InMemorySimStore
 from jev_trader.storage.snowflake import DATABASE, LoginNotSet, connect
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+JOB_LOGS = REPO_ROOT / "logs" / "sims"
 
 
 def load_settings(path: Path = CONFIG_DIR / "api.toml") -> dict:
@@ -38,6 +43,7 @@ def describe(path: Path) -> None:
         InMemoryApiStore(InMemorySimStore(), []),
         spending_ceiling=0.0,
         not_responding_after=timedelta(0),
+        launcher=launcher_named("local", JOB_LOGS, DATABASE),
     )
     text = json.dumps(app.openapi(), indent=2, sort_keys=True) + "\n"
     path.write_text(text, encoding="utf-8", newline="\n")
@@ -50,6 +56,13 @@ def serve(database: str, port: int) -> int:
 
     load_dotenv(REPO_ROOT / ".env")
     try:
+        launcher = launcher_named(
+            os.environ.get("JOB_LAUNCHER") or "local", JOB_LOGS, database
+        )
+    except ValueError as refused:
+        print(refused)
+        return 2
+    try:
         connection = connect("api", database=database)
     except LoginNotSet as missing:
         print(missing)
@@ -60,6 +73,7 @@ def serve(database: str, port: int) -> int:
         spending_ceiling=settings["spending_ceiling_usd"],
         not_responding_after=timedelta(minutes=settings["not_responding_minutes"]),
         moment_window_steps=settings["moment_window_steps"],
+        launcher=launcher,
     )
     try:
         uvicorn.run(app, host="127.0.0.1", port=port)

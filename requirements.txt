@@ -24,6 +24,8 @@ fastapi==0.162.3
 pydantic==2.14.3
 starlette==1.10.0
 uvicorn==0.54.0
+# Finding and killing a sim's job by process number, after confirming it is that job
+psutil==7.2.2
 
 # Tests
 pytest==9.2.0
