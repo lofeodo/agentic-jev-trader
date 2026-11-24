@@ -35,6 +35,13 @@ export type Comparison = Schemas["Comparison"];
 export type MarketComparison = Schemas["MarketComparison"];
 export type ModelResult = Schemas["ModelResult"];
 export type GapLine = Schemas["GapLine"];
+export type DatasetLine = Schemas["DatasetLine"];
+export type DatasetsList = Schemas["DatasetsList"];
+export type DatasetPage = Schemas["DatasetPage"];
+export type DatasetToBuild = Schemas["DatasetToBuild"];
+export type DatasetStarted = Schemas["DatasetStarted"];
+export type QualityCheck = Schemas["QualityCheck"];
+export type PriceChart = Schemas["PriceChart"];
 
 async function read<T>(path: string): Promise<T> {
   const answer = await fetch(`/api${path}`);
@@ -47,6 +54,11 @@ export const fetchSpendingTotal = () => read<SpendingTotal>("/spending/total");
 export const fetchSpending = () => read<Spending>("/spending");
 export const fetchPlaybook = () => read<Playbook>("/playbook");
 export const fetchComparison = () => read<Comparison>("/comparison");
+export const fetchDatasets = () => read<DatasetsList>("/datasets");
+export const fetchDataset = (id: number) => read<DatasetPage>(`/datasets/${id}`);
+// `ticker`: the asset's real ticker, such as AAPL.
+export const fetchDatasetBars = (id: number, ticker: string) =>
+  read<PriceChart>(`/datasets/${id}/bars?ticker=${encodeURIComponent(ticker)}`);
 export const fetchSimHeader = (id: number) => read<SimHeader>(`/sims/${id}`);
 export const fetchChart = (id: number) => read<Chart>(`/sims/${id}/chart`);
 export const fetchLive = (id: number, afterStep: number | null) =>
@@ -97,6 +109,8 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   return answer.json() as Promise<T>;
 }
 
+export const buildDataset = (wanted: DatasetToBuild) => post<DatasetStarted>("/datasets", wanted);
+export const stopDataset = (id: number) => post<DatasetPage>(`/datasets/${id}/stop`);
 export const stopSim = (id: number) => post<SimHeader>(`/sims/${id}/stop`);
 // `spendingCapUsd`: a new cap, needed only when the spending cap stopped the sim.
 export const resumeSim = (id: number, spendingCapUsd: number | null) =>

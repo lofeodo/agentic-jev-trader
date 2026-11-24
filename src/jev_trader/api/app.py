@@ -18,6 +18,15 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from jev_trader.api import sim_page
 from jev_trader.api.comparison import Comparison, comparison
+from jev_trader.api.datasets import (
+    DatasetBuilds,
+    DatasetNotFound,
+    DatasetPage,
+    DatasetsList,
+    DatasetStarted,
+    DatasetToBuild,
+    PriceChart,
+)
 from jev_trader.api.measurements import Measurements, measurements
 from jev_trader.api.playbook import Playbook, playbook
 from jev_trader.api.scorecard import Scorecard, Split, scorecard
@@ -34,7 +43,7 @@ from jev_trader.api.sims_list import SimsList, sims_list
 from jev_trader.api.spending import Spending, spending
 from jev_trader.api.store import ApiStore
 from jev_trader.api.trades import Filters, TradesTable, trades_table
-from jev_trader.jobs import Launcher
+from jev_trader.jobs import Builds, Launcher
 from jev_trader.sim.store import now
 
 LOCAL_CLIENTS = frozenset({"127.0.0.1", "::1"})
@@ -72,14 +81,17 @@ def create_app(
     spending_ceiling: float,
     not_responding_after: timedelta,
     launcher: Launcher,
+    builds: Builds,
     clock: Callable[[], datetime] = now,
     moment_window_steps: int = 8,
 ) -> FastAPI:
     """`moment_window_steps`: how many steps either side of a moment count as "around then".
 
-    `launcher` starts and kills the sims' jobs (the `JOB_LAUNCHER` setting)."""
+    `launcher` starts and kills the sims' jobs, `builds` the dataset builds' (both as the
+    `JOB_LAUNCHER` setting says)."""
     app = FastAPI(title="Jev trader API", version="1")
     jobs = Jobs(store, launcher, spending_ceiling, not_responding_after)
+    datasets = DatasetBuilds(store, builds)
 
     @app.middleware("http")
     async def only_this_computer(request: Request, call_next):
@@ -234,6 +246,40 @@ def create_app(
         by its spending cap needs a new cap."""
         jobs.resume(sim_id, wanted, clock())
         return sim_page.header(store, sim_id, clock(), not_responding_after)
+
+    @app.exception_handler(DatasetNotFound)
+    def no_such_dataset(request: Request, missing: DatasetNotFound):
+        return JSONResponse(
+            {"detail": f"There is no dataset {missing}."}, status_code=404
+        )
+
+    @app.get("/datasets", operation_id="listDatasets")
+    def list_datasets() -> DatasetsList:
+        return datasets.list()
+
+    @app.post(
+        "/datasets", operation_id="buildDataset", status_code=202, responses=REFUSED
+    )
+    def build_dataset(wanted: DatasetToBuild) -> DatasetStarted:
+        """Add the dataset's row, being built, and start its build job. The check against
+        the two limits is the build's first step."""
+        return datasets.start(wanted, clock().date())
+
+    @app.get("/datasets/{dataset_id}", operation_id="datasetPage")
+    def dataset_page(dataset_id: int) -> DatasetPage:
+        return datasets.page(dataset_id)
+
+    @app.get("/datasets/{dataset_id}/bars", operation_id="datasetBars")
+    def dataset_bars(dataset_id: int, ticker: str) -> PriceChart:
+        """One asset's price chart: each day's close. `ticker`: the asset's real ticker."""
+        return datasets.chart(dataset_id, ticker)
+
+    @app.post(
+        "/datasets/{dataset_id}/stop", operation_id="stopDataset", responses=REFUSED
+    )
+    def stop_dataset(dataset_id: int) -> DatasetPage:
+        """Kill the build and mark it failed, stopped by hand."""
+        return datasets.stop(dataset_id)
 
     @app.get("/spending/total", operation_id="spendingTotal")
     def spending_total() -> SpendingTotal:

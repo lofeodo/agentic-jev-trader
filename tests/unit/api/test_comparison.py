@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.sim.store import InMemorySimStore
-from tests.unit.api.conftest import StandInLauncher
+from tests.unit.api.conftest import StandInBuilds, StandInLauncher
 
 HAIKU = "anthropic:claude-haiku-5-5"
 GLM = "openai:glm-5.3-flash"
@@ -45,6 +45,7 @@ def api(sims):
             spending_ceiling=75.0,
             not_responding_after=timedelta(minutes=7),
             launcher=StandInLauncher(),
+            builds=StandInBuilds(),
         ),
         base_url="http://localhost",
         client=("127.0.0.1", 50000),

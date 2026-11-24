@@ -5,6 +5,7 @@
 from typing import Protocol
 
 from jev_trader.api.llm_names import llm_model_of
+from jev_trader.dataset.store import InMemoryStore
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket
 from jev_trader.sim.store import (
     KIND_FULL_EVALUATION,
@@ -122,6 +123,24 @@ class ApiStore(Protocol):
     def update(self, sim_id: int, **columns) -> None:
         """Set columns of a sim's row; never on a finished sim."""
 
+    # What the Datasets and Dataset screens read, and what a build request writes (spec
+    # appendix 8, section 8.11). The API's login may add a dataset's row and change it.
+
+    def datasets(self) -> list[dict]:
+        """Every `REF.DATASETS` row, newest first, without its long lists of settings."""
+
+    def dataset_rows(self, table: str, dataset_id: int) -> list[dict]:
+        """One dataset's rows of a table in `DATASET_READS`."""
+
+    def daily_bars(self, dataset_id: int, asset: str) -> list[dict]:
+        """One asset's daily bars (`RAW.BARS`, size 1d): STEP, DAY and CLOSE, in step order."""
+
+    def begin_dataset(self, name: str, columns: dict) -> tuple[int, int]:
+        """Add a dataset being built; returns its ID and version."""
+
+    def update_dataset(self, dataset_id: int, **columns) -> None:
+        """Set columns of a dataset's row."""
+
     # What the one checker reads (`jev_trader.sim.checker`), as `sim.store.SimStore` and
     # `sim.market.Market` describe them.
 
@@ -136,6 +155,33 @@ class ApiStore(Protocol):
 
 # Left out of the list of every sim: large, and only the sim page needs them.
 _LIST_LEAVES_OUT = ("SETTINGS", "ACCOUNT_STATE")
+# The tables of one dataset the Dataset screen reads whole.
+DATASET_READS = (
+    "REF.DATASET_PERIODS",
+    "REF.ASSETS",
+    "REF.MISSING_BARS",
+    "REF.PARTIAL_VOLUME_DAYS",
+    "KEYS.ASSET_KEY",
+)
+# REF.DATASETS columns the screens read.
+DATASET_COLUMNS = (
+    "ID",
+    "NAME",
+    "VERSION",
+    "STATUS",
+    "PUBLISHED_WITHOUT_CHECK",
+    "FAILURE_REASON",
+    "FIRST_STEP",
+    "LAST_STEP",
+    "LIMIT_OTHER_MISSING",
+    "LIMIT_PARTIAL_VOLUME_DAYS",
+    "CHECK_RESULT",
+    "BUILD_STAGE",
+    "BUILD_PROGRESS",
+    "STARTED_AT",
+    "BUILT_AT",
+    "PUBLISHED_AT",
+)
 
 
 class InMemoryApiStore:
@@ -145,6 +191,7 @@ class InMemoryApiStore:
     `entry_details` gives each dataset's `entry_details` answers, by (asset, step).
     `playbook` gives the `REF.PLAYBOOK` rows.
     `market` holds the datasets a sim can start on.
+    `datasets` is the dataset builds' own in-memory store: what the Datasets screens read.
     """
 
     def __init__(
@@ -155,7 +202,9 @@ class InMemoryApiStore:
         entry_details: dict[int, dict[tuple[str, int], dict]] | None = None,
         market: InMemoryMarket | None = None,
         playbook: list[dict] | None = None,
+        datasets: InMemoryStore | None = None,
     ):
+        self._datasets = datasets or InMemoryStore()
         self._sims = sims
         self._asset_key = asset_key
         self._closes = closes or {}
@@ -324,6 +373,36 @@ class InMemoryApiStore:
             found["COST_USD"] += row["COST_USD"] or 0.0
             found["CALLS"] += 1
         return list(summed.values())
+
+    def datasets(self) -> list[dict]:
+        return [
+            {c: row.get(c) for c in DATASET_COLUMNS}
+            for _, row in sorted(self._datasets.datasets.items(), reverse=True)
+        ]
+
+    def dataset_rows(self, table, dataset_id):
+        if table not in DATASET_READS:
+            raise ValueError(f"the API does not read {table} whole")
+        return [
+            dict(r) for r in self._datasets.tables[table] if r["DATASET"] == dataset_id
+        ]
+
+    def daily_bars(self, dataset_id, asset):
+        return sorted(
+            (
+                {"STEP": r["STEP"], "DAY": r["DAY"], "CLOSE": r["CLOSE"]}
+                for r in self._datasets.tables["RAW.BARS"]
+                if (r["DATASET"], r["ASSET"], r["BAR_SIZE"])
+                == (dataset_id, asset, "1d")
+            ),
+            key=lambda r: r["STEP"],
+        )
+
+    def begin_dataset(self, name, columns):
+        return self._datasets.begin(name, columns)
+
+    def update_dataset(self, dataset_id, **columns):
+        self._datasets.update(dataset_id, **columns)
 
     def dataset(self, dataset_id):
         return self._market.dataset(dataset_id)

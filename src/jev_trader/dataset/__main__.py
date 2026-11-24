@@ -3,7 +3,8 @@
     conda run -n agentic-jev-trader python -m jev_trader.dataset build datasets/first.toml
 
 Options: `--no-check` publishes even if an asset is over a limit, marking the dataset
-"published without the check"; `--database TRADING_AGENT_TEST` builds into the test database.
+"published without the check"; `--database TRADING_AGENT_TEST` builds into the test database;
+`--dataset-id N` carries on the row the API added (how the API starts a build).
 Needs `TWELVE_DATA_API_KEY` and the Snowflake settings in `.env`. Output is plain ASCII:
 `conda run` on Windows fails on other characters.
 """
@@ -38,6 +39,11 @@ def main(argv: list[str] | None = None) -> int:
         help='publish even if an asset is over a limit; marked "published without the check"',
     )
     build.add_argument("--database", default=DATABASE)
+    build.add_argument(
+        "--dataset-id",
+        type=int,
+        help="carry on the dataset row the API added for this build",
+    )
     args = parser.parse_args(argv)
 
     load_dotenv(REPO_ROOT / ".env")
@@ -60,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
             today=datetime.now(UTC).date(),
             check=not args.no_check,
             report=lambda line: print(line, flush=True),
+            dataset_id=args.dataset_id,
         )
     except BuildStopped as stop:
         print(f"Build stopped: {stop}")
