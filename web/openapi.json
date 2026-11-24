@@ -316,6 +316,28 @@
         "title": "DecisionLine",
         "type": "object"
       },
+      "Fallback": {
+        "description": "The broader group the agent reads in place of a line under the minimum sample.",
+        "properties": {
+          "split": {
+            "items": {
+              "$ref": "#/components/schemas/Split"
+            },
+            "title": "Split",
+            "type": "array"
+          },
+          "trades": {
+            "title": "Trades",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "split",
+          "trades"
+        ],
+        "title": "Fallback",
+        "type": "object"
+      },
       "Figure": {
         "properties": {
           "holding": {
@@ -1305,6 +1327,10 @@
             "title": "Minimum Sample",
             "type": "integer"
           },
+          "on_ladder": {
+            "title": "On Ladder",
+            "type": "boolean"
+          },
           "split": {
             "items": {
               "$ref": "#/components/schemas/Split"
@@ -1316,6 +1342,7 @@
         "required": [
           "minimum_sample",
           "split",
+          "on_ladder",
           "closed_trades",
           "lines"
         ],
@@ -1353,6 +1380,16 @@
           "direction": {
             "title": "Direction",
             "type": "string"
+          },
+          "falls_back_to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Fallback"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "made_money": {
             "title": "Made Money",
@@ -1425,7 +1462,8 @@
           "average_gain",
           "average_loss",
           "total_profit",
-          "shown_to_agent"
+          "shown_to_agent",
+          "falls_back_to"
         ],
         "title": "ScorecardLine",
         "type": "object"

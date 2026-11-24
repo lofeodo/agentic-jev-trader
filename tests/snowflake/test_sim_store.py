@@ -264,6 +264,42 @@ def test_position_screens_and_reviews_are_written_and_counted(
         )
 
 
+def test_outcomes_are_written_and_mark_their_decision_complete_in_a_later_step(
+    sim_login, made_up_dataset, remove_sims
+):
+    """Needs `infra/migrations/V8__episode_outcomes.sql` applied."""
+    store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
+    sim_id = new_sim(store, market, made_up_dataset(days=2), remove_sims, last_step=192)
+    store.update(sim_id, STATUS="running")
+    decision = records_of.decision_row(sim_id, 1, 97, "ASSET_01", None)
+    outcome = {
+        "ID": f"{decision['ID']}-price_after_1_bar",
+        "SIM": sim_id,
+        "FIRST_WRITTEN_BY": sim_id,
+        "DECISION": decision["ID"],
+        "KIND": "price_after_1_bar",
+        "VALUE": {"price": 100.2, "change": 0.002},
+        "KNOWN_FROM": 98,
+    }
+
+    store.write_steps(sim_id, None, 97, {"MEMORY.DECISIONS": [decision]}, {})
+    store.write_steps(
+        sim_id, 97, 98, {"MEMORY.OUTCOMES": [outcome]}, {}, {decision["ID"]: 98}
+    )
+
+    with sim_login.cursor() as cur:
+        cur.execute(
+            "SELECT OUTCOMES_KNOWN_FROM FROM MEMORY.DECISIONS WHERE SIM = ?", (sim_id,)
+        )
+        assert cur.fetchone() == (98,)
+        cur.execute(
+            "SELECT KIND, VALUE:price::FLOAT, KNOWN_FROM FROM MEMORY.OUTCOMES "
+            "WHERE SIM = ?",
+            (sim_id,),
+        )
+        assert cur.fetchone() == ("price_after_1_bar", 100.2, 98)
+
+
 def _request_of(sim):
     return SimRequest(
         dataset=sim["DATASET"],

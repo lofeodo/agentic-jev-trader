@@ -40,7 +40,6 @@ from jev_trader.sim.clock import day_of
 from jev_trader.sim.store import ACTION_ENTRY, KIND_FULL_EVALUATION
 
 NO_TRADE = "no_trade"
-NO_PATTERN = "none"  # what a trade opened beside no candle pattern is filed under
 FORCED_CLOSE = "forced_close"
 STOP_PRICE = "stop_price"
 

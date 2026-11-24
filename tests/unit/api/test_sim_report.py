@@ -432,6 +432,47 @@ def test_a_group_of_ten_closed_trades_is_shown_to_the_agent(sims, entries, api):
     assert line["total_profit"] == pytest.approx(25.0)
 
 
+def test_a_group_under_ten_shows_the_broader_group_the_agent_reads_instead(
+    sims, entries, api
+):
+    sim = add_sim(sims)
+    for n in range(12):  # 11 longs above the 20-day average, one below it
+        order(sims, sim, n, "entry", "buy", 100 + 2 * n, 1.0, 100.0)
+        order(sims, sim, n, "close", "sell", 101 + 2 * n, 1.0, 105.0)
+        trend = -0.5 if n == 0 else 0.5
+        entries[("ASSET_01", 99 + 2 * n)] = measured("stock", ["hammer"], trend=trend)
+
+    card = api.get(f"/sims/{sim}/scorecard", params={"split": ["trend"]}).json()
+
+    assert card["on_ladder"] is True
+    lines = {x["trend"]: x for x in card["lines"]}
+    with_trend, against = lines["with the trend"], lines["against the trend"]
+    assert (with_trend["trades"], with_trend["shown_to_agent"]) == (11, True)
+    assert with_trend["falls_back_to"] is None
+    # One trade against the trend: the agent reads hammer, long, stock (12 trades) instead.
+    assert (against["trades"], against["shown_to_agent"]) == (1, False)
+    assert against["falls_back_to"] == {"split": [], "trades": 12}
+    # A split the agent's ladder never forms has no fallback to show.
+    by_volume = api.get(f"/sims/{sim}/scorecard", params={"split": ["volume"]}).json()
+    assert by_volume["on_ladder"] is False
+    assert {x["falls_back_to"] for x in by_volume["lines"]} == {None}
+
+
+def test_with_fewer_than_ten_at_every_level_the_agent_reads_only_the_count(
+    sims, entries, api
+):
+    sim = two_trades(sims)
+    entries[("ASSET_01", 97)] = measured("stock", ["hammer"])
+    entries[("ASSET_02", 129)] = measured("crypto", [])
+
+    card = api.get(
+        f"/sims/{sim}/scorecard", params={"split": ["trend", "volume"]}
+    ).json()
+
+    assert {x["falls_back_to"] is None for x in card["lines"]} == {True}
+    assert {x["shown_to_agent"] for x in card["lines"]} == {False}
+
+
 def test_a_scorecard_line_can_be_split_by_trend_volume_and_part_of_day(
     sims, entries, api
 ):

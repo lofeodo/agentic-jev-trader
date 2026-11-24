@@ -393,6 +393,16 @@ export interface components {
             /** Tier */
             tier: number;
         };
+        /**
+         * Fallback
+         * @description The broader group the agent reads in place of a line under the minimum sample.
+         */
+        Fallback: {
+            /** Split */
+            split: components["schemas"]["Split"][];
+            /** Trades */
+            trades: number;
+        };
         /** Figure */
         Figure: {
             /** Holding */
@@ -683,6 +693,8 @@ export interface components {
             lines: components["schemas"]["ScorecardLine"][];
             /** Minimum Sample */
             minimum_sample: number;
+            /** On Ladder */
+            on_ladder: boolean;
             /** Split */
             split: components["schemas"]["Split"][];
         };
@@ -696,6 +708,7 @@ export interface components {
             average_loss: number | null;
             /** Direction */
             direction: string;
+            falls_back_to: components["schemas"]["Fallback"] | null;
             /** Made Money */
             made_money: number;
             /** Part Of Day */

@@ -225,6 +225,8 @@ def _decision_columns(
         "STEP": step,
         "SKIPPED_BECAUSE": skipped_because,
         "JEV_VERSION": None if reply is None else reply.model,
+        # Set once every outcome the episode needs is known (`jev_trader.memory.outcomes`).
+        "OUTCOMES_KNOWN_FROM": None,
         # An open position's columns, empty for an asset with no position.
         "POSITION": None,
         "STANDING": None,

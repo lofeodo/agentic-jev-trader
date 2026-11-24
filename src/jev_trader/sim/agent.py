@@ -79,6 +79,7 @@ from jev_trader.jev.reading import (
     Reading,
     size_option_name,
 )
+from jev_trader.memory.outcomes import Outcomes, is_last_bar_of_day
 from jev_trader.risk import RiskLimit
 from jev_trader.sim import records
 from jev_trader.sim.market import Market, Snapshot
@@ -122,6 +123,10 @@ class AgentWithoutMemory:
         self._entries: dict[str, dict] = {}
         # Each open position's situation at entry and its journal, by position ID (as text).
         self._positions: dict[str, dict] = {}
+        # The episodes waiting for their outcomes, and how much of the broker's history
+        # (fills, cancelled orders, closed trades) they have been told about.
+        self.outcomes = Outcomes(sim_id)
+        self._told = (0, 0, 0)
 
     def on_step(
         self, step: int, broker: Broker, bars: dict[str, Bar]
@@ -129,6 +134,7 @@ class AgentWithoutMemory:
         """Look at each asset once. Returns the rows this step stores, by table."""
         rows: dict[str, list[dict]] = {
             "MEMORY.DECISIONS": [],
+            "MEMORY.OUTCOMES": [],
             "SIM.JEV_REQUESTS": [],
             "SIM.CALLS": [],
         }
@@ -147,17 +153,50 @@ class AgentWithoutMemory:
             ).run()
         return rows
 
+    def after_step(
+        self, step: int, broker: Broker, bars: dict[str, Bar]
+    ) -> tuple[list[dict], dict[str, int]]:
+        """Once the step's orders are carried out (the sim's end closes included): the episodes'
+        outcomes it taught, and the decisions it made complete, each with its step."""
+        fills, cancelled, closed = self._told
+        self._told = (
+            len(broker.fills),
+            len(broker.cancelled_orders),
+            len(broker.closed_trades),
+        )
+        snapshots = self._snapshots_at(step) if bars else {}
+        return self.outcomes.on_step(
+            step,
+            {asset: bar.close for asset, bar in bars.items()},
+            {
+                asset
+                for asset in bars
+                if asset in snapshots
+                and is_last_bar_of_day(step, snapshots[asset].bars_left)
+            },
+            broker.fills[fills:],
+            broker.cancelled_orders[cancelled:],
+            broker.closed_trades[closed:],
+        )
+
     # What the agent keeps between steps
 
     def state(self) -> dict:
         """What a resumed sim needs to carry on as if it had never stopped, as plain data: a
         copy, so later steps do not change what was saved."""
-        return copy.deepcopy({"entries": self._entries, "positions": self._positions})
+        return copy.deepcopy(
+            {
+                "entries": self._entries,
+                "positions": self._positions,
+                "outcomes": self.outcomes.state(),
+            }
+        )
 
     def restore(self, state: dict | None) -> None:
         if state:
             self._entries = copy.deepcopy(state["entries"])
             self._positions = copy.deepcopy(state["positions"])
+            self.outcomes = Outcomes(self.sim_id, state.get("outcomes"))
 
     def entry_decided(self, asset: str, snapshot: Snapshot) -> None:
         self._entries[asset] = {
@@ -266,6 +305,15 @@ class _AssetAtStep:
         )
         return reply
 
+    def _store(self, decision: dict) -> None:
+        """Store the decision; an episode starts waiting for its outcomes."""
+        self.rows["MEMORY.DECISIONS"].append(decision)
+        self.rows["MEMORY.OUTCOMES"] += self.agent.outcomes.watch(
+            decision,
+            self.view.price,
+            is_last_bar_of_day(self.step, self.snapshot.bars_left),
+        )
+
     def _shuffled(self, names: list[str]) -> list[list[str]]:
         return shuffled_orders(names, self.agent.random_seed, self.step, self.asset)
 
@@ -364,7 +412,7 @@ class _DecisionAtStep(_AssetAtStep):
         evaluation: Evaluation | None = None,
         action: str = ACTION_NOTHING,
     ) -> None:
-        self.rows["MEMORY.DECISIONS"].append(
+        self._store(
             records.decision_row(
                 self.agent.sim_id,
                 self.agent.dataset,
@@ -510,7 +558,7 @@ class _PositionAtStep(_AssetAtStep):
     ) -> None:
         if action == ACTION_NOTHING:
             self._journal(HOLD)
-        self.rows["MEMORY.DECISIONS"].append(
+        self._store(
             records.position_decision_row(
                 self.agent.sim_id,
                 self.agent.dataset,

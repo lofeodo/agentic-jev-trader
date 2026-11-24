@@ -419,10 +419,23 @@ function ScorecardSection({ id, inProgress, number }: { id: number; inProgress: 
         20-day average, or a short while it is below. Volume level: trading against its usual amount
         at that time of day. The agent is shown a group only once it holds{" "}
         {data ? data.minimum_sample : 10} closed trades: with fewer, a lucky streak would look like
-        a rule.
+        a rule. A smaller group falls back to a broader one: the agent drops the part of the day,
+        then the volume level, then the trend, until a group holds enough trades, and otherwise
+        reads only how many trades there were.
       </p>
     </section>
   );
+}
+
+// Why the agent is not shown a line, and what it reads instead (the fallback): the narrowest
+// broader group holding the minimum sample, or only the count when none does.
+function hiddenBecause(card: Scorecard, x: Scorecard["lines"][number]): string {
+  if (!card.on_ladder) return "No: the agent never reads this split";
+  const under = `No: under ${card.minimum_sample}`;
+  if (x.falls_back_to === null) return `${under}; it reads only the count`;
+  const kept = x.falls_back_to.split.map((key) => SPLITS.find((s) => s.key === key)!.label.toLowerCase());
+  const group = kept.length === 0 ? "pattern, direction and asset alone" : `split by ${kept.join(" and ")} only`;
+  return `${under}; it reads the broader group, ${group} (${x.falls_back_to.trades} trades)`;
 }
 
 function ScorecardTable({ card }: { card: Scorecard }) {
@@ -461,7 +474,7 @@ function ScorecardTable({ card }: { card: Scorecard }) {
               <td className={`${td} text-right`}>{x.average_gain === null ? "--" : signedDollars(x.average_gain)}</td>
               <td className={`${td} text-right`}>{x.average_loss === null ? "--" : signedDollars(x.average_loss)}</td>
               <td className={`${td} text-right`}>{signedDollars(x.total_profit)}</td>
-              <td className={td}>{x.shown_to_agent ? "Yes" : <span className="text-dim">{x.trades < card.minimum_sample ? `No: under ${card.minimum_sample}` : "No: the agent never reads this split"}</span>}</td>
+              <td className={td}>{x.shown_to_agent ? "Yes" : <span className="text-dim">{hiddenBecause(card, x)}</span>}</td>
             </tr>
           ))}
         </tbody>
