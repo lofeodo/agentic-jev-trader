@@ -23,8 +23,8 @@ practice_cap_usd = 0.25
 # in a day, about 25 full evaluations).
 default_tier_2_share = 0.15
 
-# One Jev request reads about this many tokens; its price per million is in `jev.toml`.
-# 3,000 tokens at $0.042 per million is about $0.00013.
+# One Jev request reads about this many tokens (about one background); its price per million is
+# in `jev.toml`. At a price of $0.04 per million, 3,000 tokens cost about $0.00012.
 jev_tokens_per_request = 3000
 
 # Jev requests in a full evaluation after its screen: the pick and the size.

@@ -69,14 +69,15 @@ def check(
     sim: Planned, info: DatasetInfo, store: SimStore, settings: SpendingSettings
 ) -> list[Refusal]:
     """Every reason the spec refuses `sim`, in a fixed order; empty if it may start."""
-    refusals = _dataset(sim, info) + _request(sim, info)
+    refusals = _dataset(info) + _request(sim, info)
     if sim.variant == "buy_hold":
         return refusals
+    lowest_cap = settings.practice_cap_usd if sim.kind == "practice" else 0.0
     return (
         refusals
         + _practice_cap(sim, settings)
         + _test_period_days(sim, info)
-        + _ceiling(sim.spending_cap or 0.0, store, settings)
+        + _ceiling(sim.spending_cap or 0.0, store, settings, lowest_cap)
         + _too_many(store, settings)
     )
 
@@ -98,7 +99,7 @@ def check_resume(
     if sim["VARIANT"] == "buy_hold":
         return []
     left = max(0.0, (sim.get("SPENDING_CAP") or 0.0) - store.spent(sim["ID"]))
-    return _ceiling(left, store, settings, excluding=sim["ID"]) + _too_many(
+    return _ceiling(left, store, settings, None, excluding=sim["ID"]) + _too_many(
         store, settings, excluding=sim["ID"]
     )
 
@@ -109,7 +110,7 @@ def require_resumable(sim: dict, store: SimStore, settings: SpendingSettings) ->
         raise Refused(refusals)
 
 
-def _dataset(sim: Planned, info: DatasetInfo) -> list[Refusal]:
+def _dataset(info: DatasetInfo) -> list[Refusal]:
     if info.status == DatasetStatus.PUBLISHED:
         return []
     return [
@@ -241,10 +242,14 @@ def _ceiling(
     may_add: float,
     store: SimStore,
     settings: SpendingSettings,
+    lowest_cap: float | None,
     excluding: int | None = None,
 ) -> list[Refusal]:
     """Refusal 3: money paid, plus what the other sims in progress may still spend under their
-    caps, plus what this sim may spend (`may_add`), must stay within the ceiling."""
+    caps, plus what this sim may spend (`may_add`), must stay within the ceiling.
+
+    `lowest_cap` is the smallest cap this sim could be given (0 when a shorter sim gives a
+    smaller one); None when its cap cannot change, as on a resume."""
     may_still_spend = sum(
         max(0.0, (s["SPENDING_CAP"] or 0.0) - s["SPENT"])
         for s in store.sims_in_progress()
@@ -254,19 +259,23 @@ def _ceiling(
     spoken_for = paid + may_still_spend
     if spoken_for + may_add <= settings.ceiling_usd + 1e-9:
         return []
-    room = math.floor(round((settings.ceiling_usd - spoken_for) * 100, 6)) / 100
-    fix = (
-        f"lower the cap to ${room:.2f} or less (a shorter sim has a smaller estimate), "
-        "or wait for a sim in progress to end"
-        if room > 0
-        else "wait for a sim in progress to end: nothing is left under the ceiling"
+    room = max(
+        0.0, math.floor(round((settings.ceiling_usd - spoken_for) * 100, 6)) / 100
     )
+    wait = "wait for a sim in progress to end, or stop one"
+    if lowest_cap is None or room <= lowest_cap:
+        fix = wait
+    elif lowest_cap > 0:  # a practice sim given a higher cap
+        fix = f"give a --spending-cap of ${room:.2f} or less, or {wait}"
+    else:
+        fix = f"shorten the sim so its cap is ${room:.2f} or less, or {wait}"
     return [
         Refusal(
             "over_ceiling",
             f"this sim may spend ${may_add:.2f} more, which could take spending to "
             f"${spoken_for + may_add:.2f}, past the ${settings.ceiling_usd:.2f} ceiling "
-            f"(${paid:.2f} paid, ${may_still_spend:.2f} more allowed to the sims in progress)",
+            f"(${paid:.2f} paid, ${may_still_spend:.2f} more allowed to the sims in "
+            f"progress; ${room:.2f} is left)",
             fix,
         )
     ]

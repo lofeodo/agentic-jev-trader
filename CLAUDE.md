@@ -100,7 +100,7 @@ Gotchas:
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself).
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
 - `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.
-- Every refusal of a sim comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.
+- Every refusal before a sim starts or resumes comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. `run_sim` keeps its own guards for carrying a sim on (finished, cap already reached, changed wording). The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.
 
 ## Walkthroughs
 

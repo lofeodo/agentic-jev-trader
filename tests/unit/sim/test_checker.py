@@ -131,7 +131,7 @@ def test_a_refused_sim_stores_nothing(market):
 # Refusal 3: the ceiling
 
 
-def test_a_cap_that_could_pass_the_ceiling_is_refused_with_the_cap_that_fits(market):
+def test_a_cap_that_could_pass_the_ceiling_is_refused_saying_what_is_left(market):
     store = InMemorySimStore()
     # $0.60 paid outside any sim; a sim in progress has spent $0.05 of its $0.25 cap, so $0.20
     # more may still go. $0.85 is spoken for; a new $0.25 cap would reach $1.10.
@@ -145,7 +145,34 @@ def test_a_cap_that_could_pass_the_ceiling_is_refused_with_the_cap_that_fits(mar
     [found] = refused.value.refusals
     assert found.code == "over_ceiling"
     assert "$1.10" in found.problem and "$1.00" in found.problem
-    assert "$0.15 or less" in found.fix
+    assert "$0.15 is left" in found.problem
+    # A practice sim's cap cannot go below $0.25, so the only fix is to wait.
+    assert found.fix.startswith("wait for a sim in progress to end")
+
+
+@pytest.mark.parametrize(
+    "changes, fix",
+    [
+        ({"kind": "tuning"}, "shorten the sim so its cap is $0.30 or less"),
+        ({"spending_cap": 0.40}, "give a --spending-cap of $0.30 or less"),
+    ],
+)
+def test_the_ceiling_fix_says_how_this_sims_cap_can_come_down(market, changes, fix):
+    store = InMemorySimStore()
+    record_spending(store, None, 0.70)
+
+    with pytest.raises(Refused) as refused:
+        # $0.30 is left under the $1.00 ceiling. A day's estimate is about $0.02; a multiple of
+        # 30 makes the tuning sim's cap $0.60, so it too passes the ceiling.
+        create_sim(
+            store,
+            market,
+            request(**changes),
+            replace(SETTINGS, ceiling_usd=1.0, cap_times_estimate=30.0),
+        )
+
+    [found] = [r for r in refused.value.refusals if r.code == "over_ceiling"]
+    assert found.fix.startswith(fix)
 
 
 def test_a_cap_that_fits_under_the_ceiling_is_allowed(market):
@@ -387,7 +414,8 @@ def test_the_sim_command_refuses_a_cap_that_could_pass_the_ceiling(command, caps
     printed = capsys.readouterr().out
     assert code == 2
     assert f"past the ${ceiling:.2f} ceiling" in printed
-    assert "Fix: lower the cap to $0.10 or less" in printed
+    assert "$0.10 is left" in printed
+    assert "Fix: wait for a sim in progress to end" in printed
     assert command.sims == {}
 
 
