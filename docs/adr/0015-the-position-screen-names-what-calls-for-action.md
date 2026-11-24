@@ -36,6 +36,7 @@ The short checklist's answers spread from 0.13 to 0.71, with fewest near the cut
 
 ## Consequences
 
+- A one-day practice sim with the new wording (sim 201, the same day as sim 2) said yes to 7 of 29 position screens (24.1%), against 27 of 27 before. Its answers ran from 0.16 to 0.69. With the screen's 10 of 115, the two kinds of screen together said yes 17 times in 144 (11.8%), under the 30% at which the spec stops for the developer. Its position reviews closed 2 positions; sim 2's closed 5.
 - The short checklist reacts only weakly to the price nearing the stop price (a match of 0.17). The stop price still closes the position by code, so a missed review there costs a chance to close early, not an unguarded loss. The test's positions were mostly calm (5 of 50 reached their stop within the next 8 bars), so this is the part least checked.
 - Jev's yes on the position screen partly reflects the checklist, not only its own judgment. Every agent reads the same question, so the agents with and without memory still differ only by memory.
 - A stock's end-of-session review still runs without the position screen.
