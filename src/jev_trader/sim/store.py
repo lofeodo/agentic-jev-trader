@@ -31,14 +31,22 @@ TABLES = (
     "SIM.JEV_REQUESTS",
     "MEMORY.DECISIONS",
 )
-# A decision's KIND: a screen alone (tier 0 or 1), or a full evaluation (tier 2). Both began with
-# the screen, unless code skipped it.
+# A decision's KIND. An asset with no position: a screen alone (tier 0 or 1), or a full evaluation
+# (tier 2); both began with the screen, unless code skipped it. An open position: a position
+# screen alone (tier 0 or 1), or a position review (tier 2), which began with the position screen
+# unless it was an end-of-session review.
 KIND_SCREEN = "screen"
 KIND_FULL_EVALUATION = "full_evaluation"
 SCREENED_KINDS = (KIND_SCREEN, KIND_FULL_EVALUATION)
+KIND_POSITION_SCREEN = "position_screen"
+KIND_POSITION_REVIEW = "position_review"
+POSITION_KINDS = (KIND_POSITION_SCREEN, KIND_POSITION_REVIEW)
 # A decision's ACTION: what was done.
 ACTION_NOTHING = "nothing"
 ACTION_ENTRY = "entry"
+ACTION_CLOSE = "close"
+ACTION_REDUCE = "reduce"
+ACTION_ADD = "add"
 # Tables whose rows a later step may rewrite, by ID.
 REPLACED_BY_ID = frozenset({"SIM.ORDERS"})
 
@@ -113,6 +121,13 @@ class SimStore(Protocol):
 
     def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
         """How many full evaluations ran, and how many of them placed an order to open a trade."""
+
+    def position_screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
+        """How many position screens Jev answered, and how many said yes (at `cut_off` or above)."""
+
+    def position_review_counts(self, sim_id: int) -> dict[str, int]:
+        """How many position reviews ran ("reviews"), how many were end-of-session reviews
+        ("end_of_session"), and how many closed, reduced or added (by action: "close", ...)."""
 
 
 class SimulatedKill(BaseException):
@@ -207,12 +222,31 @@ class InMemorySimStore:
         return sum(r["COST_USD"] or 0.0 for r in self.rows("SIM.CALLS", sim_id))
 
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
+        return self._answered(sim_id, cut_off, SCREENED_KINDS)
+
+    def position_screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
+        return self._answered(sim_id, cut_off, POSITION_KINDS)
+
+    def _answered(self, sim_id, cut_off, kinds) -> tuple[int, int]:
         answers = [
             r["SCREEN_ANSWER"]
             for r in self.rows("MEMORY.DECISIONS", sim_id)
-            if r["KIND"] in SCREENED_KINDS and r["SCREEN_ANSWER"] is not None
+            if r["KIND"] in kinds and r["SCREEN_ANSWER"] is not None
         ]
         return len(answers), sum(1 for a in answers if a >= cut_off)
+
+    def position_review_counts(self, sim_id: int) -> dict[str, int]:
+        reviews = [
+            r
+            for r in self.rows("MEMORY.DECISIONS", sim_id)
+            if r["KIND"] == KIND_POSITION_REVIEW
+        ]
+        actions = [r["ACTION"] for r in reviews]
+        return {
+            "reviews": len(reviews),
+            "end_of_session": sum(1 for r in reviews if r["END_OF_SESSION"]),
+            **{a: actions.count(a) for a in (ACTION_CLOSE, ACTION_REDUCE, ACTION_ADD)},
+        }
 
     def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
         actions = [

@@ -8,7 +8,7 @@ so a record stored twice by mistake shows up in the duplicate count at the end o
 - A nightly charge: sim, the midnight's step, its kind, and the position (or "loan").
 - A notable moment: sim, step, kind, and its number among that step's moments of that kind.
 - A decision: sim, step and asset. A Jev request and its paid call: the same, and their purpose
-  (screen, pick or size).
+  (screen, pick or size; for an open position, position_screen, action, reduce or add).
 
 An order Jev decided carries its decision's ID; code's own orders (a stop price, a forced close,
 the sim's end, the holding sim's purchases) carry none.
@@ -17,11 +17,14 @@ the sim's end, the holding sim's purchases) carry none.
 from jev_trader.broker import Broker, Charge, ClosingReason, Fill, Order, OrderKind
 from jev_trader.jev.client import JevReply
 from jev_trader.jev.full_evaluation import Evaluation
+from jev_trader.jev.position_review import Review
 from jev_trader.jev.reading import JevRequest, Reading
 from jev_trader.sim.market import instrument
 from jev_trader.sim.store import (
     ACTION_NOTHING,
     KIND_FULL_EVALUATION,
+    KIND_POSITION_REVIEW,
+    KIND_POSITION_SCREEN,
     KIND_SCREEN,
     now,
 )
@@ -138,27 +141,21 @@ def decision_row(
     evaluation: Evaluation | None = None,
     action: str = ACTION_NOTHING,
 ) -> dict:
-    """One asset looked at, at one step. Tier 0: code alone. Tier 1: Jev answered the screen.
+    """One asset with no position looked at, at one step. Tier 0: code alone. Tier 1: Jev
+    answered the screen.
 
     Tier 2: the screen said yes and a full evaluation ran. Its record is the episode: the
     candidate trades, Jev's answers copy by copy, the pick, the size chosen, what the limits left
     of it and which limit trimmed it, and what was done ("entry" or "nothing"). Every row has
-    every column, so rows of all tiers are written together.
+    every column, so rows of all tiers and kinds are written together.
     """
     tier = 0 if reply is None else 1 if evaluation is None else 2
     e = evaluation
     return {
-        "ID": decision_id(sim_id, step, asset),
-        "SIM": sim_id,
-        "FIRST_WRITTEN_BY": sim_id,
-        "DATASET": dataset,
-        "ASSET": asset,
-        "STEP": step,
+        **_decision_columns(sim_id, dataset, step, asset, skipped_because, reply),
         "KIND": KIND_FULL_EVALUATION if tier == 2 else KIND_SCREEN,
         "TIER": tier,
         "SCREEN_ANSWER": None if reply is None else reply.noul("screen"),
-        "SKIPPED_BECAUSE": skipped_because,
-        "JEV_VERSION": None if reply is None else reply.model,
         "CANDIDATE_TRADES": e and [t.as_record() for t in e.candidates],
         "ANSWERS": e and e.answers,
         "PICK": e and e.pick,
@@ -167,6 +164,66 @@ def decision_row(
         "SIZE_AFTER_TRIMMING": e and e.size_after_trimming,
         "LIMITED_BY": e and e.limited_by,
         "ACTION": action,
+    }
+
+
+def position_decision_row(
+    sim_id: int,
+    dataset: int,
+    step: int,
+    asset: str,
+    position_id: int,
+    skipped_because: str | None,
+    reply: JevReply | None = None,
+    review: Review | None = None,
+    action: str = ACTION_NOTHING,
+) -> dict:
+    """One open position looked at, at one step. Tier 0: code alone (a stock's last bar of the
+    session). Tier 1: Jev answered the position screen.
+
+    Tier 2: a position review ran, after a yes or as an end-of-session review (with no position
+    screen, so no screen answer). Its record is the episode: the position's standing, Jev's
+    answers copy by copy, the action decided (in PICK), the share closed or the size added, and
+    what was done ("close", "reduce", "add" or "nothing").
+    """
+    r = review
+    return {
+        **_decision_columns(sim_id, dataset, step, asset, skipped_because, reply),
+        "KIND": KIND_POSITION_SCREEN if r is None else KIND_POSITION_REVIEW,
+        "TIER": 2 if r is not None else 0 if reply is None else 1,
+        "SCREEN_ANSWER": None if reply is None else reply.noul("position_screen"),
+        "CANDIDATE_TRADES": None,
+        "ANSWERS": r and r.answers,
+        "PICK": r and r.action,
+        "RATING": None,
+        "SIZE_CHOSEN": r and r.size_chosen,
+        "SIZE_AFTER_TRIMMING": r and r.size_after_trimming,
+        "LIMITED_BY": r and r.limited_by,
+        "ACTION": action,
+        "POSITION": position_id,
+        "STANDING": r and r.standing,
+        "END_OF_SESSION": r and r.end_of_session,
+        "THESIS_INTACT": r and r.thesis_intact,
+        "REDUCE_SHARE": r and r.reduce_share,
+    }
+
+
+def _decision_columns(sim_id, dataset, step, asset, skipped_because, reply) -> dict:
+    return {
+        "ID": decision_id(sim_id, step, asset),
+        "SIM": sim_id,
+        "FIRST_WRITTEN_BY": sim_id,
+        "DATASET": dataset,
+        "ASSET": asset,
+        "STEP": step,
+        "SKIPPED_BECAUSE": skipped_because,
+        "JEV_VERSION": None if reply is None else reply.model,
+        # An open position's columns, empty for an asset with no position.
+        "POSITION": None,
+        "STANDING": None,
+        "END_OF_SESSION": None,
+        "THESIS_INTACT": None,
+        "REDUCE_SHARE": None,
     }
 
 

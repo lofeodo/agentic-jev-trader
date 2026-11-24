@@ -75,7 +75,7 @@ conda run -n agentic-jev-trader python -m jev_trader.sim start --dataset 1 --var
 conda run -n agentic-jev-trader python -m jev_trader.sim resume 12
 ```
 
-Run a practice sim of the agent without memory: at most one replayed day and 25 cents. It calls Jev, so it costs money: run it only with my go-ahead. It needs `infra/migrations/V5__jev_requests_and_decisions.sql` and `V6__full_evaluation_columns.sql` applied:
+Run a practice sim of the agent without memory: at most one replayed day and 25 cents. It calls Jev, so it costs money: run it only with my go-ahead. It needs `infra/migrations/V5__jev_requests_and_decisions.sql`, `V6__full_evaluation_columns.sql` and `V7__position_review_columns.sql` applied:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1

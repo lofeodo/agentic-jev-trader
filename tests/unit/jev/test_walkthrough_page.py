@@ -1,21 +1,29 @@
 """The Jev walkthrough page matches what is sent (spec appendix 10, section 18).
 
-The page's own code writes the screen's and the full evaluation's text from its made-up story.
-This test runs that code with Node and compares it, word for word, with what our code writes
-from the same story. The full evaluation is compared as the agent without memory sends it (the
-page's tab 6, case C): the memory sections come with the agent with memory.
+The page's own code writes the screen's, the full evaluation's, the position screen's and the
+position review's text from its made-up story. This test runs that code with Node and compares
+it, word for word, with what our code writes from the same story. The full evaluation and the
+review are compared as the agent without memory sends them (the page's tab 6, case C): the memory
+sections come with the agent with memory.
 """
 
 import json
 import shutil
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from jev_trader.broker import load_stop_price_settings, load_trading_costs
 from jev_trader.jev.full_evaluation import candidate_trades
-from jev_trader.jev.reading import AccountView, AssetView, PositionLine, Reading
+from jev_trader.jev.reading import (
+    AccountView,
+    AssetView,
+    PositionLine,
+    PositionView,
+    Reading,
+)
 from jev_trader.risk import load_risk_profile
 
 PAGE = Path(__file__).parents[3] / "docs" / "jev-reading-walkthrough.html"
@@ -35,6 +43,24 @@ console.log(JSON.stringify({
   ratingQuestion: QUESTIONS.rating,
   ratingLevels: RATING_LEVELS,
   shuffledCopies: SETTINGS.shuffledCopies,
+  later: ASSET_LATER, accountLater: ACCOUNT_LATER, position: POSITION,
+  positionFacts: positionFacts(POSITION, ASSET_LATER),
+  positionScreenBackground: positionScreenBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION),
+  positionScreenQuestion: QUESTIONS.positionScreen(ASSET_LATER),
+  reviewBackground: positionReviewBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION, null),
+  actionQuestion: QUESTIONS.action(ASSET_LATER),
+  actionOptions: actionOptions(POSITION, ASSET_LATER, ACCOUNT_LATER),
+  thesisIntact: QUESTIONS.thesisIntact,
+  reduceBackground: positionReviewBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION, null,
+    "Reduce: close part of the position and keep the rest."),
+  reduceQuestion: QUESTIONS.reduce,
+  reduceOptions: reduceOptions(POSITION, ASSET_LATER),
+  addBackground: positionReviewBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION, null,
+    "Add: put more money into the position, in the same direction and with the same stop price."),
+  addQuestion: QUESTIONS.add,
+  addOptions: (() => { const facts = positionFacts(POSITION, ASSET_LATER);
+    return sizeOptions(ACCOUNT_LATER, POSITION, { stopShare: facts.stopDistance, riskUsed: facts.riskUsed, held: facts.worth }); })(),
+  endOfSession: positionSection({ ...POSITION, barsAgo: 22, since: ["bars 1 to 21 hold"] }, ASSET_LATER, true),
 }));
 """
 
@@ -111,8 +137,8 @@ def test_the_screens_background_is_the_pages_word_for_word(story):
 
 def test_a_changed_layout_changes_the_reading_version():
     class Reordered(Reading):
-        def _asset(self, asset):
-            return "\n".join(reversed(super()._asset(asset).split("\n")))
+        def _asset(self, asset, held=False):
+            return "\n".join(reversed(super()._asset(asset, held).split("\n")))
 
     costs, risk = load_trading_costs(), load_risk_profile()
     assert Reordered(costs, risk).version != Reading(costs, risk).version
@@ -122,6 +148,15 @@ def test_a_changed_pick_layout_changes_the_reading_version():
     class Reordered(Reading):
         def _trade_text(self, trade, price):
             return super()._trade_text(trade, price).upper()
+
+    costs, risk = load_trading_costs(), load_risk_profile()
+    assert Reordered(costs, risk).version != Reading(costs, risk).version
+
+
+def test_a_changed_position_layout_changes_the_reading_version():
+    class Reordered(Reading):
+        def _position(self, asset, position):
+            return "\n".join(reversed(super()._position(asset, position).split("\n")))
 
     costs, risk = load_trading_costs(), load_risk_profile()
     assert Reordered(costs, risk).version != Reading(costs, risk).version
@@ -186,3 +221,113 @@ def test_the_size_request_is_the_pages_word_for_word(story):
         "instructions": story["ratingQuestion"],
         "criteria": story["ratingLevels"],
     }
+
+
+# The position screen and the position review (tabs 4 and 5; without memory)
+
+
+def position_views(story, since=None, end_of_session=False):
+    """The page's position five bars later, as our code takes it, with the page's figures."""
+    p, facts = story["position"], story["positionFacts"]
+    asset, account, playbook = views(
+        {**story, "asset": story["later"], "account": story["accountLater"]}
+    )
+    position = PositionView(
+        direction=p["direction"],
+        put_in=p["putIn"],
+        bars_ago=p["barsAgo"],
+        entry_price=p["entryPrice"],
+        stop_price=p["stopPrice"],
+        worth=facts["worth"],
+        profit=facts["profit"],
+        percent=facts["profitPercent"],
+        best=p["best"],
+        worst=p["worst"],
+        situation_at_entry=p["situationAtEntry"],
+        patterns_at_entry=tuple(p["patternsAtEntry"]),
+        since=tuple(p["since"] if since is None else since),
+        end_of_session=end_of_session,
+    )
+    return asset, account, playbook, position
+
+
+def test_the_position_screen_is_the_pages_word_for_word(story):
+    request = reading().position_screen_request(*position_views(story))
+
+    assert request.background == story["positionScreenBackground"]
+    assert request.questions == {
+        "position_screen": {
+            "type": "noul",
+            "instructions": story["positionScreenQuestion"],
+        }
+    }
+
+
+def page_options(options):
+    return {o["name"]: o["text"] for o in options}
+
+
+def test_the_review_asks_the_action_as_copies_with_the_pages_options(story):
+    options = page_options(story["actionOptions"])
+    orders = [list(reversed(options)), *[list(options)] * 4]
+    request = reading().action_request(*position_views(story), orders)
+
+    assert request.background == story["reviewBackground"]
+    assert list(request.questions) == [f"action_{n}" for n in range(1, 6)] + [
+        "thesis_intact"
+    ]
+    first = request.questions["action_1"]
+    assert first["instructions"] == story["actionQuestion"]
+    assert first["criteria"] == options
+    assert list(first["criteria"]) == orders[0]
+    assert request.questions["thesis_intact"] == {
+        "type": "noul",
+        "instructions": story["thesisIntact"],
+    }
+
+
+def test_no_add_option_when_nothing_can_be_added(story):
+    names = ["hold", "close", "reduce"]
+    request = reading().action_request(
+        *position_views(story), [names] * 5, add_allowed=False
+    )
+    assert list(request.questions["action_1"]["criteria"]) == names
+
+
+def test_the_reduce_request_is_the_pages_word_for_word(story):
+    request = reading().reduce_request(*position_views(story))
+
+    assert request.background == story["reduceBackground"]
+    smallest_first = page_options(story["reduceOptions"])
+    assert request.questions["reduce_small_first"] == {
+        "type": "choice",
+        "instructions": story["reduceQuestion"],
+        "criteria": smallest_first,
+    }
+    largest_first = request.questions["reduce_large_first"]["criteria"]
+    assert list(largest_first) == list(reversed(smallest_first))
+
+
+def test_the_add_request_is_the_pages_word_for_word(story):
+    request = reading().add_request(*position_views(story))
+
+    assert request.background == story["addBackground"]
+    smallest_first = page_options(story["addOptions"])
+    assert request.questions["add_small_first"] == {
+        "type": "choice",
+        "instructions": story["addQuestion"],
+        "criteria": smallest_first,
+    }
+    largest_first = request.questions["add_large_first"]["criteria"]
+    assert list(largest_first) == list(reversed(smallest_first))
+
+
+def test_an_end_of_session_review_adds_the_pages_one_line(story):
+    asset, account, playbook, position = position_views(
+        story, since=["bars 1 to 21 hold"], end_of_session=True
+    )
+    position = replace(position, bars_ago=22)
+    request = reading().action_request(
+        asset, account, playbook, position, [["hold", "close", "reduce", "add"]] * 5
+    )
+    assert story["endOfSession"] in request.background

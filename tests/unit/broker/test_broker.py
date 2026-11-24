@@ -156,6 +156,19 @@ def short_2000_at_100(stop_price=103.0, asset="ASSET_01", costs=COSTS):
     return broker
 
 
+def test_a_position_keeps_its_best_and_worst_point_at_its_bars_closes():
+    broker = long_2000_at_100()  # 19.99 units at $100.05 and $1 commission: $2,001 in
+    broker.on_bar("ASSET_01", bar(3, 100.0, high=102.0, close=101.0))
+    broker.on_bar("ASSET_01", bar(4, 100.0, low=98.5, close=99.0))
+    broker.on_bar("ASSET_01", bar(5, 100.0))
+
+    position = broker.positions["ASSET_01"]
+    # Sold at 101 less slippage ($100.95) for $2,018, less $1: about +$16.
+    assert position.best == pytest.approx(15.98, abs=0.01)
+    # Sold at 99 less slippage ($98.95) for $1,978, less $1: about -$24.
+    assert position.worst == pytest.approx(-23.98, abs=0.01)
+
+
 # Stop prices
 
 

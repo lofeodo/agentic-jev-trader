@@ -75,7 +75,16 @@ RATING = {
 }
 
 
-def fake_jev(answer=lambda n: 0.3, tokens=1000, pick=None, size=None):
+def fake_jev(
+    answer=lambda n: 0.3,
+    tokens=1000,
+    pick=None,
+    size=None,
+    position_screen=lambda n: 0.3,
+    action=None,
+    reduce=None,
+    add=None,
+):
     """A client over fake answers; `sent` holds each request body as Jev received it.
 
     `answer(n)` is the answer to the n-th screen request, retries counted (an int is an error
@@ -83,31 +92,53 @@ def fake_jev(answer=lambda n: 0.3, tokens=1000, pick=None, size=None):
     pick and the size are answered with the probabilities given by option name: by default
     no trade, and all on the second smallest size. `pick` may also be a function of the
     pick request's number (1 for the first).
+
+    An open position: `position_screen(n)` answers the n-th position screen (no by default).
+    The action is answered like the pick (hold by default; a function of the review's number),
+    the reduce share and the add size by option name. "Does the reason still hold?" gets 0.8.
     """
     sent = []
     pick = pick or {"no_trade": 1.0}
     size = size or {"size_40_percent": 1.0}
+    action = action or {"hold": 1.0}
+    reduce = reduce or {"reduce_50_percent": 1.0}
+    add = add or {"size_20_percent": 1.0}
 
-    def pick_for_this_request():
-        if not callable(pick):
-            return pick
-        return pick(sum(1 for b in sent if "pick_1" in b["questions"]))
+    def count(question):
+        return sum(1 for b in sent if question in b["questions"])
+
+    def by_number(given, question):
+        return given(count(question)) if callable(given) else given
+
+    def choices(name):
+        if name.startswith("pick"):
+            return by_number(pick, "pick_1")
+        if name.startswith("action"):
+            return by_number(action, "action_1")
+        if name.startswith("reduce"):
+            return reduce
+        if name.startswith("add"):
+            return add
+        return size
 
     def handler(request):
         body = json.loads(request.content)
         sent.append(body)
-        result = answer(sum(1 for b in sent if "screen" in b["questions"]))
+        result = answer(count("screen"))
         if isinstance(result, int):
             return httpx2.Response(result, json={"error": "made-up failure"})
         answers = {}
         for name, question in body["questions"].items():
-            if question["type"] == "noul":
+            if name == "position_screen":
+                answers[name] = {"type": "noul", "noul": position_screen(count(name))}
+            elif name == "thesis_intact":
+                answers[name] = {"type": "noul", "noul": 0.8}
+            elif question["type"] == "noul":
                 answers[name] = {"type": "noul", "noul": result}
             elif question["type"] == "score":
                 answers[name] = RATING
             else:
-                given = pick_for_this_request() if name.startswith("pick") else size
-                answers[name] = choice_answer(question["criteria"], given)
+                answers[name] = choice_answer(question["criteria"], choices(name))
         return httpx2.Response(
             200,
             json={
@@ -354,16 +385,244 @@ def test_the_decision_trails_stages_are_stored(screening_market):
     )
 
 
-def test_an_asset_with_an_open_position_is_left_to_code(screening_market):
+# Open positions: the position screen and the position review (spec appendix 4, sections 3.2
+# and 7)
+
+
+def opening_the_crypto(**answers):
+    """Fake answers where only the first screen says yes, and opens a long in the crypto.
+
+    The long is decided at step 97 and carried out at step 98's open; the stock's screens say no.
+    """
+    return fake_jev(
+        lambda n: 0.9 if n == 1 else 0.3, pick={"long_tight_stop": 1.0}, **answers
+    )
+
+
+def crypto_decisions(store, sim_id):
+    return {
+        d["STEP"]: d
+        for d in store.rows("MEMORY.DECISIONS", sim_id)
+        if d["ASSET"] == CRYPTO
+    }
+
+
+def test_an_open_position_gets_a_position_screen_at_every_step(screening_market):
     store = InMemorySimStore()
-    jev, _ = fake_jev(lambda n: 0.9, pick={"long_tight_stop": 1.0})
+    jev, sent = opening_the_crypto()
     sim_id = practice(store, screening_market)
 
     run_sim(store, screening_market, sim_id, jev=jev)
 
-    crypto = [d for d in store.rows("MEMORY.DECISIONS", sim_id) if d["ASSET"] == CRYPTO]
-    # Step 97 opens it (carried out at 98); open positions are reviewed from ticket #100 on.
-    assert [d["STEP"] for d in crypto] == [97]
+    decisions = crypto_decisions(store, sim_id)
+    assert decisions[97]["KIND"] == "full_evaluation"
+    held = [decisions[step] for step in range(98, 193)]
+    assert {(d["KIND"], d["TIER"], d["ACTION"]) for d in held} == {
+        ("position_screen", 1, "nothing")
+    }
+    assert {d["SCREEN_ANSWER"] for d in held} == {0.3}
+    assert {d["POSITION"] for d in held} != {None}
+    screens = [b for b in sent if "position_screen" in b["questions"]]
+    assert len(screens) == 95
+    # Below the cut-off nothing more is asked: the position is held, and its journal says so.
+    assert not any("action_1" in b["questions"] for b in sent)
+    assert "opened 3 bars ago" in screens[3]["state"]
+    assert "Since then: bars 0 to 2 hold." in screens[3]["state"]
+
+
+def first_position_screen_says_yes(n):
+    return 0.9 if n == 1 else 0.3
+
+
+def test_a_yes_runs_a_review_stored_as_an_episode(screening_market):
+    store = InMemorySimStore()
+    jev, sent = opening_the_crypto(position_screen=first_position_screen_says_yes)
+    sim_id = practice(store, screening_market)
+
+    run_sim(store, screening_market, sim_id, jev=jev)
+
+    review = crypto_decisions(store, sim_id)[98]
+    assert (review["KIND"], review["TIER"], review["SCREEN_ANSWER"]) == (
+        "position_review",
+        2,
+        0.9,
+    )
+    assert (review["PICK"], review["ACTION"]) == ("hold", "nothing")
+    assert review["END_OF_SESSION"] is False
+    assert review["THESIS_INTACT"] == 0.8
+    assert set(review["ANSWERS"]) == {
+        *(f"action_{n}" for n in range(1, 6)),
+        "thesis_intact",
+    }
+    # The standing: open 0 bars, $4,000 bought at $100.05 and worth $3,998 at $100.
+    standing = review["STANDING"]
+    assert (standing["direction"], standing["bars_open"]) == ("long", 0)
+    assert standing["put_in"] == pytest.approx(4_000)
+    assert standing["profit"] == pytest.approx(-12, abs=0.1)
+    assert standing["stop_distance"] == pytest.approx(0.005, abs=1e-6)
+    requests = [
+        r["PURPOSE"]
+        for r in store.rows("SIM.JEV_REQUESTS", sim_id)
+        if r["DECISION"] == review["ID"]
+    ]
+    assert requests == ["position_screen", "action"]
+    action = next(b for b in sent if "action_1" in b["questions"])
+    copies = [list(action["questions"][f"action_{n}"]["criteria"]) for n in range(1, 6)]
+    assert all(sorted(c) == ["add", "close", "hold", "reduce"] for c in copies)
+
+
+def test_a_review_that_closes_sells_at_the_next_bars_open(screening_market):
+    store = InMemorySimStore()
+    jev, _ = opening_the_crypto(
+        position_screen=first_position_screen_says_yes, action={"close": 1.0}
+    )
+    sim_id = practice(store, screening_market)
+
+    run_sim(store, screening_market, sim_id, jev=jev)
+
+    decisions = crypto_decisions(store, sim_id)
+    assert (decisions[98]["PICK"], decisions[98]["ACTION"]) == ("close", "close")
+    [close] = [
+        o
+        for o in store.rows("SIM.ORDERS", sim_id)
+        if o["DECISION"] == decisions[98]["ID"]
+    ]
+    assert (close["KIND"], close["REASON"], close["STEP_CARRIED_OUT"]) == (
+        "close",
+        "jev",
+        99,
+    )
+    # Closed: the crypto is screened again as an asset with no position.
+    assert decisions[99]["KIND"] == "screen"
+
+
+def test_a_review_that_reduces_closes_jevs_weighted_share(screening_market):
+    store = InMemorySimStore()
+    jev, sent = opening_the_crypto(
+        position_screen=first_position_screen_says_yes,
+        action={"reduce": 1.0},
+        reduce={"reduce_25_percent": 0.5, "reduce_50_percent": 0.5},
+    )
+    sim_id = practice(store, screening_market)
+
+    run_sim(store, screening_market, sim_id, jev=jev)
+
+    review = crypto_decisions(store, sim_id)[98]
+    assert (review["PICK"], review["ACTION"]) == ("reduce", "reduce")
+    # Half on a quarter and half on half: three eighths of the position.
+    assert review["REDUCE_SHARE"] == pytest.approx(0.375)
+    assert {"reduce_small_first", "reduce_large_first"} <= set(review["ANSWERS"])
+    [reduce] = [
+        o for o in store.rows("SIM.ORDERS", sim_id) if o["DECISION"] == review["ID"]
+    ]
+    # $4,000 bought at $100.05: 39.98 units, of which three eighths are sold.
+    assert reduce["KIND"] == "reduce"
+    assert reduce["UNITS"] == pytest.approx(0.375 * 4_000 / 100.05)
+    later = [b["state"] for b in sent if "position_screen" in b["questions"]]
+    assert (
+        "Since then: bar 0 reduce by 38% (that part: -$4); bars 1 to 2 hold."
+        in (later[3])
+    )
+
+
+def test_a_review_that_adds_puts_in_jevs_size_with_the_same_stop_price(
+    screening_market,
+):
+    store = InMemorySimStore()
+    jev, sent = opening_the_crypto(
+        position_screen=first_position_screen_says_yes,
+        action={"add": 1.0},
+        add={"size_20_percent": 1.0},
+    )
+    sim_id = practice(store, screening_market)
+
+    run_sim(store, screening_market, sim_id, jev=jev)
+
+    review = crypto_decisions(store, sim_id)[98]
+    assert (review["PICK"], review["ACTION"]) == ("add", "add")
+    # 20% of an account worth $9,994: the entry paid $2 of slippage and a $4 fee.
+    assert review["SIZE_CHOSEN"] == pytest.approx(1_998.8, abs=0.1)
+    assert review["SIZE_AFTER_TRIMMING"] == pytest.approx(review["SIZE_CHOSEN"])
+    [add] = [
+        o for o in store.rows("SIM.ORDERS", sim_id) if o["DECISION"] == review["ID"]
+    ]
+    assert (add["KIND"], add["STATUS"]) == ("add", "carried out")
+    later = [b["state"] for b in sent if "position_screen" in b["questions"]]
+    assert "Since then: bar 0 add $1,999; bars 1 to 2 hold." in later[3]
+
+
+@pytest.fixture
+def stock_market(make_market):
+    return with_snapshots(make_market(assets=(STOCK,)))
+
+
+def test_every_open_stock_position_gets_an_end_of_session_review(stock_market):
+    store = InMemorySimStore()
+    # The stock's first screen (step 151) opens a long, carried out at step 152.
+    jev, sent = fake_jev(
+        lambda n: 0.9 if n == 1 else 0.3, pick={"long_tight_stop": 1.0}
+    )
+    sim_id = practice(store, stock_market)
+
+    run_sim(store, stock_market, sim_id, jev=jev)
+
+    decisions = {d["STEP"]: d for d in store.rows("MEMORY.DECISIONS", sim_id)}
+    assert {decisions[s]["KIND"] for s in range(152, 175)} == {"position_screen"}
+    # Bar 25 of 26: reviewed with no position screen first.
+    review = decisions[175]
+    assert (review["KIND"], review["TIER"], review["SCREEN_ANSWER"]) == (
+        "position_review",
+        2,
+        None,
+    )
+    assert review["END_OF_SESSION"] is True
+    requests = [r for r in store.rows("SIM.JEV_REQUESTS", sim_id) if r["STEP"] == 175]
+    assert [r["PURPOSE"] for r in requests] == ["action"]
+    assert (
+        requests[0]["BACKGROUND_AFTER_OPENING"].count(
+            "This is the last step of the session from which an order is carried out "
+            "today. A position still open after it is held overnight."
+        )
+        == 1
+    )
+    # The last bar: nothing is asked; only code can act.
+    assert (decisions[176]["TIER"], decisions[176]["SKIPPED_BECAUSE"]) == (
+        0,
+        "session_end",
+    )
+    assert not any(r["STEP"] == 176 for r in store.rows("SIM.JEV_REQUESTS", sim_id))
+    assert len([b for b in sent if "position_screen" in b["questions"]]) == 23
+
+
+def test_a_sim_killed_after_a_reduce_resumes_with_the_same_journal(screening_market):
+    def reducing_once():
+        return opening_the_crypto(
+            position_screen=lambda n: 0.9 if n == 2 else 0.3, action={"reduce": 1.0}
+        )[0]
+
+    expected = InMemorySimStore()
+    run_sim(
+        expected,
+        screening_market,
+        practice(expected, screening_market),
+        jev=reducing_once(),
+    )
+    store = InMemorySimStore()
+    sim_id = practice(store, screening_market)
+    store.kill_on_write(60)
+    with pytest.raises(SimulatedKill):
+        run_sim(store, screening_market, sim_id, jev=reducing_once())
+
+    run_sim(store, screening_market, sim_id, jev=fake_jev()[0])
+
+    compared = ("SIM.JEV_REQUESTS", "MEMORY.DECISIONS", "SIM.ORDERS")
+    got, want = store.all_rows(sim_id), expected.all_rows(sim_id)
+    assert {t: got[t] for t in compared} == {t: want[t] for t in compared}
+    assert any(
+        "bar 1 reduce by half" in r["BACKGROUND_AFTER_OPENING"]
+        for r in got["SIM.JEV_REQUESTS"]
+        if r["STEP"] > 156
+    )
 
 
 def test_other_assets_see_the_open_position(screening_market):
@@ -612,7 +871,8 @@ def test_the_practice_sim_reports_its_share_of_yes_answers(screening_market):
     lines = screen_report(store, store.sim(sim_id))
 
     assert lines[0] == "Screens: 120 asked, 40 said yes (33.3%)."
-    assert "30%" in lines[1]
+    assert lines[1] == "Position screens: none asked."
+    assert any(line.startswith("Above 30%") for line in lines)
 
 
 def test_the_practice_sim_reports_its_full_evaluations_and_trades_opened(
@@ -631,6 +891,40 @@ def test_the_practice_sim_reports_its_full_evaluations_and_trades_opened(
 
     assert lines[0] == "Screens: 3 asked, 3 said yes (100.0%)."
     assert "Full evaluations: 3, trades opened: 2." in lines
+
+
+def test_the_practice_sim_reports_its_position_screens_and_reviews(screening_market):
+    store = InMemorySimStore()
+    # The crypto opens at step 98 and is held to the end: 95 position screens, one in five yes
+    # (19). Screens: the crypto's one at step 97 (yes) and the stock's 24 (no).
+    jev, _ = opening_the_crypto(position_screen=lambda n: 0.9 if n % 5 == 0 else 0.3)
+    sim_id = practice(store, screening_market)
+    run_sim(store, screening_market, sim_id, jev=jev)
+
+    lines = screen_report(store, store.sim(sim_id))
+
+    assert lines[0] == "Screens: 25 asked, 1 said yes (4.0%)."
+    assert "Position screens: 95 asked, 19 said yes (20.0%)." in lines
+    assert (
+        "Position reviews: 19, 0 at the end of a session; closed 0, reduced 0, added 0."
+        in (lines)
+    )
+    # Together: 20 of 120, 16.7%, under the 30% rule.
+    assert not any("30%" in line for line in lines)
+
+
+def test_the_30_percent_rule_counts_screens_and_position_screens_together(
+    screening_market,
+):
+    store = InMemorySimStore()
+    # Screens 1 yes in 25 (4%), position screens 38 in 95 (40%): 39 in 120 together, 32.5%.
+    jev, _ = opening_the_crypto(position_screen=lambda n: 0.9 if n % 5 < 2 else 0.3)
+    sim_id = practice(store, screening_market)
+    run_sim(store, screening_market, sim_id, jev=jev)
+
+    lines = screen_report(store, store.sim(sim_id))
+
+    assert any(line.startswith("Above 30%") for line in lines)
 
 
 def test_a_practice_sim_is_at_most_one_replayed_day(screening_market):

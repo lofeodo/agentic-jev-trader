@@ -21,6 +21,7 @@ import pytest
 from jev_trader.broker import load_stop_price_settings, load_trading_costs
 from jev_trader.jev.client import JevReply
 from jev_trader.jev.full_evaluation import Evaluation, candidate_trades
+from jev_trader.jev.position_review import Review
 from jev_trader.jev.reading import JevRequest, Reading
 from jev_trader.risk import load_risk_profile
 from jev_trader.sim import records as records_of
@@ -93,7 +94,7 @@ def test_a_holding_sim_over_a_published_dataset_runs_to_the_end(two_day_sim, sim
 def test_a_screens_records_are_written_and_its_cost_is_summed(
     sim_login, made_up_dataset, remove_sims
 ):
-    """Needs `infra/migrations/V5__jev_requests_and_decisions.sql` and V6 applied."""
+    """Needs `infra/migrations/V5__jev_requests_and_decisions.sql`, V6 and V7 applied."""
     store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
     sim_id = new_sim(store, market, made_up_dataset(days=2), remove_sims, last_step=192)
     store.update(sim_id, STATUS="running")
@@ -148,7 +149,7 @@ def test_a_screens_records_are_written_and_its_cost_is_summed(
 def test_a_full_evaluation_is_written_beside_a_screen_and_both_are_counted(
     sim_login, made_up_dataset, remove_sims
 ):
-    """Needs `infra/migrations/V6__full_evaluation_columns.sql` applied."""
+    """Needs `infra/migrations/V6__full_evaluation_columns.sql` and V7 applied."""
     store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
     sim_id = new_sim(store, market, made_up_dataset(days=2), remove_sims, last_step=192)
     store.update(sim_id, STATUS="running")
@@ -196,6 +197,70 @@ def test_a_full_evaluation_is_written_beside_a_screen_and_both_are_counted(
             2500.0,
             "trade_risk",
             "entry",
+        )
+
+
+def test_position_screens_and_reviews_are_written_and_counted(
+    sim_login, made_up_dataset, remove_sims
+):
+    """Needs `infra/migrations/V7__position_review_columns.sql` applied."""
+    store, market = SnowflakeSimStore(sim_login), SnowflakeMarket(sim_login)
+    sim_id = new_sim(store, market, made_up_dataset(days=2), remove_sims, last_step=192)
+    store.update(sim_id, STATUS="running")
+    held = JevReply(
+        '{"answers":{"position_screen":{"noul":0.2}}}', "jev-1", 10, 2, 0.0, 0.1, 0
+    )
+    review = Review(
+        standing={"direction": "long", "bars_open": 3, "profit": 18.0},
+        end_of_session=True,
+        answers={"action_1": {"hold": 0.3, "reduce": 0.7}, "thesis_intact": 0.6},
+        action="reduce",
+        thesis_intact=0.6,
+        reduce_share=0.375,
+    )
+
+    store.write_steps(
+        sim_id,
+        None,
+        97,
+        {
+            "MEMORY.DECISIONS": [
+                records_of.decision_row(sim_id, 1, 97, "ASSET_03", "daily_loss"),
+                records_of.position_decision_row(
+                    sim_id, 1, 97, "ASSET_01", 4, None, held
+                ),
+                records_of.position_decision_row(
+                    sim_id, 1, 97, "ASSET_02", 5, None, None, review, "reduce"
+                ),
+            ]
+        },
+        {},
+    )
+
+    assert store.position_screen_counts(sim_id, 0.5) == (1, 0)
+    assert store.position_review_counts(sim_id) == {
+        "reviews": 1,
+        "end_of_session": 1,
+        "close": 0,
+        "reduce": 1,
+        "add": 0,
+    }
+    with sim_login.cursor() as cur:
+        cur.execute(
+            "SELECT KIND, POSITION, PICK, STANDING:bars_open::NUMBER, END_OF_SESSION, "
+            "THESIS_INTACT, REDUCE_SHARE, ACTION "
+            "FROM MEMORY.DECISIONS WHERE SIM = ? AND TIER = 2",
+            (sim_id,),
+        )
+        assert cur.fetchone() == (
+            "position_review",
+            5,
+            "reduce",
+            3,
+            True,
+            0.6,
+            0.375,
+            "reduce",
         )
 
 
