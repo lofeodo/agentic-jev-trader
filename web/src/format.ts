@@ -9,6 +9,14 @@ const cents = new Intl.NumberFormat("en-US", {
 export const dollars = (value: number) => `$${whole.format(value)}`;
 export const dollarsAndCents = (value: number) => `$${cents.format(value)}`;
 
+// Model calls cost fractions of a cent: under $1, a tenth of a cent shows ($0.011).
+const tenthsOfCents = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
+});
+export const modelDollars = (value: number) =>
+  value > 0 && value < 1 ? `$${tenthsOfCents.format(value)}` : dollarsAndCents(value);
+
 export function signedDollars(value: number) {
   const rounded = Math.round(value);
   if (rounded === 0) return "$0";

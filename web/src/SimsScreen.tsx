@@ -1,14 +1,6 @@
 import type { SimLine } from "./api/client";
 import { day, dollars, dollarsAndCents, signedDollars } from "./format";
-import { statusWords } from "./pieces";
-
-const KINDS: { kind: string; title: string; says: string }[] = [
-  { kind: "measurement", title: "Measurement", says: "Their results count" },
-  { kind: "build-up", title: "Build-up", says: "Fills the base memory; never counts" },
-  { kind: "free", title: "Free", says: "Days of your choice; never counts" },
-  { kind: "tuning", title: "Tuning", says: "Command-line tool; never counts" },
-  { kind: "practice", title: "Practice", says: "Command-line tool; never counts" },
-];
+import { KINDS, SectionHeading, statusWords } from "./pieces";
 
 const COLUMNS = ["Sim", "Status", "Days", "Account value", "Against holding", "Trades", "Spent / cap"];
 const cell = "py-[.42rem] pr-[2ch] align-top font-mono text-base";
@@ -57,17 +49,7 @@ function Group({ number: n, title, says, sims }: { number: number; title: string
     <tbody>
       <tr>
         <td colSpan={COLUMNS.length} className="pt-7 pb-2">
-          <div className="flex items-stretch border-[1.5px] border-rule">
-            <span className="border-r-[1.5px] border-rule px-[1.6ch] py-2 font-mono text-[15px]">
-              {String(n).padStart(2, "0")}
-            </span>
-            <h2 className="flex flex-1 items-center gap-[2ch] px-[2ch] py-2 text-[1.15rem] tracking-[.14em] whitespace-nowrap after:flex-1 after:border-t-[1.5px] after:border-rule after:content-['']">
-              {title}
-            </h2>
-            <span className="self-center pr-[2ch] font-mono text-[13.5px] tracking-wider whitespace-nowrap text-dim">
-              {says}
-            </span>
-          </div>
+          <SectionHeading number={n} title={title} says={says} space="" />
         </td>
       </tr>
       {sims.map((sim) => (
