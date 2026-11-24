@@ -42,3 +42,34 @@ pattern_notes_heading = '# Candle patterns named above'
 pattern_note = '{name}: {lean}. {shape}'
 
 screen_question = 'Is {asset} worth a full evaluation at this step? A full evaluation weighs opening a long or a short in it now, and can still end in no trade.'
+
+# The full evaluation, request 1: the pick, asked as shuffled copies of one question. Each of the
+# six candidate trades is one sentence, followed by the largest size code allows with it.
+pick_question = 'Which of these should the account do with {asset} at this step?'
+trade_long = "Long, {width} stop price: buy at the next bar's open, about {price}. Code sells if the price falls to {stop}, {distance} below."
+trade_short = "Short, {width} stop price: sell borrowed units at the next bar's open, about {price}. Code buys them back if the price rises to {stop}, {distance} above."
+largest_size = ' Largest size code allows with it: {amount}.'
+no_trade = 'No trade: open no position in this asset at this step.'
+
+# The full evaluation, request 2: the same background ending with the trade picked, the size asked
+# smallest first and largest first, and the rating (recorded only).
+trade_picked_heading = '# The trade picked'
+size_question = 'How much money should go into the trade picked?'
+size_ranks = ['The smallest size', 'The second smallest size', 'The middle size', 'The second largest size', 'The largest size']
+size_option = '{rank}: {asked}, {share} of account value.'
+size_cut = ' Code opens at most {actual}, {why}; the rest of this line is for {actual}.'
+limit_trade_risk = 'the most its stop price allows'
+limit_position = 'the most one position may hold'
+limit_exposure = 'the most the account may still hold'
+size_borrowed = ' {borrowed} of it borrowed.'
+size_from_cash = ' Paid from cash, nothing borrowed.'
+size_short = ' A short borrows units, not money: no loan.'
+size_loss = ' Loses about {loss} if the stop price is reached.'
+rating_question = 'How strong is the case for the trade picked?'
+rating_levels = [
+    'Very weak: no better than a coin flip.',
+    'Weak: slightly better than a coin flip.',
+    'Moderate: a reasonable case with clear doubts.',
+    'Strong: most of what is known points the same way.',
+    'Very strong: nearly everything known points the same way.',
+]
