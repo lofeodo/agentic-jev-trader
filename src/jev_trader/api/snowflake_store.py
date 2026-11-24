@@ -192,3 +192,15 @@ class SnowflakeApiStore:
 
     def update(self, sim_id, **columns):
         SnowflakeSimStore(self.con).update(sim_id, **columns)
+
+    def spent(self, sim_id):
+        return self.spent_on(sim_id)
+
+    def sims_in_progress(self):
+        return SnowflakeSimStore(self.con).sims_in_progress()
+
+    def latest_tier_2_share(self):
+        return SnowflakeSimStore(self.con).latest_tier_2_share()
+
+    def bar_count(self, dataset_id, first_step, last_step):
+        return SnowflakeMarket(self.con).bar_count(dataset_id, first_step, last_step)

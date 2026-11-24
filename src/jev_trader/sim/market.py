@@ -64,6 +64,9 @@ class Market(Protocol):
     def bars(self, dataset_id: int, first_step: int, last_step: int) -> BarsByStep:
         """The 15-minute bars that end from `first_step` to `last_step`, both included."""
 
+    def bar_count(self, dataset_id: int, first_step: int, last_step: int) -> int:
+        """How many 15-minute bars end from `first_step` to `last_step`, every asset's counted."""
+
     def snapshots(
         self, dataset_id: int, first_step: int, last_step: int
     ) -> SnapshotsByStep:
@@ -110,6 +113,14 @@ class InMemoryMarket:
             if info.dataset_id == dataset_id:
                 return info
         raise KeyError(f"no dataset {dataset_id}")
+
+    def bar_count(self, dataset_id: int, first_step: int, last_step: int) -> int:
+        return sum(
+            1
+            for bars in self.bars_by_asset[dataset_id].values()
+            for bar in bars
+            if first_step <= bar.step <= last_step
+        )
 
     def bars(self, dataset_id: int, first_step: int, last_step: int) -> BarsByStep:
         by_step: BarsByStep = {}

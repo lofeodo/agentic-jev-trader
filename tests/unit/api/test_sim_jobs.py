@@ -145,13 +145,21 @@ def test_a_request_the_checker_refuses_stores_nothing_and_starts_nothing(
     api, sims, launcher
 ):
     answer = api.post(
-        "/sims", json=free_sim(last_day="2025-03-03")
-    )  # day 3 is a test period
+        "/sims", json=free_sim(first_day="2025-03-01", last_day="2025-03-02")
+    )  # day 1 is the warm-up
 
     assert answer.status_code == 409
     [refusal] = answer.json()["refusals"]
-    assert "test period" in refusal["message"]
+    assert refusal["code"] == "warm_up_days"
+    assert "warm-up" in refusal["message"] and "Fix:" in refusal["message"]
     assert sims.sims == {} and launcher.started == []
+
+
+def test_the_holding_sim_may_replay_test_period_days(api, launcher):
+    # It decides nothing, and the measurement sims on those days are compared against it.
+    answer = api.post("/sims", json=free_sim(last_day="2025-03-03"))
+
+    assert answer.status_code == 202
 
 
 def test_no_sim_starts_on_a_dataset_not_published(sims, launcher):
@@ -238,6 +246,35 @@ def test_resume_starts_the_same_sim_again(api, sims, launcher):
     assert (sim["STATUS"], sim["STOP_REASON"]) == ("running", None)
     assert sim["RUNNING_ON"] in launcher.running
     assert sim["STARTED_AT"] == NOW
+
+
+def test_resuming_a_sim_of_the_agent_is_refused_when_four_others_are_in_progress(
+    api, sims, launcher
+):
+    def agent_sim(status):
+        return sims.create(
+            {
+                "DATASET": 7,
+                "KIND": "practice",
+                "VARIANT": "memory_off",
+                "FIRST_STEP": 97,
+                "LAST_STEP": 192,
+                "STATUS": status,
+                "SPENDING_CAP": 0.25,
+            }
+        )
+
+    stopped = agent_sim("stopped")
+    for _ in range(4):
+        agent_sim("running")
+
+    answer = api.post(f"/sims/{stopped}/resume", json={})
+
+    assert answer.status_code == 409
+    [refusal] = answer.json()["refusals"]
+    assert refusal["code"] == "too_many_sims"
+    assert launcher.started == []
+    assert sims.sim(stopped)["STATUS"] == "stopped"
 
 
 def test_a_not_responding_sim_is_resumed_after_its_old_job_is_killed(

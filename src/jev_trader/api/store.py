@@ -75,6 +75,17 @@ class ApiStore(Protocol):
     def update(self, sim_id: int, **columns) -> None:
         """Set columns of a sim's row; never on a finished sim."""
 
+    # What the one checker reads (`jev_trader.sim.checker`), as `sim.store.SimStore` and
+    # `sim.market.Market` describe them.
+
+    def spent(self, sim_id: int) -> float: ...
+
+    def sims_in_progress(self) -> list[dict]: ...
+
+    def latest_tier_2_share(self) -> float | None: ...
+
+    def bar_count(self, dataset_id: int, first_step: int, last_step: int) -> int: ...
+
 
 # Left out of the list of every sim: large, and only the sim page needs them.
 _LIST_LEAVES_OUT = ("SETTINGS", "ACCOUNT_STATE")
@@ -218,3 +229,15 @@ class InMemoryApiStore:
 
     def update(self, sim_id, **columns):
         self._sims.update(sim_id, **columns)
+
+    def spent(self, sim_id):
+        return self._sims.spent(sim_id)
+
+    def sims_in_progress(self):
+        return self._sims.sims_in_progress()
+
+    def latest_tier_2_share(self):
+        return self._sims.latest_tier_2_share()
+
+    def bar_count(self, dataset_id, first_step, last_step):
+        return self._market.bar_count(dataset_id, first_step, last_step)
