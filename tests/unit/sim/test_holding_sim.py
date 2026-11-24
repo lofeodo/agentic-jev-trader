@@ -123,6 +123,6 @@ def test_a_free_sim_cannot_use_test_period_days(market):
         holding_sim(InMemorySimStore(), market, kind="free")
 
 
-def test_only_the_holding_sim_is_built_so_far(market):
-    with pytest.raises(ValueError, match="memory_off"):
-        holding_sim(InMemorySimStore(), market, variant="memory_off")
+def test_the_agent_with_memory_is_not_built_yet(market):
+    with pytest.raises(ValueError, match="memory_on"):
+        holding_sim(InMemorySimStore(), market, variant="memory_on")

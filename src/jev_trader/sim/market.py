@@ -40,8 +40,21 @@ class DatasetInfo:
         return [p for p in self.periods if p.kind == "test"]
 
 
+@dataclass(frozen=True)
+class Snapshot:
+    """What the dataset measured about one asset at one step, as the agent reads it."""
+
+    situation_text: str
+    typical_move: float | None  # in masked dollars; None when not available
+    bars_left: int | None  # in a stock's session (0 on its last bar); None for crypto
+    patterns: tuple[str, ...]  # every candle pattern the situation text names
+
+
 # Bars by step, then by asset: only the assets with a bar at that step.
 BarsByStep = dict[int, dict[str, Bar]]
+SnapshotsByStep = dict[int, dict[str, Snapshot]]
+# A candle pattern's name to its lean and shape.
+Playbook = dict[str, tuple[str, str]]
 
 
 class Market(Protocol):
@@ -50,6 +63,14 @@ class Market(Protocol):
 
     def bars(self, dataset_id: int, first_step: int, last_step: int) -> BarsByStep:
         """The 15-minute bars that end from `first_step` to `last_step`, both included."""
+
+    def snapshots(
+        self, dataset_id: int, first_step: int, last_step: int
+    ) -> SnapshotsByStep:
+        """The snapshots from `first_step` to `last_step`, both included."""
+
+    def playbook(self, dataset_id: int) -> Playbook:
+        """The notes on every candle pattern, for the dataset's TA-Lib version."""
 
 
 def instrument(asset: str) -> str:
@@ -61,10 +82,28 @@ class InMemoryMarket:
     """Datasets and their bars as plain lists: `bars` maps a dataset to each asset's bars."""
 
     def __init__(
-        self, datasets: list[DatasetInfo], bars: dict[int, dict[str, list[Bar]]]
+        self,
+        datasets: list[DatasetInfo],
+        bars: dict[int, dict[str, list[Bar]]],
+        snapshots: dict[int, SnapshotsByStep] | None = None,
+        playbook: Playbook | None = None,
     ):
         self.datasets = list(datasets)
         self.bars_by_asset = bars
+        self.snapshots_by_step = snapshots or {}
+        self.notes = playbook or {}
+
+    def snapshots(
+        self, dataset_id: int, first_step: int, last_step: int
+    ) -> SnapshotsByStep:
+        return {
+            step: assets
+            for step, assets in self.snapshots_by_step[dataset_id].items()
+            if first_step <= step <= last_step
+        }
+
+    def playbook(self, dataset_id: int) -> Playbook:
+        return dict(self.notes)
 
     def dataset(self, dataset_id: int) -> DatasetInfo:
         for info in self.datasets:

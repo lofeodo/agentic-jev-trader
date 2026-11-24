@@ -19,8 +19,18 @@ sit in a VALUES list, so such rows go in as `INSERT ... SELECT ... FROM VALUES`.
 import json
 
 from jev_trader.broker import AssetClass, Bar
+from jev_trader.dataset.measurements import MEASUREMENT_NAMES
+from jev_trader.dataset.situation_text import PATTERN_WINDOW_STEPS
+from jev_trader.dataset.snapshots import FoundPatterns
 from jev_trader.dataset.snowflake_store import MOST_BOUND_VALUES
-from jev_trader.sim.market import BarsByStep, DatasetInfo, Period
+from jev_trader.sim.market import (
+    BarsByStep,
+    DatasetInfo,
+    Period,
+    Playbook,
+    Snapshot,
+    SnapshotsByStep,
+)
 from jev_trader.sim.store import (
     REPLACED_BY_ID,
     TABLES,
@@ -31,6 +41,8 @@ from jev_trader.sim.store import (
 
 # The bars a sim steps through: one per asset per step.
 FIFTEEN_MINUTES = "15m"
+# Where the typical move, as a share of the price, sits in a snapshot's measurements (from 0).
+_TYPICAL_MOVE = MEASUREMENT_NAMES.index("typical_move_share_of_price")
 _JSON_COLUMNS = {"SETTINGS", "ACCOUNT_STATE", "DETAILS"}
 
 
@@ -139,6 +151,30 @@ class SnowflakeSimStore(_Connection):
                 found[name] = duplicated
         return found
 
+    def save_reading(self, version: str, opening: str) -> None:
+        self._run(
+            "MERGE INTO SIM.JEV_READINGS AS stored "
+            "USING (SELECT ? AS READING_VERSION, ? AS OPENING, ? AS CREATED_AT) AS new "
+            "ON stored.READING_VERSION = new.READING_VERSION "
+            "WHEN NOT MATCHED THEN INSERT (READING_VERSION, OPENING, CREATED_AT) "
+            "VALUES (new.READING_VERSION, new.OPENING, new.CREATED_AT)",
+            (version, opening, now()),
+        )
+
+    def spent(self, sim_id: int) -> float:
+        [(total,)] = self._run(
+            "SELECT COALESCE(SUM(COST_USD), 0) FROM SIM.CALLS WHERE SIM = ?", (sim_id,)
+        )
+        return float(total)
+
+    def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
+        [(asked, yes)] = self._run(
+            "SELECT COUNT(SCREEN_ANSWER), COUNT_IF(SCREEN_ANSWER >= ?) "
+            "FROM MEMORY.DECISIONS WHERE SIM = ? AND KIND = 'screen'",
+            (cut_off, sim_id),
+        )
+        return int(asked), int(yes)
+
 
 def _delete_ids(cur, table: str, sim_id: int, ids: list[str]) -> None:
     batch = 1_000  # IDs per IN list
@@ -216,3 +252,81 @@ class SnowflakeMarket(_Connection):
         ):
             by_step.setdefault(step, {})[asset] = Bar(step, open_, high, low, close)
         return by_step
+
+    def snapshots(
+        self, dataset_id: int, first_step: int, last_step: int
+    ) -> SnapshotsByStep:
+        found = self._found_patterns(dataset_id, first_step, last_step)
+        by_step: SnapshotsByStep = {}
+        for asset, step, situation, share, bars_left, close in self._run(
+            "SELECT s.ASSET, s.STEP, s.SITUATION_TEXT, "
+            f"s.MEASUREMENTS[{_TYPICAL_MOVE}]::FLOAT, b.BARS_LEFT, b.CLOSE "
+            "FROM FEATURES.SNAPSHOTS s JOIN RAW.BARS b ON b.DATASET = s.DATASET "
+            "AND b.ASSET = s.ASSET AND b.STEP = s.STEP AND b.BAR_SIZE = ? "
+            "WHERE s.DATASET = ? AND s.STEP BETWEEN ? AND ?",
+            (FIFTEEN_MINUTES, dataset_id, first_step, last_step),
+        ):
+            lists = found[asset].pattern_lists(step) if asset in found else None
+            names = (
+                ()
+                if lists is None
+                else tuple(
+                    dict.fromkeys(
+                        [name for name, _ in sorted(lists.window, key=lambda p: p[1])]
+                        + list(lists.hourly)
+                        + list(lists.daily)
+                    )
+                )
+            )
+            by_step.setdefault(step, {})[asset] = Snapshot(
+                situation_text=situation,
+                typical_move=None if share is None else share * close,
+                bars_left=bars_left,
+                patterns=names,
+            )
+        return by_step
+
+    def _found_patterns(
+        self, dataset_id: int, first_step: int, last_step: int
+    ) -> dict[str, FoundPatterns]:
+        """Each asset's stored patterns, as the dataset build read them for its situation texts:
+        the pattern window, and the latest finished hourly and daily bars."""
+        ends: dict[str, dict[str, list[int]]] = {}
+        for asset, size, step in self._run(
+            "SELECT ASSET, BAR_SIZE, STEP FROM RAW.BARS WHERE DATASET = ? "
+            "AND BAR_SIZE IN ('1h', '1d') AND STEP BETWEEN ? AND ? "
+            "UNION ALL SELECT ASSET, BAR_SIZE, MAX(STEP) FROM RAW.BARS WHERE DATASET = ? "
+            "AND BAR_SIZE IN ('1h', '1d') AND STEP < ? GROUP BY ASSET, BAR_SIZE",
+            (dataset_id, first_step, last_step, dataset_id, first_step),
+        ):
+            ends.setdefault(asset, {"1h": [], "1d": []})[size].append(step)
+        earliest = min(
+            [first_step - PATTERN_WINDOW_STEPS + 1]
+            + [s for sizes in ends.values() for steps in sizes.values() for s in steps]
+        )
+        names: dict[str, dict[tuple[str, int], list[str]]] = {}
+        for asset, size, step, pattern in self._run(
+            "SELECT ASSET, BAR_SIZE, STEP, PATTERN FROM FEATURES.PATTERNS "
+            "WHERE DATASET = ? AND STEP BETWEEN ? AND ? "
+            "ORDER BY ASSET, BAR_SIZE, STEP, PATTERN",
+            (dataset_id, earliest, last_step),
+        ):
+            names.setdefault(asset, {}).setdefault((size, step), []).append(pattern)
+        return {
+            asset: FoundPatterns(
+                names.get(asset, {}),
+                {"1h": sorted(sizes["1h"]), "1d": sorted(sizes["1d"])},
+            )
+            for asset, sizes in ends.items()
+        }
+
+    def playbook(self, dataset_id: int) -> Playbook:
+        return {
+            name: (lean, shape)
+            for name, lean, shape in self._run(
+                "SELECT p.NAME, p.LEAN, p.SHAPE FROM REF.PLAYBOOK p "
+                "JOIN REF.DATASETS d ON d.TALIB_VERSION = p.TALIB_VERSION "
+                "WHERE d.ID = ?",
+                (dataset_id,),
+            )
+        }
