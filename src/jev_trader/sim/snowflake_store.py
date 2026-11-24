@@ -32,7 +32,10 @@ from jev_trader.sim.market import (
     SnapshotsByStep,
 )
 from jev_trader.sim.store import (
+    ACTION_ENTRY,
+    KIND_FULL_EVALUATION,
     REPLACED_BY_ID,
+    SCREENED_KINDS,
     TABLES,
     SimStatus,
     StepAlreadyWritten,
@@ -170,10 +173,18 @@ class SnowflakeSimStore(_Connection):
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
         [(asked, yes)] = self._run(
             "SELECT COUNT(SCREEN_ANSWER), COUNT_IF(SCREEN_ANSWER >= ?) "
-            "FROM MEMORY.DECISIONS WHERE SIM = ? AND KIND = 'screen'",
-            (cut_off, sim_id),
+            "FROM MEMORY.DECISIONS WHERE SIM = ? AND KIND IN (?, ?)",
+            (cut_off, sim_id, *SCREENED_KINDS),
         )
         return int(asked), int(yes)
+
+    def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
+        [(evaluations, entries)] = self._run(
+            "SELECT COUNT(*), COUNT_IF(ACTION = ?) FROM MEMORY.DECISIONS "
+            "WHERE SIM = ? AND KIND = ?",
+            (ACTION_ENTRY, sim_id, KIND_FULL_EVALUATION),
+        )
+        return int(evaluations), int(entries)
 
 
 def _delete_ids(cur, table: str, sim_id: int, ids: list[str]) -> None:

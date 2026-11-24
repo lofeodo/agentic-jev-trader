@@ -58,6 +58,10 @@ def test_jevs_size_is_the_buckets_weighted_by_its_probabilities():
     assert MEDIUM.chosen_size([0, 0.5, 0.5, 0, 0], 10_000.0) == pytest.approx(6_000.0)
 
 
+def test_probabilities_that_do_not_add_up_to_one_still_give_an_average():
+    assert MEDIUM.chosen_size([0, 0.49, 0.49, 0, 0], 10_000.0) == pytest.approx(6_000.0)
+
+
 def test_a_size_under_every_limit_is_left_alone():
     assert MEDIUM.fit(
         6_000.0, account_value=10_000.0, price=100.0, stop_price=99.0

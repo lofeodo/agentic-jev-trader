@@ -31,6 +31,14 @@ TABLES = (
     "SIM.JEV_REQUESTS",
     "MEMORY.DECISIONS",
 )
+# A decision's KIND: a screen alone (tier 0 or 1), or a full evaluation (tier 2). Both began with
+# the screen, unless code skipped it.
+KIND_SCREEN = "screen"
+KIND_FULL_EVALUATION = "full_evaluation"
+SCREENED_KINDS = (KIND_SCREEN, KIND_FULL_EVALUATION)
+# A decision's ACTION: what was done.
+ACTION_NOTHING = "nothing"
+ACTION_ENTRY = "entry"
 # Tables whose rows a later step may rewrite, by ID.
 REPLACED_BY_ID = frozenset({"SIM.ORDERS"})
 
@@ -102,6 +110,9 @@ class SimStore(Protocol):
 
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
         """How many screens Jev answered, and how many of them said yes (at `cut_off` or above)."""
+
+    def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
+        """How many full evaluations ran, and how many of them placed an order to open a trade."""
 
 
 class SimulatedKill(BaseException):
@@ -199,9 +210,17 @@ class InMemorySimStore:
         answers = [
             r["SCREEN_ANSWER"]
             for r in self.rows("MEMORY.DECISIONS", sim_id)
-            if r["KIND"] == "screen" and r["SCREEN_ANSWER"] is not None
+            if r["KIND"] in SCREENED_KINDS and r["SCREEN_ANSWER"] is not None
         ]
         return len(answers), sum(1 for a in answers if a >= cut_off)
+
+    def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
+        actions = [
+            r["ACTION"]
+            for r in self.rows("MEMORY.DECISIONS", sim_id)
+            if r["KIND"] == KIND_FULL_EVALUATION
+        ]
+        return len(actions), actions.count(ACTION_ENTRY)
 
     # For tests
 

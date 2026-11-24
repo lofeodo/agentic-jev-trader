@@ -22,8 +22,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from jev_trader.broker import TradingCosts
-from jev_trader.risk import RiskProfile
+from jev_trader.broker import Direction, TradingCosts
+from jev_trader.jev.full_evaluation import NO_TRADE, SHUFFLED_COPIES, CandidateTrade
+from jev_trader.risk import RiskLimit, RiskProfile
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "jev_reading.toml"
 VERSION_LENGTH = 12
@@ -49,6 +50,9 @@ class AccountView:
     loan: float
     exposure: float
     positions: tuple[PositionLine, ...] = ()
+    shorts: float = (
+        0.0  # the open shorts' worth: their sale money in cash is not the account's
+    )
 
 
 @dataclass(frozen=True)
@@ -93,11 +97,24 @@ def _whole_percent(share: float) -> str:
     return f"{_round(100 * share)}%"
 
 
+def _price(n: float) -> str:
+    return f"${n:.2f}"
+
+
+def _percent(share: float) -> str:
+    return f"{100 * share:.1f}%"
+
+
+def size_option_name(share: float) -> str:
+    """A size bucket's option name: 0.2 gives "size_20_percent"."""
+    return f"size_{_round(100 * share)}_percent"
+
+
 def _bars(n: int) -> str:
     return f"{n} bar" if n == 1 else f"{n} bars"
 
 
-def load_wording(path: Path = WORDING_PATH) -> dict[str, str]:
+def load_wording(path: Path = WORDING_PATH) -> dict:
     with open(path, "rb") as file:
         return tomllib.load(file)
 
@@ -111,6 +128,11 @@ _LAYOUT_ACCOUNT = AccountView(
     positions=(PositionLine("OTHER", "crypto", "long", 50.0, 1, 1.0, 1.0),),
 )
 _LAYOUT_PLAYBOOK = {"pattern": ("lean", "Shape.")}
+_LAYOUT_TRADES = (
+    CandidateTrade("long_tight_stop", Direction.LONG, "tight", 99.0, 0.01),
+    CandidateTrade("short_tight_stop", Direction.SHORT, "tight", 101.0, 0.01),
+)
+_LAYOUT_ORDERS = [[t.name for t in _LAYOUT_TRADES] + [NO_TRADE]] * SHUFFLED_COPIES
 
 
 class Reading:
@@ -120,7 +142,7 @@ class Reading:
         self,
         costs: TradingCosts,
         risk: RiskProfile,
-        wording: Mapping[str, str] | None = None,
+        wording: Mapping | None = None,
     ):
         self.risk = risk
         self.wording = dict(load_wording() if wording is None else wording)
@@ -138,12 +160,17 @@ class Reading:
             forced_close_share=_whole_percent(risk.forced_close_share),
         )
         # A request written from fixed data carries the layout: the sections' order and joins.
-        sample = self.screen_request(_LAYOUT_ASSET, _LAYOUT_ACCOUNT, _LAYOUT_PLAYBOOK)
+        views = (_LAYOUT_ASSET, _LAYOUT_ACCOUNT, _LAYOUT_PLAYBOOK)
+        samples = [
+            self.screen_request(*views),
+            self.pick_request(*views, _LAYOUT_TRADES, _LAYOUT_ORDERS),
+            *(self.size_request(*views, trade) for trade in _LAYOUT_TRADES),
+        ]
         fingerprinted = json.dumps(
             {
                 "wording": self.wording,
                 "opening": self.opening,
-                "layout": [sample.background, sample.questions],
+                "layout": [[s.background, s.questions] for s in samples],
             },
             sort_keys=True,
         )
@@ -158,6 +185,137 @@ class Reading:
         playbook: Mapping[str, tuple[str, str]],
     ) -> JevRequest:
         """The screen: is a full evaluation of this asset worth running now?"""
+        question = self.wording["screen_question"].format(asset=asset.asset_id)
+        return JevRequest(
+            background=self._background(asset, account, playbook),
+            questions={"screen": {"type": "noul", "instructions": question}},
+        )
+
+    def pick_request(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        trades: tuple[CandidateTrade, ...],
+        orders: list[list[str]],
+    ) -> JevRequest:
+        """Request 1 of a full evaluation: which of the seven options, asked once per order.
+
+        `orders` lists the option names in the order each copy sends them. Without memory the
+        background is the screen's: the memory sections are absent, with nothing said about it.
+        """
+        options = self.pick_options(asset, account, trades)
+        instructions = self.wording["pick_question"].format(asset=asset.asset_id)
+        return JevRequest(
+            background=self._background(asset, account, playbook),
+            questions={
+                f"pick_{n}": {
+                    "type": "choice",
+                    "instructions": instructions,
+                    "criteria": {name: options[name] for name in order},
+                }
+                for n, order in enumerate(orders, start=1)
+            },
+        )
+
+    def size_request(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+        trade: CandidateTrade,
+    ) -> JevRequest:
+        """Request 2: how much money, asked smallest first and largest first, and the rating."""
+        w = self.wording
+        picked = f"{w['trade_picked_heading']}\n{self._trade_text(trade, asset.price)}"
+        options = self.size_options(asset, account, trade)
+        size = {"type": "choice", "instructions": w["size_question"]}
+        return JevRequest(
+            background=self._background(asset, account, playbook) + "\n\n" + picked,
+            questions={
+                "size_small_first": {**size, "criteria": options},
+                "size_large_first": {
+                    **size,
+                    "criteria": dict(reversed(list(options.items()))),
+                },
+                "rating": {
+                    "type": "score",
+                    "instructions": w["rating_question"],
+                    "criteria": list(w["rating_levels"]),
+                },
+            },
+        )
+
+    def pick_options(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        trades: tuple[CandidateTrade, ...],
+    ) -> dict[str, str]:
+        """The seven options by name, in code's own order: the six trades, then no trade."""
+        options = {}
+        for trade in trades:
+            largest, _ = self.largest_size(asset, account, trade)
+            options[trade.name] = self._trade_text(trade, asset.price) + self.wording[
+                "largest_size"
+            ].format(amount=dollars(largest))
+        options[NO_TRADE] = self.wording["no_trade"]
+        return options
+
+    def size_options(
+        self, asset: AssetView, account: AccountView, trade: CandidateTrade
+    ) -> dict[str, str]:
+        """The five sizes by name, smallest first, each with what it borrows and loses."""
+        w = self.wording
+        largest, limit = self.largest_size(asset, account, trade)
+        why = {
+            RiskLimit.TRADE_RISK: w["limit_trade_risk"],
+            RiskLimit.POSITION: w["limit_position"],
+            RiskLimit.EXPOSURE: w["limit_exposure"],
+        }[limit]
+        options = {}
+        for rank, share in zip(w["size_ranks"], self.risk.size_buckets, strict=True):
+            asked = share * account.value
+            actual = min(asked, largest)
+            text = w["size_option"].format(
+                rank=rank, asked=dollars(asked), share=_whole_percent(share)
+            )
+            if actual < asked:
+                text += w["size_cut"].format(actual=dollars(actual), why=why)
+            if trade.direction is Direction.LONG:
+                # What the loan grows by: cash beyond the shorts' sale money pays first.
+                borrowed = (
+                    max(0.0, account.shorts - account.cash + actual) - account.loan
+                )
+                text += (
+                    w["size_borrowed"].format(borrowed=dollars(borrowed))
+                    if borrowed > 0
+                    else w["size_from_cash"]
+                )
+            else:
+                text += w["size_short"]
+            text += w["size_loss"].format(loss=dollars(actual * trade.stop_share))
+            options[size_option_name(share)] = text
+        return options
+
+    def largest_size(
+        self, asset: AssetView, account: AccountView, trade: CandidateTrade
+    ) -> tuple[float, RiskLimit]:
+        """The most code opens with `trade` at the last price, and the limit that sets it."""
+        return self.risk.largest_size(
+            account_value=account.value,
+            price=asset.price,
+            stop_price=trade.stop_price,
+            exposure=account.exposure,
+        )
+
+    def _background(
+        self,
+        asset: AssetView,
+        account: AccountView,
+        playbook: Mapping[str, tuple[str, str]],
+    ) -> str:
+        """The screen's background, which is also a full evaluation's without memory."""
         sections = [
             self.opening,
             self._account(account),
@@ -165,10 +323,19 @@ class Reading:
             self._asset(asset),
             self._pattern_notes(asset.patterns, playbook),
         ]
-        question = self.wording["screen_question"].format(asset=asset.asset_id)
-        return JevRequest(
-            background="\n\n".join(s for s in sections if s),
-            questions={"screen": {"type": "noul", "instructions": question}},
+        return "\n\n".join(s for s in sections if s)
+
+    def _trade_text(self, trade: CandidateTrade, price: float) -> str:
+        template = (
+            self.wording["trade_long"]
+            if trade.direction is Direction.LONG
+            else self.wording["trade_short"]
+        )
+        return template.format(
+            width=trade.width,
+            price=_price(price),
+            stop=_price(trade.stop_price),
+            distance=_percent(trade.stop_share),
         )
 
     def after_opening(self, background: str) -> str:

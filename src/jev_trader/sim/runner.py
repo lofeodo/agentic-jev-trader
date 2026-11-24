@@ -47,7 +47,7 @@ from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.reading import Reading
 from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
-from jev_trader.sim.agent import ScreeningAgent
+from jev_trader.sim.agent import AgentWithoutMemory
 from jev_trader.sim.clock import midnights_between
 from jev_trader.sim.market import DatasetInfo, Market
 from jev_trader.sim.store import (
@@ -307,8 +307,15 @@ def run_sim(
                 f"and the wording is now {reading.version}: it cannot carry on"
             )
         store.save_reading(reading.version, reading.opening)
-        strategy = ScreeningAgent(
-            sim_id, info.dataset_id, last_step, market, jev, reading
+        strategy = AgentWithoutMemory(
+            sim_id,
+            info.dataset_id,
+            last_step,
+            market,
+            jev,
+            reading,
+            stops,
+            sim["RANDOM_SEED"],
         )
 
     last_completed = sim["LAST_COMPLETED_STEP"]
@@ -447,7 +454,7 @@ def _run_step(
     previous: int,
     last_step: int,
     broker: Broker,
-    strategy: BuyHold | ScreeningAgent,
+    strategy: BuyHold | AgentWithoutMemory,
     bars: dict[str, Bar],
     batch: _Batch,
 ) -> None:

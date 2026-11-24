@@ -9,8 +9,10 @@ with `--market "falling market"`, or over `--first-step` to `--last-step`. `resu
 on from its last completed step: one killed mid-step, stopped by hand, or failed.
 
 `practice` runs the agent without memory for at most one replayed day and 25 cents, from
-`--first-step` or the first step after the warm-up. It calls Jev, which costs money: for now it
-only asks the screen, about a cent a day. `--database TRADING_AGENT_TEST` uses the test database.
+`--first-step` or the first step after the warm-up. It calls Jev, which costs money: a screen
+for each asset at each step, and on a yes the full evaluation's two requests, which can open a
+trade (pretend money). Open positions are left to code until the position screen is built.
+`--database TRADING_AGENT_TEST` uses the test database. It needs migrations V5 and V6 applied.
 
 Logs in as the sim login (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`,
 the key `sim.p8` in `SNOWFLAKE_LOCAL_DIR`); Jev's key is `TYPESAFE_API_KEY` in `.env`. Output is
@@ -102,7 +104,8 @@ def jev_client_for(sim: dict) -> JevClient | None:
 
 
 def screen_report(store, sim: dict) -> list[str]:
-    """The share of screens that said yes, and the spec's stop-and-ask rule above 30%."""
+    """The share of screens that said yes, with the spec's stop-and-ask rule above 30%, and how
+    many full evaluations ran and opened a trade."""
     cut_off = sim["SETTINGS"]["risk_profile"]["screen_cut_off"]
     asked, yes = store.screen_counts(sim["ID"], cut_off)
     if not asked:
@@ -114,6 +117,8 @@ def screen_report(store, sim: dict) -> list[str]:
             f"Above {YES_SHARE_TO_STOP_AND_ASK:.0%}: the developer decides what to do "
             "before any measurement sim."
         )
+    evaluations, entries = store.full_evaluation_counts(sim["ID"])
+    lines.append(f"Full evaluations: {evaluations}, trades opened: {entries}.")
     return lines
 
 
