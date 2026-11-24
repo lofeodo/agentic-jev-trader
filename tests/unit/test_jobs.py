@@ -1,0 +1,106 @@
+"""Starting, finding and killing a job on this computer (spec appendix 8, sections 8.7 and 8.10).
+
+The jobs here are real programs, but harmless ones: Python sleeping, in place of a sim.
+"""
+
+import sys
+import time
+
+import psutil
+import pytest
+
+from jev_trader.jobs import LocalLauncher, launcher_named, this_process
+
+
+def sleeper(sim_id: int) -> list[str]:
+    return [
+        sys.executable,
+        "-c",
+        f"import time; print('sim {sim_id} job', flush=True); time.sleep(120)",
+    ]
+
+
+@pytest.fixture
+def launcher(tmp_path):
+    started = []
+    launcher = LocalLauncher(tmp_path, command_for=sleeper)
+    real_start = launcher.start
+
+    def start(sim_id):
+        mark = real_start(sim_id)
+        started.append(mark)
+        return mark
+
+    launcher.start = start
+    yield launcher
+    for mark in started:
+        launcher.stop(mark)
+
+
+def pid_of(mark: str) -> int:
+    return int(mark.split()[1])
+
+
+def test_a_started_job_is_found_and_killed(launcher):
+    mark = launcher.start(12)
+    assert mark.startswith("pid ")
+    assert launcher.is_running(mark)
+
+    assert launcher.stop(mark) is True
+
+    assert not launcher.is_running(mark)
+    assert not psutil.pid_exists(pid_of(mark)) or (
+        psutil.Process(pid_of(mark)).status() == psutil.STATUS_ZOMBIE
+    )
+
+
+def test_a_reused_process_number_is_not_mistaken_for_the_job(launcher):
+    """Windows reuses process numbers: same number, other start time, other program."""
+    mark = launcher.start(12)
+    pid, started = pid_of(mark), float(mark.split()[3])
+    reused = f"pid {pid} started {started - 3600}"
+
+    assert not launcher.is_running(reused)
+    assert launcher.stop(reused) is False
+    assert launcher.is_running(mark)
+
+
+def test_stopping_a_job_already_gone_kills_nothing(launcher):
+    mark = launcher.start(12)
+    launcher.stop(mark)
+
+    assert launcher.stop(mark) is False
+    assert launcher.stop(None) is False
+
+
+def test_the_job_writes_to_its_own_log(launcher, tmp_path):
+    launcher.start(12)
+    log = tmp_path / "sim-12.log"
+    for _ in range(100):
+        if "sim 12 job" in log.read_text(encoding="utf-8"):
+            break
+        time.sleep(0.05)
+    assert "sim 12 job" in log.read_text(encoding="utf-8")
+
+
+def test_a_program_records_where_it_runs():
+    mark = this_process()
+
+    assert mark.startswith(f"pid {psutil.Process().pid} started ")
+    assert LocalLauncher.find(mark).pid == psutil.Process().pid
+
+
+def test_only_the_local_launcher_is_built_so_far(tmp_path):
+    assert isinstance(launcher_named("local", tmp_path, "TRADING_AGENT"), LocalLauncher)
+    with pytest.raises(ValueError, match="kubernetes"):
+        launcher_named("kubernetes", tmp_path, "TRADING_AGENT")
+    with pytest.raises(ValueError, match="local"):
+        launcher_named("ssh", tmp_path, "TRADING_AGENT")
+
+
+def test_a_mark_without_a_start_time_cannot_be_confirmed_so_nothing_is_killed(launcher):
+    """`pid 1234` alone could name any program now, another sim's job included."""
+    mark = launcher.start(12)
+
+    assert launcher.stop(f"pid {pid_of(mark)}") is False
+    assert launcher.is_running(mark)

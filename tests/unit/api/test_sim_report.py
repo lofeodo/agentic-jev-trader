@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.sim.store import InMemorySimStore
+from tests.unit.api.conftest import StandInLauncher
 
 NOW = datetime(2026, 11, 23, 12, 0)
 RISK = {
@@ -66,6 +67,7 @@ def api(store):
             store,
             spending_ceiling=75.0,
             not_responding_after=timedelta(minutes=7),
+            launcher=StandInLauncher(),
             clock=lambda: NOW,
         ),
         base_url="http://localhost",

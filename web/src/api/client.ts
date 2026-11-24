@@ -26,6 +26,7 @@ export type Breakdown = Schemas["Breakdown"];
 export type Scorecard = Schemas["Scorecard"];
 export type ScorecardLine = Schemas["ScorecardLine"];
 export type Split = Schemas["Split"];
+export type Refusal = Schemas["Refusal"];
 
 async function read<T>(path: string): Promise<T> {
   const answer = await fetch(`/api${path}`);
@@ -66,3 +67,25 @@ export function fetchScorecard(id: number, split: Split[]) {
   for (const part of split) ask.append("split", part);
   return read<Scorecard>(`/sims/${id}/scorecard${split.length ? `?${ask}` : ""}`);
 }
+// A request to the API was refused: every reason, each saying how to fix it.
+export class RefusedError extends Error {
+  constructor(public refusals: Refusal[]) {
+    super(refusals.map((r) => r.message).join("; "));
+  }
+}
+
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  const answer = await fetch(`/api${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (answer.status === 409) throw new RefusedError((await answer.json()).refusals as Refusal[]);
+  if (!answer.ok) throw new Error(`The API answered ${answer.status} for ${path}`);
+  return answer.json() as Promise<T>;
+}
+
+export const stopSim = (id: number) => post<SimHeader>(`/sims/${id}/stop`);
+// `spendingCapUsd`: a new cap, needed only when the spending cap stopped the sim.
+export const resumeSim = (id: number, spendingCapUsd: number | null) =>
+  post<SimHeader>(`/sims/${id}/resume`, { spending_cap_usd: spendingCapUsd });

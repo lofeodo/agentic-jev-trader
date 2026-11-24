@@ -27,3 +27,6 @@ web/dist/
 
 # Logs the Playwright browser tools write while an agent drives a browser
 .playwright-mcp/
+
+# What the sims' jobs print when the API starts them
+logs/

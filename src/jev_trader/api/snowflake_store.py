@@ -7,7 +7,7 @@ import json
 from jev_trader.dataset.measurements import MEASUREMENT_NAMES
 from jev_trader.dataset.situation_text import PATTERN_WINDOW_STEPS
 from jev_trader.dataset.snowflake_store import MOST_BOUND_VALUES
-from jev_trader.sim.snowflake_store import SnowflakeSimStore
+from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
 
 _LONG_TERM_TREND = MEASUREMENT_NAMES.index("long_term_trend")
 _VOLUME_AGAINST_NORMAL = MEASUREMENT_NAMES.index("volume_against_normal")
@@ -252,3 +252,12 @@ class SnowflakeApiStore:
                 if names is not None and pattern not in names:
                     names.append(pattern)
         return found
+
+    def dataset(self, dataset_id):
+        return SnowflakeMarket(self.con).dataset(dataset_id)
+
+    def create(self, row):
+        return SnowflakeSimStore(self.con).create(row)
+
+    def update(self, sim_id, **columns):
+        SnowflakeSimStore(self.con).update(sim_id, **columns)
