@@ -20,21 +20,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from jev_trader.storage.save import SnowflakeTables, save_tables
+from jev_trader.storage.save import NOT_SAVED, SnowflakeTables, save_tables
 from jev_trader.storage.snowflake import DATABASE, LoginNotSet, connect
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SAVED_TABLES = REPO_ROOT / "saved-tables"
-
-
-class Reporting(SnowflakeTables):
-    """Prints each table as it is saved: a big table takes a while."""
-
-    def unload(self, table, stage_dir):
-        print(f"{table.schema}.{table.name}: ", end="", flush=True)
-        rows = super().unload(table, stage_dir)
-        print(f"{rows} rows", flush=True)
-        return rows
 
 
 def save(database: str, folder: Path) -> int:
@@ -46,10 +36,14 @@ def save(database: str, folder: Path) -> int:
         return 2
     try:
         out = save_tables(
-            Reporting(connection, database), folder, database, datetime.now(UTC)
+            SnowflakeTables(connection, database),
+            folder,
+            datetime.now(UTC),
+            report=lambda line: print(line, flush=True),
         )
     finally:
         connection.close()
+    print(f"Not saved: {NOT_SAVED}")
     print(f"Saved to {out}")
     return 0
 

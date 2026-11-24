@@ -25,6 +25,8 @@ EMPTY = Table("MEMORY", "EPISODES", (Column("ID", "NUMBER(38,0)"),))
 class FakeSnowflake:
     """Tables with a row count each. Unloading puts one file per 1,000 rows on the stage."""
 
+    database = "TRADING_AGENT"
+
     def __init__(self, rows, fail_on=None):
         self.rows = rows  # {Table: row count}
         self.stage = {}  # stage folder -> file names
@@ -56,8 +58,15 @@ class FakeSnowflake:
         }
 
 
-def save(tmp_path, snowflake):
-    return save_tables(snowflake, tmp_path, database="TRADING_AGENT", saved_at=SAVED_AT)
+def save(tmp_path, snowflake, report=lambda line: None):
+    return save_tables(snowflake, tmp_path, saved_at=SAVED_AT, report=report)
+
+
+def test_each_table_is_reported_as_it_is_saved(tmp_path):
+    lines = []
+    save(tmp_path, FakeSnowflake({SIMS: 2500, EMPTY: 0}), report=lines.append)
+
+    assert lines == ["SIM.SIMS: 2500 rows", "MEMORY.EPISODES: 0 rows"]
 
 
 def test_each_table_lands_in_its_own_folder_under_one_dated_save(tmp_path):

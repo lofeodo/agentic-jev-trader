@@ -7,11 +7,16 @@ them. Each save goes to a new folder, `<DATABASE>-<YYYYMMDD-HHMMSS>`, one folder
 it (`SIM/SIMS/`), with `manifest.json` beside them: every table's row count, file names and
 column types, so the files can be loaded into a new Snowflake account later.
 
-`VECTOR` columns are saved as arrays of numbers: Parquet has no vector type. The manifest keeps
-the original type (`VECTOR(FLOAT, 768)`) for casting them back on reload.
+Parquet has no type for Snowflake's `VARIANT`, `ARRAY` and `VECTOR` columns: they are saved as
+JSON text (`VECTOR` columns cast to `ARRAY` first, `[0.029,0.068,...]`). To load one back,
+`PARSE_JSON` it and cast it to the type the manifest records, e.g.
+`PARSE_JSON($1:EMBEDDING)::VECTOR(FLOAT, 768)`.
+
+Tables are copied one after another, not at one instant: save while no sim or build is writing.
 """
 
 import json
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +24,14 @@ from typing import Protocol
 
 # Where the files wait on the login's own stage between `COPY INTO` and `GET`.
 STAGE_ROOT = "jev_trader_saved_tables"
+NOT_SAVED = (
+    "METADATA (schemachange's record of applied SQL files): the API login cannot read it, "
+    "and applying infra/migrations to a new account writes it again."
+)
+RELOADING = (
+    "VARIANT, ARRAY and VECTOR columns are JSON text: PARSE_JSON each and cast it to the "
+    "column's type, e.g. PARSE_JSON($1:EMBEDDING)::VECTOR(FLOAT, 768)."
+)
 
 
 @dataclass(frozen=True)
@@ -35,6 +48,8 @@ class Table:
 
 
 class TableSource(Protocol):
+    database: str
+
     def tables(self) -> list[Table]: ...
 
     def unload(self, table: Table, stage_dir: str) -> int:
@@ -64,16 +79,23 @@ def unload_query(database: str, table: Table) -> str:
 
 
 def save_tables(
-    source: TableSource, folder: Path, database: str, saved_at: datetime
+    source: TableSource,
+    folder: Path,
+    saved_at: datetime,
+    report: Callable[[str], None] = lambda line: None,
 ) -> Path:
-    """Save every table `source` lists into a new dated folder under `folder`; returns it."""
-    out = Path(folder) / f"{database}-{saved_at:%Y%m%d-%H%M%S}"
+    """Save every table `source` lists into a new dated folder under `folder`; returns it.
+
+    `report` gets one line per table as it is saved: a big table takes minutes.
+    """
+    out = Path(folder) / f"{source.database}-{saved_at:%Y%m%d-%H%M%S}"
     saved = []
     source.clear(STAGE_ROOT)
     try:
         for table in source.tables():
             stage_dir = f"{STAGE_ROOT}/{table.schema}/{table.name}"
             rows = source.unload(table, stage_dir)
+            report(f"{table.schema}.{table.name}: {rows} rows")
             files = (
                 sorted(source.download(stage_dir, out / table.schema / table.name))
                 if rows
@@ -96,9 +118,11 @@ def save_tables(
     finally:
         source.clear(STAGE_ROOT)
     manifest = {
-        "database": database,
+        "database": source.database,
         "saved_at": saved_at.isoformat(),
         "total_rows": sum(t["rows"] for t in saved),
+        "not_saved": NOT_SAVED,
+        "reloading": RELOADING,
         "tables": saved,
     }
     out.mkdir(parents=True, exist_ok=True)

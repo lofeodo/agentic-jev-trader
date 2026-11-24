@@ -88,17 +88,17 @@ conda run -n agentic-jev-trader python -m jev_trader.api serve
 npm run dev --prefix web
 ```
 
-Save every table as Parquet files into `saved-tables/` (gitignored), before the Snowflake trial ends about 2026-12-12 (spec appendix 10, section 15). It logs in as the API login and reads only; `--database TRADING_AGENT_TEST` saves the test database. Each save gets its own dated folder with a `manifest.json` (rows, files, column types; `VECTOR` columns are saved as arrays):
-
-```
-conda run -n agentic-jev-trader python -m jev_trader.storage save
-```
-
 After changing what the API answers, regenerate the web app's data types (CI fails if they differ):
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.api describe web/openapi.json
 npm run types --prefix web
+```
+
+Save a copy of every table on this computer, so the results survive the Snowflake trial ending about 2026-12-12 (spec appendix 10, section 15). The copy is Parquet files (a common file format for tables) in `saved-tables/` (gitignored), one dated folder per save, with a `manifest.json` listing each table's rows and column types for loading it into a new account later. It logs in as the API login and only reads; run it while no sim or build is writing. The real database is several GB and takes a while; `--database TRADING_AGENT_TEST` saves the test database:
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.storage save
 ```
 
 Gotchas:
