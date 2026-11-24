@@ -33,7 +33,9 @@ from jev_trader.sim.market import (
 )
 from jev_trader.sim.store import (
     ACTION_ENTRY,
+    IN_PROGRESS,
     KIND_FULL_EVALUATION,
+    KIND_SCREEN,
     REPLACED_BY_ID,
     SCREENED_KINDS,
     TABLES,
@@ -170,6 +172,34 @@ class SnowflakeSimStore(_Connection):
         )
         return float(total)
 
+    def total_spent(self) -> float:
+        [(total,)] = self._run("SELECT COALESCE(SUM(COST_USD), 0) FROM SIM.CALLS")
+        return float(total)
+
+    def sims_in_progress(self) -> list[dict]:
+        columns = ("ID", "KIND", "VARIANT", "STATUS", "SPENDING_CAP", "SPENT")
+        rows = self._run(
+            "SELECT s.ID, s.KIND, s.VARIANT, s.STATUS, s.SPENDING_CAP, "
+            "COALESCE(SUM(c.COST_USD), 0) FROM SIM.SIMS s "
+            "LEFT JOIN SIM.CALLS c ON c.SIM = s.ID WHERE s.STATUS IN (?, ?) "
+            "GROUP BY s.ID, s.KIND, s.VARIANT, s.STATUS, s.SPENDING_CAP ORDER BY s.ID",
+            IN_PROGRESS,
+        )
+        return [
+            {**dict(zip(columns, row, strict=True)), "SPENT": float(row[-1])}
+            for row in rows
+        ]
+
+    def latest_tier_2_share(self) -> float | None:
+        found = self._run(
+            "SELECT COUNT_IF(d.KIND = ?) / COUNT(*) FROM MEMORY.DECISIONS d "
+            "JOIN SIM.SIMS s ON s.ID = d.SIM "
+            "WHERE s.KIND = 'practice' AND s.VARIANT <> 'buy_hold' AND d.KIND IN (?, ?) "
+            "GROUP BY d.SIM ORDER BY d.SIM DESC LIMIT 1",
+            (KIND_FULL_EVALUATION, KIND_SCREEN, KIND_FULL_EVALUATION),
+        )
+        return float(found[0][0]) if found else None
+
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
         [(asked, yes)] = self._run(
             "SELECT COUNT(SCREEN_ANSWER), COUNT_IF(SCREEN_ANSWER >= ?) "
@@ -252,6 +282,14 @@ class SnowflakeMarket(_Connection):
             periods=tuple(Period(*p) for p in periods),
             assets={masked: AssetClass(cls) for masked, cls in assets},
         )
+
+    def bar_count(self, dataset_id: int, first_step: int, last_step: int) -> int:
+        [(count,)] = self._run(
+            "SELECT COUNT(*) FROM RAW.BARS "
+            "WHERE DATASET = ? AND BAR_SIZE = ? AND STEP BETWEEN ? AND ?",
+            (dataset_id, FIFTEEN_MINUTES, first_step, last_step),
+        )
+        return int(count)
 
     def bars(self, dataset_id: int, first_step: int, last_step: int) -> BarsByStep:
         by_step: BarsByStep = {}

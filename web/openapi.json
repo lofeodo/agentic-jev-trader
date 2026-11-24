@@ -1100,6 +1100,62 @@
         "title": "OrderLine",
         "type": "object"
       },
+      "Pattern": {
+        "properties": {
+          "detector": {
+            "title": "Detector",
+            "type": "string"
+          },
+          "lean": {
+            "title": "Lean",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "shape": {
+            "title": "Shape",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "detector",
+          "lean",
+          "shape"
+        ],
+        "title": "Pattern",
+        "type": "object"
+      },
+      "Playbook": {
+        "properties": {
+          "patterns": {
+            "items": {
+              "$ref": "#/components/schemas/Pattern"
+            },
+            "title": "Patterns",
+            "type": "array"
+          },
+          "talib_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Talib Version"
+          }
+        },
+        "required": [
+          "talib_version",
+          "patterns"
+        ],
+        "title": "Playbook",
+        "type": "object"
+      },
       "PositionThen": {
         "properties": {
           "asset": {
@@ -1819,6 +1875,102 @@
         "title": "SimsStarted",
         "type": "object"
       },
+      "Spending": {
+        "properties": {
+          "ceiling_usd": {
+            "title": "Ceiling Usd",
+            "type": "number"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SpendingItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "jev_usd": {
+            "title": "Jev Usd",
+            "type": "number"
+          },
+          "left_usd": {
+            "title": "Left Usd",
+            "type": "number"
+          },
+          "llm_usd": {
+            "title": "Llm Usd",
+            "type": "number"
+          },
+          "reserved_usd": {
+            "title": "Reserved Usd",
+            "type": "number"
+          },
+          "spent_usd": {
+            "title": "Spent Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "spent_usd",
+          "ceiling_usd",
+          "reserved_usd",
+          "left_usd",
+          "jev_usd",
+          "llm_usd",
+          "items"
+        ],
+        "title": "Spending",
+        "type": "object"
+      },
+      "SpendingItem": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "jev_usd": {
+            "title": "Jev Usd",
+            "type": "number"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "llm_usd": {
+            "title": "Llm Usd",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sim_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sim Id"
+          },
+          "total_usd": {
+            "title": "Total Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "sim_id",
+          "name",
+          "jev_usd",
+          "llm_usd",
+          "total_usd",
+          "calls"
+        ],
+        "title": "SpendingItem",
+        "type": "object"
+      },
       "SpendingTotal": {
         "description": "Real dollars paid to Jev and the LLM so far, and the most the project may pay.",
         "properties": {
@@ -2268,6 +2420,24 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/playbook": {
+      "get": {
+        "operationId": "playbook",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Playbook"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Playbook"
       }
     },
     "/sims": {
@@ -2839,6 +3009,24 @@
           }
         },
         "summary": "Sim Trades"
+      }
+    },
+    "/spending": {
+      "get": {
+        "operationId": "spending",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Spending"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Spending"
       }
     },
     "/spending/total": {

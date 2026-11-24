@@ -26,6 +26,10 @@ export type Breakdown = Schemas["Breakdown"];
 export type Scorecard = Schemas["Scorecard"];
 export type ScorecardLine = Schemas["ScorecardLine"];
 export type Split = Schemas["Split"];
+export type Playbook = Schemas["Playbook"];
+export type Pattern = Schemas["Pattern"];
+export type Spending = Schemas["Spending"];
+export type SpendingItem = Schemas["SpendingItem"];
 export type Refusal = Schemas["Refusal"];
 
 async function read<T>(path: string): Promise<T> {
@@ -36,6 +40,8 @@ async function read<T>(path: string): Promise<T> {
 
 export const fetchSims = () => read<SimsList>("/sims");
 export const fetchSpendingTotal = () => read<SpendingTotal>("/spending/total");
+export const fetchSpending = () => read<Spending>("/spending");
+export const fetchPlaybook = () => read<Playbook>("/playbook");
 export const fetchSimHeader = (id: number) => read<SimHeader>(`/sims/${id}`);
 export const fetchChart = (id: number) => read<Chart>(`/sims/${id}/chart`);
 export const fetchLive = (id: number, afterStep: number | null) =>

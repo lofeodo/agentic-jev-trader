@@ -118,9 +118,12 @@ def test_no_sim_runs_in_the_warm_up_period(market):
         holding_sim(InMemorySimStore(), market, first_step=50)
 
 
-def test_a_free_sim_cannot_use_test_period_days(market):
-    with pytest.raises(ValueError, match="test period"):
-        holding_sim(InMemorySimStore(), market, kind="free")
+def test_the_holding_sim_may_replay_test_period_days_whatever_its_kind(market):
+    # It decides nothing and is shared by the measurement sims on those days (checker.py).
+    store = InMemorySimStore()
+    run_sim(store, market, holding_sim(store, market, kind="free"))
+
+    assert store.sim(1)["STATUS"] == "finished"
 
 
 def test_the_agent_with_memory_is_not_built_yet(market):

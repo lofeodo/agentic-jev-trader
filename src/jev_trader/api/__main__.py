@@ -25,6 +25,7 @@ from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.broker.config import CONFIG_DIR
 from jev_trader.jobs import launcher_named
+from jev_trader.sim.spending import load_spending_settings
 from jev_trader.sim.store import InMemorySimStore
 from jev_trader.storage.snowflake import DATABASE, LoginNotSet, connect
 
@@ -70,7 +71,7 @@ def serve(database: str, port: int) -> int:
     settings = load_settings()
     app = create_app(
         SnowflakeApiStore(connection),
-        spending_ceiling=settings["spending_ceiling_usd"],
+        spending_ceiling=load_spending_settings().ceiling_usd,
         not_responding_after=timedelta(minutes=settings["not_responding_minutes"]),
         moment_window_steps=settings["moment_window_steps"],
         launcher=launcher,

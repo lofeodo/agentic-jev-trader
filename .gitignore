@@ -12,6 +12,9 @@
 *.tfstate.*
 *.tfvars
 
+# Tables saved from Snowflake by `python -m jev_trader.storage save`
+saved-tables/
+
 # Python and tool caches
 __pycache__/
 *.egg-info/

@@ -253,6 +253,28 @@ class SnowflakeApiStore:
                     names.append(pattern)
         return found
 
+    def spending_by_item(self) -> list[dict]:
+        rows = self._rows(
+            "SELECT SIM, IFF(SIM IS NULL, PURPOSE, NULL) AS PURPOSE, SERVICE, "
+            "COALESCE(SUM(COST_USD), 0) AS COST_USD, COUNT(*) AS CALLS "
+            "FROM SIM.CALLS GROUP BY 1, 2, 3"
+        )
+        return [
+            {
+                "SIM": None if r["SIM"] is None else int(r["SIM"]),
+                "PURPOSE": r["PURPOSE"],
+                "SERVICE": r["SERVICE"],
+                "COST_USD": float(r["COST_USD"]),
+                "CALLS": int(r["CALLS"]),
+            }
+            for r in rows
+        ]
+
+    def playbook(self) -> list[dict]:
+        return self._rows(
+            "SELECT TALIB_VERSION, PATTERN, LEAN, NAME, SHAPE FROM REF.PLAYBOOK"
+        )
+
     def dataset(self, dataset_id):
         return SnowflakeMarket(self.con).dataset(dataset_id)
 
@@ -261,3 +283,15 @@ class SnowflakeApiStore:
 
     def update(self, sim_id, **columns):
         SnowflakeSimStore(self.con).update(sim_id, **columns)
+
+    def spent(self, sim_id):
+        return self.spent_on(sim_id)
+
+    def sims_in_progress(self):
+        return SnowflakeSimStore(self.con).sims_in_progress()
+
+    def latest_tier_2_share(self):
+        return SnowflakeSimStore(self.con).latest_tier_2_share()
+
+    def bar_count(self, dataset_id, first_step, last_step):
+        return SnowflakeMarket(self.con).bar_count(dataset_id, first_step, last_step)

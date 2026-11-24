@@ -75,7 +75,7 @@ conda run -n agentic-jev-trader python -m jev_trader.sim start --dataset 1 --var
 conda run -n agentic-jev-trader python -m jev_trader.sim resume 12
 ```
 
-Run a practice sim of the agent without memory: at most one replayed day and 25 cents. It calls Jev, so it costs money: run it only with my go-ahead. It needs `infra/migrations/V5__jev_requests_and_decisions.sql` and `V6__full_evaluation_columns.sql` applied:
+Run a practice sim of the agent without memory: at most one replayed day and 25 cents (`--spending-cap 0.40` raises the cap for that one sim). It calls Jev, so it costs money: run it only with my go-ahead. It needs `infra/migrations/V5__jev_requests_and_decisions.sql` and `V6__full_evaluation_columns.sql` applied:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
@@ -95,6 +95,12 @@ conda run -n agentic-jev-trader python -m jev_trader.api describe web/openapi.js
 npm run types --prefix web
 ```
 
+Save a copy of every table on this computer, so the results survive the Snowflake trial ending about 2026-12-12 (spec appendix 10, section 15). The copy is Parquet files (a common file format for tables) in `saved-tables/` (gitignored), one dated folder per save, with a `manifest.json` listing each table's rows and column types for loading it into a new account later. It logs in as the API login and only reads; run it while no sim or build is writing. The real database is several GB and takes a while; `--database TRADING_AGENT_TEST` saves the test database:
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.storage save
+```
+
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).
@@ -102,6 +108,7 @@ Gotchas:
 - A sim job started by the API runs the code of the checkout the API runs from, whichever copy is installed.
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
 - `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.
+- Every refusal before a sim starts or resumes comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. `run_sim` keeps its own guards for carrying a sim on (finished, cap already reached, changed wording), and `api/sim_jobs.py` the checks only the API makes (command-line-only kinds, days, a resume's new cap). The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.
 
 ## Walkthroughs
 
