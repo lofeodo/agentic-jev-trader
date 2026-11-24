@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.sim.store import InMemorySimStore
-from tests.unit.api.conftest import StandInLauncher
+from tests.unit.api.conftest import StandInBuilds, StandInLauncher
 
 ON_THIS_COMPUTER = ("127.0.0.1", 50000)
 ON_ANOTHER_COMPUTER = ("192.168.1.20", 50000)
@@ -55,6 +55,7 @@ def client_for(store, client=ON_THIS_COMPUTER, host="localhost"):
             not_responding_after=timedelta(minutes=7),
             clock=lambda: NOW,
             launcher=StandInLauncher(),
+            builds=StandInBuilds(),
         ),
         base_url=f"http://{host}",
         client=client,
