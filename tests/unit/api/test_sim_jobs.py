@@ -15,7 +15,7 @@ from jev_trader.broker import AssetClass
 from jev_trader.jobs import JobNotKilled
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket, Period
 from jev_trader.sim.store import InMemorySimStore
-from tests.unit.api.conftest import StandInLauncher
+from tests.unit.api.conftest import StandInBuilds, StandInLauncher
 
 NOW = datetime(2026, 11, 24, 12, 0)
 CEILING = 75.0
@@ -74,6 +74,7 @@ def client(store, launcher):
             not_responding_after=timedelta(minutes=7),
             clock=lambda: NOW,
             launcher=launcher,
+            builds=StandInBuilds(),
         ),
         base_url="http://localhost",
         client=("127.0.0.1", 50000),

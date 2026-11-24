@@ -4,6 +4,85 @@
  */
 
 export interface paths {
+    "/datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Datasets */
+        get: operations["listDatasets"];
+        put?: never;
+        /**
+         * Build Dataset
+         * @description Add the dataset's row, being built, and start its build job. The check against
+         *     the two limits is the build's first step.
+         */
+        post: operations["buildDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/datasets/{dataset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dataset Page */
+        get: operations["datasetPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/datasets/{dataset_id}/bars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dataset Bars
+         * @description One asset's price chart: each day's close. `ticker`: the asset's real ticker.
+         */
+        get: operations["datasetBars"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/datasets/{dataset_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Dataset
+         * @description Kill the build and mark it failed, stopped by hand.
+         */
+        post: operations["stopDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -297,6 +376,16 @@ export interface components {
             /** Start Of Day Value */
             start_of_day_value: number;
         };
+        /** AssetCheck */
+        AssetCheck: {
+            asset: components["schemas"]["AssetName"];
+            /** Other Missing Share */
+            other_missing_share: number;
+            /** Over */
+            over: string[];
+            /** Partial Volume Share */
+            partial_volume_share: number | null;
+        };
         /**
          * AssetName
          * @description The real name leads; the masked ID is the disguised label the agent saw.
@@ -357,6 +446,122 @@ export interface components {
             step: number;
             /** Value */
             value: number;
+        };
+        /** DatasetLine */
+        DatasetLine: {
+            check: components["schemas"]["QualityCheck"] | null;
+            /** Failure Reason */
+            failure_reason: string | null;
+            /** First Day */
+            first_day: string | null;
+            /** Id */
+            id: number;
+            /** Last Day */
+            last_day: string | null;
+            /** Name */
+            name: string;
+            /** Progress */
+            progress: number | null;
+            /** Published At */
+            published_at: string | null;
+            /** Published Without Check */
+            published_without_check: boolean;
+            /** Stage */
+            stage: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+            /** Tickers */
+            tickers: string[];
+            /** Version */
+            version: number;
+        };
+        /** DatasetPage */
+        DatasetPage: {
+            /** Asset Key */
+            asset_key: components["schemas"]["KeyLine"][];
+            check: components["schemas"]["QualityCheck"] | null;
+            /** Failure Reason */
+            failure_reason: string | null;
+            /** First Day */
+            first_day: string | null;
+            /** Id */
+            id: number;
+            /** Last Day */
+            last_day: string | null;
+            /** Missing Bars */
+            missing_bars: components["schemas"]["MissingBar"][];
+            /** Name */
+            name: string;
+            /** Partial Volume Days */
+            partial_volume_days: components["schemas"]["PartialVolumeDay"][];
+            /** Periods */
+            periods: components["schemas"]["PeriodLine"][];
+            /** Progress */
+            progress: number | null;
+            /** Published At */
+            published_at: string | null;
+            /** Published Without Check */
+            published_without_check: boolean;
+            /** Stage */
+            stage: string | null;
+            /** Stages */
+            stages: components["schemas"]["Stage"][];
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+            /** Tickers */
+            tickers: string[];
+            /** Version */
+            version: number;
+        };
+        /** DatasetStarted */
+        DatasetStarted: {
+            /** Dataset Id */
+            dataset_id: number;
+        };
+        /**
+         * DatasetToBuild
+         * @description A build request, as the Datasets form sends it. Days are real dates (UTC); limits are
+         *     shares (0.03 is 3%).
+         */
+        DatasetToBuild: {
+            /**
+             * Check
+             * @default true
+             */
+            check: boolean;
+            /**
+             * First Day
+             * Format: date
+             */
+            first_day: string;
+            /**
+             * Last Day
+             * Format: date
+             */
+            last_day: string;
+            /**
+             * Limit Other Missing
+             * @default 0.005
+             */
+            limit_other_missing: number;
+            /**
+             * Limit Partial Volume Days
+             * @default 0.03
+             */
+            limit_partial_volume_days: number;
+            /** Test Periods */
+            test_periods?: components["schemas"]["TestPeriodAsked"][];
+            /** Tickers */
+            tickers: string[];
+        };
+        /** DatasetsList */
+        DatasetsList: {
+            /** Datasets */
+            datasets: components["schemas"]["DatasetLine"][];
         };
         /**
          * DayMark
@@ -446,6 +651,21 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** KeyLine */
+        KeyLine: {
+            /** Asset Class */
+            asset_class: string;
+            /** Masked Id */
+            masked_id: string;
+            /** Name */
+            name: string;
+            /** Price Scale */
+            price_scale: number;
+            /** Provider Symbol */
+            provider_symbol: string;
+            /** Ticker */
+            ticker: string;
+        };
         /** LiveFigures */
         LiveFigures: {
             /** Account Value */
@@ -525,6 +745,16 @@ export interface components {
             exposure_limit_usd: number | null;
             /** Held Usd */
             held_usd: number;
+        };
+        /** MissingBar */
+        MissingBar: {
+            asset: components["schemas"]["AssetName"];
+            /** Ends At */
+            ends_at: string | null;
+            /** Reason */
+            reason: string;
+            /** Step */
+            step: number;
         };
         /** Moment */
         Moment: {
@@ -623,6 +853,16 @@ export interface components {
             /** Value Usd */
             value_usd: number | null;
         };
+        /** PartialVolumeDay */
+        PartialVolumeDay: {
+            asset: components["schemas"]["AssetName"];
+            /** Day */
+            day: string | null;
+            /** Share Of Usual */
+            share_of_usual: number | null;
+            /** Test */
+            test: string;
+        };
         /** Pattern */
         Pattern: {
             /** Detector */
@@ -633,6 +873,17 @@ export interface components {
             name: string;
             /** Shape */
             shape: string;
+        };
+        /** PeriodLine */
+        PeriodLine: {
+            /** First Day */
+            first_day: string | null;
+            /** Kind */
+            kind: string;
+            /** Last Day */
+            last_day: string | null;
+            /** Name */
+            name: string;
         };
         /** Playbook */
         Playbook: {
@@ -664,6 +915,32 @@ export interface components {
             real: number | null;
             /** Rescaled */
             rescaled: number;
+        };
+        /** PriceChart */
+        PriceChart: {
+            asset: components["schemas"]["AssetName"];
+            /** Points */
+            points: components["schemas"]["PricePoint"][];
+        };
+        /** PricePoint */
+        PricePoint: {
+            close: components["schemas"]["Price"];
+            /** Day */
+            day: string | null;
+        };
+        /**
+         * QualityCheck
+         * @description The build's first step: each asset's numbers against the two limits, and the verdict.
+         */
+        QualityCheck: {
+            /** Assets */
+            assets: components["schemas"]["AssetCheck"][];
+            /** Limit Other Missing */
+            limit_other_missing: number;
+            /** Limit Partial Volume Days */
+            limit_partial_volume_days: number;
+            /** Passed */
+            passed: boolean;
         };
         /** Refusal */
         Refusal: {
@@ -906,6 +1183,28 @@ export interface components {
          * @enum {string}
          */
         Split: "trend" | "volume" | "part_of_day";
+        /** Stage */
+        Stage: {
+            /** Name */
+            name: string;
+            /** Starts At */
+            starts_at: number;
+        };
+        /** TestPeriodAsked */
+        TestPeriodAsked: {
+            /**
+             * First Day
+             * Format: date
+             */
+            first_day: string;
+            /**
+             * Last Day
+             * Format: date
+             */
+            last_day: string;
+            /** Name */
+            name: string;
+        };
         /**
          * TradeLine
          * @description A trade, or a full evaluation that ended in no trade (`kind` "no trade").
@@ -1010,6 +1309,172 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listDatasets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetsList"];
+                };
+            };
+        };
+    };
+    buildDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetToBuild"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetStarted"];
+                };
+            };
+            /** @description Refused: the reasons, and how to fix each */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    datasetPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    datasetBars: {
+        parameters: {
+            query: {
+                ticker: string;
+            };
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceChart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stopDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetPage"];
+                };
+            };
+            /** @description Refused: the reasons, and how to fix each */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;

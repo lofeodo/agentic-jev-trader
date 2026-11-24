@@ -39,6 +39,9 @@ class StockProvider(Protocol):
     def stock_bars(self, ticker: str, first_day: date, last_day: date) -> list[Bar]:
         """Adjusted 15-minute bars from `first_day` to `last_day` (New York dates), in UTC."""
 
+    def stock_name(self, ticker: str) -> str:
+        """The stock's real name, or the ticker itself if the provider names none."""
+
 
 class CryptoProvider(Protocol):
     def crypto_bars(self, symbol: str, first_day: date, last_day: date) -> list[Bar]:
@@ -48,6 +51,7 @@ class CryptoProvider(Protocol):
 # --- Twelve Data ------------------------------------------------------------------------------
 
 TWELVE_DATA_URL = "https://api.twelvedata.com/time_series"
+TWELVE_DATA_SEARCH_URL = "https://api.twelvedata.com/symbol_search"
 TWELVE_DATA_MOST_BARS = 5000
 # The plan's daily allowance. A build counts its own requests only: it cannot see requests made
 # earlier the same day, so it stops before passing 800 itself (the first dataset needs about 40).
@@ -160,6 +164,31 @@ class TwelveData:
                 f"Twelve Data has no bars for {ticker} from {first_day} to {last_day}"
             )
         return sorted(bars.values(), key=lambda b: b.start)
+
+    def stock_name(self, ticker: str) -> str:
+        """The stock's real name as listed in the United States, or the ticker itself if Twelve
+        Data names none: a name is for reading, so it never stops a build."""
+        import httpx
+
+        self.pacer.wait()
+        self.requests += 1
+        try:
+            reply = self.get(
+                TWELVE_DATA_SEARCH_URL, {"symbol": ticker, "apikey": self.api_key}
+            )
+        except (
+            httpx.HTTPError,
+            ValueError,
+        ):  # no answer, or an answer that is not JSON
+            return ticker
+        for found in reply.get("data") or []:
+            if (
+                found.get("symbol") == ticker
+                and found.get("country") == "United States"
+                and found.get("instrument_name")
+            ):
+                return str(found["instrument_name"])
+        return ticker
 
 
 # --- Binance ----------------------------------------------------------------------------------

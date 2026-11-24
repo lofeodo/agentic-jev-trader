@@ -71,6 +71,9 @@ class FakeStocks:
             assert bars[-1].start < usual_close
         return bars
 
+    def stock_name(self, ticker):
+        return f"{ticker} Holdings"
+
 
 class FakeCrypto:
     """The same up bar every 15 minutes, except the `doji_bars` (counted from 0 at the first
@@ -520,3 +523,57 @@ def test_each_stage_is_timed_in_order():
         "Publish",
     ]
     assert all(seconds >= 0 for seconds in result.stage_seconds.values())
+
+
+def test_a_typed_stock_is_named_by_the_provider_in_the_asset_key():
+    typed = settings(
+        assets=[AssetSettings(ticker="XYZ", name="", asset_class=AssetClass.STOCK)]
+    )
+    result, store = build(settings=typed)
+    [key] = rows(store, "KEYS.ASSET_KEY", result.dataset_id)
+    assert key["NAME"] == "XYZ Holdings"
+
+
+def test_a_build_the_api_asked_for_carries_on_its_row():
+    store = InMemoryStore()
+    dataset_id, version = store.begin("tiny", {"BUILD_PROGRESS": 0.0})
+    result, _ = build(store=store, dataset_id=dataset_id)
+    assert (result.dataset_id, result.version) == (dataset_id, version)
+    assert list(store.datasets) == [dataset_id]
+    assert store.datasets[dataset_id]["STATUS"] == "published"
+    assert store.datasets[dataset_id]["LAST_STEP"] == 5 * 96
+
+
+def test_a_build_already_marked_failed_does_not_start():
+    store = InMemoryStore()
+    dataset_id, _ = store.begin("tiny", {})
+    store.update(dataset_id, STATUS="failed", FAILURE_REASON="stopped by hand")
+    with pytest.raises(BuildStopped, match="stopped by hand"):
+        build(store=store, dataset_id=dataset_id)
+
+
+def test_a_build_marked_stopped_by_hand_stops_at_its_next_stage_and_keeps_nothing():
+    store = InMemoryStore()
+
+    class StoppedFromTheApp(FakeStocks):
+        def stock_bars(self, ticker, first_day, last_day):
+            [dataset_id] = store.datasets
+            store.update(dataset_id, STATUS="failed", FAILURE_REASON="stopped by hand")
+            return super().stock_bars(ticker, first_day, last_day)
+
+    with pytest.raises(BuildStopped, match="stopped by hand"):
+        build(store=store, stocks=StoppedFromTheApp())
+    [dataset] = store.datasets.values()
+    assert dataset["STATUS"] == "failed"
+    assert dataset["FAILURE_REASON"] == "stopped by hand"
+    assert not [r for table in store.tables.values() for r in table]
+
+
+def test_rows_a_killed_build_left_behind_are_thrown_away_by_the_next_build():
+    store = InMemoryStore()
+    killed, _ = store.begin("tiny", {})
+    store.tables["RAW.BARS"].append({"DATASET": killed, "STEP": 1})
+    store.update(killed, STATUS="failed", FAILURE_REASON="stopped by hand")
+    result, _ = build(store=store)
+    assert not rows(store, "RAW.BARS", killed)
+    assert rows(store, "RAW.BARS", result.dataset_id)

@@ -89,6 +89,28 @@ class SnowflakeStore:
         )
         return dataset_id, earlier + 1
 
+    def carry_on(self, dataset_id: int, columns: dict) -> int:
+        self.update(dataset_id, **columns)
+        [(version,)] = self._run(
+            "SELECT VERSION FROM REF.DATASETS WHERE ID = ?", (dataset_id,)
+        )
+        return int(version)
+
+    def status(self, dataset_id: int) -> tuple[str, str | None]:
+        [(status, reason)] = self._run(
+            "SELECT STATUS, FAILURE_REASON FROM REF.DATASETS WHERE ID = ?",
+            (dataset_id,),
+        )
+        return status, reason
+
+    def clear_failed(self) -> None:
+        for name in DATASET_TABLES:
+            self._run(
+                f"DELETE FROM {name} WHERE DATASET IN "
+                "(SELECT ID FROM REF.DATASETS WHERE STATUS = ?)",
+                (str(DatasetStatus.FAILED),),
+            )
+
     def update(self, dataset_id: int, **columns) -> None:
         sets = ", ".join(f"{k} = {_placeholder(v)}" for k, v in columns.items())
         self._run(

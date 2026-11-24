@@ -81,7 +81,7 @@ Run a practice sim of the agent without memory: at most one replayed day and 25 
 conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
 ```
 
-Start the API (logs in as the API login, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173. The API reads everything; its only writes are a sim's row in `SIM.SIMS` (start, Stop, Resume). Starting or resuming a sim of the agent starts a job that calls Jev, so it costs money: ask first. `JOB_LAUNCHER` in `.env` picks how jobs start (`local`, the default, is the only one built); each job prints to `logs/sims/sim-<id>.log`:
+Start the API (logs in as the API login, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173. The API reads everything; its only writes are a sim's row in `SIM.SIMS` (start, Stop, Resume) and a dataset's row in `REF.DATASETS` (build, Stop). Starting or resuming a sim of the agent starts a job that calls Jev, so it costs money: ask first. A build from the Datasets screen runs `python -m jev_trader.dataset build` as the builder login, writing to Snowflake: ask first, as for the command. `JOB_LAUNCHER` in `.env` picks how jobs start (`local`, the default, is the only one built); each sim job prints to `logs/sims/sim-<id>.log`, each build to `logs/datasets/dataset-<id>.log` beside its settings file:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.api serve

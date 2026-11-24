@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from jev_trader.api.app import create_app
 from jev_trader.api.snowflake_store import SnowflakeApiStore
-from jev_trader.jobs import LocalLauncher, sim_job_command
+from jev_trader.jobs import LocalLauncher, builds_named, sim_job_command
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
 from jev_trader.storage.snowflake import TEST_DATABASE
@@ -62,6 +62,7 @@ def test_a_restarted_api_finds_and_kills_the_job_and_the_sim_resumes_to_the_same
             spending_ceiling=75.0,
             not_responding_after=timedelta(minutes=7),
             launcher=launcher,
+            builds=builds_named("local", tmp_path, TEST_DATABASE),
         )
         return TestClient(app, base_url="http://localhost", client=("127.0.0.1", 1))
 
