@@ -101,7 +101,10 @@ journal_add = 'add {amount}'
 reduce_share_words = ['a quarter', 'half', 'three quarters']
 end_of_session = 'This is the last step of the session from which an order is carried out today. A position still open after it is held overnight.'
 
-position_screen_question = 'Is the position in {asset} worth a review at this step? A review weighs closing it, reducing it, or adding to it now, and can still end in holding it.'
+# The position screen: asked so that most answers are no, as a day trader leaves a trade with a
+# stop price alone until something changes (ticket #152: "is it worth a review?" was answered
+# yes 27 of 27 times).
+position_screen_question = 'Does the position in {asset} call for action now? Only a hard move against it on volume well above normal, the price near its stop price, a strong bar back against it after it had gone its way, or a good gain that has stopped moving counts. Drifting its way, choppy small bars and average volume do not. Most positions at most steps need no action.'
 
 # The position review, request 1: the action, asked as shuffled copies, and one recorded-only
 # question.
