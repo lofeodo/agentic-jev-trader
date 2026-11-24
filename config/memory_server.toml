@@ -1,0 +1,10 @@
+# The memory MCP server's settings (spec appendix 5, section 4; appendix 10, section 2).
+
+# Where it listens. On the developer's machine it answers this computer only.
+host = "127.0.0.1"
+port = 8765
+
+# The host names a request may be addressed to; any other gets error 421, so a web page on
+# another site cannot reach the server through the browser. "name:*" allows any port. The
+# in-cluster name is the Kubernetes service's ("memory"), set when the cluster is built.
+allowed_hosts = ["127.0.0.1:*", "localhost:*", "memory:*"]

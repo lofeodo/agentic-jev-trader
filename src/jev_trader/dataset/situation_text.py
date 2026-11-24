@@ -175,3 +175,39 @@ def situation_text(m: Measurements, patterns: PatternLists) -> str:
     if (value := m["typical_move_share_of_price"]) is not None:
         sentences.append(f"Typical move: {value * 100:.1f}% of price.")
     return " ".join(sentences)
+
+
+@dataclass(frozen=True)
+class ReadSituation:
+    """What a stored situation text says about its own snapshot, read back from the wording
+    above: memory keeps the text, and its login cannot read the bars it was written from."""
+
+    part_of_day: str
+    window: tuple[
+        str, ...
+    ]  # the 15-minute patterns of the pattern window, newest first
+    longer_bars: tuple[
+        str, ...
+    ]  # the patterns of the latest hourly bar, then daily bar
+
+
+def _listed(text: str, opening: str) -> list[str]:
+    start = text.index(opening) + len(opening)
+    names = text[start : text.index(".", start)]
+    return [] if names == "none" else names.split(", ")
+
+
+def read_situation(text: str) -> ReadSituation:
+    """The part of day, the pattern window's names and the longer bars' names, as
+    `situation_text` wrote them."""
+    opening = text[: text.index(" (bar ")]
+    window = [
+        name.rsplit(" (", 1)[0]
+        for name in _listed(text, f"Patterns in the last {PATTERN_WINDOW_STEPS} bars: ")
+    ]
+    longer = _listed(text, "Latest hourly bar: ") + _listed(text, "Latest daily bar: ")
+    return ReadSituation(
+        part_of_day=opening.split(", ", 1)[1],
+        window=tuple(dict.fromkeys(window)),
+        longer_bars=tuple(dict.fromkeys(longer)),
+    )
