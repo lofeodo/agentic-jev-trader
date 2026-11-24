@@ -79,6 +79,11 @@ rating_levels = [
 other_positions_heading = '# Other open positions'
 asset_now_heading = '# The asset now: {asset} ({asset_class})'
 position_heading = '# The position: {asset} ({asset_class})'
+# The words that differ between a long and a short.
+position_direction = { long = 'Long', short = 'Short' }
+stop_closes = { long = 'sells', short = 'buys back' }
+stop_side = { long = 'below', short = 'above' }
+close_verb = { long = 'sell', short = 'buy back' }
 position_opened = '{direction}, {put_in}, opened {bars} ago at an entry price of {entry}.'
 position_stop = 'Stop price: {stop}, fixed. Code {closes} there. It is {distance} {side} the last price.'
 position_now = 'Now: the position is worth {worth}. Closing it now would leave {profit} ({percent}) after trading costs. At best it was {best}, at worst {worst}.'
