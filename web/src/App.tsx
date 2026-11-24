@@ -6,6 +6,7 @@ import {
   type SimLine,
   type SpendingTotal,
 } from "./api/client";
+import { ComparisonScreen } from "./ComparisonScreen";
 import { DatasetScreen } from "./DatasetScreen";
 import { DatasetsScreen } from "./DatasetsScreen";
 import { PlaybookScreen } from "./PlaybookScreen";
@@ -24,13 +25,15 @@ const inProgress = (sim: SimLine) =>
 type Page = { screen: Screen; id: number | null };
 
 // The address after `#`: `#/sims/12` is sim 12's page, `#/datasets/3` dataset 3's,
-// `#/datasets`, `#/playbook` and `#/spending` their screens; anything else is the list of sims.
+// `#/comparison`, `#/datasets`, `#/playbook` and `#/spending` their screens; anything else is
+// the list of sims.
 function pageInAddress(): Page {
   const hash = window.location.hash;
   const sim = /^#\/sims\/(\d+)$/.exec(hash);
   if (sim) return { screen: "sims", id: Number(sim[1]) };
   const dataset = /^#\/datasets\/(\d+)$/.exec(hash);
   if (dataset) return { screen: "datasets", id: Number(dataset[1]) };
+  if (hash === "#/comparison") return { screen: "comparison", id: null };
   if (hash === "#/datasets") return { screen: "datasets", id: null };
   if (hash === "#/playbook") return { screen: "playbook", id: null };
   if (hash === "#/spending") return { screen: "spending", id: null };
@@ -69,6 +72,7 @@ export function App() {
   return (
     <main className="mx-auto max-w-[1500px] px-6 pt-6 pb-16">
       <TopBar spending={spending} screen={screen} />
+      {screen === "comparison" && <ComparisonScreen />}
       {screen === "datasets" && (id === null ? <DatasetsScreen /> : <DatasetScreen key={id} id={id} />)}
       {screen === "playbook" && <PlaybookScreen />}
       {screen === "spending" && <SpendingScreen />}

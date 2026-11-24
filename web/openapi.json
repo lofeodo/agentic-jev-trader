@@ -239,6 +239,22 @@
         "title": "ChartPoint",
         "type": "object"
       },
+      "Comparison": {
+        "properties": {
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/MarketComparison"
+            },
+            "title": "Markets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "markets"
+        ],
+        "title": "Comparison",
+        "type": "object"
+      },
       "DatasetLine": {
         "properties": {
           "check": {
@@ -866,6 +882,99 @@
         "title": "FilterCounts",
         "type": "object"
       },
+      "GapLine": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/GapPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "model",
+          "label",
+          "points"
+        ],
+        "title": "GapLine",
+        "type": "object"
+      },
+      "GapPoint": {
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "gap_usd": {
+            "title": "Gap Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "gap_usd"
+        ],
+        "title": "GapPoint",
+        "type": "object"
+      },
+      "Group": {
+        "description": "The finished sims of one side: their ending account values, average and spread.",
+        "properties": {
+          "average_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Usd"
+          },
+          "ending_values_usd": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Ending Values Usd",
+            "type": "array"
+          },
+          "standard_deviation_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standard Deviation Usd"
+          }
+        },
+        "required": [
+          "ending_values_usd",
+          "average_usd",
+          "standard_deviation_usd"
+        ],
+        "title": "Group",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1091,6 +1200,121 @@
         "title": "LiveFigures",
         "type": "object"
       },
+      "MarketComparison": {
+        "properties": {
+          "dataset": {
+            "title": "Dataset",
+            "type": "integer"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "gap_over_time": {
+            "items": {
+              "$ref": "#/components/schemas/GapLine"
+            },
+            "title": "Gap Over Time",
+            "type": "array"
+          },
+          "jev_versions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Jev Versions",
+            "type": "array"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "market": {
+            "title": "Market",
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelResult"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "performance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PerformanceWinner"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PriceWinner"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repeats": {
+            "items": {
+              "$ref": "#/components/schemas/Repeat"
+            },
+            "title": "Repeats",
+            "type": "array"
+          },
+          "starting_value_usd": {
+            "title": "Starting Value Usd",
+            "type": "number"
+          },
+          "without_memory": {
+            "$ref": "#/components/schemas/Group"
+          }
+        },
+        "required": [
+          "dataset",
+          "market",
+          "first_day",
+          "last_day",
+          "starting_value_usd",
+          "without_memory",
+          "models",
+          "performance",
+          "price",
+          "repeats",
+          "gap_over_time",
+          "jev_versions",
+          "notes"
+        ],
+        "title": "MarketComparison",
+        "type": "object"
+      },
       "MeasurementGroup": {
         "properties": {
           "breakdowns": {
@@ -1251,6 +1475,117 @@
           "reason"
         ],
         "title": "MissingBar",
+        "type": "object"
+      },
+      "ModelResult": {
+        "properties": {
+          "difference_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference Usd"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "lookups_per_full_evaluation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lookups Per Full Evaluation"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "models_returned": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Models Returned",
+            "type": "array"
+          },
+          "provisional": {
+            "title": "Provisional",
+            "type": "boolean"
+          },
+          "says": {
+            "title": "Says",
+            "type": "string"
+          },
+          "seconds_per_full_evaluation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds Per Full Evaluation"
+          },
+          "threshold_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Usd"
+          },
+          "usd_per_evaluation_or_review": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usd Per Evaluation Or Review"
+          },
+          "verdict": {
+            "enum": [
+              "helped",
+              "hurt",
+              "can't tell",
+              "waiting"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          },
+          "with_memory": {
+            "$ref": "#/components/schemas/Group"
+          }
+        },
+        "required": [
+          "model",
+          "label",
+          "with_memory",
+          "difference_usd",
+          "threshold_usd",
+          "verdict",
+          "provisional",
+          "says",
+          "usd_per_evaluation_or_review",
+          "seconds_per_full_evaluation",
+          "lookups_per_full_evaluation",
+          "models_returned"
+        ],
+        "title": "ModelResult",
         "type": "object"
       },
       "Moment": {
@@ -1702,6 +2037,56 @@
         "title": "Pattern",
         "type": "object"
       },
+      "PerformanceWinner": {
+        "description": "Which model's sims with memory ended higher, by the verdict's own test.",
+        "properties": {
+          "gap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap Usd"
+          },
+          "says": {
+            "title": "Says",
+            "type": "string"
+          },
+          "threshold_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Usd"
+          },
+          "winner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner"
+          }
+        },
+        "required": [
+          "winner",
+          "gap_usd",
+          "threshold_usd",
+          "says"
+        ],
+        "title": "PerformanceWinner",
+        "type": "object"
+      },
       "PeriodLine": {
         "properties": {
           "first_day": {
@@ -1899,6 +2284,32 @@
         "title": "PricePoint",
         "type": "object"
       },
+      "PriceWinner": {
+        "description": "Which model cost fewer real dollars per full evaluation or position review, dollar\nfor dollar, no margin.",
+        "properties": {
+          "says": {
+            "title": "Says",
+            "type": "string"
+          },
+          "winner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner"
+          }
+        },
+        "required": [
+          "winner",
+          "says"
+        ],
+        "title": "PriceWinner",
+        "type": "object"
+      },
       "QualityCheck": {
         "description": "The build's first step: each asset's numbers against the two limits, and the verdict.",
         "properties": {
@@ -1964,6 +2375,81 @@
           "refusals"
         ],
         "title": "Refusals",
+        "type": "object"
+      },
+      "Repeat": {
+        "properties": {
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "sims": {
+            "items": {
+              "$ref": "#/components/schemas/RepeatSim"
+            },
+            "title": "Sims",
+            "type": "array"
+          }
+        },
+        "required": [
+          "number",
+          "sims"
+        ],
+        "title": "Repeat",
+        "type": "object"
+      },
+      "RepeatSim": {
+        "properties": {
+          "ending_value_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ending Value Usd"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "sim_id": {
+            "title": "Sim Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sim_id",
+          "label",
+          "model",
+          "status",
+          "ending_value_usd"
+        ],
+        "title": "RepeatSim",
         "type": "object"
       },
       "Resumption": {
@@ -3159,6 +3645,25 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/comparison": {
+      "get": {
+        "description": "Per market and per LLM: did memory help, hurt, or can't we tell; both winners.",
+        "operationId": "comparison",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comparison"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Comparison"
+      }
+    },
     "/datasets": {
       "get": {
         "operationId": "listDatasets",

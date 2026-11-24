@@ -31,6 +31,10 @@ export type Pattern = Schemas["Pattern"];
 export type Spending = Schemas["Spending"];
 export type SpendingItem = Schemas["SpendingItem"];
 export type Refusal = Schemas["Refusal"];
+export type Comparison = Schemas["Comparison"];
+export type MarketComparison = Schemas["MarketComparison"];
+export type ModelResult = Schemas["ModelResult"];
+export type GapLine = Schemas["GapLine"];
 export type DatasetLine = Schemas["DatasetLine"];
 export type DatasetsList = Schemas["DatasetsList"];
 export type DatasetPage = Schemas["DatasetPage"];
@@ -49,6 +53,7 @@ export const fetchSims = () => read<SimsList>("/sims");
 export const fetchSpendingTotal = () => read<SpendingTotal>("/spending/total");
 export const fetchSpending = () => read<Spending>("/spending");
 export const fetchPlaybook = () => read<Playbook>("/playbook");
+export const fetchComparison = () => read<Comparison>("/comparison");
 export const fetchDatasets = () => read<DatasetsList>("/datasets");
 export const fetchDataset = (id: number) => read<DatasetPage>(`/datasets/${id}`);
 // `ticker`: the asset's real ticker, such as AAPL.

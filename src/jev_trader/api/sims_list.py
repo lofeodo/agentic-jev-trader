@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 
 from pydantic import BaseModel
 
+from jev_trader.api.llm_names import llm_model, model_label
 from jev_trader.api.store import ApiStore
 from jev_trader.sim.clock import day_of
 from jev_trader.sim.store import SimStatus
@@ -54,6 +55,8 @@ def sim_name(sim: dict) -> str:
     variant = VARIANT_WORDS.get(sim["VARIANT"], sim["VARIANT"])
     if sim.get("MARKET"):
         parts = [sim["MARKET"], variant]
+        if sim["VARIANT"] == "memory_on" and llm_model(sim):
+            parts.append(model_label(llm_model(sim)))
         if sim.get("REPEAT_NUMBER") is not None:
             parts.append(f"repeat {sim['REPEAT_NUMBER']}")
         return " / ".join(parts)
