@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchMoment, type Moment } from "./api/client";
-import { AssetTag, ErrorBox, PriceTag, orderWords } from "./pieces";
+import { AssetTag, DirectionWords, ErrorBox, PriceTag, orderWords } from "./pieces";
 import { dayAndTime, dollars, fromApi, signedDollars, toApi, units } from "./format";
 
 export function MomentPanel({ simId, step, at, onClose }: { simId: number; step: number; at: Date; onClose: () => void }) {
@@ -108,6 +108,11 @@ function MomentBody({ moment }: { moment: Moment }) {
             </li>
           ))}
         </ul>
+      )}
+      {moment.positions.length > 0 && (
+        <div className="mb-6">
+          <DirectionWords />
+        </div>
       )}
 
       <div className="mb-1 font-mono text-[13.5px] tracking-wider text-dim">

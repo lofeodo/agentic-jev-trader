@@ -156,7 +156,7 @@ def test_the_sim_page_reads_real_tables_and_times_the_one_second_call(
     live = sim_page.live(api, holding, now(), quiet, after_step=200)
     moment = sim_page.moment(api, holding, datetime(2025, 3, 2, 12, 0), 8)
 
-    assert header.replayed_at == datetime(2025, 3, 3, 0, 0)  # step 288 ends at midnight
+    assert header.replayed_at == datetime(2025, 3, 4, 0, 0)  # step 288 ends 3 days in
     assert [a.name for a in header.assets] == ["Bitcoin", "Ether"]
     [line] = chart.lines
     assert line.points[-1].value == pytest.approx(result.ending_value)

@@ -26,6 +26,12 @@ function valueAt(points: Point[], step: number): number | null {
   return i === 0 ? null : points[i - 1].value;
 }
 
+// Holding stores many steps at once and can be behind: compared only once it reached the step.
+function reachedValueAt(points: Point[], step: number): number | null {
+  const last = points[points.length - 1];
+  return last && last.step >= step ? valueAt(points, step) : null;
+}
+
 export type ChartProps = {
   lines: ChartLine[];
   ticks: TradeTick[];
@@ -212,7 +218,7 @@ export function SimChart(props: ChartProps) {
           hover={hover}
           value={hoverValue}
           sim={sim}
-          holding={holding ? valueAt(holding.points, hover.step) : null}
+          holding={holding ? reachedValueAt(holding.points, hover.step) : null}
           ticks={ticks}
           startingValue={startingValue}
           stepsStartAt={stepsStartAt}

@@ -440,6 +440,33 @@ def test_a_moment_before_the_sim_starts_is_its_first_step(sims, api):
     assert moment["positions"] == []
 
 
+def test_a_moment_after_the_step_reached_is_the_step_reached(sims, api):
+    sim, _ = running_sim_at_140(sims)
+
+    moment = api.get(f"/sims/{sim}/moment", params={"at": "2025-03-03T12:00:00"}).json()
+
+    assert moment["step"] == 140  # the replay has not got further: no later prices
+
+
+def test_a_moment_shows_no_holding_figure_before_holding_reaches_it(sims, api):
+    sim, holding = running_sim_at_140(sims)
+    sims.update(holding, LAST_COMPLETED_STEP=125)  # holding has stored only up to 125
+
+    moment = api.get(f"/sims/{sim}/moment", params={"at": "2025-03-02T08:20:00"}).json()
+
+    assert moment["holding_value"] is None
+
+
+def test_a_moment_can_be_asked_for_with_a_time_zone(sims, api):
+    sim, _ = running_sim_at_140(sims)
+
+    moment = api.get(
+        f"/sims/{sim}/moment", params={"at": "2025-03-02T08:20:00Z"}
+    ).json()
+
+    assert moment["step"] == 129
+
+
 def test_a_measurement_sim_is_drawn_beside_the_other_two_of_its_repeat(sims, api):
     def measurement(variant, repeat):
         return add_sim(

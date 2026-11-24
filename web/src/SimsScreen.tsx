@@ -1,5 +1,6 @@
 import type { SimLine } from "./api/client";
 import { day, dollars, dollarsAndCents, signedDollars } from "./format";
+import { statusWords } from "./pieces";
 
 const KINDS: { kind: string; title: string; says: string }[] = [
   { kind: "measurement", title: "Measurement", says: "Their results count" },
@@ -12,13 +13,6 @@ const KINDS: { kind: string; title: string; says: string }[] = [
 const COLUMNS = ["Sim", "Status", "Days", "Account value", "Against holding", "Trades", "Spent / cap"];
 const cell = "py-[.42rem] pr-[2ch] align-top font-mono text-base";
 const number = `${cell} text-right whitespace-nowrap`;
-
-function statusWords(sim: SimLine) {
-  if (sim.not_responding) return "Not responding";
-  if (sim.status === "stopped" && sim.stop_reason) return `Stopped: ${sim.stop_reason}`;
-  if (sim.status === "failed") return "Failed";
-  return sim.status;
-}
 
 function Line({ sim }: { sim: SimLine }) {
   const gap = sim.holding_value === null ? null : sim.account_value - sim.holding_value;

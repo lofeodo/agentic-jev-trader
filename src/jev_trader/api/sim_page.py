@@ -22,7 +22,7 @@ Choices the spec leaves to the build:
 - A position's direction is its entry's side: a buy opens a long, a sell a short.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from pydantic import BaseModel
 
@@ -210,6 +210,11 @@ def _asset_of(order: dict) -> str:
     return order["INSTRUMENT"].removesuffix("_SPOT")
 
 
+def _direction(entry: dict) -> str:
+    """An entry's side gives its position's direction: a buy opens a long, a sell a short."""
+    return "long" if entry["SIDE"] == "buy" else "short"
+
+
 def _ticks(sim: "_Sim", orders: list[dict]) -> list[TradeTick]:
     ticks: dict[int, TradeTick] = {}
     for order in _carried_out(orders):
@@ -217,7 +222,7 @@ def _ticks(sim: "_Sim", orders: list[dict]) -> list[TradeTick]:
             ticks[order["POSITION"]] = TradeTick(
                 position=order["POSITION"],
                 asset=sim.asset(_asset_of(order)),
-                direction="long" if order["SIDE"] == "buy" else "short",
+                direction=_direction(order),
                 opened_step=order["STEP_CARRIED_OUT"],
                 closed_step=None,
             )
@@ -410,6 +415,19 @@ def _limit(settings: dict, name: str) -> float | None:
     return profile.get(name)
 
 
+def _holding_value_at(store: ApiStore, holding: dict | None, step: int) -> float | None:
+    """Holding's account value at `step`, once holding has stored that far; else None.
+
+    Holding stores many steps per write, so it can be behind the sim it is compared with.
+    """
+    if holding is None:
+        return None
+    holding_reached = holding.get("LAST_COMPLETED_STEP")
+    if holding_reached is None or holding_reached < step:
+        return None
+    return store.account_values_at([(holding["ID"], step)]).get((holding["ID"], step))
+
+
 def live(
     store: ApiStore,
     sim_id: int,
@@ -426,13 +444,9 @@ def live(
     start_of_day = now_row["START_OF_DAY_VALUE"] if now_row else row["STARTING_VALUE"]
 
     holding = _holding_of(all_sims, row)
-    holding_value = None
-    if holding is not None and reached is not None:
-        holding_reached = holding.get("LAST_COMPLETED_STEP")
-        if holding_reached is not None and holding_reached >= reached:
-            holding_value = store.account_values_at([(holding["ID"], reached)]).get(
-                (holding["ID"], reached)
-            )
+    holding_value = (
+        None if reached is None else _holding_value_at(store, holding, reached)
+    )
 
     settings = row.get("SETTINGS") or {}
     daily_share = _limit(settings, "daily_loss_limit")
@@ -549,7 +563,7 @@ def _positions_then(sim: "_Sim", orders: list[dict], step: int) -> list[Position
             {"asset": _asset_of(order), "units": 0.0, "bought": 0.0, "paid": 0.0},
         )
         if order["KIND"] == "entry":
-            position["direction"] = "long" if order["SIDE"] == "buy" else "short"
+            position["direction"] = _direction(order)
         if order["KIND"] in ("entry", "add"):
             position["units"] += order["UNITS"]
             position["bought"] += order["UNITS"]
@@ -581,15 +595,15 @@ def moment(store: ApiStore, sim_id: int, at: datetime, window_steps: int) -> Mom
     row = sim.row
     if sim.steps_start_at is None:
         raise NoAssetKey(f"dataset {row['DATASET']} has no asset key")
+    if at.tzinfo is not None:
+        at = at.astimezone(UTC).replace(tzinfo=None)
+    # A moment the replay has not reached yet is the step it has reached: no later prices.
+    reached = row.get("LAST_COMPLETED_STEP")
+    last = row["LAST_STEP"] if reached is None else min(reached, row["LAST_STEP"])
     step = (at - sim.steps_start_at) // BAR_LENGTH
-    step = min(max(step, row["FIRST_STEP"]), row["LAST_STEP"])
+    step = max(min(step, last), row["FIRST_STEP"])
     then = store.account_at(sim_id, step)
-    holding = _holding_of(store.sims(), row)
-    holding_value = (
-        None
-        if holding is None
-        else store.account_values_at([(holding["ID"], step)]).get((holding["ID"], step))
-    )
+    holding_value = _holding_value_at(store, _holding_of(store.sims(), row), step)
     orders = store.orders(sim_id)
     nearby = [
         o

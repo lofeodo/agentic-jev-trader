@@ -15,6 +15,7 @@ import {
 } from "./api/client";
 import {
   AssetTag,
+  DirectionWords,
   ErrorBox,
   PriceTag,
   SectionHeading,
@@ -81,7 +82,16 @@ export function SimPage({ id }: { id: number }) {
     async function loadLive() {
       const l = await fetchLive(id, pointsUpTo(linesRef.current));
       if (stopped) return null;
-      linesRef.current = withNewPoints(linesRef.current, l);
+      // A line with no points yet is left out of `after_step`, so its first points could come
+      // after a gap: when one starts, the whole chart is read again once.
+      const empty = new Set(linesRef.current.filter((x) => !x.points.length).map((x) => x.sim_id));
+      if (l.new_points.some((p) => empty.has(p.sim_id))) {
+        const c = await fetchChart(id);
+        if (stopped) return null;
+        linesRef.current = c.lines;
+      } else {
+        linesRef.current = withNewPoints(linesRef.current, l);
+      }
       setChart((c) => (c ? { ...c, lines: linesRef.current, ticks: l.ticks } : c));
       setLive(l);
       return l;
@@ -134,7 +144,10 @@ export function SimPage({ id }: { id: number }) {
       <h1 className="mb-3 text-center text-[2.1rem] leading-tight tracking-[.02em]">{header.name}</h1>
       <div className="mb-6 flex flex-wrap justify-center gap-3 font-mono text-[13.5px] tracking-wider">
         <Pair name="Status" value={statusWords(live)} />
-        <Pair name="Day" value={`${live.days_done} of ${live.days_total}`} />
+        <Pair
+          name="Day"
+          value={`${running ? Math.min(live.days_done + 1, live.days_total) : live.days_done} of ${live.days_total}`}
+        />
         <Pair name="Replaying" value={replayed} />
         <Pair name="Step" value={`${live.step_reached ?? "--"} of ${header.last_step}`} />
         <Pair name="Kind" value={header.kind} />
@@ -328,6 +341,7 @@ function Now({ live, header }: { live: LiveFigures; header: SimHeader }) {
             Real prices lead; the price the agent saw follows in brackets. So far: what the position
             has made or lost at the price now, after trading costs.
           </p>
+          <DirectionWords />
         </div>
       )}
 
