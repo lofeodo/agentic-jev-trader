@@ -149,7 +149,8 @@ class SnowflakeApiStore:
     def latest_decisions(self, sim_id, limit):
         return self._rows(
             "SELECT STEP, ASSET, KIND, TIER, SCREEN_ANSWER, SKIPPED_BECAUSE, ACTION "
-            "FROM MEMORY.DECISIONS WHERE SIM = ? ORDER BY STEP DESC, ASSET LIMIT ?",
+            "FROM MEMORY.DECISIONS WHERE SIM = ? AND FIRST_WRITTEN_BY = SIM "
+            "ORDER BY STEP DESC, ASSET LIMIT ?",
             (sim_id, limit),
         )
 
@@ -195,7 +196,7 @@ class SnowflakeApiStore:
     def decisions(self, sim_id):
         rows = self._rows(
             f"SELECT {', '.join(_DECISION_COLUMNS)} FROM MEMORY.DECISIONS "
-            "WHERE SIM = ? ORDER BY STEP, ASSET",
+            "WHERE SIM = ? AND FIRST_WRITTEN_BY = SIM ORDER BY STEP, ASSET",
             (sim_id,),
         )
         for row in rows:
@@ -321,6 +322,12 @@ class SnowflakeApiStore:
 
     def latest_tier_2_share(self):
         return SnowflakeSimStore(self.con).latest_tier_2_share()
+
+    def base_memory(self, dataset):
+        return SnowflakeSimStore(self.con).base_memory(dataset)
+
+    def memory_last_step(self, sim_id):
+        return SnowflakeSimStore(self.con).memory_last_step(sim_id)
 
     def bar_count(self, dataset_id, first_step, last_step):
         return SnowflakeMarket(self.con).bar_count(dataset_id, first_step, last_step)
