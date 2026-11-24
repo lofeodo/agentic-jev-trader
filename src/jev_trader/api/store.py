@@ -55,6 +55,13 @@ class ApiStore(Protocol):
     def asset_key(self) -> list[dict]:
         """The asset key's DATASET, MASKED_ID, TICKER, NAME, PRICE_SCALE and FIRST_DAY."""
 
+    def playbook(self) -> list[dict]:
+        """Every `REF.PLAYBOOK` row, of every TA-Lib version stored."""
+
+    def spending_by_item(self) -> list[dict]:
+        """`SIM.CALLS` summed: one row per SIM, PURPOSE and SERVICE, with COST_USD (a call that
+        failed before it was priced counts $0) and CALLS. PURPOSE is None for a sim's calls."""
+
 
 # Left out of the list of every sim: large, and only the sim page needs them.
 _LIST_LEAVES_OUT = ("SETTINGS", "ACCOUNT_STATE")
@@ -64,6 +71,7 @@ class InMemoryApiStore:
     """The API's reads over the in-memory sim store, plus a made-up asset key and closes.
 
     `closes` gives each dataset's rescaled 15-minute closes: dataset, then asset, then step.
+    `playbook` gives the `REF.PLAYBOOK` rows.
     """
 
     def __init__(
@@ -71,10 +79,12 @@ class InMemoryApiStore:
         sims: InMemorySimStore,
         asset_key: list[dict],
         closes: dict[int, dict[str, dict[int, float]]] | None = None,
+        playbook: list[dict] | None = None,
     ):
         self._sims = sims
         self._asset_key = asset_key
         self._closes = closes or {}
+        self._playbook = playbook or []
 
     def total_spent(self) -> float:
         return sum(r["COST_USD"] or 0.0 for r in self._sims.tables["SIM.CALLS"])
@@ -161,3 +171,25 @@ class InMemoryApiStore:
 
     def asset_key(self) -> list[dict]:
         return [dict(row) for row in self._asset_key]
+
+    def playbook(self) -> list[dict]:
+        return [dict(row) for row in self._playbook]
+
+    def spending_by_item(self) -> list[dict]:
+        summed: dict[tuple, dict] = {}
+        for row in self._sims.tables["SIM.CALLS"]:
+            purpose = None if row["SIM"] is not None else row["PURPOSE"]
+            key = (row["SIM"], purpose, row["SERVICE"])
+            found = summed.setdefault(
+                key,
+                {
+                    "SIM": key[0],
+                    "PURPOSE": key[1],
+                    "SERVICE": key[2],
+                    "COST_USD": 0.0,
+                    "CALLS": 0,
+                },
+            )
+            found["COST_USD"] += row["COST_USD"] or 0.0
+            found["CALLS"] += 1
+        return list(summed.values())

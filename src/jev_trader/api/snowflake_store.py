@@ -161,3 +161,25 @@ class SnowflakeApiStore:
         columns = ("DATASET", "MASKED_ID", "TICKER", "NAME", "PRICE_SCALE", "FIRST_DAY")
         rows = self._run(f"SELECT {', '.join(columns)} FROM KEYS.ASSET_KEY")
         return [dict(zip(columns, row, strict=True)) for row in rows]
+
+    def spending_by_item(self) -> list[dict]:
+        rows = self._rows(
+            "SELECT SIM, IFF(SIM IS NULL, PURPOSE, NULL) AS PURPOSE, SERVICE, "
+            "COALESCE(SUM(COST_USD), 0) AS COST_USD, COUNT(*) AS CALLS "
+            "FROM SIM.CALLS GROUP BY 1, 2, 3"
+        )
+        return [
+            {
+                "SIM": None if r["SIM"] is None else int(r["SIM"]),
+                "PURPOSE": r["PURPOSE"],
+                "SERVICE": r["SERVICE"],
+                "COST_USD": float(r["COST_USD"]),
+                "CALLS": int(r["CALLS"]),
+            }
+            for r in rows
+        ]
+
+    def playbook(self) -> list[dict]:
+        return self._rows(
+            "SELECT TALIB_VERSION, PATTERN, LEAN, NAME, SHAPE FROM REF.PLAYBOOK"
+        )

@@ -2,7 +2,7 @@ import type { SimLine } from "./api/client";
 import { day, dollars, dollarsAndCents, signedDollars } from "./format";
 import { statusWords } from "./pieces";
 
-const KINDS: { kind: string; title: string; says: string }[] = [
+export const KINDS: { kind: string; title: string; says: string }[] = [
   { kind: "measurement", title: "Measurement", says: "Their results count" },
   { kind: "build-up", title: "Build-up", says: "Fills the base memory; never counts" },
   { kind: "free", title: "Free", says: "Days of your choice; never counts" },

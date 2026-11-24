@@ -17,6 +17,8 @@ import {
   AssetTag,
   DirectionWords,
   ErrorBox,
+  KeyFigure,
+  Pair,
   PriceTag,
   SectionHeading,
   decisionWords,
@@ -225,25 +227,6 @@ function BackLink() {
     <a href="#/" className="mb-4 inline-block font-mono text-[13.5px] tracking-wider text-dim hover:text-amber">
       &lt; Trading sims
     </a>
-  );
-}
-
-function Pair({ name, value }: { name: string; value: string }) {
-  return (
-    <span className="flex border-[1.5px] border-rule">
-      <span className="border-r-[1.5px] border-rule px-[1.5ch] py-1 text-dim">{name}</span>
-      <span className="px-[1.5ch] py-1 text-pale">{value}</span>
-    </span>
-  );
-}
-
-function KeyFigure({ name, figure, says, first }: { name: string; figure: string; says: string; first?: boolean }) {
-  return (
-    <div className="border-[1.5px] border-rule px-[2ch] py-3">
-      <div className="font-mono text-[13.5px] tracking-wider text-dim">{name}</div>
-      <div className={`font-mono text-[1.9rem] leading-tight ${first ? "text-pale" : ""}`}>{figure}</div>
-      <div className="text-[14px] text-dim">{says}</div>
-    </div>
   );
 }
 

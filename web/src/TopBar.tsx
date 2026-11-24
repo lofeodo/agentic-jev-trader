@@ -1,39 +1,49 @@
 import type { SpendingTotal } from "./api/client";
 import { dollarsAndCents } from "./format";
 
-// Only Trading sims exists so far; the rest of the menu is shown dimmed until it is built.
-const LATER_SCREENS = ["Comparison", "Datasets", "Playbook", "Spending"];
+export type Screen = "sims" | "playbook" | "spending";
 
-export function TopBar({ spending }: { spending: SpendingTotal | null }) {
+const SCREENS: { screen: Screen; title: string; href: string }[] = [
+  { screen: "sims", title: "Trading sims", href: "#/" },
+  { screen: "playbook", title: "Playbook", href: "#/playbook" },
+  { screen: "spending", title: "Spending", href: "#/spending" },
+];
+// Shown dimmed until they are built.
+const LATER_SCREENS = ["Comparison", "Datasets"];
+
+export function TopBar({ spending, screen }: { spending: SpendingTotal | null; screen: Screen }) {
   return (
     <header className="font-mono text-[13.5px] tracking-widest">
       <div className="flex flex-wrap items-stretch border-[1.5px] border-rule">
         <span className="border-r-[1.5px] border-rule px-[2ch] py-2">Jev/Trader</span>
         <nav className="mr-auto flex flex-wrap" aria-label="Screens">
-          <a
-            href="#/"
-            aria-current="page"
-            className="border-r-[1.5px] border-rule bg-amber px-[2ch] py-2 text-screen"
-          >
-            Trading sims
-          </a>
-          {LATER_SCREENS.map((screen) => (
+          {SCREENS.map((s) => (
+            <a
+              key={s.screen}
+              href={s.href}
+              aria-current={s.screen === screen ? "page" : undefined}
+              className={`border-r-[1.5px] border-rule px-[2ch] py-2 ${s.screen === screen ? "bg-amber text-screen" : "hover:text-pale"}`}
+            >
+              {s.title}
+            </a>
+          ))}
+          {LATER_SCREENS.map((later) => (
             <span
-              key={screen}
+              key={later}
               title="Not built yet"
               className="border-r-[1.5px] border-rule px-[2ch] py-2 text-dim"
             >
-              {screen}
+              {later}
             </span>
           ))}
         </nav>
-        <span className="self-center px-[2ch] py-2 text-dim">
+        <a href="#/spending" className="self-center px-[2ch] py-2 text-dim hover:text-pale">
           Models:{" "}
           <b className="font-normal text-amber">
             {spending ? dollarsAndCents(spending.spent_usd) : "..."}
           </b>
           {spending && ` of ${dollarsAndCents(spending.ceiling_usd)} spent`}
-        </span>
+        </a>
       </div>
       <div className="mb-11 flex w-fit border-x-[1.5px] border-b-[1.5px] border-rule">
         <span className="border-r-[1.5px] border-rule px-[2ch] py-1.5 text-dim">Command:</span>

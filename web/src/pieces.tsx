@@ -33,6 +33,27 @@ export function ErrorBox({ title, text }: { title: string; text: string }) {
   );
 }
 
+// A label sharing a box with its value, split by a line.
+export function Pair({ name, value }: { name: string; value: string }) {
+  return (
+    <span className="flex border-[1.5px] border-rule">
+      <span className="border-r-[1.5px] border-rule px-[1.5ch] py-1 text-dim">{name}</span>
+      <span className="px-[1.5ch] py-1 text-pale">{value}</span>
+    </span>
+  );
+}
+
+// One of a page's key figures, in an outlined box. The first one on a page is the one to read first.
+export function KeyFigure({ name, figure, says, first }: { name: string; figure: string; says: string; first?: boolean }) {
+  return (
+    <div className="border-[1.5px] border-rule px-[2ch] py-3">
+      <div className="font-mono text-[13.5px] tracking-wider text-dim">{name}</div>
+      <div className={`font-mono text-[1.9rem] leading-tight ${first ? "text-pale" : ""}`}>{figure}</div>
+      <div className="text-[14px] text-dim">{says}</div>
+    </div>
+  );
+}
+
 export function SectionHeading({ number, title, says }: { number: number; title: string; says: string }) {
   return (
     <div className="mb-4 flex items-stretch border-[1.5px] border-rule">
