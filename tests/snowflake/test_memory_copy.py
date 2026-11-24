@@ -143,4 +143,4 @@ def test_the_memory_date_rule_reads_the_latest_step_and_the_base_memory(left_mem
     store, dataset_id, source = left_memory
 
     assert store.memory_last_step(source) == 124
-    assert store.base_memory(dataset_id) == source
+    assert store.base_memory_sim(dataset_id) == source

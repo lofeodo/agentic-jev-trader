@@ -127,7 +127,7 @@ class ApiStore(Protocol):
 
     def latest_tier_2_share(self) -> float | None: ...
 
-    def base_memory(self, dataset: int) -> int | None: ...
+    def base_memory_sim(self, dataset: int) -> int | None: ...
 
     def memory_last_step(self, sim_id: int) -> int | None: ...
 
@@ -371,8 +371,8 @@ class InMemoryApiStore:
     def latest_tier_2_share(self):
         return self._sims.latest_tier_2_share()
 
-    def base_memory(self, dataset):
-        return self._sims.base_memory(dataset)
+    def base_memory_sim(self, dataset):
+        return self._sims.base_memory_sim(dataset)
 
     def memory_last_step(self, sim_id):
         return self._sims.memory_last_step(sim_id)

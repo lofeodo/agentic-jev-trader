@@ -214,14 +214,27 @@ def memory_refusals(
                 f"start this sim after step {latest}, or name a memory recorded earlier",
             )
         )
-    if kind != "practice" and source["KIND"] != "build-up":
+    if memory_from == store.base_memory_sim(dataset):
+        return found
+    if kind != "practice":
         found.append(
             Refusal(
                 "not_base_memory",
-                f"a {kind} sim starts from the base memory (a build-up sim's), not from sim "
-                f"{memory_from}, a {source['KIND']} sim",
+                f"a {kind} sim starts from the base memory (the latest finished build-up "
+                f"sim's), not from sim {memory_from}'s",
                 "leave out the memory to start from the base memory; only a practice sim "
                 "(the rehearsal) starts from another",
+            )
+        )
+    elif (source["KIND"], source["VARIANT"]) != ("practice", "memory_off"):
+        found.append(
+            Refusal(
+                "not_rehearsal_memory",
+                f"a practice sim starts from the base memory or, in the rehearsal, from the "
+                f"memory a practice sim without memory left; sim {memory_from} is a "
+                f"{source['KIND']} {source['VARIANT']} sim",
+                "leave out the memory to start from the base memory, or name the "
+                "rehearsal's first sim",
             )
         )
     return found

@@ -55,6 +55,9 @@ FIFTEEN_MINUTES = "15m"
 # Where the typical move, as a share of the price, sits in a snapshot's measurements (from 0).
 _TYPICAL_MOVE = MEASUREMENT_NAMES.index("typical_move_share_of_price")
 _JSON_COLUMNS = {"SETTINGS", "ACCOUNT_STATE", "DETAILS"}
+# A sim's own rows of a memory table, bound to its ID: those it wrote, not those it copied from
+# the memory it started from. Every report on what one sim did reads through this.
+OWN_ROWS = "SIM = ? AND FIRST_WRITTEN_BY = SIM"
 
 
 def _is_json(value) -> bool:
@@ -63,6 +66,15 @@ def _is_json(value) -> bool:
 
 def _value(value):
     return json.dumps(value) if _is_json(value) else value
+
+
+def _set_clause(columns: dict) -> tuple[str, list]:
+    """An UPDATE's `SET ...` text for `columns` and the values it binds, JSON parsed."""
+    sets = ", ".join(
+        f"{k} = PARSE_JSON(?)" if _is_json(v) else f"{k} = ?"
+        for k, v in columns.items()
+    )
+    return sets, [_value(v) for v in columns.values()]
 
 
 class _Connection:
@@ -107,13 +119,10 @@ class SnowflakeSimStore(_Connection):
         return row
 
     def update(self, sim_id: int, **columns) -> None:
-        sets = ", ".join(
-            f"{k} = PARSE_JSON(?)" if _is_json(v) else f"{k} = ?"
-            for k, v in columns.items()
-        )
+        sets, values = _set_clause(columns)
         self._run(
             f"UPDATE SIM.SIMS SET {sets} WHERE ID = ? AND STATUS <> ?",
-            [_value(v) for v in columns.values()] + [sim_id, str(SimStatus.FINISHED)],
+            values + [sim_id, str(SimStatus.FINISHED)],
         )
 
     def write_steps(
@@ -166,7 +175,7 @@ class SnowflakeSimStore(_Connection):
                 found[name] = duplicated
         return found
 
-    def base_memory(self, dataset: int) -> int | None:
+    def base_memory_sim(self, dataset: int) -> int | None:
         [(sim_id,)] = self._run(
             "SELECT MAX(ID) FROM SIM.SIMS WHERE DATASET = ? AND KIND = 'build-up' "
             "AND STATUS = ?",
@@ -189,18 +198,14 @@ class SnowflakeSimStore(_Connection):
         is not finished) first, then per memory table a DELETE of what the sim's memory held and
         an INSERT ... SELECT of the source's rows with SIM changed. The columns are read from
         the table, so a column added later is copied too."""
-        sets = ", ".join(
-            f"{k} = PARSE_JSON(?)" if _is_json(v) else f"{k} = ?"
-            for k, v in columns.items()
-        )
+        sets, values = _set_clause(columns)
         with self.con.cursor() as cur:
             cur.execute("BEGIN TRANSACTION")
             try:
                 cur.execute(
                     f"UPDATE SIM.SIMS SET {sets} WHERE ID = ? "
                     "AND LAST_COMPLETED_STEP IS NULL AND STATUS <> ?",
-                    [_value(v) for v in columns.values()]
-                    + [sim_id, str(SimStatus.FINISHED)],
+                    values + [sim_id, str(SimStatus.FINISHED)],
                 )
                 if cur.rowcount != 1:
                     raise StepAlreadyWritten(
@@ -260,7 +265,8 @@ class SnowflakeSimStore(_Connection):
         found = self._run(
             "SELECT COUNT_IF(d.KIND = ?) / COUNT(*) FROM MEMORY.DECISIONS d "
             "JOIN SIM.SIMS s ON s.ID = d.SIM "
-            "WHERE s.KIND = 'practice' AND s.VARIANT <> 'buy_hold' AND d.KIND IN (?, ?) AND d.FIRST_WRITTEN_BY = d.SIM "
+            "WHERE s.KIND = 'practice' AND s.VARIANT <> 'buy_hold' AND d.KIND IN (?, ?) "
+            "AND d.FIRST_WRITTEN_BY = d.SIM "
             "GROUP BY d.SIM ORDER BY d.SIM DESC LIMIT 1",
             (KIND_FULL_EVALUATION, KIND_SCREEN, KIND_FULL_EVALUATION),
         )
@@ -269,7 +275,7 @@ class SnowflakeSimStore(_Connection):
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
         [(asked, yes)] = self._run(
             "SELECT COUNT(SCREEN_ANSWER), COUNT_IF(SCREEN_ANSWER >= ?) "
-            "FROM MEMORY.DECISIONS WHERE SIM = ? AND FIRST_WRITTEN_BY = SIM AND KIND IN (?, ?)",
+            f"FROM MEMORY.DECISIONS WHERE {OWN_ROWS} AND KIND IN (?, ?)",
             (cut_off, sim_id, *SCREENED_KINDS),
         )
         return int(asked), int(yes)
@@ -277,7 +283,7 @@ class SnowflakeSimStore(_Connection):
     def position_screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
         [(asked, yes)] = self._run(
             "SELECT COUNT(SCREEN_ANSWER), COUNT_IF(SCREEN_ANSWER >= ?) "
-            "FROM MEMORY.DECISIONS WHERE SIM = ? AND FIRST_WRITTEN_BY = SIM AND KIND IN (?, ?)",
+            f"FROM MEMORY.DECISIONS WHERE {OWN_ROWS} AND KIND IN (?, ?)",
             (cut_off, sim_id, *POSITION_KINDS),
         )
         return int(asked), int(yes)
@@ -286,7 +292,7 @@ class SnowflakeSimStore(_Connection):
         [(reviews, end_of_session, closes, reduces, adds)] = self._run(
             "SELECT COUNT(*), COUNT_IF(END_OF_SESSION), COUNT_IF(ACTION = ?), "
             "COUNT_IF(ACTION = ?), COUNT_IF(ACTION = ?) FROM MEMORY.DECISIONS "
-            "WHERE SIM = ? AND FIRST_WRITTEN_BY = SIM AND KIND = ?",
+            f"WHERE {OWN_ROWS} AND KIND = ?",
             (ACTION_CLOSE, ACTION_REDUCE, ACTION_ADD, sim_id, KIND_POSITION_REVIEW),
         )
         return {
@@ -300,7 +306,7 @@ class SnowflakeSimStore(_Connection):
     def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
         [(evaluations, entries)] = self._run(
             "SELECT COUNT(*), COUNT_IF(ACTION = ?) FROM MEMORY.DECISIONS "
-            "WHERE SIM = ? AND FIRST_WRITTEN_BY = SIM AND KIND = ?",
+            f"WHERE {OWN_ROWS} AND KIND = ?",
             (ACTION_ENTRY, sim_id, KIND_FULL_EVALUATION),
         )
         return int(evaluations), int(entries)

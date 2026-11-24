@@ -211,7 +211,7 @@ def create_sim(
     )
     memory_from = request.memory_from
     if request.variant == "memory_on" and memory_from is None:
-        memory_from = store.base_memory(request.dataset)
+        memory_from = store.base_memory_sim(request.dataset)
     planned = Planned(
         dataset=request.dataset,
         variant=request.variant,

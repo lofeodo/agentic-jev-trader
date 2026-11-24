@@ -31,6 +31,7 @@ def left_memory(
     store,
     *,
     kind="build-up",
+    variant="memory_off",
     status="finished",
     dataset=7,
     first_step=97,
@@ -44,7 +45,7 @@ def left_memory(
         {
             "DATASET": dataset,
             "KIND": kind,
-            "VARIANT": "memory_off",
+            "VARIANT": variant,
             "FIRST_STEP": first_step,
             "LAST_STEP": last_step,
             "STATUS": status,
@@ -128,7 +129,7 @@ def test_a_memory_recorded_wholly_before_the_first_step_is_allowed(market):
 
 def test_a_sim_still_running_its_memory_is_refused(market):
     store = InMemorySimStore()
-    source = left_memory(store, status="running")
+    source = left_memory(store, kind="practice", status="running")
 
     assert refusal_codes(store, market, with_memory(memory_from=source)) == [
         "memory_not_finished"
@@ -146,7 +147,7 @@ def test_a_sim_ending_at_or_after_the_first_step_is_refused(market):
 
 def test_a_memory_from_another_dataset_is_refused(market):
     store = InMemorySimStore()
-    source = left_memory(store, dataset=8)
+    source = left_memory(store, kind="practice", dataset=8)
 
     assert refusal_codes(store, market, with_memory(memory_from=source)) == [
         "memory_other_dataset"
@@ -200,6 +201,40 @@ def test_only_a_practice_sim_starts_from_a_memory_other_than_the_base_memory(
     codes = refusal_codes(store, market, with_memory(kind=kind, memory_from=practice))
 
     assert "not_base_memory" in codes
+
+
+def test_a_sim_that_counts_is_refused_an_older_build_up_sims_memory(market):
+    store = InMemorySimStore()
+    older = left_memory(store)
+    left_memory(store)  # the base memory
+
+    codes = refusal_codes(store, market, with_memory(kind="free", memory_from=older))
+
+    assert codes == ["not_base_memory"]
+
+
+@pytest.mark.parametrize(
+    "kind, variant",
+    [("practice", "buy_hold"), ("practice", "memory_on"), ("free", "memory_on")],
+)
+def test_a_practice_sim_starts_only_from_a_rehearsal_memory_or_the_base_memory(
+    market, kind, variant
+):
+    store = InMemorySimStore()
+    other = left_memory(store, kind=kind, variant=variant)
+
+    codes = refusal_codes(store, market, with_memory(memory_from=other))
+
+    assert codes == ["not_rehearsal_memory"]
+
+
+def test_a_practice_sim_may_start_from_the_base_memory(market):
+    store = InMemorySimStore()
+    base = left_memory(store)
+
+    sim_id = create_sim(store, market, with_memory(memory_from=base))
+
+    assert store.sim(sim_id)["MEMORY_FROM_SIM"] == base
 
 
 @pytest.mark.parametrize("variant", ["memory_off", "buy_hold"])

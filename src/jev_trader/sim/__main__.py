@@ -18,7 +18,8 @@ position screen is built.
 `--memory-from SIM` (on `practice` and `start`) starts the agent with memory from a copy of a
 finished sim's memory: on `practice`, the rehearsal's later sims start from the small memory its
 first sim left. A sim with memory given none starts from the base memory, the latest finished
-build-up sim's. The copy is made when the sim's job first marks it running.
+build-up sim's. The copy is made when the sim's job first marks it running. The agent with memory
+is not built yet: until it is, the checker refuses such a sim before creating it.
 
 Every start and resume goes through the one checker (`checker.py`): a refused sim stores
 nothing (a refused resume leaves the sim as it was), and each reason is printed with its fix.

@@ -34,6 +34,8 @@ TABLES = (
 )
 # A sim's memory: the tables a sim with memory starts from a copy of (spec appendix 6, section
 # 3.5). Each row's SIM is the memory it belongs to; FIRST_WRITTEN_BY the sim that wrote it.
+# Only the MEMORY tables a step writes are copied: a later MEMORY table (POSITIONS,
+# TOOL_CALLS, ...) must go into TABLES to be part of the copy.
 MEMORY_TABLES = tuple(name for name in TABLES if name.startswith("MEMORY."))
 # A decision's KIND. An asset with no position: a screen alone (tier 0 or 1), or a full evaluation
 # (tier 2); both began with the screen, unless code skipped it. An open position: a position
@@ -119,7 +121,7 @@ class SimStore(Protocol):
     def duplicate_ids(self, sim_id: int) -> dict[str, int]:
         """For each table with any, how many of the sim's record IDs appear more than once."""
 
-    def base_memory(self, dataset: int) -> int | None:
+    def base_memory_sim(self, dataset: int) -> int | None:
         """The sim whose memory is the dataset's base memory: its latest finished build-up sim;
         None if it has none."""
 
@@ -262,7 +264,7 @@ class InMemorySimStore:
                 found[name] = duplicated
         return found
 
-    def base_memory(self, dataset: int) -> int | None:
+    def base_memory_sim(self, dataset: int) -> int | None:
         found = [
             sim_id
             for sim_id, sim in self.sims.items()
