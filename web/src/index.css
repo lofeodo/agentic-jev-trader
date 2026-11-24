@@ -21,6 +21,7 @@
   --color-rule: #ff5422;
   --color-dim: #e0762c;
   --color-pale: #ffd98a;
+  --color-grid: #5a2110;
   --font-sans: Arimo, Arial, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, monospace;
 }
@@ -29,6 +30,20 @@
 @layer components {
   .font-mono {
     font-weight: 300;
+  }
+
+  /* The chart's axis numbers use the computer's own serif typeface (spec appendix 7, 12). */
+  .axis-number {
+    fill: var(--color-dim);
+    font-family: "Times New Roman", Times, serif;
+    font-size: 17px;
+  }
+
+  .chart-label {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 300;
+    letter-spacing: 0.08em;
   }
 }
 

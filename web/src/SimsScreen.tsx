@@ -1,5 +1,6 @@
 import type { SimLine } from "./api/client";
 import { day, dollars, dollarsAndCents, signedDollars } from "./format";
+import { statusWords } from "./pieces";
 
 const KINDS: { kind: string; title: string; says: string }[] = [
   { kind: "measurement", title: "Measurement", says: "Their results count" },
@@ -13,19 +14,14 @@ const COLUMNS = ["Sim", "Status", "Days", "Account value", "Against holding", "T
 const cell = "py-[.42rem] pr-[2ch] align-top font-mono text-base";
 const number = `${cell} text-right whitespace-nowrap`;
 
-function statusWords(sim: SimLine) {
-  if (sim.not_responding) return "Not responding";
-  if (sim.status === "stopped" && sim.stop_reason) return `Stopped: ${sim.stop_reason}`;
-  if (sim.status === "failed") return "Failed";
-  return sim.status;
-}
-
 function Line({ sim }: { sim: SimLine }) {
   const gap = sim.holding_value === null ? null : sim.account_value - sim.holding_value;
   return (
     <tr className="hover:bg-amber hover:text-screen [&:hover_*]:text-screen">
       <td className={cell}>
-        <div>{sim.name}</div>
+        <a href={`#/sims/${sim.id}`} className="underline decoration-rule underline-offset-4">
+          {sim.name}
+        </a>
         <div className="text-[13.5px] tracking-wider text-dim">
           {sim.first_day && sim.last_day && `${day(sim.first_day)} to ${day(sim.last_day)} UTC / `}
           steps {sim.first_step} to {sim.last_step}

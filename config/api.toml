@@ -5,3 +5,7 @@ spending_ceiling_usd = 75.0
 
 # A sim recorded as running that has stored nothing for this long shows as "not responding".
 not_responding_minutes = 7
+
+# A moment clicked on the sim page's chart lists the trades opened or closed this many steps
+# (15 minutes each) either side of it. 8 is two hours before and two hours after.
+moment_window_steps = 8

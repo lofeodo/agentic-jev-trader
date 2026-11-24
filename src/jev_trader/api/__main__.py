@@ -59,6 +59,7 @@ def serve(database: str, port: int) -> int:
         SnowflakeApiStore(connection),
         spending_ceiling=settings["spending_ceiling_usd"],
         not_responding_after=timedelta(minutes=settings["not_responding_minutes"]),
+        moment_window_steps=settings["moment_window_steps"],
     )
     try:
         uvicorn.run(app, host="127.0.0.1", port=port)

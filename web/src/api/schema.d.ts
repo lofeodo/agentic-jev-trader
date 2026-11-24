@@ -38,6 +38,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sims/{sim_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sim Header */
+        get: operations["simHeader"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sims/{sim_id}/chart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sim Chart */
+        get: operations["simChart"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sims/{sim_id}/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sim Live
+         * @description The quick figures, asked for every second while the sim is in progress.
+         *
+         *     `after_step`: the last step the page has chart points for; only later ones are sent.
+         */
+        get: operations["simLive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sims/{sim_id}/moment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sim Moment
+         * @description The account, its positions, and the trades around one moment.
+         *
+         *     `at`: a real time, UTC. The moment is the step that ended at or just before it.
+         */
+        get: operations["simMoment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/spending/total": {
         parameters: {
             query?: never;
@@ -59,6 +137,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountThen */
+        AccountThen: {
+            /** Account Value */
+            account_value: number;
+            /** Cash */
+            cash: number;
+            /** Exposure */
+            exposure: number;
+            /** Loan */
+            loan: number;
+            /** Start Of Day Value */
+            start_of_day_value: number;
+        };
         /**
          * AssetName
          * @description The real name leads; the masked ID is the disguised label the agent saw.
@@ -69,10 +160,299 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** Chart */
+        Chart: {
+            /** Lines */
+            lines: components["schemas"]["ChartLine"][];
+            /** Starting Value */
+            starting_value: number;
+            /** Ticks */
+            ticks: components["schemas"]["TradeTick"][];
+            /** Window Steps */
+            window_steps: number;
+        };
+        /** ChartLine */
+        ChartLine: {
+            /** Label */
+            label: string;
+            /** Points */
+            points: components["schemas"]["ChartPoint"][];
+            /** Role */
+            role: string;
+            /** Sim Id */
+            sim_id: number;
+        };
+        /** ChartPoint */
+        ChartPoint: {
+            /** Step */
+            step: number;
+            /** Value */
+            value: number;
+        };
+        /**
+         * DecisionLine
+         * @description One asset looked at, at one step, and what came of it.
+         */
+        DecisionLine: {
+            /** Action */
+            action: string;
+            asset: components["schemas"]["AssetName"];
+            /** At */
+            at: string | null;
+            /** Kind */
+            kind: string;
+            /** Screen Answer */
+            screen_answer: number | null;
+            /** Skipped Because */
+            skipped_because: string | null;
+            /** Step */
+            step: number;
+            /** Tier */
+            tier: number;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /** Health */
         Health: {
             /** Status */
             status: string;
+        };
+        /** LiveFigures */
+        LiveFigures: {
+            /** Account Value */
+            account_value: number;
+            /** Days Done */
+            days_done: number;
+            /** Days Total */
+            days_total: number;
+            /** Holding Value */
+            holding_value: number | null;
+            /** In Progress */
+            in_progress: boolean;
+            /** Latest Decisions */
+            latest_decisions: components["schemas"]["DecisionLine"][];
+            /** Latest Orders */
+            latest_orders: components["schemas"]["OrderLine"][];
+            meters: components["schemas"]["Meters"];
+            /** New Points */
+            new_points: components["schemas"]["NewPoint"][];
+            /** Not Responding */
+            not_responding: boolean;
+            /** Notable Moments */
+            notable_moments: components["schemas"]["NotableMoment"][];
+            /** Open Positions */
+            open_positions: components["schemas"]["OpenPosition"][];
+            /** Replayed At */
+            replayed_at: string | null;
+            /** Spending Cap Usd */
+            spending_cap_usd: number | null;
+            /** Spent Usd */
+            spent_usd: number;
+            /** Status */
+            status: string;
+            /** Step Reached */
+            step_reached: number | null;
+            /** Stop Reason */
+            stop_reason: string | null;
+            /** Ticks */
+            ticks: components["schemas"]["TradeTick"][];
+            /** Trades */
+            trades: number;
+        };
+        /**
+         * Meters
+         * @description The three thin meters, the spending one aside (its figures are the key figures).
+         */
+        Meters: {
+            /** Daily Loss Limit Usd */
+            daily_loss_limit_usd: number | null;
+            /** Daily Loss Reached */
+            daily_loss_reached: boolean;
+            /** Day Change */
+            day_change: number;
+            /** Exposure Limit Usd */
+            exposure_limit_usd: number | null;
+            /** Held Usd */
+            held_usd: number;
+        };
+        /** Moment */
+        Moment: {
+            account: components["schemas"]["AccountThen"] | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Holding Value */
+            holding_value: number | null;
+            /** Nearby */
+            nearby: components["schemas"]["OrderLine"][];
+            /** Positions */
+            positions: components["schemas"]["PositionThen"][];
+            /** Since Midnight */
+            since_midnight: number | null;
+            /** Since Start */
+            since_start: number | null;
+            /** Step */
+            step: number;
+            /** Window Steps */
+            window_steps: number;
+        };
+        /** NewPoint */
+        NewPoint: {
+            /** Sim Id */
+            sim_id: number;
+            /** Step */
+            step: number;
+            /** Value */
+            value: number;
+        };
+        /** NotableMoment */
+        NotableMoment: {
+            /** At */
+            at: string | null;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            } | null;
+            /** Kind */
+            kind: string;
+            /** Step */
+            step: number;
+        };
+        /** OpenPosition */
+        OpenPosition: {
+            /** Amount Chosen */
+            amount_chosen: number | null;
+            asset: components["schemas"]["AssetName"];
+            /** Direction */
+            direction: string;
+            entry_price: components["schemas"]["Price"];
+            /** Limited By */
+            limited_by: string | null;
+            /** Opened At */
+            opened_at: string | null;
+            /** Opened Step */
+            opened_step: number;
+            /** Position */
+            position: number;
+            price_now: components["schemas"]["Price"] | null;
+            /** Profit So Far */
+            profit_so_far: number | null;
+            stop_price: components["schemas"]["Price"] | null;
+            /** Units */
+            units: number;
+            /** Value Usd */
+            value_usd: number | null;
+        };
+        /**
+         * OrderLine
+         * @description One order: what the agent (or code) decided, and whether it was carried out.
+         */
+        OrderLine: {
+            /** Amount Chosen */
+            amount_chosen: number | null;
+            asset: components["schemas"]["AssetName"];
+            /** Decided At */
+            decided_at: string | null;
+            /** Kind */
+            kind: string;
+            /** Limited By */
+            limited_by: string | null;
+            /** Reason */
+            reason: string;
+            /** Side */
+            side: string | null;
+            /** Status */
+            status: string;
+            /** Step Carried Out */
+            step_carried_out: number | null;
+            /** Step Decided */
+            step_decided: number;
+            /** Value Usd */
+            value_usd: number | null;
+        };
+        /** PositionThen */
+        PositionThen: {
+            asset: components["schemas"]["AssetName"];
+            average_price: components["schemas"]["Price"];
+            /** Direction */
+            direction: string;
+            /** Position */
+            position: number;
+            price_then: components["schemas"]["Price"] | null;
+            /** Units */
+            units: number;
+            /** Value Usd */
+            value_usd: number | null;
+        };
+        /**
+         * Price
+         * @description A price as it really was, and as the agent saw it (rescaled).
+         */
+        Price: {
+            /** Real */
+            real: number | null;
+            /** Rescaled */
+            rescaled: number;
+        };
+        /** SimHeader */
+        SimHeader: {
+            /** Assets */
+            assets: components["schemas"]["AssetName"][];
+            /** Code Version */
+            code_version: string | null;
+            /** Dataset */
+            dataset: number;
+            /** Days Done */
+            days_done: number;
+            /** Days Total */
+            days_total: number;
+            /** Estimated Cost Usd */
+            estimated_cost_usd: number | null;
+            /** Failure Reason */
+            failure_reason: string | null;
+            /** First Day */
+            first_day: string | null;
+            /** First Step */
+            first_step: number;
+            /** Id */
+            id: number;
+            /** In Progress */
+            in_progress: boolean;
+            /** Kind */
+            kind: string;
+            /** Last Day */
+            last_day: string | null;
+            /** Last Step */
+            last_step: number;
+            /** Name */
+            name: string;
+            /** Not Responding */
+            not_responding: boolean;
+            /** Replayed At */
+            replayed_at: string | null;
+            /** Settings */
+            settings: {
+                [key: string]: unknown;
+            };
+            /** Spending Cap Usd */
+            spending_cap_usd: number | null;
+            /** Starting Value */
+            starting_value: number;
+            /** Status */
+            status: string;
+            /** Step Reached */
+            step_reached: number | null;
+            /** Steps Start At */
+            steps_start_at: string | null;
+            /** Stop Reason */
+            stop_reason: string | null;
+            /** Variant */
+            variant: string;
         };
         /** SimLine */
         SimLine: {
@@ -128,6 +508,34 @@ export interface components {
             /** Spent Usd */
             spent_usd: number;
         };
+        /**
+         * TradeTick
+         * @description One trade: a tick on the chart where it opened.
+         */
+        TradeTick: {
+            asset: components["schemas"]["AssetName"];
+            /** Closed Step */
+            closed_step: number | null;
+            /** Direction */
+            direction: string;
+            /** Opened Step */
+            opened_step: number;
+            /** Position */
+            position: number;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -173,6 +581,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimsList"];
+                };
+            };
+        };
+    };
+    simHeader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimHeader"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simChart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simLive: {
+        parameters: {
+            query?: {
+                after_step?: number | null;
+            };
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveFigures"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simMoment: {
+        parameters: {
+            query: {
+                at: string;
+            };
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Moment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

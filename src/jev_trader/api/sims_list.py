@@ -50,7 +50,7 @@ class SimsList(BaseModel):
     sims: list[SimLine]
 
 
-def _name(sim: dict) -> str:
+def sim_name(sim: dict) -> str:
     variant = VARIANT_WORDS.get(sim["VARIANT"], sim["VARIANT"])
     if sim.get("MARKET"):
         parts = [sim["MARKET"], variant]
@@ -60,7 +60,7 @@ def _name(sim: dict) -> str:
     return f"Sim {sim['ID']} / {variant}"
 
 
-def _days(sim: dict) -> tuple[int, int]:
+def days_of(sim: dict) -> tuple[int, int]:
     first, last = sim["FIRST_STEP"], sim["LAST_STEP"]
     total = day_of(last) - day_of(first) + 1
     reached = sim.get("LAST_COMPLETED_STEP")
@@ -71,30 +71,30 @@ def _days(sim: dict) -> tuple[int, int]:
     return day_of(reached + 1) - day_of(first), total  # days whose last step is stored
 
 
-def _not_responding(sim: dict, at: datetime, quiet_limit: timedelta) -> bool:
+def is_not_responding(sim: dict, at: datetime, quiet_limit: timedelta) -> bool:
     if sim["STATUS"] != SimStatus.RUNNING:
         return False
     last_sign = sim.get("LAST_WRITTEN_AT") or sim.get("STARTED_AT")
     return last_sign is not None and at - last_sign >= quiet_limit
 
 
-def _reached(sim: dict) -> int:
+def reached_step(sim: dict) -> int:
     reached = sim.get("LAST_COMPLETED_STEP")
     return -1 if reached is None else reached
 
 
-def _holding_sims(all_sims: list[dict]) -> dict[tuple, dict]:
+def holding_sims(all_sims: list[dict]) -> dict[tuple, dict]:
     """The holding sim of each stretch of days: the one that got furthest, unless it failed."""
     found: dict[tuple, dict] = {}
     for sim in sorted(all_sims, key=lambda s: s["ID"]):
         if sim["VARIANT"] == HOLDING and sim["STATUS"] != SimStatus.FAILED:
-            best = found.get(_stretch(sim))
-            if best is None or _reached(sim) > _reached(best):
-                found[_stretch(sim)] = sim
+            best = found.get(stretch(sim))
+            if best is None or reached_step(sim) > reached_step(best):
+                found[stretch(sim)] = sim
     return found
 
 
-def _stretch(sim: dict) -> tuple:
+def stretch(sim: dict) -> tuple:
     """What a sim and its holding sim share: the same days, from the same starting amount."""
     return sim["DATASET"], sim["FIRST_STEP"], sim["LAST_STEP"], sim["STARTING_VALUE"]
 
@@ -104,8 +104,12 @@ def _holding_at_same_moment(sim: dict, holding: dict[tuple, dict]) -> int | None
 
     A holding sim stores many steps per write, so it can be behind a sim on the same days.
     """
-    found = holding.get(_stretch(sim))
-    if found is None or _reached(sim) < 0 or _reached(found) < _reached(sim):
+    found = holding.get(stretch(sim))
+    if (
+        found is None
+        or reached_step(sim) < 0
+        or reached_step(found) < reached_step(sim)
+    ):
         return None
     return found["ID"]
 
@@ -116,7 +120,7 @@ def sims_list(store: ApiStore, at: datetime, quiet_limit: timedelta) -> SimsList
     if not lines:
         return SimsList(sims=[])
 
-    holding = _holding_sims(all_sims)
+    holding = holding_sims(all_sims)
     wanted = []
     for sim in lines:
         reached = sim.get("LAST_COMPLETED_STEP")
@@ -135,16 +139,16 @@ def sims_list(store: ApiStore, at: datetime, quiet_limit: timedelta) -> SimsList
     def line(sim: dict) -> SimLine:
         reached = sim.get("LAST_COMPLETED_STEP")
         holding_id = _holding_at_same_moment(sim, holding)
-        days_done, days_total = _days(sim)
+        days_done, days_total = days_of(sim)
         dataset_assets = assets.get(sim["DATASET"], [])
         dataset_first_day = dataset_assets[0]["FIRST_DAY"] if dataset_assets else None
         return SimLine(
             id=sim["ID"],
-            name=_name(sim),
+            name=sim_name(sim),
             kind=sim["KIND"],
             status=sim["STATUS"],
             stop_reason=sim.get("STOP_REASON"),
-            not_responding=_not_responding(sim, at, quiet_limit),
+            not_responding=is_not_responding(sim, at, quiet_limit),
             days_done=days_done,
             days_total=days_total,
             first_step=sim["FIRST_STEP"],
