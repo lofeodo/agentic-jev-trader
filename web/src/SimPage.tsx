@@ -1,13 +1,16 @@
 // The Trading sim page, its top half (spec appendix 7, section 5): the header and key figures, the
 // chart, the three meters, open positions and latest orders, and the notable moments. While the
 // sim is in progress the quick figures are asked for every second, never before the last answer
-// came back; a finished or stopped sim's page asks once.
+// came back; a finished or stopped sim's page asks once. Stop and Resume sit in the header
+// (appendix 8, section 8.7); after either, the page reads the sim again.
 import { useEffect, useRef, useState } from "react";
 
 import {
   fetchChart,
   fetchLive,
   fetchSimHeader,
+  resumeSim,
+  stopSim,
   type Chart,
   type ChartLine,
   type LiveFigures,
@@ -62,6 +65,7 @@ export function SimPage({ id }: { id: number }) {
   const [live, setLive] = useState<LiveFigures | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [momentStep, setMomentStep] = useState<number | null>(null);
+  const [reloads, setReloads] = useState(0); // goes up after Stop or Resume: the sim is read again
   const linesRef = useRef<ChartLine[]>([]);
 
   useEffect(() => {
@@ -121,7 +125,7 @@ export function SimPage({ id }: { id: number }) {
       stopped = true;
       window.clearTimeout(timer);
     };
-  }, [id]);
+  }, [id, reloads]);
 
   if (!header || !chart || !live) {
     return (
@@ -151,6 +155,7 @@ export function SimPage({ id }: { id: number }) {
         <Pair name="Replaying" value={replayed} />
         <Pair name="Step" value={`${live.step_reached ?? "--"} of ${header.last_step}`} />
         <Pair name="Kind" value={header.kind} />
+        <StopOrResume live={live} header={header} onDone={() => setReloads((n) => n + 1)} />
       </div>
       {header.failure_reason && (
         <div className="mb-6">
@@ -217,6 +222,81 @@ export function SimPage({ id }: { id: number }) {
         />
       )}
     </section>
+  );
+}
+
+// Stop while the sim is in progress; Resume once it is stopped or not responding. A sim its
+// spending cap stopped is resumed with a new cap.
+function StopOrResume({ live, header, onDone }: { live: LiveFigures; header: SimHeader; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [cap, setCap] = useState("");
+  const canStop = live.status === "created" || live.status === "running";
+  const canResume = live.status === "stopped" || live.not_responding;
+  const needsCap = live.status === "stopped" && live.stop_reason === "spending cap";
+  if (!canStop && !canResume) return null;
+
+  async function act(what: () => Promise<unknown>) {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await what();
+      onDone();
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function stop() {
+    if (!window.confirm(`Stop ${header.name} now? The step it is working on is thrown away and redone on resume.`)) return;
+    void act(() => stopSim(header.id));
+  }
+
+  function resume() {
+    const newCap = needsCap ? Number(cap) : null;
+    if (needsCap && !(newCap! > 0)) {
+      setProblem(`Give a new cap above the ${dollarsAndCents(live.spent_usd)} it has spent.`);
+      return;
+    }
+    void act(() => resumeSim(header.id, newCap));
+  }
+
+  const button =
+    "cursor-pointer border-[1.5px] border-amber px-[1.5ch] py-1 text-amber uppercase hover:bg-amber hover:text-screen disabled:cursor-wait disabled:opacity-60";
+  return (
+    <span className="flex flex-wrap items-stretch gap-3">
+      {canResume && needsCap && (
+        <label className="flex border-[1.5px] border-rule">
+          <span className="border-r-[1.5px] border-rule px-[1.5ch] py-1 text-dim">New cap $</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={cap}
+            onChange={(e) => setCap(e.target.value)}
+            className="w-[9ch] bg-transparent px-[1ch] text-pale"
+            aria-label="New spending cap in dollars"
+          />
+        </label>
+      )}
+      {canResume && (
+        <button type="button" className={button} disabled={busy} onClick={resume}>
+          {busy ? "Resuming..." : "Resume"}
+        </button>
+      )}
+      {canStop && (
+        <button type="button" className={button} disabled={busy} onClick={stop}>
+          {busy ? "Stopping..." : "Stop"}
+        </button>
+      )}
+      {problem && (
+        <span role="alert" className="basis-full text-center text-amber">
+          Refused: {problem}
+        </span>
+      )}
+    </span>
   );
 }
 

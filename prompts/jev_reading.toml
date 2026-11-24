@@ -41,7 +41,9 @@ typical_move = ' Typical move in one bar: {move}.'
 pattern_notes_heading = '# Candle patterns named above'
 pattern_note = '{name}: {lean}. {shape}'
 
-screen_question = 'Is {asset} worth a full evaluation at this step? A full evaluation weighs opening a long or a short in it now, and can still end in no trade.'
+# The screen: asked so that most answers are no, as a day trader passes on most moments (ticket
+# #144: "is it worth a full evaluation?" was answered yes 99% of the time).
+screen_question = 'Would a selective day trader act on {asset} now, long or short? Only a decisive move on volume well above normal, or a clean trend turning back after a shallow pullback, counts. Drifting mid-range, choppy small bars and average volume do not. Most assets at most steps do not qualify.'
 
 # The full evaluation, request 1: the pick, asked as shuffled copies of one question. Each of the
 # six candidate trades is one sentence, followed by the largest size code allows with it.
