@@ -1,0 +1,65 @@
+# How a past episode and the track record are written: the same words for the LLM's lookups
+# and for Jev's background (spec appendix 5, sections 4 and 5). Read by
+# src/jev_trader/memory/render.py. The walkthrough pages (docs/llm-prompt-walkthrough.html and
+# docs/jev-reading-walkthrough.html) show these texts on made-up data: change both with them.
+#
+# Every number is rounded the same way every time, and no clock time, sim or step number appears.
+
+hours_ago = ['{n} hour ago', '{n} hours ago']
+days_ago = ['{n} day ago', '{n} days ago']
+bars = ['{n} bar', '{n} bars']
+same_asset = 'same asset'
+another_asset = 'another asset'  # Jev's block does not name the other asset
+long_term_trend = 'long-term trend {way}'
+volume = 'volume {level}'
+no_pattern = 'no pattern'
+no_trade = 'no trade'
+column_separator = ' | '
+
+# A full evaluation that traded, and how it ended
+trade = '{direction}, {stop} stop, {dollars}'
+closing_reasons = { jev = 'closed by choice', stop_price = 'closed at its stop price', forced_close = 'forced close', sim_ended = 'closed because the run ended' }
+trade_ended = '{reason} after {bars}{separator}{profit} ({percent})'
+# Where the price went after a decision
+price_after = 'price went {one} after 1 bar, {four} after 4 bars, {end} by the end of the day'
+
+# A position review: the position's standing, and how the trade ended counted from the review
+standing = '{direction}, {dollars}, open {bars}, {profit} ({percent}), stop price {stop} away'
+review_ended = '{reason} {bars} later{separator}{profit} ({percent})'
+closed_at_this_review = 'closed at this review{separator}{profit} ({percent})'
+
+# A bar of the trade: the same words as an open position's journal (prompts/jev_reading.toml)
+step_bar = 'bar {bar} {entry}'
+step_bars = 'bars {first} to {last} {entry}'
+hold = 'hold'
+close = 'close'
+reduce = 'reduce by {share} (that part: {profit})'
+reduce_share_words = ['a quarter', 'half', 'three quarters']
+add = 'add {amount}'
+this_review = '{entry} (this review)'
+ended_by_code = { stop_price = 'stop price reached', forced_close = 'forced close', sim_ended = 'closed because the run ended' }
+
+# An episode in full
+full_heading = '{label}: {ago}, {which}'
+situation_then = 'Situation then: {situation}'
+decided_no_trade = 'Decided: no trade.'
+afterwards = 'Afterwards: {after}.'
+decided_trade = 'Decided: {direction} with a {stop} stop price ({distance} from the entry price), {dollars}.'
+handled = 'Handled: {steps}.'
+ended = 'Ended: {ended}.'
+best_and_worst = ' At best {best}, at worst {worst}.'
+position_then = 'The position then: {standing}. At best it had been {best}, at worst {worst}.'
+review_decided = 'Decided: {decided}.'
+whole_trade = 'The whole trade: {steps}.'
+
+# The track record
+track_record_heading = 'Track record: {pattern}, {direction}, {asset_class}'
+asset_classes = { stock = 'stocks', crypto = 'crypto' }
+all_trades = 'All'
+trends = { 'with the trend' = 'with the long-term trend', 'against the trend' = 'against the long-term trend', 'not available' = 'long-term trend not available' }
+volume_levels = { low = 'low volume', average = 'average volume', high = 'high volume', 'not available' = 'volume not available' }
+group = '{name}: {trades} closed trades, {wins} wins ({share}), average win {gain}, average loss {loss}, all together {total}'
+no_gain = 'none'
+fits = '  <- fits the current situation'
+not_shown = 'Groups with fewer than {minimum} closed trades are not shown.'
+too_few = ['{n} closed trade, too few to show totals.', '{n} closed trades, too few to show totals.']
