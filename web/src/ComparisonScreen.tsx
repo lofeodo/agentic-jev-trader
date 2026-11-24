@@ -1,6 +1,6 @@
 // The Comparison screen (spec appendix 7, section 10; appendix 9, section 6): the project's answer.
-// Per test stretch ("market"), never merged: a verdict for each LLM, both winners, each repeat,
-// and the gap over time.
+// Per part of the test period ("market"), never merged: a verdict for each LLM, both winners,
+// each repeat, and the gap over time.
 import { line as d3line, scaleLinear } from "d3";
 
 import { fetchComparison, type GapLine, type MarketComparison, type ModelResult } from "./api/client";
@@ -8,7 +8,7 @@ import { day, dollars, signedDollars } from "./format";
 import { ErrorBox, Pair, SectionHeading } from "./pieces";
 import { useRead } from "./useRead";
 
-const VERDICT_WORDS: Record<string, string> = {
+const VERDICT_WORDS: Record<ModelResult["verdict"], string> = {
   helped: "Memory helped",
   hurt: "Memory hurt",
   "can't tell": "Can't tell",
@@ -40,14 +40,17 @@ export function ComparisonScreen() {
 
       {data !== null && (
         <p className="mx-auto mb-8 max-w-[110ch] font-mono text-[13.5px] tracking-wider text-dim">
-          Each test stretch is 30 days replayed three times (three repeats), each time by three sims
-          side by side from $10,000: with memory using Claude Haiku, with memory using GLM Flash, and
-          without memory. Jev answers the same question a little differently each time, so the
-          repeats land apart: ending at $10,100, $10,200 and $10,300 averages $10,200 and typically
-          lands $100 from it (that $100 is the standard deviation, shown ±$100). Memory helped when
-          its average ends higher than without memory's by more than that spread (pooled across the
-          two groups); hurt when lower by more; otherwise we can't tell. The two stretches are never
-          added together. The models' real cost is shown beside each result, not taken out of it.
+          Each part of the test period (a falling market and a rising one) is 30 days replayed three
+          times (three repeats), each time by three sims side by side from $10,000: with memory using
+          Claude Haiku, with memory using GLM Flash, and without memory. Jev answers the same
+          question a little differently each time, so the repeats land apart: ending at $10,100,
+          $10,200 and $10,300 averages $10,200 and typically lands $100 from it. That $100 is the
+          standard deviation, shown ±$100. The threshold combines the two groups' standard
+          deviations into one (with memory ±$100 and without ±$50 make about $79). Memory helped
+          when its average ends higher than without memory's by more than the threshold; hurt when
+          lower by more; otherwise we can't tell. A verdict is provisional until every sim of its
+          market has finished. The two markets are never added together. The models' real cost is
+          shown beside each verdict, not taken out of it.
         </p>
       )}
 
@@ -124,15 +127,16 @@ function Verdict({ result, market }: { result: ModelResult; market: MarketCompar
       <div className="flex border-b-[1.5px] border-rule font-mono text-[13.5px] tracking-widest">
         <span className="border-r-[1.5px] border-rule px-[2ch] py-1.5 text-dim">{result.label}</span>
         <span className={`px-[2ch] py-1.5 ${result.verdict === "waiting" ? "text-dim" : "bg-amber text-screen"}`}>
-          {VERDICT_WORDS[result.verdict] ?? result.verdict}
+          {VERDICT_WORDS[result.verdict]}
         </span>
+        {result.provisional && <span className="px-[2ch] py-1.5 text-dim">Provisional</span>}
       </div>
       <div className="px-[2ch] py-3">
         <div className="mb-3 flex flex-wrap gap-3 font-mono text-[13.5px] tracking-wider">
           <Pair name="With memory" value={`${money(result.with_memory.average_usd)} ${spread(result.with_memory.standard_deviation_usd)}`} />
           <Pair name="Without" value={`${money(without.average_usd)} ${spread(without.standard_deviation_usd)}`} />
           <Pair name="Gap" value={result.difference_usd === null ? "--" : signedDollars(result.difference_usd)} />
-          <Pair name="Spread" value={money(result.threshold_usd)} />
+          <Pair name="Threshold" value={money(result.threshold_usd)} />
         </div>
         <p className="text-[15px]">{result.says}</p>
         <p className="mt-2 font-mono text-[12.5px] tracking-wider text-dim">

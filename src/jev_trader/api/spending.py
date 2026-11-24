@@ -14,12 +14,11 @@ is one created or running; the spec leaves the exact rule open (8.15).
 from pydantic import BaseModel
 
 from jev_trader.api.sims_list import KIND_ORDER, sim_name
+from jev_trader.api.store import JEV_SERVICE as JEV
 from jev_trader.api.store import ApiStore
 from jev_trader.sim.store import SimStatus
 
 OUTSIDE_SIMS = "outside sims"
-# The two paid services: a call is Jev's when its SERVICE says so, the LLM's otherwise.
-JEV = "jev"
 IN_PROGRESS = (SimStatus.CREATED, SimStatus.RUNNING)
 
 

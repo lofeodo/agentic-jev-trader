@@ -607,6 +607,8 @@ export interface components {
             model: string;
             /** Models Returned */
             models_returned: string[];
+            /** Provisional */
+            provisional: boolean;
             /** Says */
             says: string;
             /** Seconds Per Full Evaluation */
@@ -615,8 +617,11 @@ export interface components {
             threshold_usd: number | null;
             /** Usd Per Evaluation Or Review */
             usd_per_evaluation_or_review: number | null;
-            /** Verdict */
-            verdict: string;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "helped" | "hurt" | "can't tell" | "waiting";
             with_memory: components["schemas"]["Group"];
         };
         /** Moment */
@@ -774,7 +779,8 @@ export interface components {
         };
         /**
          * PriceWinner
-         * @description Which model cost fewer real dollars per full evaluation or position review, dollar for dollar, no margin.
+         * @description Which model cost fewer real dollars per full evaluation or position review, dollar
+         *     for dollar, no margin.
          */
         PriceWinner: {
             /** Says */

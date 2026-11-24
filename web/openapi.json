@@ -984,6 +984,10 @@
             "title": "Models Returned",
             "type": "array"
           },
+          "provisional": {
+            "title": "Provisional",
+            "type": "boolean"
+          },
           "says": {
             "title": "Says",
             "type": "string"
@@ -1022,6 +1026,12 @@
             "title": "Usd Per Evaluation Or Review"
           },
           "verdict": {
+            "enum": [
+              "helped",
+              "hurt",
+              "can't tell",
+              "waiting"
+            ],
             "title": "Verdict",
             "type": "string"
           },
@@ -1036,6 +1046,7 @@
           "difference_usd",
           "threshold_usd",
           "verdict",
+          "provisional",
           "says",
           "usd_per_evaluation_or_review",
           "seconds_per_full_evaluation",
@@ -1611,7 +1622,7 @@
         "type": "object"
       },
       "PriceWinner": {
-        "description": "Which model cost fewer real dollars per full evaluation or position review, dollar for dollar, no margin.",
+        "description": "Which model cost fewer real dollars per full evaluation or position review, dollar\nfor dollar, no margin.",
         "properties": {
           "says": {
             "title": "Says",

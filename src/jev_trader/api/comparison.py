@@ -29,10 +29,11 @@ Choices the spec leaves to the build:
 import math
 import statistics
 from datetime import date, timedelta
+from typing import Literal
 
 from pydantic import BaseModel
 
-from jev_trader.api.llm_names import llm_model, model_label
+from jev_trader.api.llm_names import llm_model, model_label, variant_label
 from jev_trader.api.store import ApiStore
 from jev_trader.dataset.bars import STEPS_PER_DAY
 from jev_trader.sim.clock import day_of
@@ -41,6 +42,14 @@ from jev_trader.sim.store import SimStatus
 MEASUREMENT = "measurement"
 MEMORY_ON, MEMORY_OFF = "memory_on", "memory_off"
 HELPED, HURT, CANT_TELL, WAITING = "helped", "hurt", "can't tell", "waiting"
+Verdict = Literal["helped", "hurt", "can't tell", "waiting"]
+
+
+def day_end_steps(first_step: int, last_step: int) -> list[int]:
+    """The step that ends each UTC day from `first_step`'s day to `last_step`'s."""
+    return [
+        day * STEPS_PER_DAY for day in range(day_of(first_step), day_of(last_step) + 1)
+    ]
 
 
 class Group(BaseModel):
@@ -57,7 +66,9 @@ class ModelResult(BaseModel):
     with_memory: Group
     difference_usd: float | None  # with memory's average minus without memory's
     threshold_usd: float | None  # one standard deviation, pooled across the two groups
-    verdict: str  # helped, hurt, can't tell, or waiting
+    verdict: Verdict
+    # True while a sim of the test period has not finished: the verdict may still change.
+    provisional: bool
     says: str
     # Real LLM dollars per full evaluation or position review, thinking included; None
     # before any.
@@ -80,7 +91,8 @@ class PerformanceWinner(BaseModel):
 
 
 class PriceWinner(BaseModel):
-    """Which model cost fewer real dollars per full evaluation or position review, dollar for dollar, no margin."""
+    """Which model cost fewer real dollars per full evaluation or position review, dollar
+    for dollar, no margin."""
 
     winner: str | None  # None until both have a price, or if they cost exactly the same
     says: str
@@ -155,7 +167,9 @@ def pooled(a: Group, b: Group) -> float | None:
     return math.sqrt((a.standard_deviation_usd**2 + b.standard_deviation_usd**2) / 2)
 
 
-def verdict(memory: Group, without: Group) -> tuple[str, float | None, float | None]:
+def verdict(
+    memory: Group, without: Group
+) -> tuple[Verdict, float | None, float | None]:
     """(verdict, difference, threshold) for one model's sims with memory against without."""
     threshold = pooled(memory, without)
     if threshold is None or memory.average_usd is None or without.average_usd is None:
@@ -168,8 +182,14 @@ def verdict(memory: Group, without: Group) -> tuple[str, float | None, float | N
     return CANT_TELL, difference, threshold
 
 
-def _verdict_says(label: str, found: str, difference, threshold) -> str:
-    if found == WAITING:
+def _verdict_says(
+    label: str,
+    outcome: Verdict,
+    difference: float | None,
+    threshold: float | None,
+    provisional: bool,
+) -> str:
+    if outcome == WAITING or difference is None or threshold is None:
         return (
             "Waiting: each side needs at least two finished repeats to say whether memory "
             f"helped {label}."
@@ -179,11 +199,14 @@ def _verdict_says(label: str, found: str, difference, threshold) -> str:
         f"{'higher' if difference >= 0 else 'lower'} on average than without, and the "
         f"repeats themselves typically land {_usd(threshold)} apart."
     )
-    return {
+    says = {
         HELPED: f"{gap} The gap is larger than that spread: memory helped.",
         HURT: f"{gap} The gap is larger than that spread: memory hurt.",
         CANT_TELL: f"{gap} The gap is within that spread: can't tell.",
-    }[found]
+    }[outcome]
+    if provisional:
+        says += " Provisional: some sims of this test period have not finished yet."
+    return says
 
 
 def _performance(results: list[ModelResult]) -> PerformanceWinner | None:
@@ -248,12 +271,6 @@ def _price(results: list[ModelResult]) -> PriceWinner | None:
     )
 
 
-def _label(sim: dict) -> str:
-    if sim["VARIANT"] == MEMORY_ON:
-        return f"With memory / {model_label(llm_model(sim))}"
-    return "Without memory"
-
-
 class _Market:
     """One market's sims and what the store holds about them."""
 
@@ -298,10 +315,12 @@ class _Market:
         label = model_label(model)
         mine = self.with_memory(model)
         memory, without = self.group(mine), self.group(self.without)
-        found, difference, threshold = verdict(memory, without)
+        outcome, difference, threshold = verdict(memory, without)
+        provisional = outcome != WAITING and len(self.counted()) < len(self.sims)
         figures = [self.figures[s["ID"]] for s in mine]
         evaluations = sum(f["FULL_EVALUATIONS"] for f in figures)
-        everyone = [
+        # The names returned in every sim of this model, finished or not.
+        all_of_model = [
             s for s in self.sims if s["VARIANT"] == MEMORY_ON and llm_model(s) == model
         ]
         return ModelResult(
@@ -310,8 +329,9 @@ class _Market:
             with_memory=memory,
             difference_usd=difference,
             threshold_usd=threshold,
-            verdict=found,
-            says=_verdict_says(label, found, difference, threshold),
+            verdict=outcome,
+            provisional=provisional,
+            says=_verdict_says(label, outcome, difference, threshold, provisional),
             usd_per_evaluation_or_review=_ratio(
                 sum(f["LLM_USD"] for f in figures),
                 evaluations + sum(f["POSITION_REVIEWS"] for f in figures),
@@ -321,7 +341,7 @@ class _Market:
             ),
             lookups_per_full_evaluation=None,
             models_returned=sorted(
-                {n for s in everyone for n in self.figures[s["ID"]]["LLM_MODELS"]}
+                {n for s in all_of_model for n in self.figures[s["ID"]]["LLM_MODELS"]}
             ),
         )
 
@@ -337,7 +357,7 @@ class _Market:
                 sims=[
                     RepeatSim(
                         sim_id=s["ID"],
-                        label=_label(s),
+                        label=variant_label(s),
                         model=llm_model(s) if s["VARIANT"] == MEMORY_ON else None,
                         status=s["STATUS"],
                         ending_value_usd=self.endings.get(s["ID"]),
@@ -355,26 +375,20 @@ class _Market:
             for number in numbers
         ]
 
-    def day_end_steps(self) -> list[int]:
+    def values_at(self, sims: list[dict], step: int) -> list[float]:
+        """The account values of those sims at the end of one day."""
         return [
-            day * STEPS_PER_DAY
-            for day in range(day_of(self.first_step), day_of(self.last_step) + 1)
+            self.day_ends[(s["ID"], step)]
+            for s in sims
+            if (s["ID"], step) in self.day_ends
         ]
 
     def gap_line(self, model: str | None) -> GapLine:
         mine = self.with_memory(model)
         points = []
-        for step in self.day_end_steps():
-            memory = [
-                self.day_ends[(s["ID"], step)]
-                for s in mine
-                if (s["ID"], step) in self.day_ends
-            ]
-            without = [
-                self.day_ends[(s["ID"], step)]
-                for s in self.without
-                if (s["ID"], step) in self.day_ends
-            ]
+        for step in day_end_steps(self.first_step, self.last_step):
+            memory = self.values_at(mine, step)
+            without = self.values_at(self.without, step)
             if memory and without:
                 points.append(
                     GapPoint(
@@ -431,14 +445,15 @@ def comparison(store: ApiStore) -> Comparison:
     wanted = [(s["ID"], s["LAST_STEP"]) for s in finished]
     for sim in finished:
         wanted += [
-            (sim["ID"], day * STEPS_PER_DAY)
-            for day in range(day_of(sim["FIRST_STEP"]), day_of(sim["LAST_STEP"]) + 1)
+            (sim["ID"], step)
+            for step in day_end_steps(sim["FIRST_STEP"], sim["LAST_STEP"])
         ]
-    values = store.account_values_at(wanted)
+    # Each finished sim's ending value, and its value at the end of each day.
+    ending_and_day_end_values = store.account_values_at(wanted)
     endings = {
-        s["ID"]: values[(s["ID"], s["LAST_STEP"])]
+        s["ID"]: ending_and_day_end_values[(s["ID"], s["LAST_STEP"])]
         for s in finished
-        if (s["ID"], s["LAST_STEP"]) in values
+        if (s["ID"], s["LAST_STEP"]) in ending_and_day_end_values
     }
     figures = store.comparison_figures([s["ID"] for s in sims])
     first_days: dict[int, date] = {}
@@ -451,11 +466,11 @@ def comparison(store: ApiStore) -> Comparison:
     markets: dict[tuple[int, str], list[dict]] = {}
     for sim in sims:
         markets.setdefault((sim["DATASET"], sim["MARKET"]), []).append(sim)
-    found = [
-        _Market(group, endings, values, figures, first_days.get(dataset)).comparison(
-            dataset, market
-        )
+    compared = [
+        _Market(
+            group, endings, ending_and_day_end_values, figures, first_days.get(dataset)
+        ).comparison(dataset, market)
         for (dataset, market), group in markets.items()
     ]
-    found.sort(key=lambda m: (m.dataset, m.first_day or date.min, m.market))
-    return Comparison(markets=found)
+    compared.sort(key=lambda m: (m.dataset, m.first_day or date.min, m.market))
+    return Comparison(markets=compared)

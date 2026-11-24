@@ -369,3 +369,24 @@ def test_the_comparison_says_so_when_the_provider_s_model_name_changed(sims, api
         "glm-5.3-flash-0715",
     ]
     assert any("GLM Flash" in note for note in market["notes"])
+
+
+def test_a_verdict_is_provisional_until_every_sim_of_the_test_period_finished(
+    sims, api
+):
+    repeats(sims, [10_300.0, 10_400.0], model=HAIKU)
+    repeats(sims, [10_100.0, 10_150.0], model=None)
+    measurement(sims, 3, None, model=HAIKU, status="running")
+
+    haiku = model_result(only_market(api), "claude-haiku-5-5")
+
+    assert haiku["verdict"] == "helped"
+    assert haiku["provisional"] is True
+    assert "provisional" in haiku["says"].lower()
+
+
+def test_a_verdict_is_final_once_every_sim_finished(sims, api):
+    repeats(sims, [10_300.0, 10_400.0, 10_500.0], model=HAIKU)
+    repeats(sims, [10_100.0, 10_150.0, 10_200.0], model=None)
+
+    assert model_result(only_market(api), "claude-haiku-5-5")["provisional"] is False

@@ -29,3 +29,15 @@ def model_label(model: str | None) -> str:
     if model is None:
         return "Unknown model"
     return MODEL_LABELS.get(model, model)
+
+
+VARIANT_LABELS = {"memory_on": "With memory", "memory_off": "Without memory"}
+
+
+def variant_label(sim: dict) -> str:
+    """ "With memory / GLM Flash", "Without memory": a sim beside others of its repeat; a sim
+    with memory is told apart by its LLM, when its settings name one."""
+    label = VARIANT_LABELS.get(sim["VARIANT"], sim["VARIANT"])
+    if sim["VARIANT"] == "memory_on" and llm_model(sim):
+        label = f"{label} / {model_label(llm_model(sim))}"
+    return label
