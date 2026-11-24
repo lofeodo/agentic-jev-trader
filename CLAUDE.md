@@ -95,6 +95,12 @@ conda run -n agentic-jev-trader python -m jev_trader.api describe web/openapi.js
 npm run types --prefix web
 ```
 
+Save a copy of every table on this computer, so the results survive the Snowflake trial ending about 2026-12-12 (spec appendix 10, section 15). The copy is Parquet files (a common file format for tables) in `saved-tables/` (gitignored), one dated folder per save, with a `manifest.json` listing each table's rows and column types for loading it into a new account later. It logs in as the API login and only reads; run it while no sim or build is writing. The real database is several GB and takes a while; `--database TRADING_AGENT_TEST` saves the test database:
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.storage save
+```
+
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).
