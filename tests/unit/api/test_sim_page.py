@@ -487,3 +487,32 @@ def test_a_measurement_sim_is_drawn_beside_the_other_two_of_its_repeat(sims, api
 
     drawn = [line["sim_id"] for line in chart["lines"] if line["role"] == "same days"]
     assert drawn == same_repeat
+
+
+def test_a_measurement_sim_s_four_lines_name_each_partner_s_model(sims, api):
+    def measurement(variant, model=None):
+        settings = {"starting_value": 10_000.0, "risk_profile": RISK}
+        if model:
+            settings["llm"] = {"model": model}
+        return add_sim(
+            sims,
+            variant=variant,
+            kind="measurement",
+            MARKET="falling market",
+            REPEAT_NUMBER=1,
+            SETTINGS=settings,
+        )
+
+    add_sim(sims, variant="buy_hold")
+    sim = measurement("memory_on", "anthropic:claude-haiku-5-5")
+    measurement("memory_on", "openai:glm-5.3-flash")
+    measurement("memory_off")
+
+    chart = api.get(f"/sims/{sim}/chart").json()
+
+    assert [(line["role"], line["label"]) for line in chart["lines"]] == [
+        ("sim", "falling market / with memory / Claude Haiku / repeat 1"),
+        ("holding", "Holding the five assets"),
+        ("same days", "With memory / GLM Flash"),
+        ("same days", "Without memory"),
+    ]

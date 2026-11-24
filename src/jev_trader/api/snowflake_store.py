@@ -4,10 +4,13 @@ builder that can read the asset key). The connection must use `?` placeholders.
 
 import json
 
+from jev_trader.api.llm_names import llm_model_of
+from jev_trader.api.store import JEV_SERVICE
 from jev_trader.dataset.measurements import MEASUREMENT_NAMES
 from jev_trader.dataset.situation_text import PATTERN_WINDOW_STEPS
 from jev_trader.dataset.snowflake_store import MOST_BOUND_VALUES
 from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
+from jev_trader.sim.store import KIND_FULL_EVALUATION, KIND_POSITION_REVIEW
 
 _LONG_TERM_TREND = MEASUREMENT_NAMES.index("long_term_trend")
 _VOLUME_AGAINST_NORMAL = MEASUREMENT_NAMES.index("volume_against_normal")
@@ -60,6 +63,13 @@ _SIM_COLUMNS = (
 )
 
 
+def _array(value) -> list[str]:
+    """A Snowflake array as a sorted list, NULLs dropped (the connector hands it over as
+    JSON)."""
+    items = json.loads(value) if isinstance(value, str) else (value or [])
+    return sorted(item for item in items if item is not None)
+
+
 class SnowflakeApiStore:
     def __init__(self, connection):
         self.con = connection
@@ -74,8 +84,16 @@ class SnowflakeApiStore:
         return float(spent)
 
     def sims(self) -> list[dict]:
-        rows = self._run(f"SELECT {', '.join(_SIM_COLUMNS)} FROM SIM.SIMS ORDER BY ID")
-        return [dict(zip(_SIM_COLUMNS, row, strict=True)) for row in rows]
+        rows = self._run(
+            f"SELECT {', '.join(_SIM_COLUMNS)}, SETTINGS:llm:model::STRING "
+            "FROM SIM.SIMS ORDER BY ID"
+        )
+        found = []
+        for *columns, model in rows:
+            row = dict(zip(_SIM_COLUMNS, columns, strict=True))
+            row["LLM_MODEL"] = llm_model_of({"llm": {"model": model}})
+            found.append(row)
+        return found
 
     def account_values_at(self, wanted):
         found = {}
@@ -207,6 +225,49 @@ class SnowflakeApiStore:
             "WHERE SIM = ?",
             (sim_id,),
         )
+
+    def comparison_figures(self, sim_ids):
+        found = {
+            sim_id: {
+                "FULL_EVALUATIONS": 0,
+                "POSITION_REVIEWS": 0,
+                "LLM_USD": 0.0,
+                "FULL_EVALUATION_SECONDS": 0.0,
+                "LLM_MODELS": [],
+                "JEV_VERSIONS": [],
+            }
+            for sim_id in sim_ids
+        }
+        if not sim_ids:
+            return found
+        marks = ", ".join("?" for _ in sim_ids)
+        # A sim's own decisions: rows copied in with its memory were written by another sim.
+        for sim_id, evaluations, reviews, versions in self._run(
+            "SELECT SIM, COUNT_IF(KIND = ?), COUNT_IF(KIND = ?), "
+            "ARRAY_AGG(DISTINCT JEV_VERSION) "
+            f"FROM MEMORY.DECISIONS WHERE SIM IN ({marks}) AND FIRST_WRITTEN_BY = SIM "
+            "GROUP BY SIM",
+            [KIND_FULL_EVALUATION, KIND_POSITION_REVIEW, *sim_ids],
+        ):
+            figures = found[int(sim_id)]
+            figures["FULL_EVALUATIONS"] = int(evaluations)
+            figures["POSITION_REVIEWS"] = int(reviews)
+            figures["JEV_VERSIONS"] = _array(versions)
+        for sim_id, llm_usd, seconds, models in self._run(
+            "SELECT C.SIM, "
+            "COALESCE(SUM(IFF(C.SERVICE <> ?, COALESCE(C.COST_USD, 0), 0)), 0), "
+            "COALESCE(SUM(IFF(D.KIND = ?, COALESCE(C.LATENCY_SECONDS, 0), 0)), 0), "
+            "ARRAY_AGG(DISTINCT IFF(C.SERVICE <> ?, C.MODEL, NULL)) "
+            "FROM SIM.CALLS C LEFT JOIN MEMORY.DECISIONS D "
+            "ON D.SIM = C.SIM AND D.ID = C.DECISION AND D.FIRST_WRITTEN_BY = C.SIM "
+            f"WHERE C.SIM IN ({marks}) GROUP BY C.SIM",
+            [JEV_SERVICE, KIND_FULL_EVALUATION, JEV_SERVICE, *sim_ids],
+        ):
+            figures = found[int(sim_id)]
+            figures["LLM_USD"] = float(llm_usd)
+            figures["FULL_EVALUATION_SECONDS"] = float(seconds)
+            figures["LLM_MODELS"] = _array(models)
+        return found
 
     def entry_details(self, dataset, wanted):
         found: dict[tuple[str, int], dict] = {}

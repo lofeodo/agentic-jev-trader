@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Comparison
+         * @description Per market and per LLM: did memory help, hurt, or can't we tell; both winners.
+         */
+        get: operations["comparison"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -358,6 +378,11 @@ export interface components {
             /** Value */
             value: number;
         };
+        /** Comparison */
+        Comparison: {
+            /** Markets */
+            markets: components["schemas"]["MarketComparison"][];
+        };
         /**
          * DayMark
          * @description Something the page marks beside the table, at the step it happened.
@@ -426,6 +451,34 @@ export interface components {
             /** Trimmed */
             trimmed: number;
         };
+        /** GapLine */
+        GapLine: {
+            /** Label */
+            label: string;
+            /** Model */
+            model: string;
+            /** Points */
+            points: components["schemas"]["GapPoint"][];
+        };
+        /** GapPoint */
+        GapPoint: {
+            /** Day */
+            day: string | null;
+            /** Gap Usd */
+            gap_usd: number;
+        };
+        /**
+         * Group
+         * @description The finished sims of one side: their ending account values, average and spread.
+         */
+        Group: {
+            /** Average Usd */
+            average_usd: number | null;
+            /** Ending Values Usd */
+            ending_values_usd: number[];
+            /** Standard Deviation Usd */
+            standard_deviation_usd: number | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -478,6 +531,32 @@ export interface components {
             /** Trades */
             trades: number;
         };
+        /** MarketComparison */
+        MarketComparison: {
+            /** Dataset */
+            dataset: number;
+            /** First Day */
+            first_day: string | null;
+            /** Gap Over Time */
+            gap_over_time: components["schemas"]["GapLine"][];
+            /** Jev Versions */
+            jev_versions: string[];
+            /** Last Day */
+            last_day: string | null;
+            /** Market */
+            market: string;
+            /** Models */
+            models: components["schemas"]["ModelResult"][];
+            /** Notes */
+            notes: string[];
+            performance: components["schemas"]["PerformanceWinner"] | null;
+            price: components["schemas"]["PriceWinner"] | null;
+            /** Repeats */
+            repeats: components["schemas"]["Repeat"][];
+            /** Starting Value Usd */
+            starting_value_usd: number;
+            without_memory: components["schemas"]["Group"];
+        };
         /** MeasurementGroup */
         MeasurementGroup: {
             /** Breakdowns */
@@ -515,6 +594,30 @@ export interface components {
             exposure_limit_usd: number | null;
             /** Held Usd */
             held_usd: number;
+        };
+        /** ModelResult */
+        ModelResult: {
+            /** Difference Usd */
+            difference_usd: number | null;
+            /** Label */
+            label: string;
+            /** Lookups Per Full Evaluation */
+            lookups_per_full_evaluation: number | null;
+            /** Model */
+            model: string;
+            /** Models Returned */
+            models_returned: string[];
+            /** Says */
+            says: string;
+            /** Seconds Per Full Evaluation */
+            seconds_per_full_evaluation: number | null;
+            /** Threshold Usd */
+            threshold_usd: number | null;
+            /** Usd Per Evaluation Or Review */
+            usd_per_evaluation_or_review: number | null;
+            /** Verdict */
+            verdict: string;
+            with_memory: components["schemas"]["Group"];
         };
         /** Moment */
         Moment: {
@@ -624,6 +727,20 @@ export interface components {
             /** Shape */
             shape: string;
         };
+        /**
+         * PerformanceWinner
+         * @description Which model's sims with memory ended higher, by the verdict's own test.
+         */
+        PerformanceWinner: {
+            /** Gap Usd */
+            gap_usd: number | null;
+            /** Says */
+            says: string;
+            /** Threshold Usd */
+            threshold_usd: number | null;
+            /** Winner */
+            winner: string | null;
+        };
         /** Playbook */
         Playbook: {
             /** Patterns */
@@ -655,6 +772,16 @@ export interface components {
             /** Rescaled */
             rescaled: number;
         };
+        /**
+         * PriceWinner
+         * @description Which model cost fewer real dollars per full evaluation or position review, dollar for dollar, no margin.
+         */
+        PriceWinner: {
+            /** Says */
+            says: string;
+            /** Winner */
+            winner: string | null;
+        };
         /** Refusal */
         Refusal: {
             /** Code */
@@ -669,6 +796,26 @@ export interface components {
         Refusals: {
             /** Refusals */
             refusals: components["schemas"]["Refusal"][];
+        };
+        /** Repeat */
+        Repeat: {
+            /** Number */
+            number: number | null;
+            /** Sims */
+            sims: components["schemas"]["RepeatSim"][];
+        };
+        /** RepeatSim */
+        RepeatSim: {
+            /** Ending Value Usd */
+            ending_value_usd: number | null;
+            /** Label */
+            label: string;
+            /** Model */
+            model: string | null;
+            /** Sim Id */
+            sim_id: number;
+            /** Status */
+            status: string;
         };
         /** Resumption */
         Resumption: {
@@ -996,6 +1143,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    comparison: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comparison"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;

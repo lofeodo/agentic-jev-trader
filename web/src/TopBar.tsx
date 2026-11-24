@@ -1,13 +1,13 @@
 import type { SpendingTotal } from "./api/client";
 import { dollarsAndCents, modelDollars } from "./format";
 
-export type Screen = "sims" | "playbook" | "spending";
+export type Screen = "sims" | "comparison" | "playbook" | "spending";
 
 // The menu in the spec's order (appendix 7, section 4). A screen with no address is not built
 // yet and is shown dimmed.
 const SCREENS: { screen: Screen | null; title: string; href: string | null }[] = [
   { screen: "sims", title: "Trading sims", href: "#/" },
-  { screen: null, title: "Comparison", href: null },
+  { screen: "comparison", title: "Comparison", href: "#/comparison" },
   { screen: null, title: "Datasets", href: null },
   { screen: "playbook", title: "Playbook", href: "#/playbook" },
   { screen: "spending", title: "Spending", href: "#/spending" },

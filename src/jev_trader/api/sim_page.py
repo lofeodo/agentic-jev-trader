@@ -26,6 +26,7 @@ from datetime import UTC, date, datetime, time, timedelta
 
 from pydantic import BaseModel
 
+from jev_trader.api.llm_names import llm_model, model_label
 from jev_trader.api.sims_list import (
     HOLDING,
     AssetName,
@@ -190,6 +191,14 @@ def never_changes(store: ApiStore, sim_id: int) -> bool:
     return holding is None or holding["STATUS"] == SimStatus.FINISHED
 
 
+def _line_label(other: dict) -> str:
+    """ "With memory / GLM Flash": a sim with memory beside another is told apart by its LLM."""
+    label = VARIANT_LABELS.get(other["VARIANT"], other["VARIANT"])
+    if other["VARIANT"] == "memory_on" and llm_model(other):
+        label = f"{label} / {model_label(llm_model(other))}"
+    return label
+
+
 def _lines_drawn(all_sims: list[dict], row: dict) -> list[tuple[int, str, str]]:
     """(sim, role, label) for every line on the sim's chart, the sim's own first."""
     drawn = [(row["ID"], "sim", sim_name(row))]
@@ -197,7 +206,7 @@ def _lines_drawn(all_sims: list[dict], row: dict) -> list[tuple[int, str, str]]:
     if holding is not None:
         drawn.append((holding["ID"], "holding", HOLDING_LABEL))
     others = _same_days(all_sims, row)
-    labels = [VARIANT_LABELS.get(s["VARIANT"], s["VARIANT"]) for s in others]
+    labels = [_line_label(s) for s in others]
     for other, label in zip(others, labels, strict=True):
         if labels.count(label) > 1:
             label = f"{label} / sim {other['ID']}"

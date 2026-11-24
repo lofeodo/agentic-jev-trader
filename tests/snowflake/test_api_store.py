@@ -230,6 +230,88 @@ def test_the_sim_page_reports_read_real_tables(
     assert api.entry_details(dataset, [("ASSET_01", 97)]) == {}
 
 
+def test_the_comparison_figures_read_real_tables(
+    sim_login, api_login, made_up_dataset, remove_sims
+):
+    """A sim's own closer looks, its LLM dollars and seconds, and the names and versions that
+    answered; a decision copied in with its memory is not its own."""
+    dataset = made_up_dataset(days=3)
+    sims, api = SnowflakeSimStore(sim_login), SnowflakeApiStore(api_login)
+    sim = sims.create(
+        {
+            "DATASET": dataset,
+            "KIND": "measurement",
+            "VARIANT": "memory_on",
+            "MARKET": "falling market",
+            "REPEAT_NUMBER": 1,
+            "FIRST_STEP": 97,
+            "LAST_STEP": 288,
+            "STARTING_VALUE": 10_000.0,
+            "SETTINGS": {"llm": {"model": "anthropic:claude-haiku-5-5"}},
+        }
+    )
+    remove_sims.append(sim)
+    sims.update(sim, STATUS="running")
+
+    def decision(number, kind, written_by=sim):
+        return {
+            "ID": f"{sim}-{number}",
+            "SIM": sim,
+            "FIRST_WRITTEN_BY": written_by,
+            "DATASET": dataset,
+            "ASSET": "ASSET_01",
+            "STEP": 100 + number,
+            "KIND": kind,
+            "TIER": 2,
+            "JEV_VERSION": f"jev-1.{number}.0",
+            "ACTION": "nothing",
+        }
+
+    def call(number, service, cost, seconds, model=None):
+        return {
+            "ID": f"comparison-test-{sim}-{number}-{service}",
+            "SIM": sim,
+            "PURPOSE": "pick",
+            "DECISION": f"{sim}-{number}",
+            "SERVICE": service,
+            "MODEL": model,
+            "COST_USD": cost,
+            "LATENCY_SECONDS": seconds,
+        }
+
+    sims.write_steps(
+        sim,
+        None,
+        192,
+        {
+            "MEMORY.DECISIONS": [
+                decision(1, "full_evaluation"),
+                decision(2, "position_review"),
+                decision(3, "full_evaluation", written_by=sim + 100_000),
+            ],
+            "SIM.CALLS": [
+                call(1, "jev", 0.01, 2.0),
+                call(1, "anthropic", 0.002, 3.0, "claude-haiku-5-5-20261001"),
+                call(2, "anthropic", 0.003, 7.0, "claude-haiku-5-5-20261001"),
+            ],
+        },
+        {},
+    )
+
+    [row] = [s for s in api.sims() if s["ID"] == sim]
+    figures = api.comparison_figures([sim])[sim]
+
+    assert row["LLM_MODEL"] == "claude-haiku-5-5"
+    assert figures == {
+        "FULL_EVALUATIONS": 1,
+        "POSITION_REVIEWS": 1,
+        "LLM_USD": pytest.approx(0.005),
+        "FULL_EVALUATION_SECONDS": pytest.approx(5.0),
+        "LLM_MODELS": ["claude-haiku-5-5-20261001"],
+        "JEV_VERSIONS": ["jev-1.1.0", "jev-1.2.0"],
+    }
+
+
 def result_step(header):
     """The page's usual question: nothing new since the step it last saw."""
     return header.step_reached

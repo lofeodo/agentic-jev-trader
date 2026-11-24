@@ -12,7 +12,8 @@ const W = 1400;
 const H = 500;
 const M = { t: 20, r: 236, b: 52, l: 96 };
 const X0 = M.l;
-const X1 = W - M.r;
+// A line's name at its end takes about this much width per letter (letter-spaced capitals).
+const LABEL_CHAR_W = 10.5;
 const Y0 = M.t;
 const Y1 = H - M.b;
 const STEPS_PER_DAY = 96;
@@ -30,6 +31,12 @@ function valueAt(points: Point[], step: number): number | null {
 function reachedValueAt(points: Point[], step: number): number | null {
   const last = points[points.length - 1];
   return last && last.step >= step ? valueAt(points, step) : null;
+}
+
+// A line's name and value, written at its end.
+function endLabel(line: ChartLine, value: number) {
+  const name = line.role === "sim" ? "This sim" : line.role === "holding" ? "Holding" : line.label;
+  return `${name} ${dollars(value)}`;
 }
 
 export type ChartProps = {
@@ -55,6 +62,10 @@ export function SimChart(props: ChartProps) {
   const low = Math.min(...values);
   const high = Math.max(...values);
   const pad = Math.max((high - low) * 0.08, startingValue * 0.002);
+  // Room on the right for each line's name at its end: at least M.r, more for a long name
+  // ("With memory / GLM Flash $9,300").
+  const longest = Math.max(0, ...lines.map((l) => endLabel(l, high).length));
+  const X1 = W - Math.max(M.r, 14 + longest * LABEL_CHAR_W + 12);
   const y = scaleLinear().domain([low - pad, high + pad]).nice(6).range([Y1, Y0]);
   const x = scaleLinear().domain([firstStep - 1, lastStep]).range([X0, X1]);
 
@@ -70,6 +81,8 @@ export function SimChart(props: ChartProps) {
   const holding = lines.find((l) => l.role === "holding");
   const order = { "same days": 0, holding: 1, sim: 2 } as Record<string, number>;
   const drawn = [...lines].sort((a, b) => (order[a.role] ?? 0) - (order[b.role] ?? 0));
+  // A measurement sim has two partners (its repeat's other sims): the second is dash-dotted.
+  const partners = lines.filter((l) => l.role === "same days");
 
   // Midnights UTC: step 96 ends the first day. Labelled every day, or every 5 or 30 on long sims.
   const days = Math.ceil((lastStep - firstStep + 1) / STEPS_PER_DAY);
@@ -154,7 +167,9 @@ export function SimChart(props: ChartProps) {
                 fill="none"
                 className={l.role === "sim" ? "stroke-amber" : l.role === "holding" ? "stroke-pale" : "stroke-dim"}
                 strokeWidth={l.role === "sim" ? 2.5 : 1.5}
-                strokeDasharray={l.role === "holding" ? "7 5" : undefined}
+                strokeDasharray={
+                  l.role === "holding" ? "7 5" : l.role === "same days" && partners.indexOf(l) > 0 ? "10 4 2 4" : undefined
+                }
                 opacity={l.role === "same days" ? 0.8 : 1}
               />
             </g>
@@ -185,7 +200,7 @@ export function SimChart(props: ChartProps) {
               x={X1 + 14}
               y={e.y + 5}
             >
-              {`${e.line.role === "sim" ? "This sim" : e.line.role === "holding" ? "Holding" : e.line.label} ${dollars(e.value)}`}
+              {endLabel(e.line, e.value)}
             </text>
           </g>
         ))}

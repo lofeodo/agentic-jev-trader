@@ -31,6 +31,10 @@ export type Pattern = Schemas["Pattern"];
 export type Spending = Schemas["Spending"];
 export type SpendingItem = Schemas["SpendingItem"];
 export type Refusal = Schemas["Refusal"];
+export type Comparison = Schemas["Comparison"];
+export type MarketComparison = Schemas["MarketComparison"];
+export type ModelResult = Schemas["ModelResult"];
+export type GapLine = Schemas["GapLine"];
 
 async function read<T>(path: string): Promise<T> {
   const answer = await fetch(`/api${path}`);
@@ -42,6 +46,7 @@ export const fetchSims = () => read<SimsList>("/sims");
 export const fetchSpendingTotal = () => read<SpendingTotal>("/spending/total");
 export const fetchSpending = () => read<Spending>("/spending");
 export const fetchPlaybook = () => read<Playbook>("/playbook");
+export const fetchComparison = () => read<Comparison>("/comparison");
 export const fetchSimHeader = (id: number) => read<SimHeader>(`/sims/${id}`);
 export const fetchChart = (id: number) => read<Chart>(`/sims/${id}/chart`);
 export const fetchLive = (id: number, afterStep: number | null) =>
