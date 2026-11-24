@@ -83,7 +83,7 @@ class ApiStore(Protocol):
 
         - FULL_EVALUATIONS and POSITION_REVIEWS: how many the sim made itself (rows copied in
           with its memory are not its own);
-        - LLM_USD: dollars paid for its LLM calls (every call not to Jev);
+        - MODEL_USD: dollars paid for all its calls, Jev's and the LLM's;
         - FULL_EVALUATION_SECONDS: the seconds of every call made for one of its full
           evaluations, added up;
         - LLM_MODELS: the model names the LLM's provider returned, sorted;
@@ -334,7 +334,7 @@ class InMemoryApiStore:
                 "POSITION_REVIEWS": sum(
                     r["KIND"] == KIND_POSITION_REVIEW for r in own.values()
                 ),
-                "LLM_USD": sum(c["COST_USD"] or 0.0 for c in llm),
+                "MODEL_USD": sum(c["COST_USD"] or 0.0 for c in calls),
                 "FULL_EVALUATION_SECONDS": sum(
                     c["LATENCY_SECONDS"] or 0.0
                     for c in calls

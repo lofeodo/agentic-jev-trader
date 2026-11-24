@@ -267,27 +267,48 @@ def evaluations_and_reviews(
             )
 
 
-def test_the_price_winner_cost_less_per_evaluation_or_review_however_small_the_gap(
-    sims, api
-):
-    # Haiku averages $0.0022 a full evaluation or position review, GLM $0.0025 (appendix 9).
+def test_the_price_winner_cost_less_in_total_per_evaluation_or_review(sims, api):
+    # Haiku's LLM is cheaper ($0.0022 against $0.0025), but its sims' Jev calls cost more
+    # ($0.0100 against $0.0090): in total $0.0122 against $0.0115, so GLM is the price winner.
     for number in (1, 2):
         haiku = measurement(sims, number, 10_000.0, model=HAIKU)
-        evaluations_and_reviews(sims, haiku, "full_evaluation", 8, 0.0022)
-        evaluations_and_reviews(sims, haiku, "position_review", 2, 0.0022)
+        evaluations_and_reviews(sims, haiku, "full_evaluation", 8, 0.0022, 0.0100)
+        evaluations_and_reviews(sims, haiku, "position_review", 2, 0.0022, 0.0100)
         glm = measurement(sims, number, 10_000.0, model=GLM)
-        evaluations_and_reviews(sims, glm, "full_evaluation", 6, 0.0025)
-        evaluations_and_reviews(sims, glm, "position_review", 4, 0.0025)
+        evaluations_and_reviews(sims, glm, "full_evaluation", 6, 0.0025, 0.0090)
+        evaluations_and_reviews(sims, glm, "position_review", 4, 0.0025, 0.0090)
 
     market = only_market(api)
 
-    assert market["price"]["winner"] == "claude-haiku-5-5"
+    assert market["price"]["winner"] == "glm-5.3-flash"
     assert model_result(market, "claude-haiku-5-5")["usd_per_evaluation_or_review"] == (
-        pytest.approx(0.0022)
+        pytest.approx(0.0122)
     )
     assert model_result(market, "glm-5.3-flash")["usd_per_evaluation_or_review"] == (
-        pytest.approx(0.0025)
+        pytest.approx(0.0115)
     )
+
+
+def test_the_price_counts_every_call_of_the_sim_screens_included(sims, api):
+    haiku = measurement(sims, 1, 10_000.0, model=HAIKU)
+    evaluations_and_reviews(sims, haiku, "full_evaluation", 2, 0.002, 0.008)
+    sims.tables["SIM.CALLS"].append(
+        {
+            "ID": f"{haiku}-screen",
+            "SIM": haiku,
+            "PURPOSE": "screen",
+            "DECISION": None,
+            "SERVICE": "jev",
+            "MODEL": None,
+            "COST_USD": 0.004,
+            "LATENCY_SECONDS": 1.0,
+        }
+    )
+
+    result = model_result(only_market(api), "claude-haiku-5-5")
+
+    # ($0.010 x 2 + $0.004) over 2 full evaluations.
+    assert result["usd_per_evaluation_or_review"] == pytest.approx(0.012)
 
 
 def test_seconds_per_full_evaluation_add_up_every_call_of_it(sims, api):

@@ -232,7 +232,7 @@ class SnowflakeApiStore:
             sim_id: {
                 "FULL_EVALUATIONS": 0,
                 "POSITION_REVIEWS": 0,
-                "LLM_USD": 0.0,
+                "MODEL_USD": 0.0,
                 "FULL_EVALUATION_SECONDS": 0.0,
                 "LLM_MODELS": [],
                 "JEV_VERSIONS": [],
@@ -254,18 +254,17 @@ class SnowflakeApiStore:
             figures["FULL_EVALUATIONS"] = int(evaluations)
             figures["POSITION_REVIEWS"] = int(reviews)
             figures["JEV_VERSIONS"] = _array(versions)
-        for sim_id, llm_usd, seconds, models in self._run(
-            "SELECT C.SIM, "
-            "COALESCE(SUM(IFF(C.SERVICE <> ?, COALESCE(C.COST_USD, 0), 0)), 0), "
+        for sim_id, model_usd, seconds, models in self._run(
+            "SELECT C.SIM, COALESCE(SUM(C.COST_USD), 0), "
             "COALESCE(SUM(IFF(D.KIND = ?, COALESCE(C.LATENCY_SECONDS, 0), 0)), 0), "
             "ARRAY_AGG(DISTINCT IFF(C.SERVICE <> ?, C.MODEL, NULL)) "
             "FROM SIM.CALLS C LEFT JOIN MEMORY.DECISIONS D "
             "ON D.SIM = C.SIM AND D.ID = C.DECISION AND D.FIRST_WRITTEN_BY = C.SIM "
             f"WHERE C.SIM IN ({marks}) GROUP BY C.SIM",
-            [JEV_SERVICE, KIND_FULL_EVALUATION, JEV_SERVICE, *sim_ids],
+            [KIND_FULL_EVALUATION, JEV_SERVICE, *sim_ids],
         ):
             figures = found[int(sim_id)]
-            figures["LLM_USD"] = float(llm_usd)
+            figures["MODEL_USD"] = float(model_usd)
             figures["FULL_EVALUATION_SECONDS"] = float(seconds)
             figures["LLM_MODELS"] = _array(models)
         return found

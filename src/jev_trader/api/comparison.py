@@ -9,8 +9,9 @@ one less than the count. Memory helped if the difference is above the threshold,
 below minus the threshold, and otherwise can't tell. The two markets are never merged.
 
 Beside the verdicts, per market: the performance winner (the model whose sims with memory ended
-higher on average, by the same test), the price winner (fewer real LLM dollars per full
-evaluation or position review, no margin), each repeat, and the gap over time.
+higher on average, by the same test), the price winner (fewer real dollars, Jev and the LLM
+together, per full evaluation or position review, no margin), each repeat, and the gap over
+time.
 
 Worked out from stored records when asked for; nothing is stored.
 
@@ -20,7 +21,8 @@ Choices the spec leaves to the build:
 - Only finished sims count. A sim still running or stopped is listed in its repeat but stays
   out of every average, price and speed. A group needs two finished sims for a standard
   deviation, so until both groups have two the verdict is "waiting".
-- The price counts the LLM's calls only: Jev's calls are asked the same way for both models.
+- The price is the total: every Jev and LLM call of the sim (screens included), divided by
+  its full evaluations and position reviews. The developer chose the total on 2026-11-24.
 - The gap over time is, at the end of each UTC day, the average account value of the model's
   finished sims with memory minus that of the finished sims without.
 - The Jev versions are those that answered any sim of the market, finished or not.
@@ -70,8 +72,8 @@ class ModelResult(BaseModel):
     # True while a sim of the test period has not finished: the verdict may still change.
     provisional: bool
     says: str
-    # Real LLM dollars per full evaluation or position review, thinking included; None
-    # before any.
+    # Real dollars for all the sims' calls (Jev and the LLM), thinking included, per full
+    # evaluation or position review; None before any.
     usd_per_evaluation_or_review: float | None
     # Every call of a full evaluation (Jev's and the LLM's) added up, averaged.
     seconds_per_full_evaluation: float | None
@@ -333,7 +335,7 @@ class _Market:
             provisional=provisional,
             says=_verdict_says(label, outcome, difference, threshold, provisional),
             usd_per_evaluation_or_review=_ratio(
-                sum(f["LLM_USD"] for f in figures),
+                sum(f["MODEL_USD"] for f in figures),
                 evaluations + sum(f["POSITION_REVIEWS"] for f in figures),
             ),
             seconds_per_full_evaluation=_ratio(

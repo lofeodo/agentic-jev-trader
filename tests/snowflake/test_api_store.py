@@ -305,7 +305,7 @@ def test_the_comparison_figures_read_real_tables(
     assert figures == {
         "FULL_EVALUATIONS": 1,
         "POSITION_REVIEWS": 1,
-        "LLM_USD": pytest.approx(0.005),
+        "MODEL_USD": pytest.approx(0.015),
         "FULL_EVALUATION_SECONDS": pytest.approx(5.0),
         "LLM_MODELS": ["claude-haiku-5-5-20261001"],
         "JEV_VERSIONS": ["jev-1.1.0", "jev-1.2.0"],

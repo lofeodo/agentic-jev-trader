@@ -142,7 +142,7 @@ function Verdict({ result, market }: { result: ModelResult; market: MarketCompar
         <p className="mt-2 font-mono text-[12.5px] tracking-wider text-dim">
           {result.usd_per_evaluation_or_review === null
             ? "No full evaluations or position reviews priced yet."
-            : `The LLM cost $${result.usd_per_evaluation_or_review.toFixed(4)} per full evaluation or position review`}
+            : `Jev and the LLM cost $${result.usd_per_evaluation_or_review.toFixed(4)} per full evaluation or position review, in total`}
           {result.seconds_per_full_evaluation !== null &&
             `; ${result.seconds_per_full_evaluation.toFixed(1)} seconds per full evaluation`}
           {`; lookups per full evaluation: ${result.lookups_per_full_evaluation === null ? "not recorded yet" : result.lookups_per_full_evaluation.toFixed(1)}.`}
