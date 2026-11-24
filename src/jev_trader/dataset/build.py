@@ -21,7 +21,7 @@ to set its share of the progress bar.
 import itertools
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date
 
 import pandas as pd
@@ -65,7 +65,7 @@ from jev_trader.dataset.snapshots import (
     snapshot_rows,
     warm_up_rows,
 )
-from jev_trader.dataset.store import DatasetStore
+from jev_trader.dataset.store import STOPPED_BY_HAND, DatasetStatus, DatasetStore
 
 # Each stage's place on the progress bar: the share done when it starts. Measured on the first
 # dataset's build (1,526 seconds, about 25 minutes, on 2026-11-23).
@@ -116,44 +116,65 @@ def build_dataset(
     today: date,
     check: bool = True,
     report: Callable[[str], None] = print,
+    dataset_id: int | None = None,
 ) -> BuildResult:
     """Build and publish one dataset from `settings`. `today` is the build day.
+
+    `dataset_id`: the row the API added for this build, carried on; with none, a row is added.
+    A build checks its row before each stage and each asset's embedding: once the API has
+    marked it failed (Stop), it throws its rows away and ends.
 
     Returns a result that is not published if the check is on and an asset is over a limit.
     Raises `BuildStopped` if the settings cannot give a dataset (a ticker the provider does not
     know, too little history, a last day too recent); the dataset is then marked failed.
     """
+    if dataset_id is not None:
+        status, reason = store.status(dataset_id)
+        if status != DatasetStatus.BEING_BUILT:
+            raise BuildStopped(f"dataset {dataset_id} is {status}: {reason}", reason)
     if settings.last_day >= today:
-        raise BuildStopped(
+        too_recent = (
             f"The last day ({settings.last_day}) must be at least a day before the build day "
             f"({today}): the provider's bars of the current day carry only part of its volume."
         )
+        if dataset_id is not None:
+            store.fail(
+                dataset_id, "the last day must be at least a day before the build"
+            )
+        raise BuildStopped(too_recent)
     clock = Clock(settings.first_day)
-    dataset_id, version = store.begin(
-        settings.name,
-        {
-            "FIRST_STEP": 1,
-            "LAST_STEP": clock.last_step_of(settings.last_day),
-            "DATA_PROVIDERS": sorted(
-                {PROVIDERS[a.asset_class] for a in settings.assets}
-            ),
-            "PARTIAL_VOLUME_SHARE_OF_USUAL": settings.usual_volume.share,
-            "PARTIAL_VOLUME_SESSIONS": settings.usual_volume.sessions,
-            "LIMIT_OTHER_MISSING": settings.limits.other_missing,
-            "LIMIT_PARTIAL_VOLUME_DAYS": settings.limits.partial_volume_days,
-            "PRICE_DECIMALS": settings.price_decimals,
-            "TALIB_VERSION": TALIB_VERSION,
-            "EMBEDDING_MODEL": EMBEDDING_MODEL,
-            "MEASUREMENTS": list(MEASUREMENT_NAMES),
-            "MEASUREMENT_SETTINGS": MEASUREMENT_SETTINGS,
-        },
-    )
+    store.clear_failed()
+    columns = {
+        "FIRST_STEP": 1,
+        "LAST_STEP": clock.last_step_of(settings.last_day),
+        "DATA_PROVIDERS": sorted({PROVIDERS[a.asset_class] for a in settings.assets}),
+        "PARTIAL_VOLUME_SHARE_OF_USUAL": settings.usual_volume.share,
+        "PARTIAL_VOLUME_SESSIONS": settings.usual_volume.sessions,
+        "LIMIT_OTHER_MISSING": settings.limits.other_missing,
+        "LIMIT_PARTIAL_VOLUME_DAYS": settings.limits.partial_volume_days,
+        "PRICE_DECIMALS": settings.price_decimals,
+        "TALIB_VERSION": TALIB_VERSION,
+        "EMBEDDING_MODEL": EMBEDDING_MODEL,
+        "MEASUREMENTS": list(MEASUREMENT_NAMES),
+        "MEASUREMENT_SETTINGS": MEASUREMENT_SETTINGS,
+    }
+    if dataset_id is None:
+        dataset_id, version = store.begin(settings.name, columns)
+    else:
+        version = store.carry_on(dataset_id, columns)
     tickers = {masked_id(i): a.ticker for i, a in enumerate(settings.assets)}
     # Seconds each stage took, in order; the current stage is the last.
     seconds: dict[str, float] = {}
     started = [time.monotonic()]
 
+    def still_wanted() -> None:
+        """Stop here if the build was stopped from the app (marked failed by the API)."""
+        status, reason = store.status(dataset_id)
+        if status == DatasetStatus.FAILED:
+            raise BuildStopped(reason or STOPPED_BY_HAND)
+
     def stage(name: str) -> None:
+        still_wanted()
         _time_stage(seconds, started)
         seconds[name] = 0.0
         share = STAGES[name]
@@ -229,6 +250,7 @@ def build_dataset(
         total = sum(len(a.bars) for a in assets)
         done = 0
         for asset in assets:
+            still_wanted()
             done += store.embed_snapshots(dataset_id, asset.masked_id)
             share = STAGES["Embed"] + (STAGES["Publish"] - STAGES["Embed"]) * (
                 done / total if total else 1.0
@@ -239,10 +261,11 @@ def build_dataset(
         stage("Publish")
         store.save(dataset_id, tables)
         store.update(dataset_id, BUILD_PROGRESS=1.0)
+        still_wanted()  # a Stop from the app during the writes above wins
         store.publish(dataset_id, without_check=not check)
         _time_stage(seconds, started)
     except KeyboardInterrupt:
-        store.fail(dataset_id, "stopped by hand")
+        store.fail(dataset_id, STOPPED_BY_HAND)
         raise
     except BuildStopped as stop:
         store.fail(dataset_id, stop.stored_reason)
@@ -345,6 +368,8 @@ def _download_and_clean(
                 f"{asset.ticker}: {error}",
                 f"{masked}: the provider refused a download; details in the build's output",
             ) from None
+        if not asset.name:  # typed in the web app: the provider names it
+            asset = replace(asset, name=stocks.stock_name(asset.downloaded_as))
         cleaned.append(CleanedAsset(asset, clean, dict(sessions)))
     return cleaned
 

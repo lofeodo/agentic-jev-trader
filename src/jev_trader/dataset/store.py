@@ -35,6 +35,10 @@ SNAPSHOT_TABLES = ("FEATURES.SNAPSHOTS_LOADING", "FEATURES.SNAPSHOTS")
 DATASET_TABLES = TABLES + SNAPSHOT_TABLES
 
 
+# The failure reason of a build stopped from the app or with Ctrl+C.
+STOPPED_BY_HAND = "stopped by hand"
+
+
 class DatasetStatus(StrEnum):
     BEING_BUILT = "being built"
     PUBLISHED = "published"
@@ -44,6 +48,16 @@ class DatasetStatus(StrEnum):
 class DatasetStore(Protocol):
     def begin(self, name: str, columns: dict) -> tuple[int, int]:
         """Add a dataset being built; returns its ID and version (1 + earlier builds of `name`)."""
+
+    def carry_on(self, dataset_id: int, columns: dict) -> int:
+        """Set the columns of a dataset the API added; returns its version."""
+
+    def status(self, dataset_id: int) -> tuple[str, str | None]:
+        """The dataset's status and failure reason, as stored now."""
+
+    def clear_failed(self) -> None:
+        """Throw away rows left by failed builds: a build killed from the app cannot clear its
+        own."""
 
     def update(self, dataset_id: int, **columns) -> None:
         """Set columns of the dataset's row, such as its stage and progress."""
@@ -109,6 +123,23 @@ class InMemoryStore:
             **columns,
         }
         return dataset_id, version
+
+    def carry_on(self, dataset_id: int, columns: dict) -> int:
+        self.update(dataset_id, **columns)
+        return self.datasets[dataset_id]["VERSION"]
+
+    def status(self, dataset_id: int) -> tuple[str, str | None]:
+        row = self.datasets[dataset_id]
+        return row["STATUS"], row["FAILURE_REASON"]
+
+    def clear_failed(self) -> None:
+        failed = {
+            i for i, d in self.datasets.items() if d["STATUS"] == DatasetStatus.FAILED
+        }
+        for name in DATASET_TABLES:
+            self.tables[name] = [
+                r for r in self.tables[name] if r["DATASET"] not in failed
+            ]
 
     def update(self, dataset_id: int, **columns) -> None:
         self.datasets[dataset_id].update(columns)

@@ -28,7 +28,7 @@ export function ErrorBox({ title, text }: { title: string; text: string }) {
   return (
     <div role="alert" className="border-[1.5px] border-rule">
       <div className="bg-amber px-[2ch] py-1 font-mono text-[13.5px] tracking-widest text-screen">{title}</div>
-      <p className="px-[2ch] py-2">{text}</p>
+      <p className="px-[2ch] py-2 whitespace-pre-line">{text}</p>
     </div>
   );
 }

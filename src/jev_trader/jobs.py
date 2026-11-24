@@ -1,4 +1,5 @@
-"""Starting a sim's job, and finding and killing it later (spec appendix 8, sections 8.7 and 8.10).
+"""Starting a sim's or a dataset build's job, and finding and killing it later (spec appendix 8,
+sections 8.7, 8.10 and 8.11). Dataset builds are `LocalBuilds`, further down.
 
 A job is the separate program that runs one sim: `python -m jev_trader.sim resume <id>`, the
 same command the developer types. The API starts it through a launcher, chosen by the
@@ -78,14 +79,26 @@ class LocalLauncher:
     It runs this checkout's code, whichever copy of the package is installed.
     """
 
-    def __init__(self, log_dir: Path, command_for: Callable[[int], list[str]]):
+    def __init__(
+        self,
+        log_dir: Path,
+        command_for: Callable[[int], list[str]] | None,
+        log_prefix: str = "sim",
+    ):
         self.log_dir = log_dir
         self.command_for = command_for
+        self.log_prefix = log_prefix
         self._started: list[
             subprocess.Popen
         ] = []  # kept, so Python does not warn on exit
 
     def start(self, sim_id: int) -> str:
+        if self.command_for is None:
+            raise ValueError("this launcher runs only the commands it is given")
+        return self.run(sim_id, self.command_for(sim_id))
+
+    def run(self, job_id: int, command: list[str]) -> str:
+        """Start `command` as job `job_id`, printing to `log_dir/<log_prefix>-<job_id>.log`."""
         self.log_dir.mkdir(parents=True, exist_ok=True)
         env = {
             **os.environ,
@@ -101,9 +114,9 @@ class LocalLauncher:
             }
         else:
             detached = {"start_new_session": True}
-        with open(self.log_dir / f"sim-{sim_id}.log", "ab") as log:
+        with open(self.log_dir / f"{self.log_prefix}-{job_id}.log", "ab") as log:
             job = subprocess.Popen(
-                self.command_for(sim_id),
+                command,
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,
@@ -154,14 +167,103 @@ class LocalLauncher:
         return True
 
 
+def dataset_job_command(
+    dataset_id: int, settings_file: Path, check: bool, database: str
+) -> list[str]:
+    """The command that builds a dataset the API asked for, carrying on its row."""
+    command = [
+        sys.executable,
+        "-m",
+        "jev_trader.dataset",
+        "build",
+        str(settings_file),
+        "--dataset-id",
+        str(dataset_id),
+        "--database",
+        database,
+    ]
+    return command if check else [*command, "--no-check"]
+
+
+class Builds(Protocol):
+    """Dataset builds the API starts and stops (spec appendix 8, section 8.11)."""
+
+    def start(self, dataset_id: int, settings_text: str, check: bool) -> None:
+        """Start the build of the dataset row `dataset_id` from these settings (TOML)."""
+
+    def stop(self, dataset_id: int) -> bool:
+        """Kill the dataset's build job and wait until it is gone. False if none is running.
+        Raises `JobNotKilled` if it will not die."""
+
+    def settings_text(self, dataset_id: int) -> str | None:
+        """The settings the API started the build from, or None for a build it did not start."""
+
+
+class LocalBuilds:
+    """Dataset builds as programs on this computer. A build's files sit together in `folder`:
+    `dataset-<id>.toml` its settings, `dataset-<id>.job` where its job runs (so it is found
+    after the API restarts) and `dataset-<id>.log` what it prints. The datasets table has no
+    column for where a build runs, so the mark lives here; a build started from the command
+    line has none, and is stopped from the app at its next stage (it checks its row)."""
+
+    def __init__(
+        self,
+        folder: Path,
+        command_for: Callable[[int, Path, bool], list[str]],
+    ):
+        self.folder = folder
+        self.command_for = command_for
+        # Only its `run` and `stop` are used: each build's command is made here.
+        self.jobs = LocalLauncher(folder, command_for=None, log_prefix="dataset")
+
+    def _file(self, dataset_id: int, ending: str) -> Path:
+        return self.folder / f"dataset-{dataset_id}.{ending}"
+
+    def start(self, dataset_id: int, settings_text: str, check: bool) -> None:
+        self.folder.mkdir(parents=True, exist_ok=True)
+        settings_file = self._file(dataset_id, "toml")
+        settings_file.write_text(settings_text, encoding="utf-8")
+        mark = self.jobs.run(
+            dataset_id, self.command_for(dataset_id, settings_file, check)
+        )
+        self._file(dataset_id, "job").write_text(mark, encoding="utf-8")
+
+    def _mark(self, dataset_id: int) -> str | None:
+        path = self._file(dataset_id, "job")
+        return path.read_text(encoding="utf-8").strip() if path.exists() else None
+
+    def stop(self, dataset_id: int) -> bool:
+        return self.jobs.stop(self._mark(dataset_id))
+
+    def settings_text(self, dataset_id: int) -> str | None:
+        path = self._file(dataset_id, "toml")
+        return path.read_text(encoding="utf-8") if path.exists() else None
+
+
+def builds_named(name: str, folder: Path, database: str) -> Builds:
+    """The dataset builds the `JOB_LAUNCHER` setting names, building into `database`."""
+    if name == "local":
+        return LocalBuilds(
+            folder,
+            lambda dataset_id, settings_file, check: dataset_job_command(
+                dataset_id, settings_file, check, database
+            ),
+        )
+    raise _not_built(name)
+
+
 def launcher_named(name: str, log_dir: Path, database: str) -> Launcher:
     """The launcher the `JOB_LAUNCHER` setting names, starting sims on `database`."""
     if name == "local":
         return LocalLauncher(log_dir, lambda sim_id: sim_job_command(sim_id, database))
+    raise _not_built(name)
+
+
+def _not_built(name: str) -> ValueError:
     if name == "kubernetes":
-        raise ValueError(
+        return ValueError(
             "JOB_LAUNCHER=kubernetes comes with the cluster ticket; use local for now"
         )
-    raise ValueError(
+    return ValueError(
         f"JOB_LAUNCHER must be one of {', '.join(LAUNCHERS)}, not {name!r}"
     )

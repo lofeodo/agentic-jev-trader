@@ -34,6 +34,43 @@
         "title": "AccountThen",
         "type": "object"
       },
+      "AssetCheck": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "other_missing_share": {
+            "title": "Other Missing Share",
+            "type": "number"
+          },
+          "over": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Over",
+            "type": "array"
+          },
+          "partial_volume_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial Volume Share"
+          }
+        },
+        "required": [
+          "asset",
+          "other_missing_share",
+          "partial_volume_share",
+          "over"
+        ],
+        "title": "AssetCheck",
+        "type": "object"
+      },
       "AssetName": {
         "description": "The real name leads; the masked ID is the disguised label the agent saw.",
         "properties": {
@@ -200,6 +237,406 @@
           "value"
         ],
         "title": "ChartPoint",
+        "type": "object"
+      },
+      "DatasetLine": {
+        "properties": {
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualityCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "published_without_check": {
+            "title": "Published Without Check",
+            "type": "boolean"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tickers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tickers",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "status",
+          "published_without_check",
+          "failure_reason",
+          "stage",
+          "progress",
+          "first_day",
+          "last_day",
+          "tickers",
+          "check",
+          "started_at",
+          "published_at"
+        ],
+        "title": "DatasetLine",
+        "type": "object"
+      },
+      "DatasetPage": {
+        "properties": {
+          "asset_key": {
+            "items": {
+              "$ref": "#/components/schemas/KeyLine"
+            },
+            "title": "Asset Key",
+            "type": "array"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualityCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "missing_bars": {
+            "items": {
+              "$ref": "#/components/schemas/MissingBar"
+            },
+            "title": "Missing Bars",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "partial_volume_days": {
+            "items": {
+              "$ref": "#/components/schemas/PartialVolumeDay"
+            },
+            "title": "Partial Volume Days",
+            "type": "array"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/PeriodLine"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "published_without_check": {
+            "title": "Published Without Check",
+            "type": "boolean"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/Stage"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tickers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tickers",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "version",
+          "status",
+          "published_without_check",
+          "failure_reason",
+          "stage",
+          "progress",
+          "first_day",
+          "last_day",
+          "tickers",
+          "check",
+          "started_at",
+          "published_at",
+          "stages",
+          "periods",
+          "asset_key",
+          "missing_bars",
+          "partial_volume_days"
+        ],
+        "title": "DatasetPage",
+        "type": "object"
+      },
+      "DatasetStarted": {
+        "properties": {
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dataset_id"
+        ],
+        "title": "DatasetStarted",
+        "type": "object"
+      },
+      "DatasetToBuild": {
+        "description": "A build request, as the Datasets form sends it. Days are real dates (UTC); limits are\nshares (0.03 is 3%).",
+        "properties": {
+          "check": {
+            "default": true,
+            "title": "Check",
+            "type": "boolean"
+          },
+          "first_day": {
+            "format": "date",
+            "title": "First Day",
+            "type": "string"
+          },
+          "last_day": {
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "limit_other_missing": {
+            "default": 0.005,
+            "title": "Limit Other Missing",
+            "type": "number"
+          },
+          "limit_partial_volume_days": {
+            "default": 0.03,
+            "title": "Limit Partial Volume Days",
+            "type": "number"
+          },
+          "test_periods": {
+            "items": {
+              "$ref": "#/components/schemas/TestPeriodAsked"
+            },
+            "title": "Test Periods",
+            "type": "array"
+          },
+          "tickers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tickers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tickers",
+          "first_day",
+          "last_day"
+        ],
+        "title": "DatasetToBuild",
+        "type": "object"
+      },
+      "DatasetsList": {
+        "properties": {
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetLine"
+            },
+            "title": "Datasets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "datasets"
+        ],
+        "title": "DatasetsList",
         "type": "object"
       },
       "DayMark": {
@@ -431,6 +868,44 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "KeyLine": {
+        "properties": {
+          "asset_class": {
+            "title": "Asset Class",
+            "type": "string"
+          },
+          "masked_id": {
+            "title": "Masked Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price_scale": {
+            "title": "Price Scale",
+            "type": "number"
+          },
+          "provider_symbol": {
+            "title": "Provider Symbol",
+            "type": "string"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "masked_id",
+          "ticker",
+          "name",
+          "asset_class",
+          "provider_symbol",
+          "price_scale"
+        ],
+        "title": "KeyLine",
         "type": "object"
       },
       "LiveFigures": {
@@ -719,6 +1194,41 @@
           "exposure_limit_usd"
         ],
         "title": "Meters",
+        "type": "object"
+      },
+      "MissingBar": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asset",
+          "step",
+          "ends_at",
+          "reason"
+        ],
+        "title": "MissingBar",
         "type": "object"
       },
       "Moment": {
@@ -1100,6 +1610,48 @@
         "title": "OrderLine",
         "type": "object"
       },
+      "PartialVolumeDay": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "share_of_usual": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Of Usual"
+          },
+          "test": {
+            "title": "Test",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "day",
+          "test",
+          "share_of_usual"
+        ],
+        "title": "PartialVolumeDay",
+        "type": "object"
+      },
       "Pattern": {
         "properties": {
           "detector": {
@@ -1126,6 +1678,50 @@
           "shape"
         ],
         "title": "Pattern",
+        "type": "object"
+      },
+      "PeriodLine": {
+        "properties": {
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "first_day",
+          "last_day"
+        ],
+        "title": "PeriodLine",
         "type": "object"
       },
       "Playbook": {
@@ -1234,6 +1830,83 @@
           "rescaled"
         ],
         "title": "Price",
+        "type": "object"
+      },
+      "PriceChart": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PricePoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "asset",
+          "points"
+        ],
+        "title": "PriceChart",
+        "type": "object"
+      },
+      "PricePoint": {
+        "properties": {
+          "close": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          }
+        },
+        "required": [
+          "day",
+          "close"
+        ],
+        "title": "PricePoint",
+        "type": "object"
+      },
+      "QualityCheck": {
+        "description": "The build's first step: each asset's numbers against the two limits, and the verdict.",
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/AssetCheck"
+            },
+            "title": "Assets",
+            "type": "array"
+          },
+          "limit_other_missing": {
+            "title": "Limit Other Missing",
+            "type": "number"
+          },
+          "limit_partial_volume_days": {
+            "title": "Limit Partial Volume Days",
+            "type": "number"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "passed",
+          "limit_other_missing",
+          "limit_partial_volume_days",
+          "assets"
+        ],
+        "title": "QualityCheck",
         "type": "object"
       },
       "Refusal": {
@@ -1999,6 +2672,49 @@
         "title": "Split",
         "type": "string"
       },
+      "Stage": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "starts_at": {
+            "title": "Starts At",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "starts_at"
+        ],
+        "title": "Stage",
+        "type": "object"
+      },
+      "TestPeriodAsked": {
+        "properties": {
+          "first_day": {
+            "format": "date",
+            "title": "First Day",
+            "type": "string"
+          },
+          "last_day": {
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "first_day",
+          "last_day"
+        ],
+        "title": "TestPeriodAsked",
+        "type": "object"
+      },
       "TradeLine": {
         "description": "A trade, or a full evaluation that ended in no trade (`kind` \"no trade\").",
         "properties": {
@@ -2404,6 +3120,209 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/datasets": {
+      "get": {
+        "operationId": "listDatasets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetsList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Datasets"
+      },
+      "post": {
+        "description": "Add the dataset's row, being built, and start its build job. The check against\nthe two limits is the build's first step.",
+        "operationId": "buildDataset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetToBuild"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusals"
+                }
+              }
+            },
+            "description": "Refused: the reasons, and how to fix each"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Dataset"
+      }
+    },
+    "/datasets/{dataset_id}": {
+      "get": {
+        "operationId": "datasetPage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Page"
+      }
+    },
+    "/datasets/{dataset_id}/bars": {
+      "get": {
+        "description": "One asset's price chart: each day's close. `ticker`: the asset's real ticker.",
+        "operationId": "datasetBars",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ticker",
+            "required": true,
+            "schema": {
+              "title": "Ticker",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceChart"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dataset Bars"
+      }
+    },
+    "/datasets/{dataset_id}/stop": {
+      "post": {
+        "description": "Kill the build and mark it failed, stopped by hand.",
+        "operationId": "stopDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusals"
+                }
+              }
+            },
+            "description": "Refused: the reasons, and how to fix each"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stop Dataset"
+      }
+    },
     "/health": {
       "get": {
         "operationId": "health",

@@ -143,3 +143,51 @@ def test_twelve_data_stops_before_800_requests_in_one_build():
     provider.requests = 800
     with pytest.raises(ProviderError, match="800 requests"):
         provider.stock_bars("XYZ", date(2023, 1, 2), date(2023, 1, 6))
+
+
+class NoWait:
+    def wait(self):
+        pass
+
+
+def test_a_stocks_real_name_is_its_us_listing_at_twelve_data():
+    from jev_trader.dataset.providers import TwelveData
+
+    asked = []
+
+    def get(url, params):
+        asked.append((url, params["symbol"]))
+        return {
+            "data": [
+                {"symbol": "AAPL", "instrument_name": "Apple Inc", "country": "Mexico"},
+                {
+                    "symbol": "AAPLX",
+                    "instrument_name": "Other",
+                    "country": "United States",
+                },
+                {
+                    "symbol": "AAPL",
+                    "instrument_name": "Apple Inc.",
+                    "country": "United States",
+                },
+            ],
+            "status": "ok",
+        }
+
+    provider = TwelveData("key", get=get, pacer=NoWait())
+    assert provider.stock_name("AAPL") == "Apple Inc."
+    assert asked == [("https://api.twelvedata.com/symbol_search", "AAPL")]
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        {"data": [], "status": "ok"},
+        {"status": "error", "code": 500, "message": "down"},
+    ],
+)
+def test_a_stock_twelve_data_cannot_name_keeps_its_ticker_as_its_name(reply):
+    from jev_trader.dataset.providers import TwelveData
+
+    provider = TwelveData("key", get=lambda url, params: reply, pacer=NoWait())
+    assert provider.stock_name("XYZ") == "XYZ"

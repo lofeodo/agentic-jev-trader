@@ -1,17 +1,25 @@
 import type { SpendingTotal } from "./api/client";
 import { dollarsAndCents, modelDollars } from "./format";
 
-export type Screen = "sims" | "playbook" | "spending";
+export type Screen = "sims" | "datasets" | "playbook" | "spending";
 
 // The menu in the spec's order (appendix 7, section 4). A screen with no address is not built
 // yet and is shown dimmed.
 const SCREENS: { screen: Screen | null; title: string; href: string | null }[] = [
   { screen: "sims", title: "Trading sims", href: "#/" },
   { screen: null, title: "Comparison", href: null },
-  { screen: null, title: "Datasets", href: null },
+  { screen: "datasets", title: "Datasets", href: "#/datasets" },
   { screen: "playbook", title: "Playbook", href: "#/playbook" },
   { screen: "spending", title: "Spending", href: "#/spending" },
 ];
+
+// The command line under the menu: what to do on the screen.
+const COMMANDS: Record<Screen, string> = {
+  sims: "Read only: sims start from the command line",
+  datasets: "Build a dataset with the form, or open one to follow its build",
+  playbook: "Read only: the candle patterns the agent can spot",
+  spending: "Read only: what the models have cost",
+};
 
 export function TopBar({ spending, screen }: { spending: SpendingTotal | null; screen: Screen }) {
   return (
@@ -50,7 +58,7 @@ export function TopBar({ spending, screen }: { spending: SpendingTotal | null; s
       </div>
       <div className="mb-11 flex w-fit border-x-[1.5px] border-b-[1.5px] border-rule">
         <span className="border-r-[1.5px] border-rule px-[2ch] py-1.5 text-dim">Command:</span>
-        <span className="py-1.5 pl-[2ch]">Read only: sims start from the command line</span>
+        <span className="py-1.5 pl-[2ch]">{COMMANDS[screen]}</span>
         <kbd className="px-[2ch] py-1.5 pl-[1ch] font-mono">&lt;GO&gt;</kbd>
       </div>
     </header>

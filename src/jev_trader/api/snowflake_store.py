@@ -4,9 +4,11 @@ builder that can read the asset key). The connection must use `?` placeholders.
 
 import json
 
+from jev_trader.api.store import DATASET_COLUMNS, DATASET_READS
 from jev_trader.dataset.measurements import MEASUREMENT_NAMES
 from jev_trader.dataset.situation_text import PATTERN_WINDOW_STEPS
 from jev_trader.dataset.snowflake_store import MOST_BOUND_VALUES
+from jev_trader.dataset.snowflake_store import SnowflakeStore as DatasetStore
 from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
 
 _LONG_TERM_TREND = MEASUREMENT_NAMES.index("long_term_trend")
@@ -274,6 +276,33 @@ class SnowflakeApiStore:
         return self._rows(
             "SELECT TALIB_VERSION, PATTERN, LEAN, NAME, SHAPE FROM REF.PLAYBOOK"
         )
+
+    def datasets(self) -> list[dict]:
+        rows = self._rows(
+            f"SELECT {', '.join(DATASET_COLUMNS)} FROM REF.DATASETS ORDER BY ID DESC"
+        )
+        for row in rows:
+            if isinstance(row["CHECK_RESULT"], str):
+                row["CHECK_RESULT"] = json.loads(row["CHECK_RESULT"])
+        return rows
+
+    def dataset_rows(self, table, dataset_id):
+        if table not in DATASET_READS:
+            raise ValueError(f"the API does not read {table} whole")
+        return self._rows(f"SELECT * FROM {table} WHERE DATASET = ?", (dataset_id,))
+
+    def daily_bars(self, dataset_id, asset):
+        return self._rows(
+            "SELECT STEP, DAY, CLOSE FROM RAW.BARS "
+            "WHERE DATASET = ? AND ASSET = ? AND BAR_SIZE = '1d' ORDER BY STEP",
+            (dataset_id, asset),
+        )
+
+    def begin_dataset(self, name, columns):
+        return DatasetStore(self.con).begin(name, columns)
+
+    def update_dataset(self, dataset_id, **columns):
+        DatasetStore(self.con).update(dataset_id, **columns)
 
     def dataset(self, dataset_id):
         return SnowflakeMarket(self.con).dataset(dataset_id)
