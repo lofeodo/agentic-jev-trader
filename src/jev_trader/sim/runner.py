@@ -1,6 +1,8 @@
 """Starting a sim and running it to its last step (spec appendix 1, sections 1 and 6; appendix 6).
 
-`create_sim` checks a request and stores the sim's row with every setting it will run with.
+`create_sim` works out the sim's cost estimate and spending cap, has the one checker
+(`checker.py`) refuse it or let it through, and stores the sim's row with every setting it
+will run with.
 `run_sim` runs it, or resumes it from its last completed step:
 
 1. Each step where some asset has a bar (and always the first and last step): any midnight
@@ -42,14 +44,27 @@ from jev_trader.broker import (
     load_stop_price_settings,
     load_trading_costs,
 )
-from jev_trader.dataset.store import DatasetStatus
 from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.reading import Reading
 from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
 from jev_trader.sim.agent import AgentWithoutMemory
+from jev_trader.sim.checker import (
+    BUILT_VARIANTS,
+    KINDS,
+    PRACTICE_MOST_STEPS,
+    VARIANTS,
+    Planned,
+    require_allowed,
+)
 from jev_trader.sim.clock import midnights_between
-from jev_trader.sim.market import DatasetInfo, Market
+from jev_trader.sim.market import Market
+from jev_trader.sim.spending import (
+    SpendingSettings,
+    estimate_cost,
+    load_spending_settings,
+    spending_cap,
+)
 from jev_trader.sim.store import (
     SimStatus,
     SimStore,
@@ -58,13 +73,8 @@ from jev_trader.sim.store import (
     now,
 )
 
-KINDS = ("practice", "tuning", "build-up", "measurement", "free")
-VARIANTS = ("buy_hold", "memory_off", "memory_on")
-BUILT_VARIANTS = ("buy_hold", "memory_off")
 REPO_ROOT = Path(__file__).resolve().parents[3]
-# A practice sim of the agent: at most one replayed day and 25 cents (spec appendix 9, section 2).
-PRACTICE_MOST_STEPS = 96
-PRACTICE_SPENDING_CAP = 0.25
+__all__ = ["BUILT_VARIANTS", "KINDS", "PRACTICE_MOST_STEPS", "VARIANTS"]
 
 
 class DuplicateRecords(Exception):
@@ -81,6 +91,9 @@ class SimRequest:
     starting_value: float = 10_000.0
     market: str | None = None  # the test period's name, for a measurement sim
     random_seed: int = 0
+    spending_cap: float | None = (
+        None  # a practice sim's cap, if the developer raises it
+    )
 
 
 @dataclass(frozen=True)
@@ -162,58 +175,42 @@ def code_version() -> str:
         return "unknown"
 
 
-def check_request(request: SimRequest, info: DatasetInfo) -> None:
-    """Refuse a sim the spec does not allow. The message says what to change."""
-    if info.status != DatasetStatus.PUBLISHED:
-        raise ValueError(
-            f"dataset {info.dataset_id} is {info.status}, not published: "
-            "no sim can start on it"
-        )
-    if request.variant not in VARIANTS:
-        raise ValueError(f"variant must be one of {', '.join(VARIANTS)}")
-    if request.variant not in BUILT_VARIANTS:
-        raise ValueError(f"the {request.variant} variant is not built yet")
-    if request.kind not in KINDS:
-        raise ValueError(f"kind must be one of {', '.join(KINDS)}")
-    if not request.first_step <= request.last_step:
-        raise ValueError("the first step must come before the last")
-    if not (
-        info.first_step <= request.first_step and request.last_step <= info.last_step
-    ):
-        raise ValueError(
-            f"the dataset runs from step {info.first_step} to {info.last_step}"
-        )
-    if request.first_step <= info.warm_up_last_step:
-        raise ValueError(
-            f"no sim runs in the warm-up period: start after step {info.warm_up_last_step}"
-        )
-    agent_practice = request.variant != "buy_hold" and request.kind == "practice"
-    if request.variant != "buy_hold" and not agent_practice:
-        raise ValueError("only practice sims of the agent are built so far")
-    if (
-        agent_practice
-        and request.last_step - request.first_step + 1 > PRACTICE_MOST_STEPS
-    ):
-        raise ValueError(
-            f"a practice sim is at most one replayed day ({PRACTICE_MOST_STEPS} steps)"
-        )
-    if request.kind == "free" or agent_practice:
-        for period in info.test_periods():
-            if (
-                request.first_step <= period.last_step
-                and period.first_step <= request.last_step
-            ):
-                raise ValueError(
-                    f'a {request.kind} sim cannot use test period days ("{period.name}", steps '
-                    f"{period.first_step} to {period.last_step})"
-                )
-    if not request.starting_value > 0:
-        raise ValueError("the starting account value must be above zero")
+def create_sim(
+    store: SimStore,
+    market: Market,
+    request: SimRequest,
+    spending: SpendingSettings | None = None,
+) -> int:
+    """Work out the sim's estimate and cap, check it, and store its row with status created.
 
-
-def create_sim(store: SimStore, market: Market, request: SimRequest) -> int:
-    """Check the request and store the sim's row, with status created. Returns its ID."""
-    check_request(request, market.dataset(request.dataset))
+    Returns its ID. Raises `checker.Refused` with every reason it was refused, storing nothing.
+    """
+    spending = spending or load_spending_settings()
+    info = market.dataset(request.dataset)
+    settings = settings_document(request.starting_value, request.variant)
+    estimate = 0.0
+    if request.variant != "buy_hold":
+        share = store.latest_closer_look_share()
+        estimate = estimate_cost(
+            request.variant,
+            market.bar_count(info.dataset_id, request.first_step, request.last_step),
+            spending.default_closer_look_share if share is None else share,
+            settings["jev"]["dollars_per_million_tokens_read"],
+            spending,
+        )
+    cap = spending_cap(
+        request.variant, request.kind, estimate, request.spending_cap, spending
+    )
+    planned = Planned(
+        dataset=request.dataset,
+        variant=request.variant,
+        kind=request.kind,
+        first_step=request.first_step,
+        last_step=request.last_step,
+        starting_value=request.starting_value,
+        spending_cap=cap,
+    )
+    require_allowed(planned, info, store, spending)
     return store.create(
         {
             "DATASET": request.dataset,
@@ -224,13 +221,10 @@ def create_sim(store: SimStore, market: Market, request: SimRequest) -> int:
             "LAST_STEP": request.last_step,
             "STARTING_VALUE": request.starting_value,
             "RANDOM_SEED": request.random_seed,
-            "SETTINGS": settings_document(request.starting_value, request.variant),
+            "SETTINGS": settings,
             "CODE_VERSION": code_version(),
-            **(
-                {"SPENDING_CAP": PRACTICE_SPENDING_CAP}
-                if request.variant != "buy_hold"
-                else {}
-            ),
+            "ESTIMATED_COST": estimate,
+            "SPENDING_CAP": cap,
         }
     )
 

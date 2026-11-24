@@ -8,10 +8,14 @@
 with `--market "falling market"`, or over `--first-step` to `--last-step`. `resume` carries a sim
 on from its last completed step: one killed mid-step, stopped by hand, or failed.
 
-`practice` runs the agent without memory for at most one replayed day and 25 cents, from
-`--first-step` or the first step after the warm-up. It calls Jev, which costs money: a screen
-for each asset at each step, and on a yes the full evaluation's two requests, which can open a
-trade (pretend money). Open positions are left to code until the position screen is built.
+`practice` runs the agent without memory for at most one replayed day and 25 cents (or the
+`--spending-cap` given), from `--first-step` or the first step after the warm-up. It calls Jev,
+which costs money: a screen for each asset at each step, and on a yes the full evaluation's two
+requests, which can open a trade (pretend money). Open positions are left to code until the
+position screen is built.
+
+Every start goes through the one checker (`checker.py`): a refused sim stores nothing, and each
+reason is printed with how to fix it.
 `--database TRADING_AGENT_TEST` uses the test database. It needs migrations V5 and V6 applied.
 
 Logs in as the sim login (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`,
@@ -33,10 +37,10 @@ from jev_trader.jev.client import (
     JevSettings,
     load_jev_settings,
 )
+from jev_trader.sim.checker import Refused
 from jev_trader.sim.runner import (
     KINDS,
     PRACTICE_MOST_STEPS,
-    PRACTICE_SPENDING_CAP,
     VARIANTS,
     DuplicateRecords,
     SimRequest,
@@ -87,13 +91,23 @@ def start_practice(args, store, market) -> int:
             kind="practice",
             first_step=first_step,
             last_step=last_step,
+            spending_cap=args.spending_cap,
         ),
     )
+    sim = store.sim(sim_id)
     print(
-        f"Practice sim {sim_id}: steps {first_step} to {last_step}, "
-        f"at most ${PRACTICE_SPENDING_CAP:.2f}."
+        f"Practice sim {sim_id}: steps {first_step} to {last_step}, estimated "
+        f"${sim['ESTIMATED_COST']:.2f}, at most ${sim['SPENDING_CAP']:.2f}."
     )
     return sim_id
+
+
+def refusal_lines(refused: Refused) -> list[str]:
+    """Each reason a sim was refused, with how to fix it."""
+    lines = ["Refused:"]
+    for refusal in refused.refusals:
+        lines += [f"- {refusal.problem}", f"  Fix: {refusal.fix}"]
+    return lines
 
 
 def jev_client_for(sim: dict) -> JevClient | None:
@@ -168,6 +182,11 @@ def main(argv: list[str] | None = None) -> int:
         "--dataset", type=int, required=True, help="a published dataset's ID"
     )
     practice.add_argument("--first-step", type=int)
+    practice.add_argument(
+        "--spending-cap",
+        type=float,
+        help="raise this sim's cap above 25 cents, in US dollars",
+    )
     practice.add_argument("--database", default=DATABASE)
     for command in (start, resume):
         command.add_argument("--database", default=DATABASE)
@@ -200,6 +219,10 @@ def main(argv: list[str] | None = None) -> int:
             if sim["STATUS"] == "finished":
                 raise ValueError(f"sim {sim_id} is finished")
             jev = jev_client_for(sim)
+        except Refused as refused:
+            for line in refusal_lines(refused):
+                print(line)
+            return 2
         except (ValueError, KeyError) as refused:
             print(f"Refused: {refused}")
             return 2
