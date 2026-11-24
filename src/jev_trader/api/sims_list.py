@@ -74,8 +74,9 @@ def days_of(sim: dict) -> tuple[int, int]:
 def is_not_responding(sim: dict, at: datetime, quiet_limit: timedelta) -> bool:
     if sim["STATUS"] != SimStatus.RUNNING:
         return False
-    last_sign = sim.get("LAST_WRITTEN_AT") or sim.get("STARTED_AT")
-    return last_sign is not None and at - last_sign >= quiet_limit
+    # The last sign of life: a stored step, or the job (re)starting.
+    signs = [t for t in (sim.get("LAST_WRITTEN_AT"), sim.get("STARTED_AT")) if t]
+    return bool(signs) and at - max(signs) >= quiet_limit
 
 
 def reached_step(sim: dict) -> int:

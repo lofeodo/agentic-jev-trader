@@ -956,6 +956,58 @@
         "title": "Price",
         "type": "object"
       },
+      "Refusal": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "Refusal",
+        "type": "object"
+      },
+      "Refusals": {
+        "description": "Why a request to start, stop or resume was refused: every reason at once.",
+        "properties": {
+          "refusals": {
+            "items": {
+              "$ref": "#/components/schemas/Refusal"
+            },
+            "title": "Refusals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "refusals"
+        ],
+        "title": "Refusals",
+        "type": "object"
+      },
+      "Resumption": {
+        "properties": {
+          "spending_cap_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spending Cap Usd"
+          }
+        },
+        "title": "Resumption",
+        "type": "object"
+      },
       "SimHeader": {
         "properties": {
           "assets": {
@@ -1305,6 +1357,70 @@
         "title": "SimLine",
         "type": "object"
       },
+      "SimToStart": {
+        "description": "A sim to start. Days are real dates (UTC); give a test period or days, or neither for\nevery day after the warm-up.",
+        "properties": {
+          "dataset": {
+            "title": "Dataset",
+            "type": "integer"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "starting_value": {
+            "default": 10000.0,
+            "title": "Starting Value",
+            "type": "number"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "kind",
+          "variant"
+        ],
+        "title": "SimToStart",
+        "type": "object"
+      },
       "SimsList": {
         "properties": {
           "sims": {
@@ -1319,6 +1435,22 @@
           "sims"
         ],
         "title": "SimsList",
+        "type": "object"
+      },
+      "SimsStarted": {
+        "properties": {
+          "sim_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Sim Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sim_ids"
+        ],
+        "title": "SimsStarted",
         "type": "object"
       },
       "Spending": {
@@ -1576,6 +1708,53 @@
           }
         },
         "summary": "List Sims"
+      },
+      "post": {
+        "description": "Store the sim, then start its job. Practice and tuning sims start only from the\ncommand line.",
+        "operationId": "startSim",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimToStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimsStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusals"
+                }
+              }
+            },
+            "description": "Refused: the reasons, and how to fix each"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Sim"
       }
     },
     "/sims/{sim_id}": {
@@ -1760,6 +1939,116 @@
           }
         },
         "summary": "Sim Moment"
+      }
+    },
+    "/sims/{sim_id}/resume": {
+      "post": {
+        "description": "Start a stopped or not responding sim again from its last stored step. A sim stopped\nby its spending cap needs a new cap.",
+        "operationId": "resumeSim",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Resumption"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimHeader"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusals"
+                }
+              }
+            },
+            "description": "Refused: the reasons, and how to fix each"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Sim"
+      }
+    },
+    "/sims/{sim_id}/stop": {
+      "post": {
+        "description": "Kill the sim's job at once and mark it stopped by hand. Its half-done step is redone\non resume.",
+        "operationId": "stopSim",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimHeader"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refusals"
+                }
+              }
+            },
+            "description": "Refused: the reasons, and how to fix each"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stop Sim"
       }
     },
     "/spending": {

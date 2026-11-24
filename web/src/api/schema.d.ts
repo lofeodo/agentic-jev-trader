@@ -48,7 +48,12 @@ export interface paths {
         /** List Sims */
         get: operations["listSims"];
         put?: never;
-        post?: never;
+        /**
+         * Start Sim
+         * @description Store the sim, then start its job. Practice and tuning sims start only from the
+         *     command line.
+         */
+        post: operations["startSim"];
         delete?: never;
         options?: never;
         head?: never;
@@ -127,6 +132,48 @@ export interface paths {
         get: operations["simMoment"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sims/{sim_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume Sim
+         * @description Start a stopped or not responding sim again from its last stored step. A sim stopped
+         *     by its spending cap needs a new cap.
+         */
+        post: operations["resumeSim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sims/{sim_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Sim
+         * @description Kill the sim's job at once and mark it stopped by hand. Its half-done step is redone
+         *     on resume.
+         */
+        post: operations["stopSim"];
         delete?: never;
         options?: never;
         head?: never;
@@ -451,6 +498,26 @@ export interface components {
             /** Rescaled */
             rescaled: number;
         };
+        /** Refusal */
+        Refusal: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+        };
+        /**
+         * Refusals
+         * @description Why a request to start, stop or resume was refused: every reason at once.
+         */
+        Refusals: {
+            /** Refusals */
+            refusals: components["schemas"]["Refusal"][];
+        };
+        /** Resumption */
+        Resumption: {
+            /** Spending Cap Usd */
+            spending_cap_usd?: number | null;
+        };
         /** SimHeader */
         SimHeader: {
             /** Assets */
@@ -545,10 +612,39 @@ export interface components {
             /** Trades */
             trades: number;
         };
+        /**
+         * SimToStart
+         * @description A sim to start. Days are real dates (UTC); give a test period or days, or neither for
+         *     every day after the warm-up.
+         */
+        SimToStart: {
+            /** Dataset */
+            dataset: number;
+            /** First Day */
+            first_day?: string | null;
+            /** Kind */
+            kind: string;
+            /** Last Day */
+            last_day?: string | null;
+            /** Market */
+            market?: string | null;
+            /**
+             * Starting Value
+             * @default 10000
+             */
+            starting_value: number;
+            /** Variant */
+            variant: string;
+        };
         /** SimsList */
         SimsList: {
             /** Sims */
             sims: components["schemas"]["SimLine"][];
+        };
+        /** SimsStarted */
+        SimsStarted: {
+            /** Sim Ids */
+            sim_ids: number[];
         };
         /** Spending */
         Spending: {
@@ -691,6 +787,48 @@ export interface operations {
             };
         };
     };
+    startSim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimToStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimsStarted"];
+                };
+            };
+            /** @description Refused: the reasons, and how to fix each */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     simHeader: {
         parameters: {
             query?: never;
@@ -806,6 +944,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Moment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resumeSim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Resumption"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimHeader"];
+                };
+            };
+            /** @description Refused: the reasons, and how to fix each */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stopSim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sim_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimHeader"];
+                };
+            };
+            /** @description Refused: the reasons, and how to fix each */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refusals"];
                 };
             };
             /** @description Validation Error */

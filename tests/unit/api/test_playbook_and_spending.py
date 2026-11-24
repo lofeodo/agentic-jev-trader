@@ -7,12 +7,16 @@ from fastapi.testclient import TestClient
 from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.sim.store import InMemorySimStore
+from tests.unit.api.conftest import StandInLauncher
 
 
 def client_for(store):
     return TestClient(
         create_app(
-            store, spending_ceiling=75.0, not_responding_after=timedelta(minutes=7)
+            store,
+            spending_ceiling=75.0,
+            not_responding_after=timedelta(minutes=7),
+            launcher=StandInLauncher(),
         ),
         base_url="http://localhost",
         client=("127.0.0.1", 50000),

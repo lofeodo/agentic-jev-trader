@@ -4,6 +4,7 @@
 
 from typing import Protocol
 
+from jev_trader.sim.market import DatasetInfo, InMemoryMarket
 from jev_trader.sim.store import InMemorySimStore
 
 
@@ -62,6 +63,18 @@ class ApiStore(Protocol):
         """`SIM.CALLS` summed: one row per SIM, PURPOSE and SERVICE, with COST_USD (a call that
         failed before it was priced counts $0) and CALLS. PURPOSE is None for a sim's calls."""
 
+    # What starting, stopping and resuming a sim needs (spec appendix 8, section 8.7). The API's
+    # login may add a sim's row and change it, nothing else of a sim.
+
+    def dataset(self, dataset_id: int) -> DatasetInfo:
+        """A dataset's status, steps, periods and assets. KeyError if there is none."""
+
+    def create(self, row: dict) -> int:
+        """Add a sim's row (status created); returns its ID."""
+
+    def update(self, sim_id: int, **columns) -> None:
+        """Set columns of a sim's row; never on a finished sim."""
+
 
 # Left out of the list of every sim: large, and only the sim page needs them.
 _LIST_LEAVES_OUT = ("SETTINGS", "ACCOUNT_STATE")
@@ -72,6 +85,7 @@ class InMemoryApiStore:
 
     `closes` gives each dataset's rescaled 15-minute closes: dataset, then asset, then step.
     `playbook` gives the `REF.PLAYBOOK` rows.
+    `market` holds the datasets a sim can start on.
     """
 
     def __init__(
@@ -79,12 +93,14 @@ class InMemoryApiStore:
         sims: InMemorySimStore,
         asset_key: list[dict],
         closes: dict[int, dict[str, dict[int, float]]] | None = None,
+        market: InMemoryMarket | None = None,
         playbook: list[dict] | None = None,
     ):
         self._sims = sims
         self._asset_key = asset_key
         self._closes = closes or {}
         self._playbook = playbook or []
+        self._market = market or InMemoryMarket(datasets=[], bars={})
 
     def total_spent(self) -> float:
         return sum(r["COST_USD"] or 0.0 for r in self._sims.tables["SIM.CALLS"])
@@ -193,3 +209,12 @@ class InMemoryApiStore:
             found["COST_USD"] += row["COST_USD"] or 0.0
             found["CALLS"] += 1
         return list(summed.values())
+
+    def dataset(self, dataset_id):
+        return self._market.dataset(dataset_id)
+
+    def create(self, row):
+        return self._sims.create(row)
+
+    def update(self, sim_id, **columns):
+        self._sims.update(sim_id, **columns)
