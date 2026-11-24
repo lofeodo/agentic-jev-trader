@@ -319,7 +319,7 @@ def test_the_duplicate_count_finds_an_id_stored_twice(two_day_sim, sim_login):
     assert store.duplicate_ids(sim_id) == {"SIM.SIM_EVENTS": 1}
 
 
-def test_what_the_checker_reads_spending_sims_in_progress_and_the_closer_look_share(
+def test_what_the_checker_reads_spending_sims_in_progress_and_the_tier_2_share(
     sim_login, made_up_dataset, remove_sims
 ):
     """Needs V5 and V6 applied. The latest practice sim of the agent is the one made here."""
@@ -369,6 +369,6 @@ def test_what_the_checker_reads_spending_sims_in_progress_and_the_closer_look_sh
         "SPENT": pytest.approx(0.07),
     }
     # One screen of two led to a full evaluation.
-    assert store.latest_closer_look_share() == pytest.approx(0.5)
+    assert store.latest_tier_2_share() == pytest.approx(0.5)
     # Two crypto assets with a bar at every step of day 2.
     assert market.bar_count(dataset_id, 97, 192) == 2 * 96

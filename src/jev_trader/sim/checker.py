@@ -1,8 +1,9 @@
 """The one checker: every refusal of a sim comes from here (spec appendix 8, section 8.6).
 
 `check` returns every refusal at once, each with a code, what is wrong, and how to fix it;
-`require_allowed` raises them together as `Refused`. The sim command uses it now; the form
-(`GET /sims/check`) and the API's start will use it too.
+`require_allowed` raises them together as `Refused`. `check_resume` is the part that still
+applies when a stopped sim is carried on. The sim command uses both now; the form
+(`GET /sims/check`) and the API's start and resume will use them too.
 
 Of the spec's six refusals, these are built: test period days in a sim that is not a
 measurement (1), a cap that could take spending past the ceiling (3), a fifth sim in progress
@@ -14,7 +15,7 @@ Choices the spec leaves to the build (appendix 8, "Not decided by any ticket"):
 - "In progress" is a status of created or running. A sim shown as not responding is still
   running, so it counts; a stopped sim does not count until it is resumed.
 - The sim of holding the five assets is never refused for test period days, the ceiling or the
-  limit of 4: it decides nothing, calls nothing paid, and is shared by every sim on its days,
+  limit on sims in progress: it decides nothing, calls nothing paid, and is shared by every sim on its days,
   measurement sims included.
 """
 
@@ -59,6 +60,9 @@ class Planned:
     last_step: int
     starting_value: float
     spending_cap: float | None
+    spending_cap_given: float | None = (
+        None  # a practice sim's cap, if the developer raised it
+    )
 
 
 def check(
@@ -70,8 +74,9 @@ def check(
         return refusals
     return (
         refusals
+        + _practice_cap(sim, settings)
         + _test_period_days(sim, info)
-        + _ceiling(sim, store, settings)
+        + _ceiling(sim.spending_cap or 0.0, store, settings)
         + _too_many(store, settings)
     )
 
@@ -80,6 +85,26 @@ def require_allowed(
     sim: Planned, info: DatasetInfo, store: SimStore, settings: SpendingSettings
 ) -> None:
     refusals = check(sim, info, store, settings)
+    if refusals:
+        raise Refused(refusals)
+
+
+def check_resume(
+    sim: dict, store: SimStore, settings: SpendingSettings
+) -> list[Refusal]:
+    """The refusals that still apply when a stopped sim (its row, `sim`) is carried on: the
+    ceiling, with what is left under its cap, and the limit on sims in progress, itself left
+    out of both. The rest were checked when it started and have not changed."""
+    if sim["VARIANT"] == "buy_hold":
+        return []
+    left = max(0.0, (sim.get("SPENDING_CAP") or 0.0) - store.spent(sim["ID"]))
+    return _ceiling(left, store, settings, excluding=sim["ID"]) + _too_many(
+        store, settings, excluding=sim["ID"]
+    )
+
+
+def require_resumable(sim: dict, store: SimStore, settings: SpendingSettings) -> None:
+    refusals = check_resume(sim, store, settings)
     if refusals:
         raise Refused(refusals)
 
@@ -123,7 +148,7 @@ def _request(sim: Planned, info: DatasetInfo) -> list[Refusal]:
                 f"pick one of {', '.join(KINDS)}",
             )
         )
-    elif sim.variant in BUILT_VARIANTS[1:] and sim.kind != "practice":
+    elif sim.variant == "memory_off" and sim.kind != "practice":
         found.append(
             Refusal(
                 "not_built",
@@ -197,18 +222,37 @@ def _test_period_days(sim: Planned, info: DatasetInfo) -> list[Refusal]:
     return found
 
 
+def _practice_cap(sim: Planned, settings: SpendingSettings) -> list[Refusal]:
+    """A practice sim's cap may only be raised above the usual one, for that one sim."""
+    given = sim.spending_cap_given
+    if sim.kind != "practice" or given is None or given > settings.practice_cap_usd:
+        return []
+    return [
+        Refusal(
+            "cap_not_raised",
+            f"a practice sim's cap can only be raised above ${settings.practice_cap_usd:.2f}, "
+            f"not set to ${given:.2f}",
+            f"give a cap above ${settings.practice_cap_usd:.2f}, or none",
+        )
+    ]
+
+
 def _ceiling(
-    sim: Planned, store: SimStore, settings: SpendingSettings
+    may_add: float,
+    store: SimStore,
+    settings: SpendingSettings,
+    excluding: int | None = None,
 ) -> list[Refusal]:
-    """Refusal 3: money paid, plus what the sims in progress may still spend under their caps,
-    plus this sim's cap, must stay within the ceiling."""
-    cap = sim.spending_cap or 0.0
+    """Refusal 3: money paid, plus what the other sims in progress may still spend under their
+    caps, plus what this sim may spend (`may_add`), must stay within the ceiling."""
     may_still_spend = sum(
         max(0.0, (s["SPENDING_CAP"] or 0.0) - s["SPENT"])
         for s in store.sims_in_progress()
+        if s["ID"] != excluding
     )
-    spoken_for = store.total_spent() + may_still_spend
-    if spoken_for + cap <= settings.ceiling_usd + 1e-9:
+    paid = store.total_spent()
+    spoken_for = paid + may_still_spend
+    if spoken_for + may_add <= settings.ceiling_usd + 1e-9:
         return []
     room = math.floor(round((settings.ceiling_usd - spoken_for) * 100, 6)) / 100
     fix = (
@@ -220,17 +264,24 @@ def _ceiling(
     return [
         Refusal(
             "over_ceiling",
-            f"this sim's ${cap:.2f} cap could take spending to ${spoken_for + cap:.2f}, past "
-            f"the ${settings.ceiling_usd:.2f} ceiling (${store.total_spent():.2f} paid, "
-            f"${may_still_spend:.2f} more allowed to the sims in progress)",
+            f"this sim may spend ${may_add:.2f} more, which could take spending to "
+            f"${spoken_for + may_add:.2f}, past the ${settings.ceiling_usd:.2f} ceiling "
+            f"(${paid:.2f} paid, ${may_still_spend:.2f} more allowed to the sims in progress)",
             fix,
         )
     ]
 
 
-def _too_many(store: SimStore, settings: SpendingSettings) -> list[Refusal]:
-    """Refusal 4: at most 4 sims of the agent in progress, with no waiting line."""
-    running = [s for s in store.sims_in_progress() if s["VARIANT"] != "buy_hold"]
+def _too_many(
+    store: SimStore, settings: SpendingSettings, excluding: int | None = None
+) -> list[Refusal]:
+    """Refusal 4: no more sims of the agent in progress at once than the setting allows, with
+    no waiting line."""
+    running = [
+        s
+        for s in store.sims_in_progress()
+        if s["VARIANT"] != "buy_hold" and s["ID"] != excluding
+    ]
     if len(running) < settings.most_sims_in_progress:
         return []
     names = ", ".join(

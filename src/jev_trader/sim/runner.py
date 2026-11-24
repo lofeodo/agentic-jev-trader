@@ -49,14 +49,7 @@ from jev_trader.jev.reading import Reading
 from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
 from jev_trader.sim.agent import AgentWithoutMemory
-from jev_trader.sim.checker import (
-    BUILT_VARIANTS,
-    KINDS,
-    PRACTICE_MOST_STEPS,
-    VARIANTS,
-    Planned,
-    require_allowed,
-)
+from jev_trader.sim.checker import BUILT_VARIANTS, Planned, require_allowed
 from jev_trader.sim.clock import midnights_between
 from jev_trader.sim.market import Market
 from jev_trader.sim.spending import (
@@ -74,7 +67,6 @@ from jev_trader.sim.store import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-__all__ = ["BUILT_VARIANTS", "KINDS", "PRACTICE_MOST_STEPS", "VARIANTS"]
 
 
 class DuplicateRecords(Exception):
@@ -190,11 +182,11 @@ def create_sim(
     settings = settings_document(request.starting_value, request.variant)
     estimate = 0.0
     if request.variant != "buy_hold":
-        share = store.latest_closer_look_share()
+        share = store.latest_tier_2_share()
         estimate = estimate_cost(
             request.variant,
             market.bar_count(info.dataset_id, request.first_step, request.last_step),
-            spending.default_closer_look_share if share is None else share,
+            spending.default_tier_2_share if share is None else share,
             settings["jev"]["dollars_per_million_tokens_read"],
             spending,
         )
@@ -209,6 +201,7 @@ def create_sim(
         last_step=request.last_step,
         starting_value=request.starting_value,
         spending_cap=cap,
+        spending_cap_given=request.spending_cap,
     )
     require_allowed(planned, info, store, spending)
     return store.create(

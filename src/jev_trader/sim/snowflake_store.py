@@ -190,7 +190,7 @@ class SnowflakeSimStore(_Connection):
             for row in rows
         ]
 
-    def latest_closer_look_share(self) -> float | None:
+    def latest_tier_2_share(self) -> float | None:
         found = self._run(
             "SELECT COUNT_IF(d.KIND = ?) / COUNT(*) FROM MEMORY.DECISIONS d "
             "JOIN SIM.SIMS s ON s.ID = d.SIM "

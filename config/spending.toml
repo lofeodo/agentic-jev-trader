@@ -6,8 +6,8 @@
 # in progress may still spend under their caps, plus the new sim's cap.
 ceiling_usd = 75.0
 
-# The most sims of the agent in progress at once (created or running). A fifth is refused, with
-# a message naming the four. The sim of holding the five assets does not count.
+# The most sims of the agent in progress at once (created or running). One more is refused, with
+# a message naming those in progress. The sim of holding the five assets does not count.
 most_sims_in_progress = 4
 
 # Every sim's spending cap is its cost estimate times this: an estimate of $3.00 gives a cap of
@@ -18,9 +18,10 @@ cap_times_estimate = 1.5
 practice_cap_usd = 0.25
 
 # The cost estimate. A check is one screen: one Jev request per asset with a bar at each step.
-# Some checks lead to a closer look (a full evaluation or a position review): the share measured
-# by the latest practice sim, or this one until a practice sim exists (0.15 is 15 in 100).
-default_closer_look_share = 0.15
+# Some checks lead to Tier 2 (a full evaluation or a position review): the share measured by the
+# latest practice sim, or this one until a practice sim exists (0.15 is 15 in 100: of 170 checks
+# in a day, about 25 full evaluations).
+default_tier_2_share = 0.15
 
 # One Jev request reads about this many tokens; its price per million is in `jev.toml`.
 # 3,000 tokens at $0.042 per million is about $0.00013.
@@ -29,5 +30,6 @@ jev_tokens_per_request = 3000
 # Jev requests in a full evaluation after its screen: the pick and the size.
 jev_requests_per_full_evaluation = 2
 
-# What the LLM costs for one closer look, in a sim with memory (Claude Haiku: about $0.0022).
-llm_dollars_per_closer_look = 0.0022
+# What the LLM costs for one full evaluation or position review, in a sim with memory (Claude
+# Haiku: about $0.0022).
+llm_dollars_per_tier_2 = 0.0022

@@ -11,7 +11,7 @@ import pytest
 
 from jev_trader.jev.client import load_jev_settings
 from jev_trader.sim.__main__ import main
-from jev_trader.sim.checker import Refused
+from jev_trader.sim.checker import Refused, check_resume
 from jev_trader.sim.runner import SimRequest, create_sim
 from jev_trader.sim.spending import (
     SpendingSettings,
@@ -26,10 +26,10 @@ SETTINGS = SpendingSettings(
     most_sims_in_progress=4,
     cap_times_estimate=1.5,
     practice_cap_usd=0.25,
-    default_closer_look_share=0.15,
+    default_tier_2_share=0.15,
     jev_tokens_per_request=3000,
     jev_requests_per_full_evaluation=2,
-    llm_dollars_per_closer_look=0.0022,
+    llm_dollars_per_tier_2=0.0022,
 )
 JEV_REQUEST = 3000 * load_jev_settings().dollars_per_million_tokens_read / 1e6
 
@@ -258,6 +258,13 @@ def test_a_practice_sims_cap_is_25_cents_unless_the_developer_raises_it(market):
     assert (plain["SPENDING_CAP"], raised["SPENDING_CAP"]) == (0.25, 0.40)
 
 
+@pytest.mark.parametrize("given", [0.25, 0.10, 0.0])
+def test_a_practice_sims_cap_can_only_be_raised(market, given):
+    codes = refusal_codes(InMemorySimStore(), market, request(spending_cap=given))
+
+    assert codes == ["cap_not_raised"]
+
+
 def test_the_holding_sim_has_no_estimate_and_no_cap(market):
     store = InMemorySimStore()
 
@@ -268,6 +275,46 @@ def test_the_holding_sim_has_no_estimate_and_no_cap(market):
 
 def test_the_ceiling_is_read_from_config():
     assert load_spending_settings().ceiling_usd == 75.0
+
+
+# Resuming a stopped sim
+
+
+def test_resuming_a_sim_is_refused_when_the_others_already_fill_the_limit():
+    store = InMemorySimStore()
+    stopped = sim_in_progress(store, status="stopped")
+    for _ in range(4):
+        sim_in_progress(store)
+
+    [found] = check_resume(store.sim(stopped), store, SETTINGS)
+
+    assert found.code == "too_many_sims"
+    assert f"sim {stopped} " not in found.problem
+
+
+def test_a_sim_left_running_when_killed_does_not_count_against_its_own_resume():
+    store = InMemorySimStore()
+    killed = sim_in_progress(store)
+    for _ in range(3):
+        sim_in_progress(store)
+
+    assert check_resume(store.sim(killed), store, SETTINGS) == []
+
+
+def test_resuming_counts_only_what_is_left_under_the_sims_own_cap():
+    store = InMemorySimStore()
+    stopped = sim_in_progress(store, status="stopped", cap=0.25)
+    record_spending(store, stopped, 0.20)
+    # $0.20 paid and $0.05 left under its cap: $0.25 at most, within a $0.25 ceiling, not
+    # within $0.24.
+    assert (
+        check_resume(store.sim(stopped), store, replace(SETTINGS, ceiling_usd=0.25))
+        == []
+    )
+    [found] = check_resume(
+        store.sim(stopped), store, replace(SETTINGS, ceiling_usd=0.24)
+    )
+    assert found.code == "over_ceiling"
 
 
 # The sim command
@@ -317,3 +364,41 @@ def test_the_sim_command_prints_each_refusal_with_its_fix(command, capsys):
     assert "sims in progress" in printed
     assert "Fix:" in printed
     assert len(command.sims) == 4
+
+
+def test_the_sim_command_refuses_a_cap_that_could_pass_the_ceiling(command, capsys):
+    ceiling = load_spending_settings().ceiling_usd
+    record_spending(command, None, ceiling - 0.10)
+
+    code = main(
+        [
+            "start",
+            "--dataset",
+            "7",
+            "--first-step",
+            "97",
+            "--last-step",
+            "192",
+            "--variant",
+            "memory_off",
+        ]
+    )
+
+    printed = capsys.readouterr().out
+    assert code == 2
+    assert f"past the ${ceiling:.2f} ceiling" in printed
+    assert "Fix: lower the cap to $0.10 or less" in printed
+    assert command.sims == {}
+
+
+def test_the_sim_command_refuses_to_resume_a_fifth_sim(command, capsys):
+    stopped = sim_in_progress(command, status="stopped")
+    for _ in range(4):
+        sim_in_progress(command)
+
+    code = main(["resume", str(stopped)])
+
+    printed = capsys.readouterr().out
+    assert code == 2
+    assert "sims in progress" in printed
+    assert command.sim(stopped)["STATUS"] == "stopped"

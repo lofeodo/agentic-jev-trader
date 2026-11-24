@@ -117,8 +117,8 @@ class SimStore(Protocol):
         """Each sim created or running, holding sims included, in ID order: its ID, KIND,
         VARIANT, STATUS and SPENDING_CAP, and SPENT, the dollars of its recorded calls."""
 
-    def latest_closer_look_share(self) -> float | None:
-        """The share of checks that led to a closer look in the latest practice sim of the
+    def latest_tier_2_share(self) -> float | None:
+        """The share of checks that led to Tier 2 in the latest practice sim of the
         agent that made any; None if there is none."""
 
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
@@ -230,7 +230,7 @@ class InMemorySimStore:
             if sim["STATUS"] in IN_PROGRESS
         ]
 
-    def latest_closer_look_share(self) -> float | None:
+    def latest_tier_2_share(self) -> float | None:
         for sim_id, sim in sorted(self.sims.items(), reverse=True):
             if sim.get("KIND") != "practice" or sim.get("VARIANT") == "buy_hold":
                 continue
