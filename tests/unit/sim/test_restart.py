@@ -6,6 +6,7 @@ these run the same rules on the in-memory stand-in.
 
 import pytest
 
+from jev_trader.jobs import this_process
 from jev_trader.sim.runner import (
     DuplicateRecords,
     SimRequest,
@@ -116,3 +117,20 @@ def test_a_sim_with_a_record_id_stored_twice_ends_failed(market):
     with pytest.raises(DuplicateRecords, match="SIM.ACCOUNT_STEPS"):
         run_sim(store, market, sim_id)
     assert store.sim(sim_id)["STATUS"] == "failed"
+
+
+def test_a_running_sim_notes_where_its_job_runs_and_when_it_last_started(market):
+    """So the API can find and kill the job (appendix 8, section 8.7), and tell a freshly
+    resumed sim from one gone quiet."""
+    store = InMemorySimStore()
+    sim_id = new_sim(store, market)
+    store.kill_on_write(2)
+    with pytest.raises(SimulatedKill):
+        run_sim(store, market, sim_id)
+    first_start = store.sim(sim_id)["STARTED_AT"]
+
+    run_sim(store, market, sim_id)
+
+    sim = store.sim(sim_id)
+    assert sim["RUNNING_ON"] == this_process()
+    assert sim["STARTED_AT"] > first_start
