@@ -84,7 +84,9 @@ def left_memory(sim_login, made_up_dataset, remove_sims):
     dataset and the sim."""
     store = SnowflakeSimStore(sim_login)
     dataset_id = made_up_dataset(days=2)
-    source = store.create(sim_row(dataset_id, KIND="build-up", STATUS="finished"))
+    source = store.create(
+        sim_row(dataset_id, KIND="build-up", VARIANT="memory_on", STATUS="finished")
+    )
     remove_sims.append(source)
     with sim_login.cursor() as cur:
         for table, rows in memory_rows(source, dataset_id).items():
