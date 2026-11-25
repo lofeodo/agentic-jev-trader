@@ -489,6 +489,14 @@ _Avoid_: Preview, snippet
 The few lines that stand for one selected episode in a background: how long ago it was, whether it was the same asset, the situation text, what was decided, and how it ended. For a past position review it also gives the position's standing then, where the price went next, and how its trade was handled bar by bar.
 _Avoid_: Episode card, example
 
+**Memory server**:
+The one MCP server (MCP, the Model Context Protocol, is the standard way to offer tools to a model over the network). It offers three read-only lookups (episode search, reading up to 5 episodes in full, and reading the scorecard) and logs in with a role that can only read, so whatever the LLM asks, it cannot change memory or place an order.
+_Avoid_: MCP tools (plural servers), memory API
+
+**Bridge**:
+The agent's side of the memory server: the MCP client plus the three lookups described by hand as the LLM sees them, without the sim and the step. It is made for one moment and fills those in on every call, so the LLM can only ask about the current step or earlier ones.
+_Avoid_: Adapter, MCP wrapper
+
 ### Testing
 
 **Recorded-answer test**:

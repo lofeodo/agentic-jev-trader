@@ -128,6 +128,13 @@ def test_a_full_evaluation_that_traded_is_complete_once_its_position_closed(
     assert entry["VALUE"]["price"] == pytest.approx(100.15005)
     closed = found["position_closed"]
     assert (closed["KNOWN_FROM"], closed["VALUE"]["bars_after"]) == (103, 6)
+    # What memory needs to write the trade without reading the orders: which position it was
+    # (to follow its bars), the money put in, and its best and worst point.
+    position = entry["VALUE"]["position"]
+    assert evaluation["STEP"] < 98 and isinstance(position, int)
+    assert closed["VALUE"]["amount_entered"] == pytest.approx(entry["VALUE"]["value"])
+    best, worst = closed["VALUE"]["best"], closed["VALUE"]["worst"]
+    assert worst <= closed["VALUE"]["profit"] <= best
     assert "closed_at_this_review" not in closed["VALUE"]
     # Searchable from the close, before the day has ended.
     assert evaluation["OUTCOMES_KNOWN_FROM"] == 103

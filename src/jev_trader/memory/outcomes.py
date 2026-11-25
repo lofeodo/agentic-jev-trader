@@ -226,6 +226,7 @@ class Outcomes:
                     "carried_out": True,
                     "price": fill.price,
                     "value": fill.value,
+                    "position": fill.position_id,
                 },
             )
         ]
@@ -262,6 +263,9 @@ class Outcomes:
                 "bars_after": episode["bars"],
                 "profit": trade.profit,
                 "trading_costs": trade.trading_costs,
+                "amount_entered": trade.amount_entered,
+                "best": trade.best,
+                "worst": trade.worst,
             }
             if episode["kind"] == KIND_POSITION_REVIEW:
                 value["closed_at_this_review"] = (
