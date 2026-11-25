@@ -9,9 +9,6 @@ import pytest
 from infra import wait_healthy
 from infra.wait_healthy import wait_until_healthy
 
-# Dormant until the slice's closing ticket switches it on (slice map #115).
-pytestmark = pytest.mark.skip(reason="dormant: the kind-cluster slice's tests (#115)")
-
 MEMORY = "http://memory:8765/health"
 API = "http://api:8000/health"
 WEB = "http://web/"
