@@ -29,13 +29,14 @@ TABLES = (
     "SIM.SIM_EVENTS",
     "SIM.CALLS",
     "SIM.JEV_REQUESTS",
+    "SIM.LLM_EXCHANGES",
     "MEMORY.DECISIONS",
     "MEMORY.OUTCOMES",
 )
 # A sim's memory: the tables a sim with memory starts from a copy of (spec appendix 6, section
 # 3.5). Each row's SIM is the memory it belongs to; FIRST_WRITTEN_BY the sim that wrote it.
-# Only the MEMORY tables a step writes are copied: a later MEMORY table (POSITIONS,
-# TOOL_CALLS, ...) must go into TABLES to be part of the copy.
+# Only the MEMORY tables a step writes are copied: a later MEMORY table (POSITIONS, ...) must go
+# into TABLES to be part of the copy.
 MEMORY_TABLES = tuple(name for name in TABLES if name.startswith("MEMORY."))
 # A decision's KIND. An asset with no position: a screen alone (tier 0 or 1), or a full evaluation
 # (tier 2); both began with the screen, unless code skipped it. An open position: a position
@@ -142,6 +143,10 @@ class SimStore(Protocol):
     def save_reading(self, version: str, opening: str) -> None:
         """Store the opening of Jev's background, once per reading version."""
 
+    def save_prompt(self, version: str, system_prompt: str, tools: list[dict]) -> None:
+        """Store the LLM's standing instructions and the tools it is offered, once per prompt
+        version."""
+
     def spent(self, sim_id: int) -> float:
         """The dollars of the sim's recorded paid calls."""
 
@@ -188,6 +193,7 @@ class InMemorySimStore:
         self.sims: dict[int, dict] = {}
         self.tables: dict[str, list[dict]] = defaultdict(list)
         self.readings: dict[str, str] = {}
+        self.prompts: dict[str, tuple[str, list[dict]]] = {}
         self._kill_in: int | None = None
 
     def kill_on_write(self, n: int) -> None:
@@ -302,6 +308,9 @@ class InMemorySimStore:
 
     def save_reading(self, version: str, opening: str) -> None:
         self.readings.setdefault(version, opening)
+
+    def save_prompt(self, version: str, system_prompt: str, tools: list[dict]) -> None:
+        self.prompts.setdefault(version, (system_prompt, tools))
 
     def spent(self, sim_id: int) -> float:
         return sum(r["COST_USD"] or 0.0 for r in self.rows("SIM.CALLS", sim_id))

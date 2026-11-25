@@ -1,5 +1,5 @@
 # The LLM a sim with memory uses to pick which past episodes Jev is shown (spec appendix 8,
-# section 4). Jev itself is set in `jev.toml`.
+# section 4; appendix 5, section 9). Jev itself is set in `jev.toml`. A sim uses one model for its whole run.
 
 # The model a free sim uses unless the developer picks the other: Claude Haiku until the
 # measurement sims are done, then whatever the developer sets here.
@@ -11,3 +11,59 @@ default_model = "claude-haiku-5-5"
 [models]
 "claude-haiku-5-5" = "anthropic"
 "glm-5.3-flash" = "openai"
+
+# How each provider is called. Only the block of the sim's provider is used.
+#
+# - key_variable: the variable in .env holding the key; code passes it to the model itself.
+# - retries: quick retries after the first try, waiting first_retry_wait_seconds and then twice as
+#   long each time (0.5, 1, 2 seconds). A call still failing after these stops the sim ("LLM
+#   failed"); it can be resumed. A refusal (the provider's safety filter declining) counts as a
+#   failed try.
+# - most_in_flight: the most calls this program has waiting on the provider at once.
+# - Prices in US dollars per million tokens (a token is a small piece of text, about three
+#   quarters of a word). Estimates until the first practice sim measures
+#   them: at $0.10 per million read and $0.50 per million written, a call reading 3,000 tokens and
+#   writing 200 costs $0.0004.
+# - [<provider>.model]: what LangChain's model is built with, as it comes. No tool call is ever
+#   forced, and no randomness setting (temperature) is sent.
+
+[anthropic]
+service = "anthropic"
+key_variable = "ANTHROPIC_API_KEY"
+retries = 3
+first_retry_wait_seconds = 0.5
+dollars_per_million_tokens_in = 0.10
+# Reading the unchanged opening of a prompt from the cache costs a tenth of the input price;
+# writing it to the cache costs 1.25 times.
+dollars_per_million_cached_tokens_in = 0.01
+dollars_per_million_cache_writes = 0.125
+dollars_per_million_tokens_out = 0.50
+
+[anthropic.model]
+# Thinking (the model working the request through privately before it answers, paid as
+# written tokens) stays on (with it off the model can skip a tool call it needs), at low effort so it
+# skips thinking on simple requests.
+reasoning_effort = "low"
+# Prompt caching on: the API keeps the prompt's unchanged opening for 5 minutes ("ephemeral")
+# and charges a tenth of the price to read it again.
+model_kwargs = { cache_control = { type = "ephemeral" } }
+
+[openai]
+service = "zai"
+key_variable = "ZAI_API_KEY"
+retries = 3
+first_retry_wait_seconds = 0.5
+# Z.ai refuses a fifth request at once (its "too many requests" answer: HTTP 429, error 1302), and its quick retries are too
+# short to outlast four slow calls: code holds its own calls to 4.
+most_in_flight = 4
+dollars_per_million_tokens_in = 0.15
+# Caching is automatic on Z.ai, with no switch; whether it covers this model is settled by the
+# GLM practice sim. Writing to the cache is not priced apart.
+dollars_per_million_cached_tokens_in = 0.03
+dollars_per_million_tokens_out = 0.50
+
+[openai.model]
+base_url = "https://api.z.ai/api/paas/v4/"
+# Thinking cannot be switched off; low (accepted: low, high, max; default max) wrote no thinking
+# tokens on a one-line test.
+reasoning_effort = "low"

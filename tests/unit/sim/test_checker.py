@@ -10,6 +10,7 @@ from dataclasses import replace
 import pytest
 
 from jev_trader.jev.client import load_jev_settings
+from jev_trader.llm.settings import load_call_settings, load_llm_settings
 from jev_trader.sim.__main__ import main
 from jev_trader.sim.checker import Refused, check_resume
 from jev_trader.sim.runner import SimRequest, create_sim
@@ -342,6 +343,51 @@ def test_resuming_counts_only_what_is_left_under_the_sims_own_cap():
         store.sim(stopped), store, replace(SETTINGS, ceiling_usd=0.24)
     )
     assert found.code == "over_ceiling"
+
+
+# The agent with memory
+
+LLM_KEY = load_call_settings(load_llm_settings().provider).key_variable
+
+
+@pytest.mark.parametrize("kind", ["tuning", "build-up", "free", "measurement"])
+def test_only_practice_sims_of_the_agent_with_memory_are_built(
+    market, monkeypatch, kind
+):
+    monkeypatch.setenv(LLM_KEY, "made-up")
+    sim_request = request(variant="memory_on", kind=kind)
+
+    assert "not_built" in refusal_codes(InMemorySimStore(), market, sim_request)
+
+
+def test_a_sim_with_memory_is_refused_while_its_llm_has_no_key(market, monkeypatch):
+    monkeypatch.delenv(LLM_KEY, raising=False)
+
+    with pytest.raises(Refused) as refused:
+        create_sim(InMemorySimStore(), market, request(variant="memory_on"), SETTINGS)
+
+    [missing] = [r for r in refused.value.refusals if r.code == "llm_key_missing"]
+    assert LLM_KEY in missing.problem
+    assert missing.fix == f"set {LLM_KEY} in .env"
+
+
+def test_a_sim_without_memory_needs_no_llm_key(market, monkeypatch):
+    monkeypatch.delenv(LLM_KEY, raising=False)
+
+    assert create_sim(InMemorySimStore(), market, request(), SETTINGS)
+
+
+def test_resuming_a_sim_with_memory_is_refused_while_its_llm_has_no_key(monkeypatch):
+    store = InMemorySimStore()
+    stopped = sim_in_progress(store, variant="memory_on", status="stopped")
+    store.sims[stopped]["SETTINGS"] = {"llm": {"model": load_llm_settings().model}}
+    monkeypatch.delenv(LLM_KEY, raising=False)
+
+    codes = [r.code for r in check_resume(store.sim(stopped), store, SETTINGS)]
+
+    assert codes == ["llm_key_missing"]
+    monkeypatch.setenv(LLM_KEY, "made-up")
+    assert check_resume(store.sim(stopped), store, SETTINGS) == []
 
 
 # The sim command

@@ -7,23 +7,23 @@ sim with memory starts from its own copy of one, by default the base memory (wha
 sim left). Runs on the in-memory store and the made-up market of `conftest.py`: day 2 is steps 97
 to 192, day 3 (193 to 288) the test period.
 
-The agent with memory is not built yet (it comes with the LLM's tool loop), so the checker's
-tests treat it as built.
+A sim with memory needs its LLM's key, so the tests set a made-up one.
 """
 
 import pytest
 
 from jev_trader.api.store import InMemoryApiStore
-from jev_trader.sim.__main__ import main
+from jev_trader.llm.settings import load_call_settings, load_llm_settings
+from jev_trader.sim.__main__ import main, open_memory
 from jev_trader.sim.checker import Refused
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from jev_trader.sim.store import MEMORY_TABLES, InMemorySimStore, SimulatedKill
 
 
 @pytest.fixture(autouse=True)
-def memory_on_built(monkeypatch):
-    monkeypatch.setattr(
-        "jev_trader.sim.checker.BUILT_VARIANTS", ("buy_hold", "memory_off", "memory_on")
+def llm_key(monkeypatch):
+    monkeypatch.setenv(
+        load_call_settings(load_llm_settings().provider).key_variable, "made-up"
     )
 
 
@@ -170,7 +170,7 @@ def test_a_sim_with_memory_starts_from_the_base_memory_by_default(market):
     left_memory(store, status="failed")
     left_memory(store, kind="practice")
 
-    sim_id = create_sim(store, market, with_memory(kind="free"))
+    sim_id = create_sim(store, market, with_memory())
 
     assert store.sim(sim_id)["MEMORY_FROM_SIM"] == base
 
@@ -179,7 +179,7 @@ def test_a_sim_with_memory_is_refused_while_there_is_no_base_memory(market):
     store = InMemorySimStore()
     left_memory(store, kind="practice")
 
-    assert refusal_codes(store, market, with_memory(kind="free")) == ["no_base_memory"]
+    assert refusal_codes(store, market, with_memory()) == ["no_base_memory"]
 
 
 def test_the_rehearsal_starts_a_practice_sim_from_its_first_sims_memory(market):
@@ -210,7 +210,7 @@ def test_a_sim_that_counts_is_refused_an_older_build_up_sims_memory(market):
 
     codes = refusal_codes(store, market, with_memory(kind="free", memory_from=older))
 
-    assert codes == ["not_base_memory"]
+    assert "not_base_memory" in codes
 
 
 @pytest.mark.parametrize(
@@ -364,7 +364,8 @@ def test_the_sim_page_lists_only_the_decisions_the_sim_made(market):
 
 @pytest.fixture
 def command(monkeypatch, market):
-    """The sim command on the in-memory store and market, with no Snowflake and no Jev."""
+    """The sim command on the in-memory store and market, with no Snowflake, no Jev and no
+    memory server; it creates the sim and runs no step."""
     store = InMemorySimStore()
 
     class Nothing:
@@ -374,8 +375,16 @@ def command(monkeypatch, market):
         def close(self):
             pass
 
+        def lookups_at(self, context):
+            raise AssertionError("no step runs")
+
+    def runs_no_step(*args, **kwargs):
+        raise ValueError("the test runs no step")
+
     monkeypatch.setattr("jev_trader.sim.__main__.connect", Nothing)
     monkeypatch.setattr("jev_trader.sim.__main__.JevClient", Nothing)
+    monkeypatch.setattr("jev_trader.sim.__main__.open_memory", Nothing)
+    monkeypatch.setattr("jev_trader.sim.__main__.run_sim", runs_no_step)
     monkeypatch.setattr("jev_trader.sim.__main__.SnowflakeSimStore", lambda c: store)
     monkeypatch.setattr("jev_trader.sim.__main__.SnowflakeMarket", lambda c: market)
     return store
@@ -414,3 +423,34 @@ def test_the_command_prints_why_a_memory_is_refused(command, capsys):
     assert code == 2
     assert "the agent would remember its own future" in printed
     assert "Fix: start this sim after step" in printed
+
+
+def test_the_command_refuses_a_sim_with_memory_while_the_memory_server_is_down(
+    command, capsys, monkeypatch
+):
+    class Down:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            raise ConnectionError("made-up: nothing listens")
+
+        def __exit__(self, *exc):
+            pass
+
+    monkeypatch.setattr("jev_trader.sim.__main__.open_memory", open_memory)
+    monkeypatch.setattr("jev_trader.sim.__main__.Connection", Down)
+    first_day = left_memory(
+        command, kind="practice", first_step=1, last_step=96, decided_at=(50, 60)
+    )
+
+    code = main(
+        ["practice", "--dataset", "7", "--first-step", "97"]
+        + ["--memory-from", str(first_day)]
+    )
+
+    printed = capsys.readouterr().out
+    assert code == 2
+    assert "the memory server at http://127.0.0.1:8765 did not answer" in printed
+    assert "python -m jev_trader.memory serve" in printed
+    assert list(command.sims) == [first_day]  # no sim row left behind

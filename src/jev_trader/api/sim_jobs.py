@@ -21,9 +21,8 @@ start stores.
 
 Every refusal comes back together with a code and a message saying what to change. A start goes
 through the one checker (`jev_trader.sim.checker`), its sims checked together and let past the
-two "not built yet" refusals (see `checker`): until the agent with memory is built, a sim with
-memory's job fails in its first moment, before any paid call, while a sim without memory really
-runs and calls Jev, up to its cap. A resume goes through `check_resume` (the ceiling, with the
+"not built yet" refusal (see `checker`): each sim really runs and calls Jev (and, with memory,
+the LLM), up to its cap. A resume goes through `check_resume` (the ceiling, with the
 new cap if one is given, and the limit of sims in progress). The checks only the API makes
 (command-line-only kinds, days, the new cap) stay here; a request that fails them, having no
 steps to check, gets only those refusals.

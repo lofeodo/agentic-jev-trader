@@ -10,11 +10,12 @@ The sim command uses `check`; the API's start and the form's question (`GET /sim
 All six of the spec's refusals are built: test period days in a sim that is not a measurement
 (1), a memory the sim may not start from (2), a cap that could take spending past the ceiling
 (3), a fifth sim in progress (4), a dataset that is not published (5), and an unknown model (6).
-The other refusals are the limits of what is built so far. A start from the app is let past the
-two "not built yet" ones (the developer's decision on the New trading sim form's tickets, #174
-and #176): its sims are stored and their jobs started. Until the agent with memory is built, a
-sim with memory's job fails in its first moment ("not built yet"), before any paid call; a
-measurement, build-up or free sim without memory really runs, calling Jev up to its cap.
+The other refusals are the limits of what is built so far (only practice sims of the agent, with
+or without memory), and a sim with memory whose LLM has no key in `.env`, checked on a start and
+on a resume, before its job builds the LLM client. A start from the app is let past the "not
+built yet" one (the developer's decision on the New trading sim form's tickets, #174 and #176):
+its measurement and free sims, with or without memory, really run, calling Jev (and the LLM) up
+to their caps.
 
 `check_models` is the request's own refusals about models, before any sim is planned: every
 model named must be known, even one no sim of the start would use, and only a measurement names
@@ -39,17 +40,18 @@ Choices the spec leaves to the build (appendix 8, "Not decided by any ticket"):
 """
 
 import math
+import os
 from dataclasses import dataclass
 
 from jev_trader.dataset.store import DatasetStatus
 from jev_trader.llm.models import load_model_settings
+from jev_trader.llm.settings import LlmSettings, load_call_settings
 from jev_trader.sim.market import DatasetInfo
 from jev_trader.sim.spending import SpendingSettings
 from jev_trader.sim.store import SimStore
 
 KINDS = ("practice", "tuning", "build-up", "measurement", "free")
 VARIANTS = ("buy_hold", "memory_off", "memory_on")
-BUILT_VARIANTS = ("buy_hold", "memory_off")
 # A practice sim of the agent: at most one replayed day (spec appendix 9, section 2).
 PRACTICE_MOST_STEPS = 96
 
@@ -108,11 +110,9 @@ def check_together(
     dataset), in a fixed order, each said once; empty if they may start.
 
     The ceiling counts all their caps at once, and the limit on sims in progress all the agent's
-    sims among them. `unbuilt_allowed` lets through what is not built yet (the agent with memory,
-    and the agent without memory beyond practice sims): a start from the app, which the developer
-    allowed so the New trading sim form works before the agent with memory does. A sim with
-    memory's job then fails in its first moment, before any paid call; a sim without memory
-    really runs, up to its cap."""
+    sims among them. `unbuilt_allowed` lets through what is not built yet (the agent's sims
+    beyond practice sims): a start from the app, which the developer allowed for the New trading
+    sim form. Those sims really run, up to their caps."""
     refusals = _dataset(info)
     for sim in sims:
         refusals += (
@@ -123,7 +123,11 @@ def check_together(
     agents = [sim for sim in sims if sim.variant != "buy_hold"]
     if agents:
         for sim in agents:
-            refusals += _practice_cap(sim, settings) + _test_period_days(sim, info)
+            refusals += (
+                _practice_cap(sim, settings)
+                + _test_period_days(sim, info)
+                + _llm_key(sim.model and load_model_settings().providers.get(sim.model))
+            )
         practice = any(sim.kind == "practice" for sim in agents)
         refusals += _ceiling(
             sum(sim.spending_cap or 0.0 for sim in agents),
@@ -168,8 +172,11 @@ def check_resume(
     if sim["VARIANT"] == "buy_hold":
         return []
     left = max(0.0, (sim.get("SPENDING_CAP") or 0.0) - store.spent(sim["ID"]))
-    return _ceiling(left, store, settings, None, excluding=sim["ID"]) + _too_many(
-        store, settings, excluding=sim["ID"]
+    llm = (sim.get("SETTINGS") or {}).get("llm")
+    return (
+        _ceiling(left, store, settings, None, excluding=sim["ID"])
+        + _too_many(store, settings, excluding=sim["ID"])
+        + _llm_key(llm and LlmSettings(llm["model"]).provider)
     )
 
 
@@ -322,14 +329,6 @@ def _request(sim: Planned, info: DatasetInfo, unbuilt_allowed: bool) -> list[Ref
                 f"pick one of {', '.join(VARIANTS)}",
             )
         )
-    elif sim.variant not in BUILT_VARIANTS and not unbuilt_allowed:
-        found.append(
-            Refusal(
-                "not_built",
-                f"the {sim.variant} variant is not built yet",
-                f"pick one of {', '.join(BUILT_VARIANTS)}",
-            )
-        )
     if sim.kind not in KINDS:
         found.append(
             Refusal(
@@ -338,7 +337,7 @@ def _request(sim: Planned, info: DatasetInfo, unbuilt_allowed: bool) -> list[Ref
                 f"pick one of {', '.join(KINDS)}",
             )
         )
-    elif sim.variant == "memory_off" and sim.kind != "practice" and not unbuilt_allowed:
+    elif sim.variant != "buy_hold" and sim.kind != "practice" and not unbuilt_allowed:
         found.append(
             Refusal(
                 "not_built",
@@ -498,6 +497,23 @@ def _ceiling(
             f"(${paid:.2f} paid, ${may_still_spend:.2f} more allowed to the sims in "
             f"progress; ${room:.2f} is left)",
             fix,
+        )
+    ]
+
+
+def _llm_key(provider: str | None) -> list[Refusal]:
+    """The agent with memory calls its LLM with the key `provider`'s block in `config/llm.toml`
+    names: refused when `.env` does not set it. None: no LLM, or an unknown model (refusal 6)."""
+    if provider is None:
+        return []
+    variable = load_call_settings(provider).key_variable
+    if os.environ.get(variable):
+        return []
+    return [
+        Refusal(
+            "llm_key_missing",
+            f"{variable} is not set: the agent with memory calls its LLM with it",
+            f"set {variable} in .env",
         )
     ]
 

@@ -45,9 +45,20 @@ Choices the spec leaves to the build (appendix 4, "Not decided by any ticket"):
 
 The choices about the pick and the action themselves are in `jev_trader.jev.full_evaluation`
 and `jev_trader.jev.position_review`.
+
+The agent with memory (`AgentWithMemory`, at the end) takes the same steps; before a full
+evaluation's request 1 it runs memory's first search and the LLM's selection
+(`jev_trader.llm.selection`), and the background gains the track record and the episodes
+selected. Its choices the spec leaves to the build:
+
+- Memory "holds none yet" when code's first search finds nothing; the LLM is then not asked.
+- The track record is read for each candle pattern of the last 4 bars, newest first (the
+  latest hourly and daily bars' patterns left out, as the spec's "last 4 bars" says), and
+  each direction.
 """
 
 import copy
+from collections.abc import Callable
 from typing import NamedTuple
 
 from jev_trader.broker import Bar, Broker, Direction, Position, StopPriceSettings
@@ -72,15 +83,21 @@ from jev_trader.jev.position_review import (
     reduce_share,
 )
 from jev_trader.jev.reading import (
+    MEMORIES_RELEVANT,
     AccountView,
     AssetView,
     JevRequest,
+    MemorySections,
+    PastEpisodes,
     PositionLine,
     PositionView,
     Reading,
     size_option_name,
 )
+from jev_trader.llm.selection import MemoryLookups, Selection, Selector, Situation
+from jev_trader.memory.bridge import LookupContext
 from jev_trader.memory.outcomes import Outcomes, is_last_bar_of_day
+from jev_trader.memory.search import DIRECTIONS
 from jev_trader.risk import RiskLimit
 from jev_trader.sim import records
 from jev_trader.sim.market import Market, Snapshot
@@ -145,7 +162,9 @@ class AgentWithoutMemory:
             "MEMORY.DECISIONS": [],
             "MEMORY.OUTCOMES": [],
             "SIM.JEV_REQUESTS": [],
+            "SIM.LLM_EXCHANGES": [],
             "SIM.CALLS": [],
+            "SIM.SIM_EVENTS": [],
         }
         self._note_bars(step, broker, bars)
         open_ids = {str(p.position_id) for p in broker.positions.values()}
@@ -155,12 +174,17 @@ class AgentWithoutMemory:
         snapshots = self._snapshots_at(step)
         for asset in sorted(bars):
             looked_at = (
-                _PositionAtStep if asset in broker.positions else _DecisionAtStep
+                _PositionAtStep if asset in broker.positions else self._decision_at_step
             )
             looked_at(
                 self, step, broker, asset, bars[asset], snapshots[asset], rows
             ).run()
         return rows
+
+    @property
+    def _decision_at_step(self) -> type["_DecisionAtStep"]:
+        """How an asset with no position is looked at."""
+        return _DecisionAtStep
 
     def after_step(
         self, step: int, broker: Broker, bars: dict[str, Bar]
@@ -351,6 +375,15 @@ class _AssetAtStep:
 class _DecisionAtStep(_AssetAtStep):
     """An asset with no position: the screen, then the full evaluation."""
 
+    # The full evaluation's memory sections, and how the LLM chose its past episodes: both
+    # None without memory.
+    memory: MemorySections | None = None
+    selection: Selection | None = None
+
+    def _recall(self) -> MemorySections | None:
+        """What memory adds to the full evaluation's background: nothing, without memory."""
+        return None
+
     def run(self) -> None:
         blocked_by = self.broker.entry_blocked_by(self.asset, self.snapshot.bars_left)
         if blocked_by is None and not (self.snapshot.typical_move or 0) > 0:
@@ -373,23 +406,38 @@ class _DecisionAtStep(_AssetAtStep):
         self._store_decision(None, screen, evaluation, action)
 
     def _pick(self, account: AccountView) -> Evaluation:
+        self.memory = self._recall()
         trades = candidate_trades(
             self.view.price, self.snapshot.typical_move, self.agent.stop_settings
         )
         names = [t.name for t in trades] + [NO_TRADE]
         request = self.reading.pick_request(
-            self.view, account, self.agent.playbook, trades, self._shuffled(names)
+            self.view,
+            account,
+            self.agent.playbook,
+            trades,
+            self._shuffled(names),
+            self.memory,
         )
         reply = self._ask(request, "pick")
-        answers = {q: reply.choice(q, names) for q in request.questions}
+        copies = [q for q in request.questions if q != MEMORIES_RELEVANT]
+        answers = {q: reply.choice(q, names) for q in copies}
         pick = read_pick(average_copies(list(answers.values())), trades)
-        return Evaluation(candidates=trades, answers=answers, pick=pick)
+        if MEMORIES_RELEVANT not in request.questions:
+            return Evaluation(candidates=trades, answers=answers, pick=pick)
+        fit = reply.noul(MEMORIES_RELEVANT)
+        return Evaluation(
+            candidates=trades,
+            answers={**answers, MEMORIES_RELEVANT: fit},
+            pick=pick,
+            memories_relevant=fit,
+        )
 
     def _size_and_order(self, account: AccountView, evaluation: Evaluation) -> str:
         """Ask the size, place the order, and say what was done: an entry, or nothing."""
         trade = next(t for t in evaluation.candidates if t.name == evaluation.pick)
         request = self.reading.size_request(
-            self.view, account, self.agent.playbook, trade
+            self.view, account, self.agent.playbook, trade, self.memory
         )
         reply = self._ask(request, "size")
         evaluation.size_chosen, copies = self._chosen_size(reply, "size", account)
@@ -419,18 +467,17 @@ class _DecisionAtStep(_AssetAtStep):
         evaluation: Evaluation | None = None,
         action: str = ACTION_NOTHING,
     ) -> None:
-        self._store(
-            records.decision_row(
-                self.agent.sim_id,
-                self.agent.dataset,
-                self.step,
-                self.asset,
-                skipped_because,
-                screen,
-                evaluation,
-                action,
-            )
+        row = records.decision_row(
+            self.agent.sim_id,
+            self.agent.dataset,
+            self.step,
+            self.asset,
+            skipped_because,
+            screen,
+            evaluation,
+            action,
         )
+        self._store({**row, **records.selection_columns(self.selection)})
 
 
 class _PositionAtStep(_AssetAtStep):
@@ -578,3 +625,88 @@ class _PositionAtStep(_AssetAtStep):
                 action,
             )
         )
+
+
+# The agent with memory
+
+
+class AgentWithMemory(AgentWithoutMemory):
+    """The agent with memory (spec appendix 5): the same steps, but before a full evaluation's
+    request 1 the LLM selects which past episodes Jev reads, and the background gains the track
+    record and those episodes. An open position is looked at as without memory.
+
+    `lookups_at` gives memory's lookups for one moment; `selector` is the LLM's selection step.
+    """
+
+    def __init__(
+        self,
+        *args,
+        lookups_at: Callable[[LookupContext], MemoryLookups],
+        selector: Selector,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.lookups_at = lookups_at
+        self.selector = selector
+
+    @property
+    def _decision_at_step(self) -> type[_DecisionAtStep]:
+        return _DecisionWithMemory
+
+
+class _DecisionWithMemory(_DecisionAtStep):
+    """An asset with no position, in the agent with memory."""
+
+    agent: AgentWithMemory
+
+    def _recall(self) -> MemorySections:
+        """Code's first search, then the LLM's selection, and the track record for each candle
+        pattern of the last 4 bars and each direction. Memory holding nothing yet asks no LLM."""
+        lookups = self.agent.lookups_at(
+            LookupContext(self.agent.sim_id, self.step, self.asset)
+        )
+        track_records = tuple(
+            lookups.track_record(pattern, direction)
+            for pattern in self.snapshot.recent_patterns
+            for direction in DIRECTIONS
+        )
+        first_search = lookups.search()
+        if not first_search.episodes:
+            return MemorySections(self.step, track_records, PastEpisodes.NONE_YET)
+        self.selection = self.agent.selector.select(
+            Situation(
+                asset=self.asset,
+                asset_class=self.view.asset_class,
+                step=self.step,
+                text=self.snapshot.situation_text,
+                patterns=self.snapshot.patterns,
+                playbook=self.agent.playbook,
+            ),
+            lookups,
+            first_search,
+        )
+        self._store_selection(self.selection)
+        if not self.selection.episode_ids:
+            return MemorySections(self.step, track_records, PastEpisodes.NONE_SELECTED)
+        chosen = lookups.read(list(self.selection.episode_ids)).episodes
+        return MemorySections(
+            self.step, track_records, PastEpisodes.SELECTED, tuple(chosen)
+        )
+
+    def _store_selection(self, selection: Selection) -> None:
+        """How the LLM selected, beyond what the decision row holds: the exchange word for word,
+        each call, and the notable moments."""
+        sim_id, step, asset = self.agent.sim_id, self.step, self.asset
+        self.rows["SIM.LLM_EXCHANGES"].append(
+            records.llm_exchange_row(sim_id, step, asset, selection)
+        )
+        self.rows["SIM.CALLS"] += [
+            records.llm_call_row(sim_id, step, asset, call, n)
+            for n, call in enumerate(selection.calls, start=1)
+        ]
+        events = self.rows["SIM.SIM_EVENTS"]
+        for event in selection.events:
+            number = 1 + sum(e["KIND"] == event.kind for e in events)
+            events.append(
+                records.event_row(sim_id, step, event.kind, number, event.details)
+            )
