@@ -74,9 +74,12 @@ class SimToStart(BaseModel):
     first_day: date | None = None
     last_day: date | None = None
     starting_value: float = 10_000.0
-    # The LLM or LLMs, such as ["claude-haiku-5-5", "GLM-5.3-Flash"]: a measurement names one or
+    # The LLM or LLMs, such as ["claude-haiku-5-5", "glm-5.3-flash"]: a measurement names one or
     # both, a free sim one. None: the default (`config/llm.toml`).
     models: list[str] | None = None
+    # A free sim's partner: the same days played the other way (with memory or without), side
+    # by side. A measurement always plays both.
+    partner: bool = False
 
 
 class SimCheck(BaseModel):
@@ -137,6 +140,8 @@ class Jobs:
             last_step=last_step,
             starting_value=wanted.starting_value,
             market=wanted.market,
+            # One sim per start for now. The New trading sim form's later tickets create one sim
+            # per model (and the partner); until then a sim with memory is refused as not built.
             model=wanted.models[0] if wanted.models else None,
         )
         try:

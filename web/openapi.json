@@ -3073,6 +3073,11 @@
             ],
             "title": "Models"
           },
+          "partner": {
+            "default": false,
+            "title": "Partner",
+            "type": "boolean"
+          },
           "starting_value": {
             "default": 10000.0,
             "title": "Starting Value",
@@ -4128,6 +4133,16 @@
                 }
               ],
               "title": "Models"
+            }
+          },
+          {
+            "in": "query",
+            "name": "partner",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Partner",
+              "type": "boolean"
             }
           }
         ],

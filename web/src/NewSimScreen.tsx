@@ -1,12 +1,7 @@
 // The New trading sim form (spec appendix 7, section 8): the three kinds of sim the app starts,
 // the days, memory, model, what the sim would cost, and why it may not start. Its layout only,
 // for now: nothing is asked of the API and nothing starts.
-import { SectionHeading } from "./pieces";
-
-const label = "font-mono text-[13.5px] tracking-wider text-dim";
-const field = "bg-amber px-[1ch] py-1 font-mono text-screen";
-const button =
-  "cursor-not-allowed border-[1.5px] border-amber px-[2ch] py-1.5 font-mono tracking-widest text-amber uppercase opacity-60";
+import { field, fieldLabel as label, formButton as button, SectionHeading } from "./pieces";
 
 // The kinds the app starts, each with what it is for. Practice and tuning sims are command-line
 // tools and never appear here.
@@ -15,7 +10,7 @@ const FORM_KINDS = [
     kind: "measurement",
     title: "Measurement",
     says:
-      "The exam: 30 days of one test stretch the agent was never adjusted on, played with memory " +
+      "The exam: 30 days of one test period the agent was never adjusted on, played with memory " +
       "and without, side by side. Only these results count.",
   },
   {
@@ -28,13 +23,13 @@ const FORM_KINDS = [
   {
     kind: "free",
     title: "Free sim",
-    says: "Any days you choose, outside the test stretches. Never counts.",
+    says: "Any days you choose, outside the test periods. Never counts.",
   },
 ];
 
 const MODELS = [
   { model: "claude-haiku-5-5", title: "Claude Haiku" },
-  { model: "GLM-5.3-Flash", title: "GLM Flash" },
+  { model: "glm-5.3-flash", title: "GLM Flash" },
 ];
 
 export function NewSimScreen() {
@@ -66,11 +61,11 @@ export function NewSimScreen() {
         </div>
 
         <div>
-          <SectionHeading number={2} title="Days" says="A test stretch, or your own dates" />
+          <SectionHeading number={2} title="Days" says="A test period, or your own dates" />
           <fieldset disabled className="flex flex-wrap items-end gap-6 px-[2ch]">
             <legend className="sr-only">Days</legend>
             <label className="grid gap-1">
-              <span className={label}>Test stretch</span>
+              <span className={label}>Test period</span>
               <select className={field}>
                 <option>Falling market</option>
                 <option>Rising market</option>
@@ -110,7 +105,7 @@ export function NewSimScreen() {
         </div>
 
         <div>
-          <SectionHeading number={4} title="Model" says="The LLM that picks which past trades Jev sees" />
+          <SectionHeading number={4} title="Model" says="The LLM that picks which past episodes Jev reads" />
           <fieldset disabled className="flex flex-wrap gap-6 px-[2ch]">
             <legend className="sr-only">Model</legend>
             {MODELS.map((m) => (

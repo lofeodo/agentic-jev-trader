@@ -1310,6 +1310,11 @@ export interface components {
             /** Models */
             models?: string[] | null;
             /**
+             * Partner
+             * @default false
+             */
+            partner: boolean;
+            /**
              * Starting Value
              * @default 10000
              */
@@ -1802,6 +1807,7 @@ export interface operations {
                 last_day?: string | null;
                 starting_value?: number;
                 models?: string[] | null;
+                partner?: boolean;
             };
             header?: never;
             path?: never;

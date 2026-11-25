@@ -27,9 +27,8 @@ const inProgress = (sim: SimLine) =>
 type Page = { screen: Screen; id: number | "new" | null };
 
 // The address after `#`: `#/sims/12` is sim 12's page, `#/sims/new` the New trading sim form,
-// `#/datasets/3` dataset 3's,
-// `#/comparison`, `#/datasets`, `#/playbook` and `#/spending` their screens; anything else is
-// the list of sims.
+// `#/datasets/3` dataset 3's, `#/comparison`, `#/datasets`, `#/playbook` and `#/spending` their
+// screens; anything else is the list of sims.
 function pageInAddress(): Page {
   const hash = window.location.hash;
   const sim = /^#\/sims\/(\d+)$/.exec(hash);

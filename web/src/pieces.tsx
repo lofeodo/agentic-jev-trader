@@ -33,6 +33,12 @@ export function ErrorBox({ title, text }: { title: string; text: string }) {
   );
 }
 
+// A form's field label, its input box, and its button.
+export const fieldLabel = "font-mono text-[13.5px] tracking-wider text-dim";
+export const field = "bg-amber px-[1ch] py-1 font-mono text-screen placeholder:text-screen/60";
+export const formButton =
+  "cursor-pointer border-[1.5px] border-amber px-[2ch] py-1.5 font-mono tracking-widest text-amber uppercase hover:bg-amber hover:text-screen disabled:cursor-wait disabled:opacity-60";
+
 // A label sharing a box with its value, split by a line.
 export function Pair({ name, value }: { name: string; value: string }) {
   return (
