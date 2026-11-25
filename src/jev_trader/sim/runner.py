@@ -3,7 +3,11 @@
 `create_sim` works out the sim's cost estimate and spending cap, has the one checker
 (`checker.py`) refuse it or let it through, and stores the sim's row with every setting it
 will run with.
-`run_sim` runs it, or resumes it from its last completed step:
+A sim with memory gets the sim its memory is copied from on its row (`MEMORY_FROM_SIM`): the one
+asked for, or else the base memory.
+`run_sim` runs it, or resumes it from its last completed step. A sim with memory that has stored
+no step yet first has the memory rule checked again and gets its copy of that memory, in the same
+write that marks it running (spec appendix 6, section 6). Then:
 
 1. Each step where some asset has a bar (and always the first and last step): any midnight
    passed since the step before charges the night's borrow fees and loan interest; each asset
@@ -49,7 +53,12 @@ from jev_trader.jobs import this_process
 from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
 from jev_trader.sim.agent import AgentWithoutMemory
-from jev_trader.sim.checker import BUILT_VARIANTS, Planned, require_allowed
+from jev_trader.sim.checker import (
+    BUILT_VARIANTS,
+    Planned,
+    require_allowed,
+    require_memory,
+)
 from jev_trader.sim.clock import midnights_between
 from jev_trader.sim.market import Market
 from jev_trader.sim.spending import (
@@ -86,6 +95,8 @@ class SimRequest:
     spending_cap: float | None = (
         None  # a practice sim's cap, if the developer raises it
     )
+    # The sim whose memory a sim with memory starts from a copy of. None: the base memory.
+    memory_from: int | None = None
 
 
 @dataclass(frozen=True)
@@ -198,6 +209,9 @@ def create_sim(
     cap = spending_cap(
         request.variant, request.kind, estimate, request.spending_cap, spending
     )
+    memory_from = request.memory_from
+    if request.variant == "memory_on" and memory_from is None:
+        memory_from = store.base_memory_sim(request.dataset)
     planned = Planned(
         dataset=request.dataset,
         variant=request.variant,
@@ -207,6 +221,7 @@ def create_sim(
         starting_value=request.starting_value,
         spending_cap=cap,
         spending_cap_given=request.spending_cap,
+        memory_from=memory_from,
     )
     require_allowed(planned, info, store, spending)
     return store.create(
@@ -223,6 +238,7 @@ def create_sim(
             "CODE_VERSION": code_version(),
             "ESTIMATED_COST": estimate,
             "SPENDING_CAP": cap,
+            "MEMORY_FROM_SIM": memory_from,
         }
     )
 
@@ -332,14 +348,22 @@ def run_sim(
         start, previous = last_completed + 1, last_completed
         report(f"Resuming sim {sim_id} after step {last_completed}.")
 
-    store.update(
-        sim_id,
-        STATUS=str(SimStatus.RUNNING),
-        STOP_REASON=None,
-        FAILURE_REASON=None,
-        RUNNING_ON=this_process(),
-        STARTED_AT=now(),  # when the job last started: a resumed sim is not yet quiet
-    )
+    running = {
+        "STATUS": str(SimStatus.RUNNING),
+        "STOP_REASON": None,
+        "FAILURE_REASON": None,
+        "RUNNING_ON": this_process(),
+        "STARTED_AT": now(),  # when the job last started: a resumed sim is not yet quiet
+    }
+    memory_from = sim.get("MEMORY_FROM_SIM")
+    if last_completed is None and memory_from is not None:
+        # Its memory is copied in the same write that marks it running (spec appendix 6,
+        # section 6), after the checker's memory rule has been run again.
+        require_memory(sim, store)
+        store.start_with_memory(sim_id, memory_from, **running)
+        report(f"Sim {sim_id} starts from a copy of sim {memory_from}'s memory.")
+    else:
+        store.update(sim_id, **running)
     batch = _Batch()
     if last_completed is not None and start <= last_step:
         batch.rows["SIM.SIM_EVENTS"].append(

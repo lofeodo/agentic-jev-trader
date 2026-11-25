@@ -32,6 +32,11 @@ TABLES = (
     "MEMORY.DECISIONS",
     "MEMORY.OUTCOMES",
 )
+# A sim's memory: the tables a sim with memory starts from a copy of (spec appendix 6, section
+# 3.5). Each row's SIM is the memory it belongs to; FIRST_WRITTEN_BY the sim that wrote it.
+# Only the MEMORY tables a step writes are copied: a later MEMORY table (POSITIONS,
+# TOOL_CALLS, ...) must go into TABLES to be part of the copy.
+MEMORY_TABLES = tuple(name for name in TABLES if name.startswith("MEMORY."))
 # A decision's KIND. An asset with no position: a screen alone (tier 0 or 1), or a full evaluation
 # (tier 2); both began with the screen, unless code skipped it. An open position: a position
 # screen alone (tier 0 or 1), or a position review (tier 2), which began with the position screen
@@ -115,6 +120,24 @@ class SimStore(Protocol):
 
     def duplicate_ids(self, sim_id: int) -> dict[str, int]:
         """For each table with any, how many of the sim's record IDs appear more than once."""
+
+    def base_memory_sim(self, dataset: int) -> int | None:
+        """The sim whose memory is the dataset's base memory: its latest finished build-up sim;
+        None if it has none."""
+
+    def memory_last_step(self, sim_id: int) -> int | None:
+        """The latest step anything in the sim's memory was recorded at: a decision's step, or
+        the step from which an outcome is known. None for an empty memory."""
+
+    def start_with_memory(self, sim_id: int, memory_from: int, **columns) -> None:
+        """Set columns of the sim's row (marking it running) and give it a copy of sim
+        `memory_from`'s memory, all at once.
+
+        Each copied row keeps its ID and `FIRST_WRITTEN_BY`; only its `SIM` (the memory it
+        belongs to) changes. Whatever the sim's memory already held is replaced, so a sim killed
+        after the copy and before its first step is copied again, not twice. Raises
+        `StepAlreadyWritten`, having changed nothing, if the sim has stored a step or is
+        finished."""
 
     def save_reading(self, version: str, opening: str) -> None:
         """Store the opening of Jev's background, once per reading version."""
@@ -241,6 +264,41 @@ class InMemorySimStore:
                 found[name] = duplicated
         return found
 
+    def base_memory_sim(self, dataset: int) -> int | None:
+        found = [
+            sim_id
+            for sim_id, sim in self.sims.items()
+            if sim["DATASET"] == dataset
+            and sim["KIND"] == "build-up"
+            and sim["STATUS"] == SimStatus.FINISHED
+        ]
+        return max(found, default=None)
+
+    def memory_last_step(self, sim_id: int) -> int | None:
+        steps = [
+            step
+            for r in self.rows("MEMORY.DECISIONS", sim_id)
+            for step in (r["STEP"], r.get("OUTCOMES_KNOWN_FROM"))
+            if step is not None
+        ] + [r["KNOWN_FROM"] for r in self.rows("MEMORY.OUTCOMES", sim_id)]
+        return max(steps, default=None)
+
+    def start_with_memory(self, sim_id: int, memory_from: int, **columns) -> None:
+        sim = self.sims[sim_id]
+        if (
+            sim["LAST_COMPLETED_STEP"] is not None
+            or sim["STATUS"] == SimStatus.FINISHED
+        ):
+            raise StepAlreadyWritten(
+                f"sim {sim_id} has stored up to step {sim['LAST_COMPLETED_STEP']} with "
+                f"status {sim['STATUS']}: its memory is not copied again"
+            )
+        for name in MEMORY_TABLES:
+            self.tables[name] = [r for r in self.tables[name] if r["SIM"] != sim_id] + [
+                {**r, "SIM": sim_id} for r in self.rows(name, memory_from)
+            ]
+        sim.update(columns)
+
     def save_reading(self, version: str, opening: str) -> None:
         self.readings.setdefault(version, opening)
 
@@ -264,7 +322,7 @@ class InMemorySimStore:
                 continue
             kinds = [
                 r["KIND"]
-                for r in self.rows("MEMORY.DECISIONS", sim_id)
+                for r in self.own_rows("MEMORY.DECISIONS", sim_id)
                 if r["KIND"] in SCREENED_KINDS
             ]
             if kinds:
@@ -280,7 +338,7 @@ class InMemorySimStore:
     def _answered(self, sim_id, cut_off, kinds) -> tuple[int, int]:
         answers = [
             r["SCREEN_ANSWER"]
-            for r in self.rows("MEMORY.DECISIONS", sim_id)
+            for r in self.own_rows("MEMORY.DECISIONS", sim_id)
             if r["KIND"] in kinds and r["SCREEN_ANSWER"] is not None
         ]
         return len(answers), sum(1 for a in answers if a >= cut_off)
@@ -288,7 +346,7 @@ class InMemorySimStore:
     def position_review_counts(self, sim_id: int) -> dict[str, int]:
         reviews = [
             r
-            for r in self.rows("MEMORY.DECISIONS", sim_id)
+            for r in self.own_rows("MEMORY.DECISIONS", sim_id)
             if r["KIND"] == KIND_POSITION_REVIEW
         ]
         actions = [r["ACTION"] for r in reviews]
@@ -301,14 +359,24 @@ class InMemorySimStore:
     def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
         actions = [
             r["ACTION"]
-            for r in self.rows("MEMORY.DECISIONS", sim_id)
+            for r in self.own_rows("MEMORY.DECISIONS", sim_id)
             if r["KIND"] == KIND_FULL_EVALUATION
         ]
         return len(actions), actions.count(ACTION_ENTRY)
 
+    def own_rows(self, table: str, sim_id: int) -> list[dict]:
+        """The sim's rows of a table that it wrote itself, without those it copied from the
+        memory it started from."""
+        return [
+            r
+            for r in self.rows(table, sim_id)
+            if r.get("FIRST_WRITTEN_BY", sim_id) == sim_id
+        ]
+
     # For tests
 
     def rows(self, table: str, sim_id: int) -> list[dict]:
+        """Every row of the sim's in a table: in a memory table, those it copied too."""
         return [r for r in self.tables[table] if r["SIM"] == sim_id]
 
     def all_rows(self, sim_id: int = 1) -> dict[str, list[dict]]:

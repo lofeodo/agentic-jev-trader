@@ -150,6 +150,10 @@ class ApiStore(Protocol):
 
     def latest_tier_2_share(self) -> float | None: ...
 
+    def base_memory_sim(self, dataset: int) -> int | None: ...
+
+    def memory_last_step(self, sim_id: int) -> int | None: ...
+
     def bar_count(self, dataset_id: int, first_step: int, last_step: int) -> int: ...
 
 
@@ -264,7 +268,7 @@ class InMemoryApiStore:
 
     def latest_decisions(self, sim_id, limit):
         rows = sorted(
-            self._sims.rows("MEMORY.DECISIONS", sim_id),
+            self._sims.own_rows("MEMORY.DECISIONS", sim_id),
             key=lambda r: (-r["STEP"], r["ASSET"]),
         )
         return [dict(r) for r in rows[:limit]]
@@ -309,7 +313,7 @@ class InMemoryApiStore:
         return sorted(
             (
                 {k: v for k, v in r.items() if k != "CANDIDATE_TRADES"}
-                for r in self._sims.rows("MEMORY.DECISIONS", sim_id)
+                for r in self._sims.own_rows("MEMORY.DECISIONS", sim_id)
             ),
             key=lambda r: (r["STEP"], r["ASSET"]),
         )
@@ -421,6 +425,12 @@ class InMemoryApiStore:
 
     def latest_tier_2_share(self):
         return self._sims.latest_tier_2_share()
+
+    def base_memory_sim(self, dataset):
+        return self._sims.base_memory_sim(dataset)
+
+    def memory_last_step(self, sim_id):
+        return self._sims.memory_last_step(sim_id)
 
     def bar_count(self, dataset_id, first_step, last_step):
         return self._market.bar_count(dataset_id, first_step, last_step)

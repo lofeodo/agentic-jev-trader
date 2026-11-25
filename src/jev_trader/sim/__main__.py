@@ -15,6 +15,12 @@ which costs money: a screen for each asset at each step, and on a yes the full e
 requests, which can open a trade (pretend money). Open positions are left to code until the
 position screen is built.
 
+`--memory-from SIM` (on `practice` and `start`) starts the agent with memory from a copy of a
+finished sim's memory: on `practice`, the rehearsal's later sims start from the small memory its
+first sim left. A sim with memory given none starts from the base memory, the latest finished
+build-up sim's. The copy is made when the sim's job first marks it running. The agent with memory
+is not built yet: until it is, the checker refuses such a sim before creating it.
+
 Every start and resume goes through the one checker (`checker.py`): a refused sim stores
 nothing (a refused resume leaves the sim as it was), and each reason is printed with its fix.
 `--database TRADING_AGENT_TEST` uses the test database. It needs migrations V5 and V6 applied.
@@ -92,19 +98,28 @@ def start_practice(args, store, market) -> int:
         market,
         SimRequest(
             dataset=args.dataset,
-            variant="memory_off",
+            variant="memory_off" if args.memory_from is None else "memory_on",
             kind="practice",
             first_step=first_step,
             last_step=last_step,
             spending_cap=args.spending_cap,
+            memory_from=args.memory_from,
         ),
     )
     sim = store.sim(sim_id)
     print(
         f"Practice sim {sim_id}: steps {first_step} to {last_step}, estimated "
         f"${sim['ESTIMATED_COST']:.2f}, at most ${sim['SPENDING_CAP']:.2f}."
+        + memory_line(sim)
     )
     return sim_id
+
+
+def memory_line(sim: dict) -> str:
+    """Which memory a sim with memory starts from, for the line that announces it."""
+    if sim["MEMORY_FROM_SIM"] is None:
+        return ""
+    return f" It starts from a copy of sim {sim['MEMORY_FROM_SIM']}'s memory."
 
 
 def refusal_lines(refused: Refused) -> list[str]:
@@ -170,9 +185,13 @@ def start_sim(args, store, market) -> int:
         last_step=last_step,
         starting_value=args.starting_value,
         market=args.market,
+        memory_from=args.memory_from,
     )
     sim_id = create_sim(store, market, request)
-    print(f"Sim {sim_id}: {args.variant}, steps {first_step} to {last_step}.")
+    print(
+        f"Sim {sim_id}: {args.variant}, steps {first_step} to {last_step}."
+        + memory_line(store.sim(sim_id))
+    )
     return sim_id
 
 
@@ -195,7 +214,8 @@ def main(argv: list[str] | None = None) -> int:
     resume.add_argument("sim", type=int, help="the sim's ID")
     practice = commands.add_parser(
         "practice",
-        help="run the agent without memory for one day, at most 25 cents (calls Jev)",
+        help="run the agent for one day, at most 25 cents (calls Jev): without memory, "
+        "or with --memory-from",
     )
     practice.add_argument(
         "--dataset", type=int, required=True, help="a published dataset's ID"
@@ -207,6 +227,15 @@ def main(argv: list[str] | None = None) -> int:
         help="raise this sim's cap above the usual practice cap, in US dollars",
     )
     practice.add_argument("--database", default=DATABASE)
+    for command in (start, practice):
+        command.add_argument(
+            "--memory-from",
+            type=int,
+            metavar="SIM",
+            help="start the agent with memory from a copy of this finished sim's memory "
+            "(a practice sim: the rehearsal); without it, a sim with memory starts from "
+            "the base memory",
+        )
     for command in (start, resume):
         command.add_argument("--database", default=DATABASE)
         command.add_argument(

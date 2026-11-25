@@ -6,9 +6,19 @@ applies when a stopped sim is carried on. The sim command uses both now; the for
 (`GET /sims/check`) and the API's start and resume will use them too.
 
 Of the spec's six refusals, these are built: test period days in a sim that is not a
-measurement (1), a cap that could take spending past the ceiling (3), a fifth sim in progress
-(4), and a dataset that is not published (5). The memory refusal (2) and the unknown model (6)
-come with the agent with memory. The other refusals are the limits of what is built so far.
+measurement (1), a memory the sim may not start from (2), a cap that could take spending past
+the ceiling (3), a fifth sim in progress (4), and a dataset that is not published (5). The
+unknown model (6) comes with the agent with memory. The other refusals are the limits of what is
+built so far.
+
+**Refusal 2, the memory** (appendix 5, section 2; ADR 0007). A sim with memory starts from a
+copy of another sim's memory: the base memory (the latest finished build-up sim's on the
+dataset) unless one is named. The sim it copies must be finished, on the same dataset, and ended
+before this sim's first step, and its memory must hold nothing recorded at or after that step
+(a decision's step, or the step from which an outcome is known): the agent never remembers its
+own future. Only a practice sim may name a memory other than a build-up sim's: the rehearsal's
+later sims start from the small memory its first sim left. `require_memory` repeats these checks
+in the job's first moment, before the copy is made.
 
 Choices the spec leaves to the build (appendix 8, "Not decided by any ticket"):
 
@@ -63,13 +73,14 @@ class Planned:
     spending_cap_given: float | None = (
         None  # a practice sim's cap, if the developer raised it
     )
+    memory_from: int | None = None  # the sim whose memory it starts from a copy of
 
 
 def check(
     sim: Planned, info: DatasetInfo, store: SimStore, settings: SpendingSettings
 ) -> list[Refusal]:
     """Every reason the spec refuses `sim`, in a fixed order; empty if it may start."""
-    refusals = _dataset(info) + _request(sim, info)
+    refusals = _dataset(info) + _request(sim, info) + _memory(sim, store)
     if sim.variant == "buy_hold":
         return refusals
     lowest_cap = settings.practice_cap_usd if sim.kind == "practice" else 0.0
@@ -108,6 +119,125 @@ def require_resumable(sim: dict, store: SimStore, settings: SpendingSettings) ->
     refusals = check_resume(sim, store, settings)
     if refusals:
         raise Refused(refusals)
+
+
+def require_memory(sim: dict, store: SimStore) -> None:
+    """Refusal 2 again, in the job's first moment: may the sim (its row, `sim`) start from a
+    copy of the memory its row names?"""
+    refusals = memory_refusals(
+        sim["DATASET"], sim["KIND"], sim["FIRST_STEP"], sim["MEMORY_FROM_SIM"], store
+    )
+    if refusals:
+        raise Refused(refusals)
+
+
+def _memory(sim: Planned, store: SimStore) -> list[Refusal]:
+    """Refusal 2: only the agent with memory starts from one, and only from a memory it may."""
+    if sim.variant != "memory_on":
+        if sim.memory_from is None:
+            return []
+        return [
+            Refusal(
+                "reads_no_memory",
+                f"the {sim.variant} variant reads no memory, so it starts from none",
+                "leave out the memory to start from, or pick memory_on",
+            )
+        ]
+    if sim.memory_from is None:
+        return [
+            Refusal(
+                "no_base_memory",
+                f"dataset {sim.dataset} has no base memory yet: no build-up sim on it has "
+                "finished",
+                "run the build-up sim first, or name a memory to start a practice sim from",
+            )
+        ]
+    return memory_refusals(
+        sim.dataset, sim.kind, sim.first_step, sim.memory_from, store
+    )
+
+
+def memory_refusals(
+    dataset: int, kind: str, first_step: int, memory_from: int, store: SimStore
+) -> list[Refusal]:
+    """What stops a sim of `kind` on `dataset`, starting at `first_step`, from starting from a
+    copy of sim `memory_from`'s memory."""
+    try:
+        source = store.sim(memory_from)
+    except KeyError:
+        source = None  # the sim store raises; the API's store answers None
+    if source is None:
+        return [
+            Refusal(
+                "memory_not_found",
+                f"there is no sim {memory_from} to copy a memory from",
+                "name a finished sim on this dataset",
+            )
+        ]
+    found = []
+    if source["STATUS"] != "finished":
+        found.append(
+            Refusal(
+                "memory_not_finished",
+                f"sim {memory_from} is {source['STATUS']}, not finished: its memory may "
+                "still change",
+                f"wait for sim {memory_from} to finish, or name a finished sim",
+            )
+        )
+    if source["DATASET"] != dataset:
+        found.append(
+            Refusal(
+                "memory_other_dataset",
+                f"sim {memory_from} ran on dataset {source['DATASET']}, not {dataset}: its "
+                "step numbers and assets mean something else there",
+                f"name a sim that ran on dataset {dataset}",
+            )
+        )
+    elif source["LAST_STEP"] >= first_step:
+        found.append(
+            Refusal(
+                "memory_ends_too_late",
+                f"sim {memory_from} ends at step {source['LAST_STEP']}, not before this "
+                f"sim's first step ({first_step})",
+                f"start this sim after step {source['LAST_STEP']}, or name a sim that "
+                "ended earlier",
+            )
+        )
+    latest = store.memory_last_step(memory_from)
+    if latest is not None and latest >= first_step:
+        found.append(
+            Refusal(
+                "memory_from_the_future",
+                f"sim {memory_from}'s memory holds a record from step {latest}, at or after "
+                f"this sim's first step ({first_step}): the agent would remember its own "
+                "future",
+                f"start this sim after step {latest}, or name a memory recorded earlier",
+            )
+        )
+    if memory_from == store.base_memory_sim(dataset):
+        return found
+    if kind != "practice":
+        found.append(
+            Refusal(
+                "not_base_memory",
+                f"a {kind} sim starts from the base memory (the latest finished build-up "
+                f"sim's), not from sim {memory_from}'s",
+                "leave out the memory to start from the base memory; only a practice sim "
+                "(the rehearsal) starts from another",
+            )
+        )
+    elif (source["KIND"], source["VARIANT"]) != ("practice", "memory_off"):
+        found.append(
+            Refusal(
+                "not_rehearsal_memory",
+                f"a practice sim starts from the base memory or, in the rehearsal, from the "
+                f"memory a practice sim without memory left; sim {memory_from} is a "
+                f"{source['KIND']} {source['VARIANT']} sim",
+                "leave out the memory to start from the base memory, or name the "
+                "rehearsal's first sim",
+            )
+        )
+    return found
 
 
 def _dataset(info: DatasetInfo) -> list[Refusal]:
