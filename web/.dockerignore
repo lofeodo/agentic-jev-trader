@@ -1,3 +1,5 @@
-# What never enters the web image's build: installed packages and old builds (rebuilt inside).
+# What never enters the web image's build: installed packages, old builds (rebuilt inside), secrets.
 node_modules/
 dist/
+.env
+.env.*
