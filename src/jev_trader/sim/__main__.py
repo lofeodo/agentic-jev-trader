@@ -27,7 +27,7 @@ if the server does not answer.
 
 Every start and resume goes through the one checker (`checker.py`): a refused sim stores
 nothing (a refused resume leaves the sim as it was), and each reason is printed with its fix.
-`--database TRADING_AGENT_TEST` uses the test database. It needs migrations V5 to V9 applied.
+`--database TRADING_AGENT_TEST` uses the test database. It needs migrations V5 to V10 applied.
 
 Logs in as the sim login (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`,
 the key `sim.p8` in `SNOWFLAKE_LOCAL_DIR`); Jev's key is `TYPESAFE_API_KEY` in `.env`. Output is

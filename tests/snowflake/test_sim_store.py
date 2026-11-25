@@ -148,7 +148,7 @@ def test_a_screens_records_are_written_and_its_cost_is_summed(
 
 
 def test_the_llms_standing_instructions_are_stored_once_per_prompt_version(sim_login):
-    """Needs `infra/migrations/V9__llm_selection.sql` applied."""
+    """Needs `infra/migrations/V10__llm_prompts_and_fit_question.sql` applied."""
     store = SnowflakeSimStore(sim_login)
     version, system_prompt, tools = standing_part(SelectionLimits(), ["hammer"])
 

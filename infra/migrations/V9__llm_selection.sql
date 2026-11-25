@@ -17,8 +17,6 @@
 --   it was opened in full.
 -- LOOKUPS: each lookup in order: the tool, the LLM's inputs, the episode IDs it returned, how
 --   long it took, and why it was refused if it was ('lookups', 'time', or the value not allowed).
--- MEMORIES_RELEVANT: Jev's probability that the past episodes shown fit the current situation
---   (a recorded-only question, asked in request 1 when at least one episode is shown).
 --
 -- The tables appendix 6 sketches for the last two (DECISION_EPISODES, TOOL_CALLS) are columns of
 -- the decision instead: they are read only with it.
@@ -33,24 +31,12 @@ ALTER TABLE MEMORY.DECISIONS ADD COLUMN
     LLM_NOTE VARCHAR,
     LIMIT_HIT VARCHAR,
     EPISODES_SHOWN VARIANT,
-    LOOKUPS VARIANT,
-    MEMORIES_RELEVANT FLOAT;
-
--- What every exchange of one prompt version opens with, stored once (spec appendix 5, section
--- 8): SYSTEM_PROMPT, the standing instructions word for word, and TOOLS, the four tools as the
--- first call offers them (name, description, inputs). The lookup tools' lists of candle
--- patterns come from the playbook of the dataset's TA-Lib version: the row keeps the first sim's.
-CREATE TABLE SIM.LLM_PROMPTS (
-    PROMPT_VERSION VARCHAR NOT NULL PRIMARY KEY,
-    SYSTEM_PROMPT VARCHAR NOT NULL,
-    TOOLS VARIANT NOT NULL,
-    CREATED_AT TIMESTAMP_NTZ
-);
+    LOOKUPS VARIANT;
 
 -- The LLM's exchange in one full evaluation, word for word. ID: the decision's ID.
 -- MESSAGES: every message after the standing instructions, as sent and received (LangChain's
 --   message records: the first message, each reply with its tool calls, each tool result and
---   fixed message). The standing instructions and tools are in SIM.LLM_PROMPTS, once per
+--   fixed message). The standing instructions are the same for every evaluation of one
 --   PROMPT_VERSION.
 -- FAILED_REPLIES: each reply code could not use, word for word.
 -- SLIPS: each smaller slip carried on from ('repeated episode IDs removed', ...).
