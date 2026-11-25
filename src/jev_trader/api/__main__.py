@@ -8,8 +8,8 @@
 listens on this computer only. It starts sims' jobs as `JOB_LAUNCHER` in `.env` says (`local`,
 the default: programs on this computer, each printing to `logs/sims/sim-<id>.log`), on the
 database it serves, and dataset builds the same way (`logs/datasets/dataset-<id>.log`, beside
-the build's settings file). `kubernetes` (Jobs in the kind cluster) is accepted, but starting a
-job with it fails as not built yet. A build logs in as the builder and needs
+the build's settings file). `kubernetes` starts each as a Job in the kind cluster instead
+(`jev_trader.jobs`). A build logs in as the builder and needs
 `TWELVE_DATA_API_KEY`. `--in-cluster` is for its pod in the kind cluster: it listens on every
 address of its container and answers the cluster's callers too (`jev_trader.api.app`). It logs
 in to Snowflake on the first request that reads, not at start. `describe` needs no login.

@@ -41,8 +41,10 @@ locals {
     api = {
       port    = 8000
       command = ["python", "-m", "jev_trader.api", "serve", "--in-cluster", "--database", var.database]
-      # Sims and dataset builds start as Jobs in this cluster.
-      env = { JOB_LAUNCHER = "kubernetes" }
+      # Sims and dataset builds start as Jobs in this cluster, from the API's own image. Each
+      # Job reads its own login's secret (snowflake-sim or snowflake-builder) and models or
+      # twelve-data, named in src/jev_trader/jobs.py.
+      env = { JOB_LAUNCHER = "kubernetes", JOB_IMAGE = local.python_image }
     }
   }
 

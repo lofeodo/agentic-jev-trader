@@ -28,10 +28,6 @@ from jev_trader.jobs import (
     sim_job_command,
 )
 
-# Dormant until the slice's closing ticket switches it on (slice map #115): it fails as
-# "not built yet" until the JOB_LAUNCHER=kubernetes ticket (#200) lands.
-pytestmark = pytest.mark.skip(reason="dormant: the kind-cluster slice's tests (#115)")
-
 DATABASE = "TRADING_AGENT_TEST"
 SETTINGS = 'name = "made-up"\ntickers = ["SPY"]\n'
 # Deleting a Job with either of these also deletes its pod, so the program stops. Without one,
