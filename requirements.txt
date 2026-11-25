@@ -31,7 +31,7 @@ uvicorn==0.54.0
 # Finding and killing a sim's job by process number, after confirming it is that job
 psutil==7.2.2
 # Starting, finding and stopping a job as a Kubernetes Job in the kind cluster (JOB_LAUNCHER=kubernetes)
-kubernetes==37.0.2
+kubernetes==37.0.3
 
 # Tests
 pytest==9.2.0
