@@ -50,9 +50,18 @@ from jev_trader.broker import (
 from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.reading import Reading
 from jev_trader.jobs import this_process
+from jev_trader.llm.selection import (
+    MemoryLookups,
+    SelectionLimits,
+    Selector,
+    StandInSelector,
+)
+from jev_trader.llm.settings import load_llm_settings
+from jev_trader.llm.wording import prompt_version
+from jev_trader.memory.bridge import LookupContext
 from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
-from jev_trader.sim.agent import AgentWithoutMemory
+from jev_trader.sim.agent import AgentWithMemory, AgentWithoutMemory
 from jev_trader.sim.checker import (
     BUILT_VARIANTS,
     Planned,
@@ -145,7 +154,8 @@ def settings_document(starting_value: float, variant: str = "buy_hold") -> dict:
     """Every setting the sim runs with, stored on its row so a resumed sim uses the same ones.
 
     The holding sim applies no risk profile and calls no model, so it stores neither. The agent's
-    sims add their risk profile, how Jev is called, and the reading version.
+    sims add their risk profile, how Jev is called, and the reading version; the agent with
+    memory adds its LLM, the selection's limits and the prompt version.
     """
     costs = load_trading_costs()
     document = {
@@ -159,6 +169,10 @@ def settings_document(starting_value: float, variant: str = "buy_hold") -> dict:
         document["risk_profile"] = asdict(risk)
         document["jev"] = asdict(load_jev_settings())
         document["reading_version"] = Reading(costs, risk).version
+    if variant == "memory_on":
+        document["llm"] = asdict(load_llm_settings())
+        document["selection_limits"] = asdict(SelectionLimits())
+        document["prompt_version"] = prompt_version()
     return document
 
 
@@ -277,11 +291,15 @@ def run_sim(
     steps_per_write: int = 1,
     report: Callable[[str], None] = lambda line: None,
     jev: JevClient | None = None,
+    lookups_at: Callable[[LookupContext], MemoryLookups] | None = None,
+    selector: Selector | None = None,
 ) -> SimResult:
     """Run the sim from its first step, or resume it after its last completed step.
 
     The agent's sims need `jev`, store one step per write, and stop at their spending cap. A call
-    to Jev that still fails after its retries stops the sim and raises `JevFailed`.
+    to Jev that still fails after its retries stops the sim and raises `JevFailed`. The agent
+    with memory also needs memory's lookups (`lookups_at`) and the LLM's selection step
+    (`selector`; for now the stand-in, which selects none).
     """
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
@@ -291,6 +309,9 @@ def run_sim(
     is_agent = sim["VARIANT"] != "buy_hold"
     if is_agent and jev is None:
         raise ValueError(f"the {sim['VARIANT']} variant needs a Jev client")
+    with_memory = sim["VARIANT"] == "memory_on"
+    if with_memory and lookups_at is None:
+        raise ValueError("the memory_on variant needs memory's lookups")
     if is_agent and steps_per_write != 1:
         raise ValueError("the agent's sims store one step per write")
     info = market.dataset(sim["DATASET"])
@@ -318,7 +339,7 @@ def run_sim(
                 f"and the wording is now {reading.version}: it cannot carry on"
             )
         store.save_reading(reading.version, reading.opening)
-        strategy = AgentWithoutMemory(
+        agent_arguments = (
             sim_id,
             info.dataset_id,
             last_step,
@@ -328,6 +349,14 @@ def run_sim(
             stops,
             sim["RANDOM_SEED"],
         )
+        if with_memory:
+            strategy = AgentWithMemory(
+                *agent_arguments,
+                lookups_at=lookups_at,
+                selector=selector or StandInSelector(),
+            )
+        else:
+            strategy = AgentWithoutMemory(*agent_arguments)
 
     last_completed = sim["LAST_COMPLETED_STEP"]
     if last_completed is None:

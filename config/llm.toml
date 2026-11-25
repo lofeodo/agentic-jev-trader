@@ -1,0 +1,7 @@
+# The LLM that picks which past episodes Jev reads, in a sim with memory (spec appendix 5,
+# section 9). One setting names provider and model, "provider:model"; a sim uses one model for its
+# whole run and stores it with its settings.
+#
+# "anthropic:claude-haiku-5-5" (Claude Haiku) or "openai:glm-5.3-flash" (GLM Flash, reached
+# through Z.ai's OpenAI-style address).
+model = "anthropic:claude-haiku-5-5"
