@@ -162,11 +162,13 @@ kubectl logs job/sim-12-a1b2c3 -n jev-trader
 ```
 
 An API run on this computer with `JOB_LAUNCHER=kubernetes` in `.env` starts Jobs in the same
-cluster (the entry `kind-jev-trader` in this computer's cluster settings, `~/.kube/config`), from the image of the checkout's commit.
+cluster (the entry `kind-jev-trader` in this computer's cluster settings, `~/.kube/config`),
+from the image of the checkout's commit.
 
 CI's `deployment-check` job does all of this in a throwaway kind cluster on every pull request,
 with dummy secrets (placeholders, no real key): it builds and loads both images, applies
-Terraform's Kubernetes part, runs `wait_healthy.py` from a pod inside the cluster, then has
-the API's launcher start a sim's Job and checks the Job ran. The Job fails at its Snowflake
-login, as expected, because the dummy key is not a key (`Unable to load PEM file`), before any
-network call. When a step fails, the job prints the pods' logs.
+Terraform's Kubernetes part, runs `wait_healthy.py` from a pod (one running container in the
+cluster) inside the cluster, then has the API's launcher start a sim's Job and checks the Job
+ran. The Job fails at its Snowflake login, as expected, because the dummy key is not a key:
+its output says `Unable to load PEM file` (PEM is the text format a private key is saved in),
+before any network call. When a step fails, the job prints the pods' logs.

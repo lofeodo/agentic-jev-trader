@@ -89,7 +89,11 @@ jobs:
       MEMORY_HEALTH: http://memory:8765/health
       API_HEALTH: http://api:8000/health
       WEB_HEALTH: http://web/
+      CLUSTER: jev-trader
       NAMESPACE: jev-trader
+      DATABASE: TRADING_AGENT_TEST
+      # A sim number that never existed: its Job has nothing to find, and fails at the login.
+      NO_SUCH_SIM: "999999"
     steps:
       - uses: actions/checkout@v7
       - name: Build the two images
@@ -99,12 +103,12 @@ jobs:
       - name: Create a throwaway kind cluster
         uses: helm/kind-action@v1
         with:
-          cluster_name: jev-trader
+          cluster_name: ${{ env.CLUSTER }}
           config: infra/kind-cluster.yaml
       - name: Load the images into kind
         run: |
-          kind load docker-image "jev-trader:$TAG" --name jev-trader
-          kind load docker-image "jev-trader-web:$TAG" --name jev-trader
+          kind load docker-image "jev-trader:$TAG" --name "$CLUSTER"
+          kind load docker-image "jev-trader-web:$TAG" --name "$CLUSTER"
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.5
@@ -123,7 +127,7 @@ jobs:
           for login in api memory sim builder; do echo "dummy-key-$login" > "$RUNNER_TEMP/keys/$login.p8"; done
           terraform init -input=false -backend-config="path=$RUNNER_TEMP/k8s.tfstate"
           terraform apply -input=false -auto-approve -var "image_tag=$TAG" \
-            -var "snowflake_keys_dir=$RUNNER_TEMP/keys" -var database=TRADING_AGENT_TEST
+            -var "snowflake_keys_dir=$RUNNER_TEMP/keys" -var "database=$DATABASE"
       # Asked from a pod inside the cluster, where the services' names are known. The Python
       # image has no infra/ folder, so the script comes in on standard input.
       - name: Wait until the memory server, API and web app report healthy
@@ -134,11 +138,14 @@ jobs:
             < infra/wait_healthy.py
       # The API's own launcher starts a sim's Job, with the API's own permissions. The sim never
       # existed and the key is a dummy, so the Job's program fails at its login, before any
-      # network call: the sign it started and ran is that message in its output.
+      # network call: the sign it started and ran is that message in its output. The message is
+      # the `cryptography` library's, raised as `connect` reads the key file; reworded in an
+      # upgrade, it is what to change here. The launcher answers `job <name>` (JOB_MARK in
+      # src/jev_trader/jobs.py).
       - name: Start a job with JOB_LAUNCHER=kubernetes and see it run
         run: |
-          mark=$(kubectl exec -n "$NAMESPACE" deploy/api -- python -c \
-            'import os, pathlib; from jev_trader.jobs import launcher_named; print(launcher_named(os.environ["JOB_LAUNCHER"], pathlib.Path("logs"), "TRADING_AGENT_TEST").start(999999))')
+          mark=$(kubectl exec -n "$NAMESPACE" deploy/api -- env DATABASE="$DATABASE" NO_SUCH_SIM="$NO_SUCH_SIM" python -c \
+            'import os, pathlib; from jev_trader.jobs import launcher_named; print(launcher_named(os.environ["JOB_LAUNCHER"], pathlib.Path("logs"), os.environ["DATABASE"]).start(int(os.environ["NO_SUCH_SIM"])))')
           job=${mark#job }
           echo "started: $job"
           kubectl wait -n "$NAMESPACE" "job/$job" --for=condition=Failed --timeout=180s
