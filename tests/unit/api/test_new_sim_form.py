@@ -555,3 +555,54 @@ def test_whatever_the_check_refuses_the_start_refuses_too(sims, launcher, setup)
     assert answer.status_code == 409
     assert codes(answer.json()["refusals"]) == refused
     assert snapshot(sims) == before and launcher.started == []
+
+
+def test_a_model_no_sim_would_use_is_still_refused_when_unknown(api):
+    """A free sim without memory uses no model, but a name it does not know is still a mistake."""
+    answer = check(api, free_sim(variant="memory_off", models=["gpt-9"]))
+
+    assert "unknown_model" in codes(answer["refusals"])
+
+
+def test_a_measurement_must_name_a_test_period(api, sims, launcher):
+    wanted = measurement(market=None, **DAY_3)
+    before = snapshot(sims)
+
+    answer = api.post("/sims", json=wanted)
+
+    assert answer.status_code == 409
+    assert codes(answer.json()["refusals"]) == {"measurement_needs_period"}
+    assert '"rising market"' in answer.json()["refusals"][0]["message"]
+    assert snapshot(sims) == before and launcher.started == []
+
+
+def test_the_api_numbers_a_measurements_repeats(api, sims):
+    first = start(api, measurement())
+    for sim_id in first:
+        sims.update(sim_id, STATUS="finished")
+    second = start(api, measurement(models=[GLM]))
+
+    def repeats(ids):
+        return {
+            sims.sim(i).get("REPEAT_NUMBER")
+            for i in ids
+            if sims.sim(i)["VARIANT"] != "buy_hold"
+        }
+
+    assert repeats(first) == {1}
+    assert repeats(second) == {2}
+
+
+def test_the_holding_sim_is_made_with_the_first_sims_on_a_stretch_and_shared(
+    api, sims, launcher
+):
+    first = start(api, free_sim())
+    second = start(api, free_sim(variant="memory_off"))
+
+    [holding] = [i for i in first if sims.sim(i)["VARIANT"] == "buy_hold"]
+    assert (sims.sim(holding)["FIRST_STEP"], sims.sim(holding)["LAST_STEP"]) == (
+        193,
+        288,
+    )
+    assert holding in launcher.started
+    assert all(sims.sim(i)["VARIANT"] != "buy_hold" for i in second)
