@@ -42,6 +42,40 @@ jobs:
           git diff --exit-code -- web/openapi.json web/src/api/schema.d.ts
           npm run build --prefix web
 
+  # The image builds (spec appendix 10, section 5, check 3): both images build from the checkout,
+  # the Python image starts each piece's command and holds no secret, the web image serves the app.
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the two images
+        run: |
+          python3 infra/images.py build --no-load
+          echo "TAG=$(python3 infra/images.py tag)" >> "$GITHUB_ENV"
+      # --help proves each command's code loads in the image; serving inside the cluster is the
+      # deployment check's.
+      - name: The Python image starts each piece's command
+        run: |
+          image="jev-trader:$TAG"
+          for piece in "memory serve" "api serve" "sim resume" "dataset build"; do
+            docker run --rm "$image" python -m jev_trader.$piece --help > /dev/null
+          done
+      - name: The Python image holds no secret
+        run: |
+          image="jev-trader:$TAG"
+          found=$(docker run --rm "$image" find /app /home \( -name '.env*' -not -name .env.example -o -name '*.p8' -o -name '*.pem' -o -name saved-tables -o -name '*.tfstate*' \) -print)
+          if [ -n "$found" ]; then echo "found in the image: $found"; exit 1; fi
+      - name: The web image serves the web app
+        run: |
+          # nginx looks the API's name up when it starts; here no API runs, so the name points nowhere.
+          docker run --rm --detach --name web --publish 8080:80 --add-host api:127.0.0.1 "jev-trader-web:$TAG"
+          for _ in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8080/ | grep -q '<div id="root">'; then exit 0; fi
+            sleep 1
+          done
+          docker logs web
+          exit 1
+
   # The deployment check (spec appendix 10, sections 3 and 5): in a throwaway kind cluster, with
   # dummy secrets, the three services report healthy and a job started with
   # JOB_LAUNCHER=kubernetes runs. Skeleton: each step is named and does nothing yet; the slice's

@@ -33,6 +33,7 @@ Choices the spec leaves to the build (appendix 1, "Not decided by any ticket"):
 """
 
 import math
+import os
 import subprocess
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -170,7 +171,12 @@ def _risk_from(settings: dict) -> RiskProfile | None:
 
 
 def code_version() -> str:
-    """The git commit the code came from, or "unknown" where git is not at hand."""
+    """The git commit the code came from, or "unknown" where git is not at hand.
+
+    In the Python image there is no git: the image carries its commit in `CODE_VERSION`.
+    """
+    if version := os.environ.get("CODE_VERSION"):
+        return version
     try:
         return subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],

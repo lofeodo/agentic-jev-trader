@@ -1,0 +1,17 @@
+# The web image's server (web/Dockerfile): the built app's files, and /api/... handed to the
+# API with /api taken off, as the dev server does (vite.config.ts). nginx looks the API's name
+# up once, when it starts, so the API's Kubernetes service must exist by then (its address
+# stays the same while the API's pods come and go).
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+
+    location /api/ {
+        proxy_pass ${API_URL}/;
+    }
+
+    # The app has one page; any other path gets it too.
+    location / {
+        try_files $uri /index.html;
+    }
+}
