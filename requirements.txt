@@ -15,6 +15,8 @@ anthropic==2.12.0
 # GLM Flash, through Z.ai's OpenAI-style address
 langchain-openai==1.8.0
 openai==3.49.0
+# The LLM's tool loop, a small graph of our own (installed with langchain, pinned here)
+langgraph==1.2.20
 typesafe-sdk==0.7.5
 httpx2==2.16.0
 

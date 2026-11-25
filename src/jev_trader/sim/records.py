@@ -10,11 +10,13 @@ so a record stored twice by mistake shows up in the duplicate count at the end o
 - A decision: sim, step and asset. A Jev request and its paid call: the same, and their purpose
   (screen, pick or size; for an open position, position_screen, action, reduce or add).
 - A call to the LLM: the same, the purpose "select", and its number in the selection.
+- The LLM's exchange in a full evaluation: the decision's ID.
 
 An order Jev decided carries its decision's ID; code's own orders (a stop price, a forced close,
 the sim's end, the holding sim's purchases) carry none.
 """
 
+from dataclasses import asdict
 from typing import TYPE_CHECKING
 
 from jev_trader.broker import Broker, Charge, ClosingReason, Fill, Order, OrderKind
@@ -175,13 +177,43 @@ def decision_row(
 
 
 def selection_columns(selection: "Selection | None") -> dict:
-    """A full evaluation's columns for how the LLM selected its past episodes: the episodes
-    shown, opened and selected, the note, each lookup, any limit hit, the model and the prompt
-    version (spec appendix 5, section 6). None without memory.
+    """A full evaluation's columns for how the LLM selected its past episodes (spec appendix 5,
+    section 6; appendix 6, section 3.5): the model, the prompt version, the episodes selected
+    (stored IDs, most useful first), the note, any limit hit, every episode shown (its label,
+    ranks, which search found it first, whether it was opened in full), and each lookup in
+    order (tool, inputs, episode IDs returned, latency, why it was refused if it was). Empty
+    without memory, or when memory held nothing and the LLM was not asked."""
+    if selection is None:
+        return {}
+    return {
+        "LLM_MODEL": selection.model,
+        "PROMPT_VERSION": selection.prompt_version,
+        "SELECTED": list(selection.episode_ids),
+        "LLM_NOTE": selection.note,
+        "LIMIT_HIT": selection.limit_hit and str(selection.limit_hit),
+        "EPISODES_SHOWN": [asdict(s) for s in selection.shown],
+        "LOOKUPS": [asdict(lookup) for lookup in selection.lookups],
+    }
 
-    Not stored yet: the decision record has no columns for them until its table gains them.
-    """
-    return {}
+
+def llm_exchange_row(
+    sim_id: int, step: int, asset: str, selection: "Selection"
+) -> dict:
+    """The LLM's exchange in one full evaluation, word for word: every message after the
+    standing instructions (the same for every evaluation of one prompt version), each failed
+    reply, and the smaller slips carried on from."""
+    decision = decision_id(sim_id, step, asset)
+    return {
+        "ID": decision,
+        "SIM": sim_id,
+        "STEP": step,
+        "ASSET": asset,
+        "DECISION": decision,
+        "PROMPT_VERSION": selection.prompt_version,
+        "MESSAGES": list(selection.exchange),
+        "FAILED_REPLIES": list(selection.failed_replies),
+        "SLIPS": list(selection.slips),
+    }
 
 
 def position_decision_row(
@@ -244,6 +276,14 @@ def _decision_columns(
         "JEV_VERSION": None if reply is None else reply.model,
         # Set once every outcome the episode needs is known (`jev_trader.memory.outcomes`).
         "OUTCOMES_KNOWN_FROM": None,
+        # How the LLM selected a full evaluation's past episodes, empty unless it was asked.
+        "LLM_MODEL": None,
+        "PROMPT_VERSION": None,
+        "SELECTED": None,
+        "LLM_NOTE": None,
+        "LIMIT_HIT": None,
+        "EPISODES_SHOWN": None,
+        "LOOKUPS": None,
         # An open position's columns, empty for an asset with no position.
         "POSITION": None,
         "STANDING": None,
