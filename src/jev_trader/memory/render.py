@@ -10,13 +10,15 @@ read at (for "3 days ago") and the asset looked at (for "same asset").
 - **In full**: the situation as written then, what was decided, and how it ended. For the LLM a
   past trade also shows how it was handled bar by bar; Jev's block leaves that line out and
   names no other asset. A past position review reads the same for both.
-- **The track record**: one line per group shown, the one that fits marked.
+- **The track record**: for the LLM, one line per group shown, the one that fits marked; for
+  Jev, one line per candle pattern and direction: the group that fits, or the count alone.
 
 Choices the spec leaves to the build:
 
 - A measurement not available at the time leaves its word out of the one-line setting.
 - A trade stored before its best and worst, its journal or the money it put in were kept with
   its outcomes reads without them.
+- An episode in full whose prices afterwards are not stored leaves its "Afterwards" line out.
 """
 
 import math
@@ -220,6 +222,12 @@ def summary_line(episode: Episode, label: str, reader: Reader) -> str:
     return w["column_separator"].join(columns)
 
 
+def _afterwards(episode: Episode, w: dict) -> list[str]:
+    if episode.prices is None:
+        return []
+    return [w["afterwards"].format(after=_price_after(episode, w))]
+
+
 def full_episode(episode: Episode, label: str, reader: Reader) -> str:
     """The episode in full: the LLM's `read_episodes`, or one block of Jev's background."""
     w = reader.wording
@@ -240,16 +248,13 @@ def full_episode(episode: Episode, label: str, reader: Reader) -> str:
                 worst=_signed_dollars(s.worst),
             ),
             w["review_decided"].format(decided=step_text(episode.review, w)),
-            w["afterwards"].format(after=_price_after(episode, w)),
+            *_afterwards(episode, w),
         ]
         if episode.journal:
             lines.append(w["whole_trade"].format(steps=bar_by_bar(episode.journal, w)))
         lines.append(w["ended"].format(ended=_review_ended(episode, ", ", w)))
     elif episode.decided == NO_TRADE:
-        lines += [
-            w["decided_no_trade"],
-            w["afterwards"].format(after=_price_after(episode, w)),
-        ]
+        lines += [w["decided_no_trade"], *_afterwards(episode, w)]
     else:
         t, e = episode.trade, episode.ended
         lines.append(
@@ -271,7 +276,12 @@ def full_episode(episode: Episode, label: str, reader: Reader) -> str:
     return "\n".join(lines)
 
 
-def _group_name(group: Group, w: dict) -> str:
+def _capitalized(text: str) -> str:
+    return text[0].upper() + text[1:]
+
+
+def _splits(group: Group, w: dict) -> list[str]:
+    """What the group is split by: "with the long-term trend", "high volume", "first hour"."""
     words = []
     if group.trend is not None:
         words.append(w["trends"][group.trend])
@@ -279,10 +289,24 @@ def _group_name(group: Group, w: dict) -> str:
         words.append(w["volume_levels"][group.volume_level])
     if group.part_of_day is not None:
         words.append(group.part_of_day)
-    if not words:
-        return w["all_trades"]
-    name = ", ".join(words)
-    return name[0].upper() + name[1:]
+    return words
+
+
+def _group_name(group: Group, w: dict) -> str:
+    words = _splits(group, w)
+    return _capitalized(", ".join(words)) if words else w["all_trades"]
+
+
+def _group_line(group: Group, name: str, w: dict) -> str:
+    return w["group"].format(
+        name=name,
+        trades=group.trades,
+        wins=group.made_money,
+        share=f"{_round(100 * group.made_money / group.trades)}%",
+        gain=_maybe(group.average_gain, w),
+        loss=_maybe(group.average_loss, w),
+        total=_signed_dollars(group.total_profit),
+    )
 
 
 def _maybe(n: float | None, w: dict) -> str:
@@ -300,15 +324,28 @@ def track_record(record: TrackRecord, wording: dict | None = None) -> str:
         return heading + "\n" + _count(w["too_few"], record.closed_trades)
     lines = [heading]
     for g in record.groups:
-        line = w["group"].format(
-            name=_group_name(g, w),
-            trades=g.trades,
-            wins=g.made_money,
-            share=f"{_round(100 * g.made_money / g.trades)}%",
-            gain=_maybe(g.average_gain, w),
-            loss=_maybe(g.average_loss, w),
-            total=_signed_dollars(g.total_profit),
-        )
+        line = _group_line(g, _group_name(g, w), w)
         lines.append(line + (w["fits"] if g.fits else ""))
     lines.append(w["not_shown"].format(minimum=record.minimum_sample))
     return "\n".join(lines)
+
+
+def track_record_line(record: TrackRecord, wording: dict | None = None) -> str:
+    """The track record in one line, as Jev reads it: the group that fits the current
+    situation, named in full ("Hammer, long, stocks, with the long-term trend: 23 closed
+    trades, ..."), or the count alone when no group holds the minimum sample."""
+    w = wording or load_wording()
+    fits = next((g for g in record.groups if g.fits), None)
+    words = [
+        w["line_name"].format(
+            pattern=record.pattern,
+            direction=record.direction,
+            asset_class=w["asset_classes"][record.asset_class],
+        ),
+        *([] if fits is None else _splits(fits, w)),
+    ]
+    name = _capitalized(", ".join(words))
+    if fits is None:
+        too_few = _count(w["too_few"], record.closed_trades)
+        return w["too_few_line"].format(name=name, too_few=too_few)
+    return _group_line(fits, name, w)

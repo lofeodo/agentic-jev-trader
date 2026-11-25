@@ -38,6 +38,20 @@ holds_no_position = 'The account holds no position in it.'
 last_price = 'Last price: {price}.'
 typical_move = ' Typical move in one bar: {move}.'
 
+# The agent with memory's two sections, after the asset in a full evaluation: the track record,
+# then the past episodes. Without memory both are absent, and nothing says so. Each track record
+# line and each episode block is written with the shared words in prompts/episodes.toml.
+track_record_heading = "# Track record: the account's own closed trades on the candle patterns of the last 4 bars"
+track_record_no_pattern = 'No candle pattern shows in the last 4 bars, so there is no line to show.'
+track_record_footer = 'Each line is the narrowest group that fits the current situation and has at least {minimum} closed trades. A win is a trade that closed with a profit after trading costs.'
+# Newest first, so the order the LLM preferred them in does not reach Jev.
+past_episodes_heading = "# Past episodes: {count} of the account's own earlier decisions in situations like the current one, newest first"
+episode_label = 'Episode {number}'
+# The two "nothing to show" cases, worded apart.
+past_episodes_none_heading = '# Past episodes'
+past_episodes_none_selected = 'None selected: the account has earlier decisions, but none was close enough to the current situation to show.'
+past_episodes_none_yet = 'None yet: the account has no finished earlier decision to show.'
+
 pattern_notes_heading = '# Candle patterns named above'
 pattern_note = '{name}: {lean}. {shape}'
 

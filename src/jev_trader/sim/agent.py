@@ -659,9 +659,11 @@ class _DecisionWithMemory(_DecisionAtStep):
         )
         first_search = lookups.search()
         if not first_search.episodes:
-            return MemorySections(track_records, PastEpisodes.NONE_YET)
+            return MemorySections(self.step, track_records, PastEpisodes.NONE_YET)
         self.selection = self.agent.selector.select(lookups, first_search)
         if not self.selection.episode_ids:
-            return MemorySections(track_records, PastEpisodes.NONE_SELECTED)
+            return MemorySections(self.step, track_records, PastEpisodes.NONE_SELECTED)
         chosen = lookups.read(list(self.selection.episode_ids)).episodes
-        return MemorySections(track_records, PastEpisodes.SELECTED, tuple(chosen))
+        return MemorySections(
+            self.step, track_records, PastEpisodes.SELECTED, tuple(chosen)
+        )
