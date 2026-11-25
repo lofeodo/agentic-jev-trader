@@ -28,8 +28,9 @@ Choices the spec leaves to the build:
 - A reply holding a lookup tool after the limit has switched it off is a failed reply: the tool
   was not on offer. Lookups asked side by side in the reply that reaches the limit are refused
   one by one, and are not failed replies.
-- A reply that arrives after the 60 seconds has its lookups refused, each with the time's stop
-  message.
+- The 60 seconds run from when the selection starts (after code's first search) and are checked
+  after each call and before each lookup. A lookup asked for after them is refused with the
+  time's stop message, which is then not sent again.
 - A failed reply runs none of its lookups. Each of its tool calls is answered with the re-ask,
   or with the refusal saying what is wrong for an answer that does not fit.
 - A lookup input that is not allowed (an unknown input, a missing one, a value off its list, or
@@ -78,6 +79,11 @@ from jev_trader.memory.search import FULL_EVALUATION, RESULTS, Filters
 from jev_trader.memory.track_record import TrackRecord
 
 log = logging.getLogger(__name__)
+
+SEARCH, READ, TRACK_RECORD = LOOKUP_TOOLS
+# Far above what the limits allow (6 lookups, 3 failed replies, the answer), so LangGraph's own
+# step cap never stops a selection.
+GRAPH_STEPS = 200
 
 # The notable moments the spec logs in SIM_EVENTS (appendix 6, section 8).
 LIMIT_HIT_EVENT = "an LLM limit hit"
@@ -326,7 +332,7 @@ class _Evaluation:
             SystemMessage(self.wording.system_prompt()),
             HumanMessage(self._first_message(first_search)),
         ]
-        graph.compile().invoke({"turns": 0}, {"recursion_limit": 200})
+        graph.compile().invoke({"turns": 0}, {"recursion_limit": GRAPH_STEPS})
         return self._selection(self.reply.answer)
 
     def _after_call(self, state: _Turns) -> str:
@@ -339,10 +345,11 @@ class _Evaluation:
         self.messages.append(reply.message)
         self._check_time()
         self.reply = self._sort(reply.message, {d.name for d in offered})
-        if self.reply.answer is not None and (
-            self.reply.lookups or reply.message.invalid_tool_calls
-        ):
-            self._slip("an answer sent with lookups: the lookups were not run")
+        others = (
+            len(reply.message.tool_calls) + len(reply.message.invalid_tool_calls) - 1
+        )
+        if self.reply.answer is not None and others:
+            self._slip("an answer sent with other tool calls: they were not run")
         return {"turns": 1}
 
     def _handle(self, state: _Turns) -> dict:
@@ -394,15 +401,8 @@ class _Evaluation:
 
     def _failed_reply(self, reply: _Reply) -> None:
         self.failed.append(_word_for_word(reply.message))
-        self.events.append(
-            Event(
-                FAILED_REPLY_EVENT,
-                {
-                    "asset": self.situation.asset,
-                    "number": len(self.failed),
-                    "why": reply.failed_because,
-                },
-            )
+        self._event(
+            FAILED_REPLY_EVENT, number=len(self.failed), why=reply.failed_because
         )
         if len(self.failed) >= self.limits.failed_replies_to_stop:
             raise LlmFailed(
@@ -411,15 +411,18 @@ class _Evaluation:
                 f"{reply.failed_because}"
             )
         reask = self.wording.reask(lookups_left=self.limit_hit is None)
+        # Each tool call is answered by its ID; one that came without an ID cannot be, so the
+        # re-ask then also goes as a message of its own.
         calls = [*reply.message.tool_calls, *reply.message.invalid_tool_calls]
-        for call in calls:
+        answered = [call for call in calls if call.get("id")]
+        for call in answered:
             text = (
                 self.wording.answer_does_not_fit()
                 if call["id"] in reply.answer_does_not_fit
                 else reask
             )
             self.messages.append(ToolMessage(text, tool_call_id=call["id"]))
-        if not calls:
+        if len(answered) < len(calls) or not calls:
             self.messages.append(HumanMessage(reask))
 
     # The limits
@@ -431,10 +434,13 @@ class _Evaluation:
 
     def _hit(self, limit: LimitHit) -> None:
         self.limit_hit = limit
-        self.events.append(
-            Event(LIMIT_HIT_EVENT, {"asset": self.situation.asset, "limit": str(limit)})
-        )
-        log.info("An LLM limit hit (%s) for %s", limit, self.situation.asset)
+        self._event(LIMIT_HIT_EVENT, limit=str(limit))
+
+    def _event(self, kind: str, **details) -> None:
+        """A notable moment, logged and kept for SIM_EVENTS."""
+        details = {"asset": self.situation.asset, **details}
+        self.events.append(Event(kind, details))
+        log.info("%s: %s", kind, details)
 
     def _stop_message(self) -> str:
         if self.limit_hit is LimitHit.LOOKUPS:
@@ -446,7 +452,10 @@ class _Evaluation:
     def _lookup(self, call: dict) -> str:
         """Run one lookup the LLM asked for, or refuse it; returns what the LLM is told."""
         name, args = call["name"], dict(call["args"])
+        self._check_time()
         if self.limit_hit is LimitHit.TIME:
+            # The refusal is the time's stop message itself: it is not sent again.
+            self.told_to_answer = True
             return self._refused(name, args, "time", self._stop_message())
         if self.used >= self.limits.most_lookups:
             return self._refused(name, args, "lookups", self.wording.lookups_used_up())
@@ -477,7 +486,7 @@ class _Evaluation:
 
     def _run_lookup(self, name: str, args: dict) -> tuple[str, tuple[str, ...]]:
         self._check_inputs(self.definitions[name], args)
-        if name == "search_episodes":
+        if name == SEARCH:
             result = self.memory.search(**args)
             summaries = self._summaries(result.episodes, from_first_search=False)
             named = [p for f in result.episodes for p in f.episode.patterns]
@@ -485,7 +494,7 @@ class _Evaluation:
                 Filters(**args), summaries, self._pattern_notes(named)
             )
             return text, tuple(f.episode.id for f in result.episodes)
-        if name == "read_episodes":
+        if name == READ:
             return self._read(args["episode_ids"])
         record = self.memory.track_record(args["pattern"], args["direction"])
         return render.track_record(record), ()
@@ -499,20 +508,26 @@ class _Evaluation:
                 raise _NotAllowed(name, list(properties))
         for name in definition.input_schema["required"]:
             if name not in args:
-                raise _NotAllowed(name, properties[name].get("enum", []))
+                raise _NotAllowed(name, self._allowed(properties, name))
         for name, value in args.items():
             allowed = properties[name].get("enum")
             if allowed is not None and value not in allowed:
                 raise _NotAllowed(name, allowed)
-        if definition.name == "read_episodes":
+        if definition.name == READ:
             labels = args["episode_ids"]
             fits = (
                 isinstance(labels, list)
                 and 1 <= len(labels) <= MOST_READ
-                and all(label in self.shown for label in labels)
+                and all(
+                    isinstance(label, str) and label in self.shown for label in labels
+                )
             )
             if not fits:
                 raise _NotAllowed("episode_ids", list(self.shown))
+
+    def _allowed(self, properties: dict, name: str) -> list[str]:
+        """An input's allowed values: its list, or for episode IDs the labels shown."""
+        return properties.get(name, {}).get("enum") or list(self.shown)
 
     def _read(self, labels: list[str]) -> tuple[str, tuple[str, ...]]:
         wanted = list(dict.fromkeys(self.shown[label].episode_id for label in labels))
@@ -583,13 +598,7 @@ class _Evaluation:
             if label in self.shown:
                 known.append(label)
                 continue
-            self.events.append(
-                Event(
-                    UNKNOWN_ID_EVENT,
-                    {"asset": self.situation.asset, "episode_id": label},
-                )
-            )
-            log.info("An unknown episode ID dropped: %s", label)
+            self._event(UNKNOWN_ID_EVENT, episode_id=label)
         if len(known) > self.limits.most_selected:
             self._slip(
                 f"more than {self.limits.most_selected} selected: the first kept"

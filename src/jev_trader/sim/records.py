@@ -190,7 +190,7 @@ def selection_columns(selection: "Selection | None") -> dict:
         "PROMPT_VERSION": selection.prompt_version,
         "SELECTED": list(selection.episode_ids),
         "LLM_NOTE": selection.note,
-        "LIMIT_HIT": selection.limit_hit and str(selection.limit_hit),
+        "LIMIT_HIT": None if selection.limit_hit is None else str(selection.limit_hit),
         "EPISODES_SHOWN": [asdict(s) for s in selection.shown],
         "LOOKUPS": [asdict(lookup) for lookup in selection.lookups],
     }

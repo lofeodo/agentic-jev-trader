@@ -250,13 +250,13 @@ class Connection:
     ):
         self.patterns = list(patterns)
         self._open = open_session or (lambda: connect(url))
-        self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._session: ClientSession | None = None
         self._held: concurrent.futures.Future | None = None
         self._close: asyncio.Event | None = None
 
     def __enter__(self) -> Self:
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
         opened: concurrent.futures.Future = concurrent.futures.Future()
         self._held = asyncio.run_coroutine_threadsafe(self._hold(opened), self._loop)
