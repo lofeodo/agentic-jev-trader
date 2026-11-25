@@ -39,7 +39,8 @@
   <div class="banner">WALKTHROUGH · ALL DATA MADE UP</div>
   <h1>What the LLM reads, and is told, when it selects past episodes</h1>
   <p class="lede"><b>Two words changed on 2026-11-19:</b> the web app and the glossary now say <b>trading sim</b> (or just sim) where this page says run, and <b>scorecard</b> where it says track record. The text the LLM is sent was left as it was, and this page shows that text word for word, so here you will still read "run" and "track record". They mean the same things.</p>
-  <p class="lede"><b>What this page is for:</b> seeing the LLM's whole briefing in one place. Every blue or purple box is the exact text that is sent or received. The grey column on the right explains each box in plain words and is not part of any message. The wording was decided on 2026-11-19. The LLM's second job, selecting past episodes for a position review (tab 6), was added the same day. Until the agent is built, this page is where that wording lives; after that, it is kept in step with the real prompt.</p>
+  <p class="lede"><b>What this page is for:</b> seeing the LLM's whole briefing in one place. Every blue or purple box is the exact text that is sent or received. The grey column on the right explains each box in plain words and is not part of any message. The wording was decided on 2026-11-19. The LLM's second job, selecting past episodes for a position review (tab 6), was added the same day.</p>
+  <p class="lede"><b>Where the words live:</b> the first job's words (its standing instructions, the layout of the messages that hold episodes, the answer tool, and the limit and re-ask messages) are kept in <code>prompts/llm_selection.toml</code>, and the three lookup tools' descriptions in <code>prompts/llm_tools.toml</code>. This page shows the same words and changes with them in the same pull request. The second job's words live only on this page until position reviews with memory are built. The <b>prompt version</b> is a short code of twelve letters and digits worked out from those two files, so changing a single word gives a new version and nobody has to bump a number by hand. It is stored with each sim's settings and with every full evaluation, so you can always tell which wording a past decision was made under.</p>
 
   <div class="box">
     <h3>The story in plain words</h3>
@@ -328,7 +329,7 @@ const REVIEW_TOOLS = [
 ];
 function toolText(tool) { return `${tool.name}\n${tool.description}\nInputs:\n` + tool.inputs.map(line => "  " + line).join("\n"); }
 
-/* Fixed messages code sends when a reply cannot be acted on. */
+/* Fixed messages code sends when a reply cannot be acted on: the same words as prompts/llm_selection.toml. */
 const LOOKUPS_USED_UP = `Not run: you have used all ${LIMITS.lookups} lookups.`;
 const ANSWER_NOW_AT_LIMIT = `You have used all ${LIMITS.lookups} lookups. Call select_episodes now.`;
 const ANSWER_NOW_OUT_OF_TIME = "Time is up. Call select_episodes now.";
