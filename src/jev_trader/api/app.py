@@ -27,6 +27,7 @@ from jev_trader.api.datasets import (
     DatasetToBuild,
     PriceChart,
 )
+from jev_trader.api.llm_names import model_label
 from jev_trader.api.measurements import Measurements, measurements
 from jev_trader.api.playbook import Playbook, playbook
 from jev_trader.api.scorecard import Scorecard, Split, scorecard
@@ -51,6 +52,7 @@ from jev_trader.api.spending import Spending, spending
 from jev_trader.api.store import ApiStore
 from jev_trader.api.trades import Filters, TradesTable, trades_table
 from jev_trader.jobs import Builds, Launcher
+from jev_trader.llm.models import load_model_settings
 from jev_trader.sim.store import now
 
 LOCAL_CLIENTS = frozenset({"127.0.0.1", "::1"})
@@ -74,6 +76,19 @@ class SimsStarted(BaseModel):
 REFUSED = {
     409: {"model": Refusals, "description": "Refused: the reasons, and how to fix each"}
 }
+
+
+class ModelOption(BaseModel):
+    model: str  # as a sim names it, such as "claude-haiku-5-5"
+    label: str  # as the developer reads it, such as "Claude Haiku"
+
+
+class ModelChoice(BaseModel):
+    """The LLMs a sim may name and the one a free sim uses unless the developer picks another
+    (`config/llm.toml`)."""
+
+    models: list[ModelOption]
+    default_model: str
 
 
 class SpendingTotal(BaseModel):
@@ -230,6 +245,17 @@ def create_app(
     @app.get("/spending", operation_id="spending")
     def read_spending() -> Spending:
         return spending(store, spending_ceiling)
+
+    @app.get("/models", operation_id="modelChoice")
+    def model_choice() -> ModelChoice:
+        """The New trading sim form's Model choice: the models, and the default it pre-selects."""
+        settings = load_model_settings()
+        return ModelChoice(
+            models=[
+                ModelOption(model=m, label=model_label(m)) for m in settings.models
+            ],
+            default_model=settings.default_model,
+        )
 
     @app.exception_handler(Refused)
     def refused(request: Request, refused: Refused):

@@ -1477,6 +1477,46 @@
         "title": "MissingBar",
         "type": "object"
       },
+      "ModelChoice": {
+        "description": "The LLMs a sim may name and the one a free sim uses unless the developer picks another\n(`config/llm.toml`).",
+        "properties": {
+          "default_model": {
+            "title": "Default Model",
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelOption"
+            },
+            "title": "Models",
+            "type": "array"
+          }
+        },
+        "required": [
+          "models",
+          "default_model"
+        ],
+        "title": "ModelChoice",
+        "type": "object"
+      },
+      "ModelOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "label"
+        ],
+        "title": "ModelOption",
+        "type": "object"
+      },
       "ModelResult": {
         "properties": {
           "difference_usd": {
@@ -3939,6 +3979,25 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/models": {
+      "get": {
+        "description": "The New trading sim form's Model choice: the models, and the default it pre-selects.",
+        "operationId": "modelChoice",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelChoice"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Model Choice"
       }
     },
     "/playbook": {
