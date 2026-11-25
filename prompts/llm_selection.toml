@@ -1,0 +1,27 @@
+# What the LLM is told when it selects the past episodes Jev reads in a full evaluation (spec
+# appendix 5, sections 5, 6 and 8), beside the descriptions of its three lookup tools in
+# llm_tools.toml. Read by src/jev_trader/llm/wording.py; the prompt version is a fingerprint of
+# this file and llm_tools.toml.
+#
+# The text is not written yet: each key is empty until it is lifted from
+# docs/llm-prompt-walkthrough.html, whose constant of the same name in capitals holds it.
+
+[full_evaluation]
+system_prompt = ""
+first_message = ""
+
+[select_episodes]
+description = ""
+episode_ids = ""
+note = ""
+
+[limits]
+lookups_used_up = ""
+answer_now_at_limit = ""
+answer_now_out_of_time = ""
+
+[failed_replies]
+reask = ""
+reask_at_limit = ""
+value_not_allowed = ""
+answer_does_not_fit = ""
