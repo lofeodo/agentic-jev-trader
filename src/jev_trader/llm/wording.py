@@ -22,13 +22,13 @@ from pathlib import Path
 
 from jev_trader.memory import bridge
 from jev_trader.memory.lookups import MOST_READ
-from jev_trader.memory.search import FULL_EVALUATION, Job
+from jev_trader.memory.search import FULL_EVALUATION, Filters
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "llm_selection.toml"
 VERSION_LENGTH = 12
 
 ANSWER_TOOL = "select_episodes"
-ANY = "any"
+ANY = "any"  # a filter left unset
 
 
 def load_wording(path: Path = WORDING_PATH) -> dict:
@@ -50,16 +50,14 @@ def prompt_version(wording: dict | None = None, tools: dict | None = None) -> st
 
 @dataclass(frozen=True)
 class LlmWording:
-    """The LLM's texts for one job, within the selection's limits.
-
-    `playbook` gives each candle pattern's lean and shape ("bullish", "A down bar, then ..."),
-    for the notes added below a message that names a pattern.
+    """The LLM's texts for a full evaluation, within the selection's limits (the same
+    defaults as `jev_trader.llm.selection.SelectionLimits`). A position review's words are not
+    in `prompts/` yet: they come with position reviews with memory.
     """
 
     most_lookups: int = 6
-    most_selected: int = 5
+    most_selected: int = MOST_READ
     note_length: int = 200
-    job: Job = FULL_EVALUATION
     wording: dict = field(default_factory=load_wording, compare=False, repr=False)
     tools: dict = field(default_factory=bridge.load_wording, compare=False, repr=False)
 
@@ -76,8 +74,8 @@ class LlmWording:
         }
 
     def system_prompt(self) -> str:
-        """The job's standing instructions, sent first in every call."""
-        return self.wording[self.job]["system_prompt"].format(**self._limits())
+        """The standing instructions, sent first in every call."""
+        return self.wording[FULL_EVALUATION]["system_prompt"].format(**self._limits())
 
     def answer_tool(self) -> bridge.ToolDefinition:
         """`select_episodes`, the answer: the same in both jobs, never counted, never taken
@@ -117,62 +115,61 @@ class LlmWording:
         "crypto"), its situation text, and code's first search as one line per episode, closest
         first (`summaries`, from `jev_trader.memory.render.summary_line`). `pattern_notes` is
         `pattern_notes(...)` for the patterns named in the situation and in the lines."""
-        m = self.wording["messages"]
         return (
-            self.wording[self.job]["first_message"].format(
+            self.wording[FULL_EVALUATION]["first_message"].format(
                 asset=asset,
                 asset_class=asset_class,
                 situation=situation,
-                episodes=_count(m["episodes"], len(summaries)),
-                columns=m["summary_columns"],
-                summaries="\n".join(summaries),
+                **self._listing(summaries),
             )
             + pattern_notes
         )
 
     def search_result(
         self,
-        filters: Mapping[str, str],
+        filters: Filters,
         summaries: Sequence[str],
         pattern_notes: str = "",
     ) -> str:
-        """A search the LLM asked for: the filters it set (an input left out reads as "any")
-        and one line per episode found, closest first."""
+        """A search the LLM asked for: the filters it set and one line per episode found,
+        closest first."""
         m = self.wording["messages"]
         said = self.filters_text(filters)
         if not summaries:
             return m["no_match"].format(filters=said)
         return (
-            m["search_result"].format(
-                episodes=_count(m["episodes"], len(summaries)),
-                filters=said,
-                columns=m["summary_columns"],
-                summaries="\n".join(summaries),
-            )
+            m["search_result"].format(filters=said, **self._listing(summaries))
             + pattern_notes
         )
 
-    def filters_text(self, filters: Mapping[str, str]) -> str:
+    def _listing(self, summaries: Sequence[str]) -> dict:
+        """A list of one-line episodes: how many, the column headings, and the lines."""
+        m = self.wording["messages"]
+        return {
+            "episodes": _count(m["episodes"], len(summaries)),
+            "columns": m["summary_columns"],
+            "summaries": "\n".join(summaries),
+        }
+
+    def filters_text(self, filters: Filters) -> str:
         """ "same asset, bullish engulfing, any decision": the asset, the pattern and what was
         decided, in that order."""
         words = self.wording["messages"]["filters"]
-        asset = filters.get("asset", ANY)
-        pattern = filters.get("pattern", ANY)
-        decided = filters.get("decided", ANY)
         return ", ".join(
             [
-                words["any_asset"] if asset == ANY else words[asset],
-                words["any_pattern"] if pattern == ANY else pattern,
-                words["any_decision"] if decided == ANY else words[decided],
+                words["any_asset" if filters.asset == ANY else filters.asset],
+                words["any_pattern"] if filters.pattern == ANY else filters.pattern,
+                words["any_decision" if filters.decided == ANY else filters.decided],
             ]
         )
 
     def pattern_notes(
         self, names: Iterable[str], playbook: Mapping[str, tuple[str, str]]
     ) -> str:
-        """The notes added below a message for the candle patterns `names` (those not yet
-        explained in this evaluation, in the order first named; repeats are dropped), or
-        nothing."""
+        """The notes added below a message for the candle patterns `names`, in the order first
+        named, repeats dropped; nothing when `names` is empty. The caller passes only the
+        patterns not yet explained in this evaluation. `playbook` gives each pattern's lean and
+        shape ("bullish", "A down bar, then ...")."""
         m = self.wording["messages"]
         fresh = list(dict.fromkeys(names))
         if not fresh:

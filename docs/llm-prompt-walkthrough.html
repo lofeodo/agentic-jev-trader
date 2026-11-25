@@ -465,7 +465,7 @@ const SCENARIOS = [
         "<b>Search again, for a position review.</b> Only reviews of positions in the same direction are searched (longs for a long). \"Decided\" now offers hold, close, reduce, and add. One narrowing is new: whether the position was in profit or at a loss <b>at the moment of the review</b>. That is part of the situation. It is not how the trade ended, which still cannot be filtered on.",
         "<b>Read in full, for a position review.</b> The record adds the position's standing, where the price went next, and the whole trade bar by bar with the review marked. Jev reads the same record."];
       REVIEW_TOOLS.forEach((tool, i) => { const text = toolText(tool); html += messageBox("code", "In a position review: " + tool.name + " (a lookup)", text, reviewToolNotes[i], `about ${roughTokens(text)} tokens`); });
-      html += messageBox("aside", "The other two tools (not a message)", "read_track_record and select_episodes are described in exactly the same words in both jobs.", "The prompt version (the name of one exact wording) covers both jobs' instructions and tool descriptions together.", "");
+      html += messageBox("aside", "The other two tools (not a message)", "read_track_record and select_episodes are described in exactly the same words in both jobs.", "The prompt version (the name of one exact wording) covers the instructions and tool descriptions kept in prompts/: today the first job's, and the second job's once position reviews with memory are built.", "");
       return html; } },
 
   { tab: "1. Answers at once", intro: "The usual case. Code has already run the first search. The LLM reads the current situation and ten one-line summaries, and answers straight away without a lookup.",
