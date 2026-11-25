@@ -254,10 +254,13 @@ def _kubernetes_not_built() -> NotBuiltYet:
 
 class KubernetesLauncher:
     """Sims' jobs as Kubernetes Jobs in the kind cluster, each running `command_for(sim_id)`
-    from the Python image. Not built yet: every call refuses."""
+    from the Python image. `client` is the `kubernetes` package's `BatchV1Api` (or a stand-in
+    for it in tests); None means one made from this computer's cluster settings. Not built yet:
+    every call refuses."""
 
-    def __init__(self, command_for: Callable[[int], list[str]]):
+    def __init__(self, command_for: Callable[[int], list[str]], client=None):
         self.command_for = command_for
+        self.client = client
 
     def start(self, sim_id: int) -> str:
         raise _kubernetes_not_built()
@@ -272,10 +275,13 @@ class KubernetesLauncher:
 class KubernetesBuilds:
     """Dataset builds as Kubernetes Jobs in the kind cluster, each running the build command
     from the Python image. Not built yet: starting or stopping one refuses, and it holds no
-    build's settings."""
+    build's settings. `client` is as for `KubernetesLauncher`."""
 
-    def __init__(self, command_for: Callable[[int, Path, bool], list[str]]):
+    def __init__(
+        self, command_for: Callable[[int, Path, bool], list[str]], client=None
+    ):
         self.command_for = command_for
+        self.client = client
 
     def start(self, dataset_id: int, settings_text: str, check: bool) -> None:
         raise _kubernetes_not_built()

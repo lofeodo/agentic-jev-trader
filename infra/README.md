@@ -109,6 +109,9 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
 - `images.py` builds the two images (an image is a packed copy of a program with everything
   it needs to run; recipes `Dockerfile` and `web/Dockerfile`) and loads them into kind. Not
   built yet.
+- `wait_healthy.py` waits until the memory server, the API and the web app each answer their
+  health address, and names any that never did (the deployment check's wait; the docstring
+  has the command to run it by hand against your own cluster).
 
 `JOB_LAUNCHER=kubernetes` in `.env` (start each sim or dataset build as a Kubernetes Job, a
 one-off run inside the cluster) is accepted, but starting a job with it is refused as not built
