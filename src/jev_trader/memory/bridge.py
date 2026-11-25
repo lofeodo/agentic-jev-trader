@@ -50,6 +50,9 @@ from jev_trader.memory.server import FILLED_IN_BY_CODE, PATH
 from jev_trader.memory.track_record import TrackRecord
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "llm_tools.toml"
+SERVER_SETTINGS_PATH = (
+    Path(__file__).resolve().parents[3] / "config" / "memory_server.toml"
+)
 LOOKUP_TOOLS = ("search_episodes", "read_episodes", "read_track_record")
 
 
@@ -214,6 +217,14 @@ class MemoryBridge:
                 "read_track_record", {"pattern": pattern, "direction": direction}
             )
         )
+
+
+def local_url(path: Path = SERVER_SETTINGS_PATH) -> str:
+    """The memory server's address on this computer: the host and port it listens on, from
+    `config/memory_server.toml`."""
+    with open(path, "rb") as file:
+        settings = tomllib.load(file)
+    return f"http://{settings['host']}:{settings['port']}"
 
 
 @asynccontextmanager

@@ -56,6 +56,7 @@ from jev_trader.llm.selection import (
     SelectionLimits,
     Selector,
     StandInSelector,
+    standing_part,
 )
 from jev_trader.llm.settings import load_llm_settings
 from jev_trader.llm.wording import prompt_version
@@ -64,7 +65,6 @@ from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
 from jev_trader.sim.agent import AgentWithMemory, AgentWithoutMemory
 from jev_trader.sim.checker import (
-    BUILT_VARIANTS,
     Planned,
     require_allowed,
     require_memory,
@@ -237,6 +237,7 @@ def create_sim(
         spending_cap=cap,
         spending_cap_given=request.spending_cap,
         memory_from=memory_from,
+        llm_model=settings["llm"]["model"] if "llm" in settings else None,
     )
     require_allowed(planned, info, store, spending)
     return store.create(
@@ -307,8 +308,6 @@ def run_sim(
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
         raise ValueError(f"sim {sim_id} is finished: code writes nothing more to it")
-    if sim["VARIANT"] not in BUILT_VARIANTS:
-        raise ValueError(f"the {sim['VARIANT']} variant is not built yet")
     is_agent = sim["VARIANT"] != "buy_hold"
     if is_agent and jev is None:
         raise ValueError(f"the {sim['VARIANT']} variant needs a Jev client")
@@ -342,6 +341,17 @@ def run_sim(
                 f"and the wording is now {reading.version}: it cannot carry on"
             )
         store.save_reading(reading.version, reading.opening)
+        if with_memory:
+            version, system_prompt, tools = standing_part(
+                SelectionLimits(**settings["selection_limits"]),
+                list(market.playbook(info.dataset_id)),
+            )
+            if version != settings["prompt_version"]:
+                raise ValueError(
+                    f"sim {sim_id} started on prompt version {settings['prompt_version']}, "
+                    f"and the LLM's wording is now {version}: it cannot carry on"
+                )
+            store.save_prompt(version, system_prompt, tools)
         agent_arguments = (
             sim_id,
             info.dataset_id,

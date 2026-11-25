@@ -1,5 +1,5 @@
 """The slice's tests: a full evaluation in a sim with memory, with the LLM's answers written by
-hand (spec appendix 5, sections 6 to 8). Dormant until the slice's closing ticket (#105).
+hand (spec appendix 5, sections 6 to 8).
 
 One asset at one step: a practice sim with memory on day 2 whose first screen (the crypto at
 step 97) says yes and every later one no, so the LLM selects past episodes exactly once. Each
@@ -48,8 +48,6 @@ from tests.unit.sim.test_agent_without_memory import (
     practice,
     with_snapshots,
 )
-
-pytestmark = pytest.mark.dormant
 
 LOOKUP_TOOLS = {"search_episodes", "read_episodes", "read_track_record"}
 ANSWER_TOOL = "select_episodes"
@@ -339,16 +337,6 @@ def strings(value) -> list[str]:
 
 def holds(texts: list[str], wanted: str) -> bool:
     return any(wanted in t for t in texts)
-
-
-@pytest.fixture(autouse=True)
-def memory_on_runs(monkeypatch):
-    """The runner's "not built yet" guard lifted, as in the skeleton's wiring test."""
-    monkeypatch.setattr(
-        "jev_trader.sim.runner.BUILT_VARIANTS",
-        ("buy_hold", "memory_off", "memory_on"),
-        raising=False,
-    )
 
 
 def situations_in_order(background: str, *numbers: int) -> bool:

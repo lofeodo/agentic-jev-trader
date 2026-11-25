@@ -8,8 +8,9 @@ applies when a stopped sim is carried on. The sim command uses both now; the for
 Of the spec's six refusals, these are built: test period days in a sim that is not a
 measurement (1), a memory the sim may not start from (2), a cap that could take spending past
 the ceiling (3), a fifth sim in progress (4), and a dataset that is not published (5). The
-unknown model (6) comes with the agent with memory. The other refusals are the limits of what is
-built so far.
+unknown model (6) comes with choosing the model when a sim starts (appendix 8, section 4). The
+other refusals are the limits of what is built so far, and a sim with memory whose LLM has no key
+in `.env`, checked on a start and on a resume, before its job builds the LLM client.
 
 **Refusal 2, the memory** (appendix 5, section 2; ADR 0007). A sim with memory starts from a
 copy of another sim's memory: the base memory (the latest finished build-up sim's on the
@@ -30,16 +31,17 @@ Choices the spec leaves to the build (appendix 8, "Not decided by any ticket"):
 """
 
 import math
+import os
 from dataclasses import dataclass
 
 from jev_trader.dataset.store import DatasetStatus
+from jev_trader.llm.settings import LlmSettings, load_call_settings
 from jev_trader.sim.market import DatasetInfo
 from jev_trader.sim.spending import SpendingSettings
 from jev_trader.sim.store import SimStore
 
 KINDS = ("practice", "tuning", "build-up", "measurement", "free")
 VARIANTS = ("buy_hold", "memory_off", "memory_on")
-BUILT_VARIANTS = ("buy_hold", "memory_off")
 # A practice sim of the agent: at most one replayed day (spec appendix 9, section 2).
 PRACTICE_MOST_STEPS = 96
 
@@ -74,6 +76,7 @@ class Planned:
         None  # a practice sim's cap, if the developer raised it
     )
     memory_from: int | None = None  # the sim whose memory it starts from a copy of
+    llm_model: str | None = None  # the agent with memory's LLM, "provider:model"
 
 
 def check(
@@ -90,6 +93,7 @@ def check(
         + _test_period_days(sim, info)
         + _ceiling(sim.spending_cap or 0.0, store, settings, lowest_cap)
         + _too_many(store, settings)
+        + _llm_key(sim.llm_model)
     )
 
 
@@ -110,8 +114,11 @@ def check_resume(
     if sim["VARIANT"] == "buy_hold":
         return []
     left = max(0.0, (sim.get("SPENDING_CAP") or 0.0) - store.spent(sim["ID"]))
-    return _ceiling(left, store, settings, None, excluding=sim["ID"]) + _too_many(
-        store, settings, excluding=sim["ID"]
+    llm = (sim.get("SETTINGS") or {}).get("llm")
+    return (
+        _ceiling(left, store, settings, None, excluding=sim["ID"])
+        + _too_many(store, settings, excluding=sim["ID"])
+        + _llm_key(llm and llm["model"])
     )
 
 
@@ -263,14 +270,6 @@ def _request(sim: Planned, info: DatasetInfo) -> list[Refusal]:
                 f"pick one of {', '.join(VARIANTS)}",
             )
         )
-    elif sim.variant not in BUILT_VARIANTS:
-        found.append(
-            Refusal(
-                "not_built",
-                f"the {sim.variant} variant is not built yet",
-                f"pick one of {', '.join(BUILT_VARIANTS)}",
-            )
-        )
     if sim.kind not in KINDS:
         found.append(
             Refusal(
@@ -279,7 +278,7 @@ def _request(sim: Planned, info: DatasetInfo) -> list[Refusal]:
                 f"pick one of {', '.join(KINDS)}",
             )
         )
-    elif sim.variant == "memory_off" and sim.kind != "practice":
+    elif sim.variant != "buy_hold" and sim.kind != "practice":
         found.append(
             Refusal(
                 "not_built",
@@ -407,6 +406,23 @@ def _ceiling(
             f"(${paid:.2f} paid, ${may_still_spend:.2f} more allowed to the sims in "
             f"progress; ${room:.2f} is left)",
             fix,
+        )
+    ]
+
+
+def _llm_key(model: str | None) -> list[Refusal]:
+    """The agent with memory calls its LLM with the key the provider's block in
+    `config/llm.toml` names: refused when `.env` does not set it."""
+    if model is None:
+        return []
+    variable = load_call_settings(LlmSettings(model).provider).key_variable
+    if os.environ.get(variable):
+        return []
+    return [
+        Refusal(
+            "llm_key_missing",
+            f"{variable} is not set: the agent with memory calls {model} with it",
+            f"set {variable} in .env",
         )
     ]
 

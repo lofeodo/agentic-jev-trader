@@ -23,6 +23,7 @@ from jev_trader.jev.client import JevReply
 from jev_trader.jev.full_evaluation import Evaluation, candidate_trades
 from jev_trader.jev.position_review import Review
 from jev_trader.jev.reading import JevRequest, Reading
+from jev_trader.llm.selection import SelectionLimits, standing_part
 from jev_trader.risk import load_risk_profile
 from jev_trader.sim import records as records_of
 from jev_trader.sim import snowflake_store
@@ -144,6 +145,23 @@ def test_a_screens_records_are_written_and_its_cost_is_summed(
             "SELECT SCREEN_ANSWER FROM MEMORY.DECISIONS WHERE SIM = ?", (sim_id,)
         )
         assert cur.fetchone() == (0.62,)
+
+
+def test_the_llms_standing_instructions_are_stored_once_per_prompt_version(sim_login):
+    """Needs `infra/migrations/V9__llm_selection.sql` applied."""
+    store = SnowflakeSimStore(sim_login)
+    version, system_prompt, tools = standing_part(SelectionLimits(), ["hammer"])
+
+    store.save_prompt(version, system_prompt, tools)
+    store.save_prompt(version, system_prompt, tools)  # stored once
+
+    with sim_login.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*), MIN(SYSTEM_PROMPT), MIN(TOOLS[3]:name::VARCHAR) "
+            "FROM SIM.LLM_PROMPTS WHERE PROMPT_VERSION = ?",
+            (version,),
+        )
+        assert cur.fetchone() == (1, system_prompt, "select_episodes")
 
 
 def test_a_full_evaluation_is_written_beside_a_screen_and_both_are_counted(
