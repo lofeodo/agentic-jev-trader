@@ -14,7 +14,6 @@ from jev_trader.jobs import (
     KubernetesLauncher,
     LocalBuilds,
     LocalLauncher,
-    NotBuiltYet,
     builds_named,
     launcher_named,
     this_process,
@@ -114,14 +113,12 @@ def test_the_setting_names_a_local_or_kubernetes_launcher_and_nothing_else(tmp_p
         builds_named("ssh", tmp_path, "TRADING_AGENT")
 
 
-def test_a_job_in_the_cluster_is_not_built_yet(tmp_path):
-    launcher = launcher_named("kubernetes", tmp_path, "TRADING_AGENT")
-    builds = builds_named("kubernetes", tmp_path, "TRADING_AGENT")
+def test_a_program_in_a_cluster_job_records_its_job(monkeypatch):
+    """Its process number would name nothing the API can find: it notes the Job it was
+    started as, the mark its launcher gave it."""
+    monkeypatch.setenv("RUNNING_ON", "job sim-12-a1b2c3")
 
-    with pytest.raises(NotBuiltYet, match="not built yet"):
-        launcher.start(12)
-    with pytest.raises(NotBuiltYet, match="not built yet"):
-        builds.start(3, "", check=True)
+    assert this_process() == "job sim-12-a1b2c3"
 
 
 def test_a_mark_without_a_start_time_cannot_be_confirmed_so_nothing_is_killed(launcher):
