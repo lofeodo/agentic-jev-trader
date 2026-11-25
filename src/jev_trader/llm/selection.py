@@ -20,13 +20,14 @@ Choices the spec leaves to the build:
 """
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol
 
 from langchain_core.language_models import BaseChatModel
 
 from jev_trader.llm.settings import LlmSettings
+from jev_trader.llm.wording import LlmWording
 from jev_trader.memory.lookups import MOST_READ, Episodes, SearchResult
 from jev_trader.memory.search import RESULTS
 from jev_trader.memory.track_record import TrackRecord
@@ -137,7 +138,8 @@ class SystemWallClock:
 
 class LlmSelector:
     """The LLM's selection: a tool loop over `model` (by default the client `settings` names),
-    within `limits`, timed by `clock`.
+    within `limits`, timed by `clock`, in the words of `wording`, whose prompt version every
+    selection carries.
 
     Not built yet: it selects none and looks nothing up, as the stand-in does.
     """
@@ -152,6 +154,12 @@ class LlmSelector:
         self.settings, self.model = settings, model
         self.limits = limits or SelectionLimits()
         self.clock = clock or SystemWallClock()
+        self.wording = LlmWording(
+            most_lookups=self.limits.most_lookups,
+            most_selected=self.limits.most_selected,
+            note_length=self.limits.note_length,
+        )
 
     def select(self, lookups: MemoryLookups, first_search: SearchResult) -> Selection:
-        return StandInSelector().select(lookups, first_search)
+        selection = StandInSelector().select(lookups, first_search)
+        return replace(selection, prompt_version=self.wording.version)
