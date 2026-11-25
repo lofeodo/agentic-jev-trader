@@ -1,7 +1,8 @@
 name: Terraform
 
-# Checks the Snowflake setup in infra/terraform on every pull request: format and
-# validate, with no secrets and no connection to Snowflake.
+# Checks both Terraform parts on every pull request: format and validate, with no secrets and
+# no connection to Snowflake or a cluster. infra/terraform is the Snowflake part,
+# infra/terraform/kubernetes the kind cluster part.
 on:
   pull_request:
   push:
@@ -13,9 +14,12 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        folder: [infra/terraform, infra/terraform/kubernetes]
     defaults:
       run:
-        working-directory: infra/terraform
+        working-directory: ${{ matrix.folder }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

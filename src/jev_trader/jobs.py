@@ -3,8 +3,9 @@ sections 8.7, 8.10 and 8.11). Dataset builds are `LocalBuilds`, further down.
 
 A job is the separate program that runs one sim: `python -m jev_trader.sim resume <id>`, the
 same command the developer types. The API starts it through a launcher, chosen by the
-`JOB_LAUNCHER` setting: `local` starts it as a program on this computer; `kubernetes` (a Job in
-the kind cluster) comes with the cluster ticket.
+`JOB_LAUNCHER` setting: `local` starts it as a program on this computer; `kubernetes` starts it
+as a Job in the kind cluster (its launcher and builds are in place, and refuse to start a job
+until the cluster's launcher ticket fills them in).
 
 **Where a job runs** is noted on the sim's row (`SIM.SIMS.RUNNING_ON`) by the job itself when
 it starts, and by the API the moment it launches one: `pid 1234 started 1764000000.25`, its
@@ -240,30 +241,79 @@ class LocalBuilds:
         return path.read_text(encoding="utf-8") if path.exists() else None
 
 
+class NotBuiltYet(NotImplementedError):
+    """A part of the kind cluster that is in place but not built yet."""
+
+
+def _kubernetes_not_built() -> NotBuiltYet:
+    return NotBuiltYet(
+        "JOB_LAUNCHER=kubernetes is not built yet: jobs cannot start in the kind cluster;"
+        " use JOB_LAUNCHER=local for now"
+    )
+
+
+class KubernetesLauncher:
+    """Sims' jobs as Kubernetes Jobs in the kind cluster, each running `command_for(sim_id)`
+    from the Python image. Not built yet: every call refuses."""
+
+    def __init__(self, command_for: Callable[[int], list[str]]):
+        self.command_for = command_for
+
+    def start(self, sim_id: int) -> str:
+        raise _kubernetes_not_built()
+
+    def is_running(self, running_on: str | None) -> bool:
+        raise _kubernetes_not_built()
+
+    def stop(self, running_on: str | None) -> bool:
+        raise _kubernetes_not_built()
+
+
+class KubernetesBuilds:
+    """Dataset builds as Kubernetes Jobs in the kind cluster, each running the build command
+    from the Python image. Not built yet: starting or stopping one refuses, and it holds no
+    build's settings."""
+
+    def __init__(self, command_for: Callable[[int, Path, bool], list[str]]):
+        self.command_for = command_for
+
+    def start(self, dataset_id: int, settings_text: str, check: bool) -> None:
+        raise _kubernetes_not_built()
+
+    def stop(self, dataset_id: int) -> bool:
+        raise _kubernetes_not_built()
+
+    def settings_text(self, dataset_id: int) -> str | None:
+        return None
+
+
 def builds_named(name: str, folder: Path, database: str) -> Builds:
     """The dataset builds the `JOB_LAUNCHER` setting names, building into `database`."""
+
+    def command_for(dataset_id: int, settings_file: Path, check: bool) -> list[str]:
+        return dataset_job_command(dataset_id, settings_file, check, database)
+
     if name == "local":
-        return LocalBuilds(
-            folder,
-            lambda dataset_id, settings_file, check: dataset_job_command(
-                dataset_id, settings_file, check, database
-            ),
-        )
-    raise _not_built(name)
+        return LocalBuilds(folder, command_for)
+    if name == "kubernetes":
+        return KubernetesBuilds(command_for)
+    raise _unknown(name)
 
 
 def launcher_named(name: str, log_dir: Path, database: str) -> Launcher:
     """The launcher the `JOB_LAUNCHER` setting names, starting sims on `database`."""
+
+    def command_for(sim_id: int) -> list[str]:
+        return sim_job_command(sim_id, database)
+
     if name == "local":
-        return LocalLauncher(log_dir, lambda sim_id: sim_job_command(sim_id, database))
-    raise _not_built(name)
-
-
-def _not_built(name: str) -> ValueError:
+        return LocalLauncher(log_dir, command_for)
     if name == "kubernetes":
-        return ValueError(
-            "JOB_LAUNCHER=kubernetes comes with the cluster ticket; use local for now"
-        )
+        return KubernetesLauncher(command_for)
+    raise _unknown(name)
+
+
+def _unknown(name: str) -> ValueError:
     return ValueError(
         f"JOB_LAUNCHER must be one of {', '.join(LAUNCHERS)}, not {name!r}"
     )

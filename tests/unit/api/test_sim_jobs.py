@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from jev_trader.api.app import create_app
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.broker import AssetClass
-from jev_trader.jobs import JobNotKilled
+from jev_trader.jobs import JobNotKilled, launcher_named
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket, Period
 from jev_trader.sim.store import InMemorySimStore
 from tests.unit.api.conftest import StandInBuilds, StandInLauncher
@@ -140,6 +140,19 @@ def test_the_app_never_starts_a_practice_or_tuning_sim(api, sims, launcher, kind
     assert refusal["code"] == "command_line_only"
     assert "command line" in refusal["message"]
     assert sims.sims == {} and launcher.started == []
+
+
+def test_a_launcher_not_built_yet_refuses_the_start_with_its_message(sims, tmp_path):
+    api = client(
+        make_store(sims), launcher_named("kubernetes", tmp_path, "TRADING_AGENT")
+    )
+
+    answer = api.post("/sims", json=free_sim(kind="measurement"))
+
+    assert answer.status_code == 409
+    [refusal] = answer.json()["refusals"]
+    assert refusal["code"] == "not_built_yet"
+    assert "not built yet" in refusal["message"]
 
 
 def test_a_request_the_checker_refuses_stores_nothing_and_starts_nothing(

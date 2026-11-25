@@ -41,3 +41,32 @@ jobs:
           npm run types --prefix web
           git diff --exit-code -- web/openapi.json web/src/api/schema.d.ts
           npm run build --prefix web
+
+  # The deployment check (spec appendix 10, sections 3 and 5): in a throwaway kind cluster, with
+  # dummy secrets, the three services report healthy and a job started with
+  # JOB_LAUNCHER=kubernetes runs. Skeleton: each step is named and does nothing yet; the slice's
+  # CI ticket (#201) fills them in.
+  deployment-check:
+    runs-on: ubuntu-latest
+    env:
+      # What the wait-until-healthy step asks, inside the cluster: each service's health route.
+      MEMORY_HEALTH: http://memory:8765/health
+      API_HEALTH: http://api:8000/health
+      WEB_HEALTH: http://web/
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the two images
+        run: echo "not built yet"
+      - name: Create a throwaway kind cluster
+        run: echo "not built yet"
+      - name: Load the images into kind
+        run: echo "not built yet"
+      - name: Apply Terraform's Kubernetes part with dummy secrets
+        run: echo "not built yet"
+      - name: Wait until the memory server, API and web app report healthy
+        run: echo "not built yet; targets $MEMORY_HEALTH $API_HEALTH $WEB_HEALTH"
+      - name: Start a job with JOB_LAUNCHER=kubernetes and see it run
+        run: echo "not built yet"
+      - name: Print the pods' logs
+        if: failure()
+        run: echo "not built yet"

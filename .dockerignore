@@ -1,0 +1,20 @@
+# What never enters the Python image: secrets, keys, saved tables, logs, and local leftovers.
+.env
+.env.*
+!.env.example
+*.p8
+*.pem
+*.tfstate
+*.tfstate.*
+*.tfvars
+saved-tables/
+issue-backups/
+logs/
+.git/
+.claude/
+.terraform/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+web/
