@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -34,10 +33,9 @@ if __package__ in (
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from infra import images
-from infra.snowflake_admin import REPO_ROOT, Settings, SetupError
+from infra.snowflake_admin import DATABASES, REPO_ROOT, Settings, SetupError
 
 KUBERNETES_DIR = REPO_ROOT / "infra" / "terraform" / "kubernetes"
-DATABASES = ("TRADING_AGENT", "TRADING_AGENT_TEST")
 
 # Terraform's secret variables (terraform/kubernetes/variables.tf), each from its line in .env.
 SECRETS = {
@@ -82,29 +80,14 @@ def read_env() -> dict[str, str]:
 
 
 def terraform(args: list[str], env: dict[str, str]) -> int:
-    """Run Terraform with no questions and no colours, passing on what it prints as plain ASCII
-    (its error boxes are drawn with other characters)."""
-    print("> terraform " + " ".join(args), flush=True)
-    command = ["terraform", f"-chdir={KUBERNETES_DIR}", *args]
-    with subprocess.Popen(
-        command,
-        env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    ) as process:
-        for line in process.stdout:
-            print(line.rstrip().encode("ascii", "replace").decode("ascii"), flush=True)
-    return process.returncode
+    """Run Terraform on the Kubernetes part. Only the arguments are shown, never `env`."""
+    return 0 if images.run(["terraform", f"-chdir={KUBERNETES_DIR}", *args], env) else 1
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python infra/deploy.py")
-    parser.add_argument("command", choices=("plan", "apply", "destroy"))
-    parser.add_argument("--database", choices=DATABASES, default=DATABASES[0])
+    parser.add_argument("command", choices=("plan", "apply"))
+    parser.add_argument("--database", choices=DATABASES, default="TRADING_AGENT")
     parser.add_argument("terraform_args", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     try:
