@@ -22,10 +22,15 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Protocol
 
 import psutil
+from kubernetes import client as k8s
+from kubernetes import config as k8s_config
+from kubernetes.client import ApiException
+
+from jev_trader.storage.snowflake import DATABASE
 
 SRC = Path(__file__).resolve().parents[1]
 REPO_ROOT = SRC.parent
@@ -259,27 +264,41 @@ SNOWFLAKE_DIR = "/snowflake"
 # Where a build's pod finds its settings file, carried in a ConfigMap.
 SETTINGS_DIR = "/settings"
 SETTINGS_KEY = "settings.toml"
+# How a Job's mark on a sim's row begins: `job sim-12-a1b2c3`.
+JOB_MARK = "job "
 # How often a stop looks whether the removed Job is gone yet.
 SECONDS_BETWEEN_LOOKS = 0.5
 
 
-def _cluster():
+class _Cluster:
     """The `kubernetes` package's clients for the kind cluster: in a pod, the pod's own
-    service account; elsewhere, this computer's kubeconfig. Jobs come from `BatchV1Api`,
-    ConfigMaps from `CoreV1Api`; the one object answers both."""
-    from kubernetes import client, config
+    service account; elsewhere, this computer's kubeconfig. The calls used here, Jobs from
+    `BatchV1Api` and ConfigMaps from `CoreV1Api`, as one object (the tests' stand-in is one)."""
 
-    try:
-        config.load_incluster_config()
-    except config.ConfigException:
-        config.load_kube_config(context=KUBE_CONTEXT)
-    batch, core = client.BatchV1Api(), client.CoreV1Api()
+    def __init__(self):
+        try:
+            k8s_config.load_incluster_config()
+        except k8s_config.ConfigException:
+            k8s_config.load_kube_config(context=KUBE_CONTEXT)
+        self.batch, self.core = k8s.BatchV1Api(), k8s.CoreV1Api()
 
-    class Cluster:
-        def __getattr__(self, name):
-            return getattr(core if "config_map" in name else batch, name)
+    def create_namespaced_job(self, namespace, body, **options):
+        return self.batch.create_namespaced_job(namespace, body, **options)
 
-    return Cluster()
+    def read_namespaced_job(self, name, namespace, **options):
+        return self.batch.read_namespaced_job(name, namespace, **options)
+
+    def delete_namespaced_job(self, name, namespace, **options):
+        return self.batch.delete_namespaced_job(name, namespace, **options)
+
+    def create_namespaced_config_map(self, namespace, body, **options):
+        return self.core.create_namespaced_config_map(namespace, body, **options)
+
+    def read_namespaced_config_map(self, name, namespace, **options):
+        return self.core.read_namespaced_config_map(name, namespace, **options)
+
+    def delete_namespaced_config_map(self, name, namespace, **options):
+        return self.core.delete_namespaced_config_map(name, namespace, **options)
 
 
 def _image() -> str:
@@ -287,6 +306,7 @@ def _image() -> str:
     else the image of this checkout's commit, as `infra/images.py build` tags it."""
     if image := os.environ.get("JOB_IMAGE"):
         return image
+    # Imported here: the sim runner imports this module.
     from jev_trader.sim.runner import code_version
 
     version = code_version()
@@ -296,14 +316,19 @@ def _image() -> str:
 
 
 def _in_image(command: list[str]) -> list[str]:
-    """A command made for this computer, with the image's own Python in place of this one's."""
-    return ["python", *(str(part) for part in command[1:])]
+    """A command made for this computer (`sys.executable` first), with the image's own Python
+    in place of this one's."""
+    return ["python", *command[1:]]
 
 
-def _missing(error: Exception) -> bool:
-    from kubernetes.client import ApiException
-
-    return isinstance(error, ApiException) and error.status == 404
+def _or_none(read: Callable, *args):
+    """What `read(*args)` answers, or None if the cluster has no such thing."""
+    try:
+        return read(*args)
+    except ApiException as error:
+        if error.status == 404:
+            return None
+        raise
 
 
 class _ClusterJobs:
@@ -321,7 +346,7 @@ class _ClusterJobs:
     @property
     def client(self):
         if self._client is None:
-            self._client = _cluster()
+            self._client = _Cluster()
         return self._client
 
     def start(
@@ -336,87 +361,74 @@ class _ClusterJobs:
     ) -> None:
         """Start the Job `name` running `command` as `login`. `settings` names a ConfigMap
         to mount at SETTINGS_DIR."""
-        from kubernetes.client import (
-            V1ConfigMapVolumeSource,
-            V1Container,
-            V1EnvFromSource,
-            V1EnvVar,
-            V1EnvVarSource,
-            V1Job,
-            V1JobSpec,
-            V1KeyToPath,
-            V1ObjectMeta,
-            V1PodSecurityContext,
-            V1PodSpec,
-            V1PodTemplateSpec,
-            V1SecretEnvSource,
-            V1SecretKeySelector,
-            V1SecretVolumeSource,
-            V1Volume,
-            V1VolumeMount,
-        )
-
         secret = f"snowflake-{login}"
-        variables = [V1EnvVar(name="SNOWFLAKE_LOCAL_DIR", value=SNOWFLAKE_DIR)]
+        variables = [k8s.V1EnvVar(name="SNOWFLAKE_LOCAL_DIR", value=SNOWFLAKE_DIR)]
         variables += [
-            V1EnvVar(
+            k8s.V1EnvVar(
                 name=key,
-                value_from=V1EnvVarSource(
-                    secret_key_ref=V1SecretKeySelector(name=secret, key=key)
+                value_from=k8s.V1EnvVarSource(
+                    secret_key_ref=k8s.V1SecretKeySelector(name=secret, key=key)
                 ),
             )
             for key in ("SNOWFLAKE_ACCOUNT", "SNOWFLAKE_PRIVATE_KEY_FILE_PWD")
         ]
-        variables += [V1EnvVar(name=k, value=v) for k, v in (env or {}).items()]
+        variables += [k8s.V1EnvVar(name=k, value=v) for k, v in (env or {}).items()]
         mounts = [
-            V1VolumeMount(
+            k8s.V1VolumeMount(
                 name="snowflake-key", mount_path=f"{SNOWFLAKE_DIR}/keys", read_only=True
             )
         ]
         volumes = [
-            V1Volume(
+            k8s.V1Volume(
                 name="snowflake-key",
-                secret=V1SecretVolumeSource(
+                secret=k8s.V1SecretVolumeSource(
                     secret_name=secret,
                     default_mode=0o440,
-                    items=[V1KeyToPath(key=f"{login}.p8", path=f"{login}.p8")],
+                    items=[k8s.V1KeyToPath(key=f"{login}.p8", path=f"{login}.p8")],
                 ),
             )
         ]
         if settings is not None:
             mounts.append(
-                V1VolumeMount(name="settings", mount_path=SETTINGS_DIR, read_only=True)
-            )
-            volumes.append(
-                V1Volume(
-                    name="settings", config_map=V1ConfigMapVolumeSource(name=settings)
+                k8s.V1VolumeMount(
+                    name="settings", mount_path=SETTINGS_DIR, read_only=True
                 )
             )
-        pod = V1PodSpec(
+            volumes.append(
+                k8s.V1Volume(
+                    name="settings",
+                    config_map=k8s.V1ConfigMapVolumeSource(name=settings),
+                )
+            )
+        pod = k8s.V1PodSpec(
             restart_policy="Never",
+            # Stop kills the program at once, as a local job's stop does.
+            termination_grace_period_seconds=0,
             automount_service_account_token=False,
-            security_context=V1PodSecurityContext(
+            security_context=k8s.V1PodSecurityContext(
                 run_as_non_root=True, run_as_user=PYTHON_USER, fs_group=PYTHON_USER
             ),
             containers=[
-                V1Container(
+                k8s.V1Container(
                     name="job",
                     image=_image(),
                     image_pull_policy="Never",  # loaded into kind, never downloaded
                     command=command,
                     env=variables,
-                    env_from=[V1EnvFromSource(secret_ref=V1SecretEnvSource(name=keys))],
+                    env_from=[
+                        k8s.V1EnvFromSource(secret_ref=k8s.V1SecretEnvSource(name=keys))
+                    ],
                     volume_mounts=mounts,
                 )
             ],
             volumes=volumes,
         )
-        job = V1Job(
-            metadata=V1ObjectMeta(name=name, labels=labels),
-            spec=V1JobSpec(
+        job = k8s.V1Job(
+            metadata=k8s.V1ObjectMeta(name=name, labels=labels),
+            spec=k8s.V1JobSpec(
                 backoff_limit=0,
-                template=V1PodTemplateSpec(
-                    metadata=V1ObjectMeta(labels=labels), spec=pod
+                template=k8s.V1PodTemplateSpec(
+                    metadata=k8s.V1ObjectMeta(labels=labels), spec=pod
                 ),
             ),
         )
@@ -427,20 +439,17 @@ class _ClusterJobs:
         created, its pod not started yet, counts as running."""
         if name is None:
             return False
-        try:
-            job = self.client.read_namespaced_job(name, NAMESPACE)
-        except Exception as error:
-            if _missing(error):
-                return False
-            raise
+        job = _or_none(self.client.read_namespaced_job, name, NAMESPACE)
+        if job is None:
+            return False
         conditions = (job.status and job.status.conditions) or []
         return not any(
             c.type in ("Complete", "Failed") and c.status == "True" for c in conditions
         )
 
     def stop(self, name: str | None) -> bool:
-        """Remove the running Job `name` and its pod, killed at once as a local job is, and
-        wait until it is gone. A Job that has ended is kept, with its output."""
+        """Remove the running Job `name` and its pod, and wait until both are gone. A Job
+        that has ended is kept, with its output."""
         if not self.is_running(name):
             return False
         try:
@@ -448,27 +457,19 @@ class _ClusterJobs:
                 name,
                 NAMESPACE,
                 propagation_policy="Foreground",  # the pod goes first, then the Job
-                grace_period_seconds=0,
             )
-        except Exception as error:
-            if _missing(error):
+        except ApiException as error:
+            if error.status == 404:
                 return False  # it went by itself meanwhile
             raise JobNotKilled(
                 f"the Job {name} would not be removed: {error}"
             ) from error
         deadline = time.monotonic() + SECONDS_TO_DIE
         while time.monotonic() < deadline:
-            try:
-                self.client.read_namespaced_job(name, NAMESPACE)
-            except Exception as error:
-                if _missing(error):
-                    return True
-                raise
+            if _or_none(self.client.read_namespaced_job, name, NAMESPACE) is None:
+                return True
             time.sleep(SECONDS_BETWEEN_LOOKS)
         raise JobNotKilled(f"the Job {name} was still there after {SECONDS_TO_DIE}s")
-
-
-JOB_MARK = "job "
 
 
 def _job_name(running_on: str | None) -> str | None:
@@ -483,8 +484,9 @@ class KubernetesLauncher:
     from the Python image as the sim login, with the model keys. `client` is the `kubernetes`
     package's clients (or a stand-in for them in tests); None means ones made on first use.
 
-    Each start makes a fresh Job, `sim-<id>-<6 letters>`, so a resumed sim never waits for its
-    old Job's name. Its mark is `job <name>`. The Job is given that mark (`RUNNING_ON`), so the
+    Each start makes a fresh Job, `sim-<id>-<6 random characters>`, so a resumed sim never
+    waits for its old Job's name, and a sim of the same number in the other database never
+    meets it. Its mark is `job <name>`. The Job is given that mark (`RUNNING_ON`), so the
     mark the sim job writes itself (`this_process`) is the same one.
     """
 
@@ -512,58 +514,63 @@ class KubernetesLauncher:
         return self.jobs.stop(_job_name(running_on))
 
 
-def _build_name(dataset_id: int) -> str:
-    return f"dataset-{dataset_id}"
-
-
 class KubernetesBuilds:
     """Dataset builds as Kubernetes Jobs in the kind cluster, each running the build command
     from the Python image as the builder login, with the price-data key. A build's Job and the
-    ConfigMap holding its settings are both named `dataset-<id>`, so both are found after the
-    API restarts with nothing stored. `client` is as for `KubernetesLauncher`."""
+    ConfigMap holding its settings are both named `dataset-<id>-<database>`, so both are found
+    after the API restarts with nothing stored, and the two databases' datasets of one number
+    never meet. `client` is as for `KubernetesLauncher`."""
 
     def __init__(
-        self, command_for: Callable[[int, Path, bool], list[str]], client=None
+        self,
+        command_for: Callable[[int, PurePath, bool], list[str]],
+        client=None,
+        database: str = DATABASE,
     ):
         self.command_for = command_for
         self.jobs = _ClusterJobs(client)
+        self.database = database
+
+    def _name(self, dataset_id: int) -> str:
+        # Names take lower-case letters, digits and dashes only.
+        return f"dataset-{dataset_id}-{self.database.lower().replace('_', '-')}"
 
     def start(self, dataset_id: int, settings_text: str, check: bool) -> None:
-        from kubernetes.client import V1ConfigMap, V1ObjectMeta
-
-        name = _build_name(dataset_id)
+        name = self._name(dataset_id)
         labels = {"app": "dataset-job", "dataset": str(dataset_id)}
         self.jobs.client.create_namespaced_config_map(
             NAMESPACE,
-            V1ConfigMap(
-                metadata=V1ObjectMeta(name=name, labels=labels),
+            k8s.V1ConfigMap(
+                metadata=k8s.V1ObjectMeta(name=name, labels=labels),
                 data={SETTINGS_KEY: settings_text},
             ),
         )
         # A path inside the pod, written with forward slashes on every computer.
         settings_file = PurePosixPath(SETTINGS_DIR, SETTINGS_KEY)
-        self.jobs.start(
-            name,
-            _in_image(self.command_for(dataset_id, settings_file, check)),
-            login="builder",
-            keys="twelve-data",
-            labels=labels,
-            settings=name,
-        )
+        try:
+            self.jobs.start(
+                name,
+                _in_image(self.command_for(dataset_id, settings_file, check)),
+                login="builder",
+                keys="twelve-data",
+                labels=labels,
+                settings=name,
+            )
+        except Exception:
+            # No build of these settings ever ran: they are not kept.
+            _or_none(self.jobs.client.delete_namespaced_config_map, name, NAMESPACE)
+            raise
 
     def stop(self, dataset_id: int) -> bool:
-        return self.jobs.stop(_build_name(dataset_id))
+        return self.jobs.stop(self._name(dataset_id))
 
     def settings_text(self, dataset_id: int) -> str | None:
-        try:
-            config_map = self.jobs.client.read_namespaced_config_map(
-                _build_name(dataset_id), NAMESPACE
-            )
-        except Exception as error:
-            if _missing(error):
-                return None
-            raise
-        return (config_map.data or {}).get(SETTINGS_KEY)
+        config_map = _or_none(
+            self.jobs.client.read_namespaced_config_map,
+            self._name(dataset_id),
+            NAMESPACE,
+        )
+        return None if config_map is None else (config_map.data or {}).get(SETTINGS_KEY)
 
 
 def builds_named(name: str, folder: Path, database: str) -> Builds:
@@ -575,7 +582,7 @@ def builds_named(name: str, folder: Path, database: str) -> Builds:
     if name == "local":
         return LocalBuilds(folder, command_for)
     if name == "kubernetes":
-        return KubernetesBuilds(command_for)
+        return KubernetesBuilds(command_for, database=database)
     raise _unknown(name)
 
 

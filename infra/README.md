@@ -151,9 +151,9 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
 
 The API in the cluster starts each sim or dataset build as a Kubernetes Job (a one-off run
 inside the cluster, `JOB_LAUNCHER=kubernetes`), from its own image, running the same command
-as on this computer. A sim's Job is named `sim-<id>-<6 letters>` (a fresh one each time the sim
+as on this computer. A sim's Job is named `sim-<id>-<6 random characters>` (a fresh one each time the sim
 starts or resumes) and reads the `snowflake-sim` and `models` secrets; a build's Job is
-`dataset-<id>` and reads `snowflake-builder` and `twelve-data`, with its settings file in the
+`dataset-<id>-<database>` (such as `dataset-3-trading-agent`) and reads `snowflake-builder` and `twelve-data`, with its settings file in the
 ConfigMap of the same name. Neither gets a way to reach the cluster itself. A Job that ended
 is kept, so its output stays readable (Stop removes the Job and its output with it):
 
@@ -162,5 +162,5 @@ kubectl logs job/sim-12-a1b2c3 -n jev-trader
 ```
 
 An API run on this computer with `JOB_LAUNCHER=kubernetes` in `.env` starts Jobs in the same
-cluster (context `kind-jev-trader`), from the image of the checkout's commit. CI's
+cluster (the entry `kind-jev-trader` in this computer's cluster settings, `~/.kube/config`), from the image of the checkout's commit. CI's
 `deployment-check` job holds the deployment check's steps, each doing nothing yet.
