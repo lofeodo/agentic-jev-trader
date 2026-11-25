@@ -15,7 +15,7 @@
 # Tables saved from Snowflake by `python -m jev_trader.storage save`
 saved-tables/
 
-# Copies of GitHub issues saved before a large tracker edit, for restoring them
+# Copies of GitHub issues an agent saves before a large tracker edit (see RESTORE.md inside)
 issue-backups/
 
 # Python and tool caches
