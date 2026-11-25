@@ -661,6 +661,10 @@ class _DecisionWithMemory(_DecisionAtStep):
         if not first_search.episodes:
             return MemorySections(track_records, PastEpisodes.NONE_YET)
         self.selection = self.agent.selector.select(lookups, first_search)
+        self.rows["SIM.CALLS"] += [
+            records.llm_call_row(self.agent.sim_id, self.step, self.asset, call, n)
+            for n, call in enumerate(self.selection.calls, start=1)
+        ]
         if not self.selection.episode_ids:
             return MemorySections(track_records, PastEpisodes.NONE_SELECTED)
         chosen = lookups.read(list(self.selection.episode_ids)).episodes

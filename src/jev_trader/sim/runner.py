@@ -51,6 +51,7 @@ from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.reading import Reading
 from jev_trader.jobs import this_process
 from jev_trader.llm.selection import (
+    LlmFailed,
     MemoryLookups,
     SelectionLimits,
     Selector,
@@ -299,7 +300,8 @@ def run_sim(
     The agent's sims need `jev`, store one step per write, and stop at their spending cap. A call
     to Jev that still fails after its retries stops the sim and raises `JevFailed`. The agent
     with memory also needs memory's lookups (`lookups_at`) and the LLM's selection step
-    (`selector`; for now the stand-in, which selects none).
+    (`selector`; for now the stand-in, which selects none); an LLM that cannot be used stops
+    the sim and raises `LlmFailed`.
     """
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
@@ -466,6 +468,15 @@ def run_sim(
             sim_id,
             STATUS=str(SimStatus.STOPPED),
             STOP_REASON=str(StopReason.JEV_FAILED),
+            FAILURE_REASON=str(error),
+            ENDED_AT=now(),
+        )
+        raise
+    except LlmFailed as error:
+        store.update(
+            sim_id,
+            STATUS=str(SimStatus.STOPPED),
+            STOP_REASON=str(StopReason.LLM_FAILED),
             FAILURE_REASON=str(error),
             ENDED_AT=now(),
         )

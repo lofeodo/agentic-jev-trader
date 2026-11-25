@@ -26,6 +26,10 @@ from typing import Protocol
 
 from langchain_core.language_models import BaseChatModel
 
+from jev_trader.llm.clients import (  # noqa: F401 (LlmFailed: raised by the selection)
+    LlmCall,
+    LlmFailed,
+)
 from jev_trader.llm.settings import LlmSettings
 from jev_trader.memory.lookups import MOST_READ, Episodes, SearchResult
 from jev_trader.memory.search import RESULTS
@@ -92,6 +96,7 @@ class Selection:
     `episode_ids` are stored decision IDs, most useful first: none is a valid answer.
     `limit_hit` says which limit was reached, if one was. `failed_replies` holds each
     reply code could not use, word for word, and `exchange` every message sent and received.
+    `calls` holds what each call to the LLM took, in order, each recorded in SIM.CALLS.
     """
 
     episode_ids: tuple[str, ...]
@@ -103,6 +108,7 @@ class Selection:
     exchange: tuple[dict, ...] = ()
     model: str | None = None
     prompt_version: str | None = None
+    calls: tuple[LlmCall, ...] = ()
 
 
 class Selector(Protocol):
@@ -116,11 +122,6 @@ class StandInSelector:
 
     def select(self, lookups: MemoryLookups, first_search: SearchResult) -> Selection:
         return Selection(episode_ids=(), note="")
-
-
-class LlmFailed(Exception):
-    """The LLM could not be used: a call still failing after its retries, or the third failed
-    reply in one evaluation. It stops the sim, which can be resumed (stop reason "LLM failed")."""
 
 
 class WallClock(Protocol):

@@ -9,6 +9,7 @@ so a record stored twice by mistake shows up in the duplicate count at the end o
 - A notable moment: sim, step, kind, and its number among that step's moments of that kind.
 - A decision: sim, step and asset. A Jev request and its paid call: the same, and their purpose
   (screen, pick or size; for an open position, position_screen, action, reduce or add).
+- A call to the LLM: the same, the purpose "select", and its number in the selection.
 
 An order Jev decided carries its decision's ID; code's own orders (a stop price, a forced close,
 the sim's end, the holding sim's purchases) carry none.
@@ -21,6 +22,7 @@ from jev_trader.jev.client import JevReply
 from jev_trader.jev.full_evaluation import Evaluation
 from jev_trader.jev.position_review import Review
 from jev_trader.jev.reading import JevRequest, Reading
+from jev_trader.llm.clients import LlmCall
 from jev_trader.sim.market import instrument
 from jev_trader.sim.store import (
     ACTION_NOTHING,
@@ -296,6 +298,32 @@ def jev_call_row(
         "LATENCY_SECONDS": reply.latency_seconds,
         "RETRIES": reply.retries,
         "ERROR": None,
+        "CALLED_AT": now(),
+    }
+
+
+def llm_call_row(
+    sim_id: int, step: int, asset: str, call: LlmCall, number: int
+) -> dict:
+    """One call to the LLM in a full evaluation's selection: its `number` among them, from 1.
+    MODEL is the model the provider says answered."""
+    return {
+        "ID": f"{sim_id}-{step}-{asset}-select-{number}",
+        "SIM": sim_id,
+        "PURPOSE": "select",
+        "STEP": step,
+        "ASSET": asset,
+        "DECISION": decision_id(sim_id, step, asset),
+        "SERVICE": call.service,
+        "MODEL": call.model,
+        "TOKENS_IN": call.tokens_in,
+        "CACHED_TOKENS": call.cached_tokens,
+        "TOKENS_OUT": call.tokens_out,
+        "THINKING_TOKENS": call.thinking_tokens,
+        "COST_USD": call.cost_usd,
+        "LATENCY_SECONDS": call.latency_seconds,
+        "RETRIES": call.retries,
+        "ERROR": call.error,
         "CALLED_AT": now(),
     }
 
