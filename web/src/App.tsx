@@ -9,6 +9,7 @@ import {
 import { ComparisonScreen } from "./ComparisonScreen";
 import { DatasetScreen } from "./DatasetScreen";
 import { DatasetsScreen } from "./DatasetsScreen";
+import { NewSimScreen } from "./NewSimScreen";
 import { PlaybookScreen } from "./PlaybookScreen";
 import { SimPage } from "./SimPage";
 import { SimsScreen } from "./SimsScreen";
@@ -21,16 +22,18 @@ const REFRESH_MS = 20_000;
 const inProgress = (sim: SimLine) =>
   sim.status === "created" || (sim.status === "running" && !sim.not_responding);
 
-// `id`: the sim or dataset the page shows, as its screen says; null on a list.
-type Page = { screen: Screen; id: number | null };
+// `id`: the sim or dataset the page shows, as its screen says; null on a list; "new" on the
+// New trading sim form.
+type Page = { screen: Screen; id: number | "new" | null };
 
-// The address after `#`: `#/sims/12` is sim 12's page, `#/datasets/3` dataset 3's,
-// `#/comparison`, `#/datasets`, `#/playbook` and `#/spending` their screens; anything else is
-// the list of sims.
+// The address after `#`: `#/sims/12` is sim 12's page, `#/sims/new` the New trading sim form,
+// `#/datasets/3` dataset 3's, `#/comparison`, `#/datasets`, `#/playbook` and `#/spending` their
+// screens; anything else is the list of sims.
 function pageInAddress(): Page {
   const hash = window.location.hash;
   const sim = /^#\/sims\/(\d+)$/.exec(hash);
   if (sim) return { screen: "sims", id: Number(sim[1]) };
+  if (hash === "#/sims/new") return { screen: "sims", id: "new" };
   const dataset = /^#\/datasets\/(\d+)$/.exec(hash);
   if (dataset) return { screen: "datasets", id: Number(dataset[1]) };
   if (hash === "#/comparison") return { screen: "comparison", id: null };
@@ -73,10 +76,11 @@ export function App() {
     <main className="mx-auto max-w-[1500px] px-6 pt-6 pb-16">
       <TopBar spending={spending} screen={screen} />
       {screen === "comparison" && <ComparisonScreen />}
-      {screen === "datasets" && (id === null ? <DatasetsScreen /> : <DatasetScreen key={id} id={id} />)}
+      {screen === "datasets" && (typeof id === "number" ? <DatasetScreen key={id} id={id} /> : <DatasetsScreen />)}
       {screen === "playbook" && <PlaybookScreen />}
       {screen === "spending" && <SpendingScreen />}
-      {screen === "sims" && (id === null ? <SimsListPage /> : <SimPage key={id} id={id} />)}
+      {screen === "sims" &&
+        (id === null ? <SimsListPage /> : id === "new" ? <NewSimScreen /> : <SimPage key={id} id={id} />)}
     </main>
   );
 }
