@@ -99,7 +99,7 @@ holds the all-models role, and even `ACCOUNTADMIN` may not revoke it. So the bui
 use other models too, and `check` warns about it; the per-model grant is in place but
 cannot be shown to work on its own on this account.
 
-## The kind cluster (being built)
+## The kind cluster
 
 The same code can also run in a local kind cluster (a small Kubernetes cluster inside Docker,
 which runs and restarts programs). Its pieces sit beside the Snowflake setup, apart from it:
@@ -124,7 +124,16 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
   sent to the cluster without Terraform keeping a copy (write-only attributes), so its state
   file never holds them. After changing a secret's value, raise
   `secrets_revision` by one, or Terraform does not send it. The ZAI key (the benchmark, on this
-  computer only) and the LangSmith key (optional tracing) do not enter the cluster.
+  computer only) and the LangSmith key (optional tracing) do not enter the cluster. `deploy.py`
+  runs this part with the real values from `.env`, the images of the current commit and the
+  keys folder, keeping the state as `kubernetes.tfstate` in `SNOWFLAKE_LOCAL_DIR` (`apply` puts
+  real keys into the cluster):
+
+  ```
+  conda run -n agentic-jev-trader python infra/deploy.py plan
+  conda run -n agentic-jev-trader python infra/deploy.py apply -auto-approve
+  ```
+
 - `images.py` builds the two images (an image is a packed copy of a program with everything
   it needs to run; recipes `Dockerfile` and `web/Dockerfile`), tags both with the git commit
   and copies them into kind straight from this computer, with no image registry (an online

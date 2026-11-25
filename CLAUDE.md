@@ -115,9 +115,38 @@ Check the episode search's values (spec appendix 9, section 7), once, after the 
 conda run -n agentic-jev-trader python -m jev_trader.memory check-search --sim 12
 ```
 
+The local kind cluster (a small Kubernetes cluster inside Docker; `infra/README.md`) runs the same code: the memory server, the API and the web app as long-lived services, and each sim or dataset build the API starts as a Job (a one-off run). It needs Docker Desktop running and `kind`, `kubectl` and `terraform` installed. It is for proving the route; the sims that count run as plain programs on this computer. Make the cluster once (it opens the web app at http://127.0.0.1:8080 and the API at http://127.0.0.1:8081, to this computer only):
+
+```
+kind create cluster --config infra/kind-cluster.yaml
+```
+
+Build both images, tagged with the current commit, and load them into the cluster (commit every change first: it refuses uncommitted changes, since the tag names the code inside):
+
+```
+conda run -n agentic-jev-trader python infra/images.py build
+```
+
+Deploy them with the real keys from `.env` (Terraform's Kubernetes part, `infra/deploy.py`; each key goes to Terraform as a `TF_VAR_*` variable and to the cluster write-only, so no file or state holds it). `plan` shows what would change; `apply` puts real keys into the cluster: ask first, each time. `--database TRADING_AGENT_TEST`, before `plan` or `apply`, serves the test database:
+
+```
+conda run -n agentic-jev-trader python infra/deploy.py plan
+conda run -n agentic-jev-trader python infra/deploy.py apply -auto-approve
+```
+
+In the cluster the API runs with `JOB_LAUNCHER=kubernetes`: each sim starts as the Job `sim-<id>-<6 characters>`, each build as `dataset-<id>-<database>`, from the API's own image. The money rules are the ones above: a sim of the agent calls Jev wherever it runs. A Job that ended is kept, so its output stays readable; Stop removes it:
+
+```
+kubectl get jobs -n jev-trader
+kubectl logs job/sim-12-a1b2c3 -n jev-trader
+```
+
+`JOB_LAUNCHER=kubernetes` in `.env` makes an API run on this computer start its Jobs in the same cluster (context `kind-jev-trader`), from the image of the checkout's commit. Remove the cluster, everything in it included: `kind delete cluster --name jev-trader`.
+
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).
+- The kind cluster runs the images of one commit. After a new commit, rebuild (`infra/images.py build`) and deploy again: the new tag replaces the pods. A sim Job runs the API's image, not this checkout. After changing a key in `.env`, deploy with `apply -auto-approve -var=secrets_revision=2` (one more than the last), or Terraform does not send the new value. In a worktree, `infra/deploy.py` finds no `.env`: load the main checkout's first, as below.
 - `.env` is gitignored, so it lives only in the main checkout: a git worktree has none. There, `tests/snowflake` skips with "Snowflake login not set" (the login is set; the worktree just can't see it), and anything else that reads `.env` finds nothing. Load the main checkout's `.env` into the environment first, never copy it: a short Python script that calls `dotenv.load_dotenv("<main checkout>/.env")` and then `pytest.main([...])`, run from the worktree.
 - A sim job started by the API runs the code of the checkout the API runs from, whichever copy is installed.
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
