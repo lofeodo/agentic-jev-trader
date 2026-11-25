@@ -56,7 +56,7 @@ const BUILD_UP_YEAR = { first: "2024-03-10", last: "2025-03-09" };
 // How long the form waits after a change before asking the API, so typing a date asks once.
 const ASK_AFTER_MS = 300;
 
-const VARIANT_WORDS: Record<Variant, string> = { memory_on: "with memory", memory_off: "without memory" };
+const VARIANT_WORDS: Record<Variant, string> = { memory_on: "With memory", memory_off: "Without memory" };
 const other = (variant: Variant): Variant => (variant === "memory_on" ? "memory_off" : "memory_on");
 
 export function NewSimScreen() {
@@ -92,6 +92,7 @@ export function NewSimScreen() {
   if (datasetId === null) notReady = datasets.data ? "Build and publish a dataset first." : null;
   else if (!choice.data) notReady = null;
   else if (kind === "measurement" && measuredModels.length === 0) notReady = "Tick at least one model.";
+  else if (usesDates && (!firstDay || !lastDay)) notReady = "Pick the first and the last day.";
   else
     wanted = {
       dataset: datasetId,
@@ -100,10 +101,17 @@ export function NewSimScreen() {
       market: usesDates ? null : market,
       first_day: usesDates && firstDay ? firstDay : null,
       last_day: usesDates && lastDay ? lastDay : null,
-      models: !readsMemory ? null : kind === "measurement" ? measuredModels : freeSimModel ? [freeSimModel] : null,
+      models: modelsAsked(),
       partner: kind === "free" && partner,
       starting_value: 10_000,
     };
+  // The models named: none when no sim reads memory, both ticked ones for a measurement, the one
+  // picked for a free sim.
+  function modelsAsked(): string[] | null {
+    if (!readsMemory) return null;
+    if (kind === "measurement") return measuredModels;
+    return freeSimModel ? [freeSimModel] : null;
+  }
   const asked = wanted === null ? null : JSON.stringify(wanted);
 
   const [check, setCheck] = useState<{ asked: string; answer: SimCheck } | null>(null);
@@ -309,7 +317,7 @@ export function NewSimScreen() {
                     onChange={() => setVariant(v)}
                     className="size-4 accent-amber"
                   />
-                  <span className="font-mono tracking-wider">{v === "memory_on" ? "With memory" : "Without memory"}</span>
+                  <span className="font-mono tracking-wider">{VARIANT_WORDS[v]}</span>
                 </label>
               ))}
               <label className="flex items-start gap-3">
@@ -321,7 +329,7 @@ export function NewSimScreen() {
                 />
                 <span>
                   <span className="font-mono tracking-wider">
-                    Also play the same days {VARIANT_WORDS[other(variant)]}
+                    Also play the same days {VARIANT_WORDS[other(variant)].toLowerCase()}
                   </span>
                   <span className="block text-[15px] text-dim">Side by side, as a second sim.</span>
                 </span>
@@ -424,8 +432,8 @@ export function NewSimScreen() {
           <p className="mt-2 px-[2ch] text-[15px] text-dim">
             The spending cap is the most these sims may pay before they stop themselves: one and a half
             times the estimate, so an estimate of $3.00 gives a cap of $4.50. The ceiling is the most the
-            whole project may pay; what is left already takes off what was paid and the caps of sims
-            still running.
+            whole project may pay; what is left takes off what was paid and the caps of sims still running.
+            With $75, $20 paid and a running sim capped at $5, $50 is left.
           </p>
         </div>
 
@@ -433,10 +441,7 @@ export function NewSimScreen() {
           {/* The errors: empty unless something blocks the sim, then every refusal and its fix. */}
           <div aria-live="polite" aria-label="Why it cannot start">
             {(refusals.length > 0 || notReady || checkError || startError) && (
-              <div role="alert" className="border-[1.5px] border-rule">
-                <div className="bg-amber px-[2ch] py-1 font-mono text-[13.5px] tracking-widest text-screen">
-                  Why it cannot start
-                </div>
+              <ErrorBox title="Why it cannot start">
                 <ul className="grid gap-2 px-[2ch] py-2">
                   {notReady && <li>{notReady}</li>}
                   {checkError && <li>The cost and checks could not be read: {checkError}</li>}
@@ -445,7 +450,7 @@ export function NewSimScreen() {
                     <li key={`${r.code}:${r.message}`}>{r.message}</li>
                   ))}
                 </ul>
-              </div>
+              </ErrorBox>
             )}
           </div>
           <div>
