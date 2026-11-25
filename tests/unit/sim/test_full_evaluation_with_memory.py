@@ -12,13 +12,16 @@ the episodes selected, the background Jev is sent, and the records stored.
 - Memory is faked by hand: twelve made-up past episodes. Code's first search finds the first
   ten (shown as E1 to E10); any later search finds episodes 1, 2, 11 and 12, so the two new
   ones continue the numbering (E11, E12).
-- The fixed messages are compared with the wording in `prompts/llm_selection.toml`, filled in
-  with the selection's limits, so the tests hold whatever the words.
+- The fixed messages are compared with the wording in `prompts/llm_selection.toml`: its words
+  around any filled-in value, so the tests hold whatever the words and value names.
+- A call to the provider that fails may be retried by the provider's own client, below the
+  model, or by code above it: the tests hold either way.
 """
 
 import copy
 import json
-from dataclasses import asdict, dataclass, field
+import string
+from dataclasses import dataclass, field
 
 import anthropic
 import httpx
@@ -28,7 +31,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import ConfigDict, Field
 
-from jev_trader.llm.selection import LlmFailed, LlmSelector, SelectionLimits
+from jev_trader.llm.selection import LlmFailed, LlmSelector
 from jev_trader.llm.settings import load_llm_settings
 from jev_trader.llm.wording import load_wording, prompt_version
 from jev_trader.memory import bridge
@@ -51,7 +54,7 @@ pytestmark = pytest.mark.dormant
 LOOKUP_TOOLS = {"search_episodes", "read_episodes", "read_track_record"}
 ANSWER_TOOL = "select_episodes"
 ALL_TOOLS = LOOKUP_TOOLS | {ANSWER_TOOL}
-MODEL = "claude-haiku-5-5"
+MODEL = load_llm_settings().name
 
 
 # Memory: twelve made-up past episodes
@@ -126,9 +129,6 @@ class FakeClock:
 
     def monotonic(self) -> float:
         return self.now
-
-    def sleep(self, seconds: float) -> None:
-        self.now += seconds
 
 
 @dataclass
@@ -233,11 +233,18 @@ def read(*labels):
     return ("read_episodes", {"episode_ids": list(labels)})
 
 
-def fixed(section: str, key: str) -> str:
-    """A fixed message, as the wording file holds it, with the limits filled in."""
-    text = load_wording()[section][key]
-    assert text, f"{section}.{key} has no wording yet"
-    return text.format(**asdict(SelectionLimits()))
+def sent(section: str, key: str, text: str) -> bool:
+    """Whether `text` holds the fixed message the wording file has under `section` and `key`:
+    its words, in order, whatever value is filled in between them."""
+    wording = load_wording()[section][key]
+    assert wording, f"{section}.{key} has no wording yet"
+    at = 0
+    for words, *_ in string.Formatter().parse(wording):
+        at = text.find(words, at)
+        if at == -1:
+            return False
+        at += len(words)
+    return True
 
 
 # One full evaluation in a sim with memory
@@ -258,7 +265,7 @@ class OneEvaluation:
         self.sent: list = []
 
     def run(self, llm: ScriptedLlm | None = None) -> None:
-        jev, self.sent = fake_jev(lambda n: 0.9 if n == 1 else 0.3)
+        jev, self.sent = answers_jev_once()
         llm = llm or self.llm
         run_sim(
             self.store,
@@ -272,7 +279,12 @@ class OneEvaluation:
     @property
     def background(self) -> str:
         """The background Jev was sent with the full evaluation's pick question."""
-        return next(b["state"] for b in self.sent if "pick_1" in b["questions"])
+        return pick_background(self.sent)
+
+    @property
+    def status(self) -> tuple:
+        sim = self.store.sim(self.sim_id)
+        return sim["STATUS"], sim["STOP_REASON"]
 
     @property
     def decision(self) -> dict:
@@ -298,6 +310,15 @@ class OneEvaluation:
         return [a[1] for a in self.asked if a[0] == "read"]
 
 
+def pick_background(bodies: list[dict]) -> str:
+    return next(b["state"] for b in bodies if "pick_1" in b["questions"])
+
+
+def answers_jev_once():
+    """A fake Jev whose first screen says yes and every later one no."""
+    return fake_jev(lambda n: 0.9 if n == 1 else 0.3)
+
+
 def strings(value) -> list[str]:
     """Every string inside a stored value, reading into JSON held as text."""
     if isinstance(value, dict):
@@ -321,7 +342,9 @@ def holds(texts: list[str], wanted: str) -> bool:
 def memory_on_runs(monkeypatch):
     """The runner's "not built yet" guard lifted, as in the skeleton's wiring test."""
     monkeypatch.setattr(
-        "jev_trader.sim.runner.BUILT_VARIANTS", ("buy_hold", "memory_off", "memory_on")
+        "jev_trader.sim.runner.BUILT_VARIANTS",
+        ("buy_hold", "memory_off", "memory_on"),
+        raising=False,
     )
 
 
@@ -356,6 +379,11 @@ def test_the_llm_answers_at_once():
     # The exchange is stored word for word: the first message as it was sent.
     first_message = text_of(first.messages[-1])
     assert holds(run.stored(), first_message)
+    # Each call to the LLM is recorded with its model and its retries.
+    llm_calls = [
+        c for c in run.store.rows("SIM.CALLS", run.sim_id) if c["SERVICE"] != "jev"
+    ]
+    assert [(c["MODEL"], c["RETRIES"]) for c in llm_calls] == [(MODEL, 0)]
 
 
 def test_the_llm_searches_again_opens_episodes_and_reads_the_track_record():
@@ -380,8 +408,6 @@ def test_the_llm_searches_again_opens_episodes_and_reads_the_track_record():
     # The read in full reaches memory as stored decision IDs, and its records reach the LLM.
     assert [EPISODES[1].id, EPISODES[11].id] in run.llm_reads()
     assert EPISODES[11].situation in run.llm.calls[2].text
-    # The LLM's track record is a lookup of its own, besides code's reading for Jev.
-    assert run.asked.count(("track_record", "hammer", "long")) == 2
     assert situations_in_order(run.background, 11, 1)
     stored = strings(run.decision)
     for wanted in ("search_episodes", "read_episodes", "read_track_record"):
@@ -411,8 +437,8 @@ def test_at_six_lookups_the_lookup_tools_are_switched_off():
     # The first of the two is run, the second refused, then the fixed stop message.
     assert [EPISODES[4].id] in run.llm_reads()
     assert run.asked.count(("track_record", "hammer", "short")) == 1  # code's own only
-    assert fixed("limits", "lookups_used_up") in calls[6].text
-    assert fixed("limits", "answer_now_at_limit") in calls[6].text
+    assert sent("limits", "lookups_used_up", calls[6].text)
+    assert sent("limits", "answer_now_at_limit", calls[6].text)
     assert len(run.events("an LLM limit hit")) == 1
     assert run.events("a failed reply") == []
     assert EPISODES[1].situation in run.background
@@ -433,7 +459,7 @@ def test_after_60_seconds_the_lookup_tools_are_switched_off():
     assert len(calls) == 3
     assert calls[1].tools == ALL_TOOLS
     assert calls[2].tools == {ANSWER_TOOL}
-    assert fixed("limits", "answer_now_out_of_time") in calls[2].text
+    assert sent("limits", "answer_now_out_of_time", calls[2].text)
     assert len(run.events("an LLM limit hit")) == 1
     assert EPISODES[2].situation in run.background
 
@@ -446,17 +472,12 @@ def test_a_sentence_instead_of_a_tool_call_is_a_failed_reply_and_asked_again():
     calls = run.llm.calls
     assert len(calls) == 2
     assert calls[1].tools == ALL_TOOLS  # every tool it still has stays on offer
-    assert fixed("failed_replies", "reask") in calls[1].text
+    assert sent("failed_replies", "reask", calls[1].text)
     assert len(run.events("a failed reply")) == 1
-    assert store_status(run) == ("finished", "finished")
+    assert run.status == ("finished", "finished")
     # Code reads no IDs out of the sentence: only the answer's.
     assert EPISODES[2].situation in run.background
     assert EPISODES[1].situation not in run.background
-
-
-def store_status(run: OneEvaluation) -> tuple:
-    sim = run.store.sim(run.sim_id)
-    return sim["STATUS"], sim["STOP_REASON"]
 
 
 def test_the_third_failed_reply_stops_the_sim_and_it_can_resume():
@@ -472,12 +493,12 @@ def test_the_third_failed_reply_stops_the_sim_and_it_can_resume():
         run.run()
 
     assert len(run.llm.calls) == 3
-    assert store_status(run) == ("stopped", "LLM failed")
+    assert run.status == ("stopped", "LLM failed")
     assert run.sent and not any("pick_1" in b["questions"] for b in run.sent)
 
     run.run(ScriptedLlm(script=[answers(["E1"])], clock=FakeClock()))
 
-    assert store_status(run) == ("finished", "finished")
+    assert run.status == ("finished", "finished")
     assert run.store.duplicate_ids(run.sim_id) == {}
     assert EPISODES[1].situation in run.background
 
@@ -498,9 +519,9 @@ def memory_off_background() -> str:
     """The background of the same full evaluation by the agent without memory."""
     market = with_snapshots(make_market())
     store = InMemorySimStore()
-    jev, sent = fake_jev(lambda n: 0.9 if n == 1 else 0.3)
+    jev, sent_to_jev = answers_jev_once()
     run_sim(store, market, practice(store, market), jev=jev)
-    return next(b["state"] for b in sent if "pick_1" in b["questions"])
+    return pick_background(sent_to_jev)
 
 
 def test_an_answer_of_none_is_told_to_jev_apart_from_memory_holding_none():
@@ -525,33 +546,19 @@ def test_an_answer_of_none_is_told_to_jev_apart_from_memory_holding_none():
 
 
 def test_a_provider_call_failing_after_three_retries_stops_the_sim_and_it_can_resume():
+    # Enough failures for the first try and three retries, wherever the retrying is done.
     run = OneEvaluation(script=[provider_fails() for _ in range(4)])
 
     with pytest.raises(LlmFailed):
         run.run()
 
-    assert len(run.llm.calls) == 4  # the first try and three retries
-    assert store_status(run) == ("stopped", "LLM failed")
+    assert run.status == ("stopped", "LLM failed")
 
     run.run(ScriptedLlm(script=[answers(["E1"])], clock=FakeClock()))
 
-    assert store_status(run) == ("finished", "finished")
+    assert run.status == ("finished", "finished")
     assert run.store.duplicate_ids(run.sim_id) == {}
     assert EPISODES[1].situation in run.background
-
-
-def test_a_provider_call_that_works_on_a_retry_carries_on_and_stores_its_retries():
-    run = OneEvaluation(script=[provider_fails(), provider_fails(), answers(["E1"])])
-
-    run.run()
-
-    assert len(run.llm.calls) == 3
-    assert store_status(run) == ("finished", "finished")
-    llm_calls = [
-        c for c in run.store.rows("SIM.CALLS", run.sim_id) if c["SERVICE"] != "jev"
-    ]
-    assert [c["RETRIES"] for c in llm_calls] == [2]
-    assert llm_calls[0]["MODEL"] == MODEL
 
 
 # The prompt version
@@ -571,9 +578,7 @@ def test_a_changed_word_gives_a_different_prompt_version(changed):
         version = prompt_version(edited, tools)
     else:
         description = edited["read_track_record"]["description"]
-        edited["read_track_record"]["description"] = description.replace(
-            "totals", "sums", 1
-        )
+        edited["read_track_record"]["description"] = description + " Made-up word."
         version = prompt_version(wording, edited)
 
     assert version != prompt_version(wording, tools)

@@ -9,7 +9,7 @@ were chosen.
 
 Only stand-ins are built: they select none and look nothing up. The real selector
 (`LlmSelector`) is a small LangGraph tool loop over the LLM client the model setting names
-(`jev_trader.llm.clients`), timed by a `Clock` so its tests can run on a fake one. A provider
+(`jev_trader.llm.clients`), timed by a `WallClock` so its tests can run on a fake one. A provider
 call still failing after its retries, or a third failed reply, raises `LlmFailed`, which stops
 the sim.
 
@@ -123,20 +123,16 @@ class LlmFailed(Exception):
     reply in one evaluation. It stops the sim, which can be resumed (stop reason "LLM failed")."""
 
 
-class Clock(Protocol):
-    """What the selection reads the time from, and waits by, between retries."""
+class WallClock(Protocol):
+    """Where the selection reads the time taken from, for its 60 seconds (not the dataset's
+    step clock)."""
 
     def monotonic(self) -> float: ...
 
-    def sleep(self, seconds: float) -> None: ...
 
-
-class SystemClock:
+class SystemWallClock:
     def monotonic(self) -> float:
         return time.monotonic()
-
-    def sleep(self, seconds: float) -> None:
-        time.sleep(seconds)
 
 
 class LlmSelector:
@@ -151,11 +147,11 @@ class LlmSelector:
         settings: LlmSettings,
         model: BaseChatModel | None = None,
         limits: SelectionLimits | None = None,
-        clock: Clock | None = None,
+        clock: WallClock | None = None,
     ):
         self.settings, self.model = settings, model
         self.limits = limits or SelectionLimits()
-        self.clock = clock or SystemClock()
+        self.clock = clock or SystemWallClock()
 
     def select(self, lookups: MemoryLookups, first_search: SearchResult) -> Selection:
         return StandInSelector().select(lookups, first_search)
