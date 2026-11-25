@@ -7,8 +7,8 @@
 # request, and make each change to this file its own commit. Nothing here may hold a clock time,
 # a sim or step number, a real date or a random ID, so the same situation gives the same request.
 #
-# Filled in by code: {most_lookups} (6), {per_read} (5), {most_selected} (5), {note_length}
-# (200); the rest are named where they are used.
+# Filled in by code from the selection's limits: {most_lookups}, {per_read}, {most_selected} and
+# {note_length}; the rest are named where they are used.
 
 [full_evaluation]
 system_prompt = '''
@@ -76,7 +76,7 @@ description = "Give your final answer. Call this once, when you are done. It is 
 episode_ids = "A list of 0 to {most_selected} IDs you have been shown, most useful first. An empty list means none."
 note = "One line, at most {note_length} characters, on why you chose them."
 
-# When the 6 lookups are used up or the 60 seconds are up: the lookup tools are switched off
+# When the lookups are used up or the time is up: the lookup tools are switched off
 [limits]
 # Each lookup asked for beyond the limit, refused one by one
 lookups_used_up = 'Not run: you have used all {most_lookups} lookups.'
