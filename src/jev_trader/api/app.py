@@ -7,10 +7,12 @@ It has no login, so it answers only the developer's own computer, checked twice:
   developer's browser could reach the API through a domain name pointed at 127.0.0.1.
 
 In the kind cluster (`in_cluster`) its callers are the cluster's own: the web app's server, the
-cluster's health checks, and this computer through the port the cluster opens on 127.0.0.1
-only. So it answers any caller on a private network address (the cluster's network, which
-nothing outside this computer can reach), and the address name `api` too, the API's name in
-the cluster.
+cluster's health checks, the cluster's other pods, and this computer through the port the
+cluster opens. Each reaches it from a private network address, so it answers any of those, and
+the address name `api` too, the API's name in the cluster. The check on the caller then guards
+little: what keeps other computers out is that the cluster opens its port on 127.0.0.1 only
+(infra/kind-cluster.yaml). The check on the address name still holds: the web app's server
+passes on the browser's own, so a web page under another name is refused.
 """
 
 import ipaddress

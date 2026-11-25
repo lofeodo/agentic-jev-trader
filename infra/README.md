@@ -110,24 +110,27 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
   http://127.0.0.1:8081. The memory server is reached from inside the cluster only.
 - `terraform/kubernetes/` is Terraform's Kubernetes part, a root of its own with its own
   state, kept outside the repo like the Snowflake part's (`-backend-config=path=...`). One
-  apply puts the memory server, the API and the web app in the namespace `jev-trader`, each
+  apply puts the memory server, the API and the web app in the namespace `jev-trader` (a
+  named compartment of the cluster that permissions can be limited to), each
   from the images tagged `image_tag`, and waits until each answers its health address. It also
-  makes what the jobs need: one secret per Snowflake login (`snowflake-api`, `snowflake-memory`,
+  makes what the jobs need: one secret (a value the cluster stores and hands only to the
+  programs named to receive it) per Snowflake login (`snowflake-api`, `snowflake-memory`,
   `snowflake-sim`, `snowflake-builder`, each holding the account, the passphrase and that
   login's key only), `models` (the Jev and LLM keys, for sims) and `twelve-data` (for builds),
-  and the API's permission to create, read and delete Jobs (and the ConfigMaps that carry a
-  build's settings) in that namespace only. Each service reads its own login's secret only.
-  The values come in as `TF_VAR_*` (the names in `terraform/kubernetes/variables.tf`) plus the
-  keys folder (`snowflake_keys_dir`), and reach the cluster through write-only attributes, so
-  Terraform's state never holds them. After changing a secret's value, raise
+  and the API's permission (a Role) to create, read and delete Jobs (and the ConfigMaps, small
+  stored files, that carry a build's settings) in that namespace only. Each service reads its own login's secret only.
+  The values come in as environment variables named `TF_VAR_<variable>` (the names in
+  `terraform/kubernetes/variables.tf`) plus the keys folder (`snowflake_keys_dir`), and are
+  sent to the cluster without Terraform keeping a copy (write-only attributes), so its state
+  file never holds them. After changing a secret's value, raise
   `secrets_revision` by one, or Terraform does not send it. The ZAI key (the benchmark, on this
   computer only) and the LangSmith key (optional tracing) do not enter the cluster.
 - `images.py` builds the two images (an image is a packed copy of a program with everything
   it needs to run; recipes `Dockerfile` and `web/Dockerfile`), tags both with the git commit
   and copies them into kind straight from this computer, with no image registry (an online
   store of images the cluster would otherwise download from). It needs Docker running, the
-  cluster created (`kind create cluster --config infra/kind-cluster.yaml`) and every change committed, since
-  the tag names the commit:
+  cluster created (`kind create cluster --config infra/kind-cluster.yaml`) and every change
+  committed, since the tag names the commit:
 
   ```
   conda run -n agentic-jev-trader python infra/images.py build

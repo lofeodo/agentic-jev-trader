@@ -86,7 +86,7 @@ class ConnectionOnFirstUse:
                 self._connection = connect(
                     self._login, database=self._database, env=self._env
                 )
-        return self._connection.cursor()
+            return self._connection.cursor()
 
     def close(self) -> None:
         with self._lock:
