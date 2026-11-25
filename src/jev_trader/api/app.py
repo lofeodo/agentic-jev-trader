@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from jev_trader.api import sim_page
+from jev_trader.api.comparison import Comparison, comparison
 from jev_trader.api.datasets import (
     DatasetBuilds,
     DatasetNotFound,
@@ -202,6 +203,11 @@ def create_app(
             sim_id,
             lambda: scorecard(store, sim_id, parts),
         )
+
+    @app.get("/comparison", operation_id="comparison")
+    def read_comparison() -> Comparison:
+        """Per market and per LLM: did memory help, hurt, or can't we tell; both winners."""
+        return comparison(store)
 
     @app.get("/playbook", operation_id="playbook")
     def read_playbook() -> Playbook:

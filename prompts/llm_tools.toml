@@ -1,0 +1,35 @@
+# What the LLM is told about memory's three lookup tools (spec appendix 5, sections 4 and 5),
+# as the walkthrough page's tab "Always sent" shows them (docs/llm-prompt-walkthrough.html).
+# Read by src/jev_trader/memory/bridge.py, which writes each tool's definition by hand: the
+# LLM sees no sim or step input, and code fills both in on every call.
+#
+# Only search_episodes and read_episodes read differently in the two jobs (a full evaluation of
+# an asset with no position, and a position review). {per_search} and {per_read} are the
+# limits; {patterns} is filled in by code from the playbook.
+
+[full_evaluation.search_episodes]
+description = "Search the agent's past episodes again for the ones most like the current situation, narrowed by the filters you set. Returns up to {per_search} one-line summaries, closest first, in the same layout as the first list. An episode you have already been shown keeps its ID. The search always starts from the current situation: you cannot type search words, and you cannot ask for only profitable or only losing episodes. Counts as one lookup."
+asset = 'Which assets to search. "any": every asset (the default). "same_asset": only the asset in the current situation. "same_asset_class": only stocks if it is a stock, only crypto if it is crypto.'
+pattern = 'Keep only episodes where this candle pattern was named on the 15-minute bars. "any": no narrowing (the default), or a candle pattern name, such as "bullish engulfing" or "hammer".'
+decided = 'Keep only episodes with this decision. "any": no narrowing (the default). "long": a long was opened. "short": a short was opened. "no_trade": no trade was made.'
+
+[full_evaluation.read_episodes]
+description = "Read past episodes in full: the situation as it was described at the time, what was decided, how the position was handled bar by bar until it closed, and how it ended. The decision model reads the same record for each episode you select, without the bar-by-bar handling. Counts as one lookup, however many episodes you ask for."
+episode_ids = 'A list of 1 to {per_read} IDs you have been shown, such as ["E1", "E4"].'
+
+[position_review.search_episodes]
+description = "Search the agent's past position reviews again for the ones most like the present moment, narrowed by the filters you set. Only reviews of positions in the same direction as the current one are searched. Returns up to {per_search} one-line summaries, closest first, in the same layout as the first list. An episode you have already been shown keeps its ID. The search always starts from the current situation: you cannot type search words, and you cannot ask for only episodes that turned out well or only those that turned out badly. Counts as one lookup."
+asset = 'Which assets to search. "any": every asset (the default). "same_asset": only the asset in the current situation. "same_asset_class": only stocks if it is a stock, only crypto if it is crypto.'
+pattern = 'Keep only episodes where this candle pattern was named on the 15-minute bars. "any": no narrowing (the default), or a candle pattern name, such as "spinning top" or "doji".'
+decided = 'Keep only reviews with this decision. "any": no narrowing (the default). "hold": the position was kept as it was. "close": the whole position was closed. "reduce": part of the position was closed. "add": more money was put into the position.'
+standing = 'Keep only reviews where the position stood this way at the time of the review. This is about that moment, not about how the trade ended. "any": no narrowing (the default). "in_profit": closing it then would have left a profit after trading costs. "at_a_loss": closing it then would have left a loss after trading costs.'
+
+[position_review.read_episodes]
+description = "Read past position reviews in full: the situation as it was described at the time, how the position stood, what was decided, where the price went next, how the whole trade was handled bar by bar, and how it ended. The decision model reads the same record for each episode you select. Counts as one lookup, however many episodes you ask for."
+episode_ids = 'A list of 1 to {per_read} IDs you have been shown, such as ["E1", "E4"].'
+
+# The same in both jobs
+[read_track_record]
+description = "Read the totals over the agent's closed trades for one candle pattern and one direction, in the current asset's class (stocks or crypto): how many trades, how many wins, the average win and the average loss. The decision model is always given the track record, whatever you select. Counts as one lookup."
+pattern = 'A candle pattern name, such as "bullish engulfing".'
+direction = 'Which trades to total. "long": trades that bet on a rise. "short": trades that bet on a fall.'

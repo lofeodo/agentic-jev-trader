@@ -103,6 +103,12 @@ Save a copy of every table on this computer, so the results survive the Snowflak
 conda run -n agentic-jev-trader python -m jev_trader.storage save
 ```
 
+Start the memory MCP server, the agent's only MCP server (three read-only lookups at `/mcp`, its health at `/health`). It logs in as the memory login, whose role can only read, and takes its host, port and allowed host names from `config/memory_server.toml`; `--database TRADING_AGENT_TEST` serves the test database:
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.memory serve
+```
+
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).

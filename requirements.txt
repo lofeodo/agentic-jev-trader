@@ -15,6 +15,10 @@ anthropic==2.12.0
 typesafe-sdk==0.7.5
 httpx2==2.16.0
 
+# The memory MCP server and the agent's client to it: the official MCP SDK, version 2 (it sends
+# requests through httpx2, pinned above)
+mcp==2.3.0
+
 # The dataset builder: the New York Stock Exchange's calendar, and downloads from the providers
 exchange_calendars==4.13.3
 httpx==0.28.1

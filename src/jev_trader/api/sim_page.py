@@ -26,6 +26,7 @@ from datetime import UTC, date, datetime, time, timedelta
 
 from pydantic import BaseModel
 
+from jev_trader.api.llm_names import variant_label
 from jev_trader.api.sims_list import (
     HOLDING,
     AssetName,
@@ -152,7 +153,6 @@ class Chart(BaseModel):
     window_steps: int  # what "around then" means: this many steps either side
 
 
-VARIANT_LABELS = {"memory_on": "With memory", "memory_off": "Without memory"}
 HOLDING_LABEL = "Holding the five assets"
 
 
@@ -197,7 +197,7 @@ def _lines_drawn(all_sims: list[dict], row: dict) -> list[tuple[int, str, str]]:
     if holding is not None:
         drawn.append((holding["ID"], "holding", HOLDING_LABEL))
     others = _same_days(all_sims, row)
-    labels = [VARIANT_LABELS.get(s["VARIANT"], s["VARIANT"]) for s in others]
+    labels = [variant_label(s) for s in others]
     for other, label in zip(others, labels, strict=True):
         if labels.count(label) > 1:
             label = f"{label} / sim {other['ID']}"

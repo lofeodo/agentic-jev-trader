@@ -180,3 +180,32 @@ def test_a_price_exactly_at_the_long_term_average_counts_as_up():
 )
 def test_part_of_the_day(asset_class, bar_number, bars_in_day, part):
     assert part_of_day(asset_class, bar_number, bars_in_day) == part
+
+
+def test_a_written_text_reads_back_its_part_of_day_and_patterns():
+    """Memory has only the stored text of a past snapshot, so it reads these back from it."""
+    from jev_trader.dataset.situation_text import read_situation
+
+    text = situation_text(
+        snapshot(AssetClass.STOCK, 24, 26, [1] * 8),
+        PatternLists(
+            window=[("hammer", 2), ("bullish engulfing", 0)],
+            hourly=["belt-hold"],
+            daily=["doji", "spinning top"],
+        ),
+    )
+    read = read_situation(text)
+    assert read.part_of_day == "last hour"
+    assert read.window == ("bullish engulfing", "hammer")
+    assert read.longer_bars == ("belt-hold", "doji", "spinning top")
+
+
+def test_a_text_with_no_pattern_reads_back_empty_lists():
+    from jev_trader.dataset.situation_text import read_situation
+
+    text = situation_text(
+        snapshot(AssetClass.CRYPTO, 41, 96, [1] * 8), PatternLists([], [], [])
+    )
+    read = read_situation(text)
+    assert read.part_of_day == "European hours"
+    assert read.window == () and read.longer_bars == ()

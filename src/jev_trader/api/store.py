@@ -4,9 +4,16 @@
 
 from typing import Protocol
 
+from jev_trader.api.llm_names import llm_model_of
 from jev_trader.dataset.store import InMemoryStore
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket
-from jev_trader.sim.store import InMemorySimStore
+from jev_trader.sim.store import (
+    KIND_FULL_EVALUATION,
+    KIND_POSITION_REVIEW,
+    InMemorySimStore,
+)
+
+JEV_SERVICE = "jev"  # SIM.CALLS.SERVICE of a call to Jev; every other call is the LLM's
 
 
 class ApiStore(Protocol):
@@ -14,7 +21,10 @@ class ApiStore(Protocol):
         """Dollars paid for every Jev and LLM call, those made outside a sim included."""
 
     def sims(self) -> list[dict]:
-        """Every sim's row, by column name, the holding sims included (no settings or account)."""
+        """Every sim's row, by column name, the holding sims included (no settings or account).
+
+        Each row also has LLM_MODEL: the LLM its settings name, without the provider
+        (`claude-haiku-5-5`), or None."""
 
     def sim(self, sim_id: int) -> dict | None:
         """One sim's whole row, its settings and saved account included; None if there is none."""
@@ -67,6 +77,19 @@ class ApiStore(Protocol):
     def calls(self, sim_id: int) -> list[dict]:
         """The sim's paid calls (`SIM.CALLS`): at least DECISION, PURPOSE, COST_USD and
         LATENCY_SECONDS."""
+
+    def comparison_figures(self, sim_ids: list[int]) -> dict[int, dict]:
+        """What the Comparison screen needs of each sim, summed in the database:
+
+        - FULL_EVALUATIONS and POSITION_REVIEWS: how many the sim made itself (rows copied in
+          with its memory are not its own);
+        - MODEL_USD: dollars paid for all its calls, Jev's and the LLM's;
+        - FULL_EVALUATION_SECONDS: the seconds of every call made for one of its full
+          evaluations, added up;
+        - LLM_MODELS: the model names the LLM's provider returned, sorted;
+        - JEV_VERSIONS: the Jev versions that answered its decisions, sorted.
+
+        Every sim asked for is in the answer, with zeros and empty lists if it has nothing."""
 
     def entry_details(
         self, dataset: int, wanted: list[tuple[str, int]]
@@ -199,6 +222,7 @@ class InMemoryApiStore:
     def sims(self) -> list[dict]:
         return [
             {k: v for k, v in row.items() if k not in _LIST_LEAVES_OUT}
+            | {"LLM_MODEL": llm_model_of(row.get("SETTINGS"))}
             for _, row in sorted(self._sims.sims.items())
         ]
 
@@ -296,6 +320,37 @@ class InMemoryApiStore:
 
     def calls(self, sim_id):
         return [dict(r) for r in self._sims.rows("SIM.CALLS", sim_id)]
+
+    def comparison_figures(self, sim_ids):
+        found = {}
+        for sim_id in sim_ids:
+            own = {
+                r["ID"]: r
+                for r in self._sims.rows("MEMORY.DECISIONS", sim_id)
+                if r.get("FIRST_WRITTEN_BY", sim_id) == sim_id
+            }
+            calls = self._sims.rows("SIM.CALLS", sim_id)
+            llm = [c for c in calls if c["SERVICE"] != JEV_SERVICE]
+            found[sim_id] = {
+                "FULL_EVALUATIONS": sum(
+                    r["KIND"] == KIND_FULL_EVALUATION for r in own.values()
+                ),
+                "POSITION_REVIEWS": sum(
+                    r["KIND"] == KIND_POSITION_REVIEW for r in own.values()
+                ),
+                "MODEL_USD": sum(c["COST_USD"] or 0.0 for c in calls),
+                "FULL_EVALUATION_SECONDS": sum(
+                    c["LATENCY_SECONDS"] or 0.0
+                    for c in calls
+                    if c.get("DECISION") in own
+                    and own[c["DECISION"]]["KIND"] == KIND_FULL_EVALUATION
+                ),
+                "LLM_MODELS": sorted({c["MODEL"] for c in llm if c.get("MODEL")}),
+                "JEV_VERSIONS": sorted(
+                    {r["JEV_VERSION"] for r in own.values() if r.get("JEV_VERSION")}
+                ),
+            }
+        return found
 
     def entry_details(self, dataset, wanted):
         known = self._entry_details.get(dataset, {})

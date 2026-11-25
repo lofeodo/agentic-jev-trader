@@ -190,6 +190,10 @@ class ClosedTrade:
     amount_chosen: float | None = None
     amount_entered: float = 0.0
     limited_by: RiskLimit | None = None
+    # Its best and worst point, its close included: what closing would have left, after
+    # trading costs, at each of its bars' closes and at the close itself.
+    best: float | None = None
+    worst: float | None = None
 
 
 @dataclass
@@ -811,5 +815,11 @@ class Broker:
                 amount_chosen=position.amount_chosen,
                 amount_entered=position.amount_entered,
                 limited_by=position.limited_by,
+                best=max(
+                    p for p in (position.cash_flow, position.best) if p is not None
+                ),
+                worst=min(
+                    p for p in (position.cash_flow, position.worst) if p is not None
+                ),
             )
         )

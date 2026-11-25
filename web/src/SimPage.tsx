@@ -199,7 +199,7 @@ export function SimPage({ id }: { id: number }) {
       />
       <p className="mt-2 font-mono text-[13.5px] tracking-wider text-dim">
         Solid: this sim, hatched beneath / dashed: holding the five assets / faint: other sims over the
-        same days / dotted: the starting amount / ticks along the bottom: a trade opened. Point at the
+        same days (a second one dash-dotted) / dotted: the starting amount / ticks along the bottom: a trade opened. Point at the
         chart for that moment; click to open it.
       </p>
 
