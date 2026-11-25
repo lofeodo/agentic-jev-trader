@@ -65,3 +65,7 @@ no_gain = 'none'
 fits = '  <- fits the current situation'
 not_shown = 'Groups with fewer than {minimum} closed trades are not shown.'
 too_few = ['{n} closed trade, too few to show totals.', '{n} closed trades, too few to show totals.']
+# Jev's track record: one line per candle pattern and direction, the group that fits named in
+# full after these words, or the count alone (prompts/jev_reading.toml holds its heading)
+line_name = '{pattern}, {direction}, {asset_class}'
+too_few_line = '{name}: {too_few}'
