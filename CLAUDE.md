@@ -109,6 +109,12 @@ Start the memory MCP server, the agent's only MCP server (three read-only lookup
 conda run -n agentic-jev-trader python -m jev_trader.memory serve
 ```
 
+Check the memory's search values (spec appendix 9, section 7), once, after the build-up sim: whether the records the search calls most similar ended the same way (the price went the same way) more often than random ones. It reads the sim's memory as the memory login and calls no model, so it costs nothing. `--shape-share 0.3 0.5 0.7` and `--bar-decay 0.1 0.15 0.2` try other values (every pair is tried), `--after` picks when the price is read (`1_bar`, `4_bars` by default, `end_of_day`), and `--sample 2000` checks fewer records for a quicker answer:
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.memory check-search --sim 12
+```
+
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).
