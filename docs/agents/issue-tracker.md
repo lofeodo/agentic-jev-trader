@@ -5,7 +5,8 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
-- **Read an issue**: `gh issue view <number> --json number,title,body,labels,comments`.
+- **Read an issue**: `gh issue view <number> --json number,title,body,labels,comments`. For the body alone, without the thread: `--json title,body`.
+- **Read one comment**: a comment's link ends in `#issuecomment-<id>`. Fetch that comment alone with `gh api repos/<owner>/<repo>/issues/comments/<id> --jq .body`, one link at a time.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Make an issue a sub-issue of a parent**: `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>` afterwards (`gh` 2.94+). Older `gh`: `gh api --method POST repos/<owner>/<repo>/issues/<parent>/sub_issues -F sub_issue_id=<child-db-id>` (database id, as in **Blocking** below). Without sub-issues, put `Part of #<parent>` at the top of the child body.
 - **Blocking**: GitHub's **native issue dependencies**, the canonical, UI-visible representation. Add an edge with `gh issue create --blocked-by <n>,<n> ...` or `gh issue edit <child> --add-blocked-by <blocker>` (`gh` 2.94+). Older `gh`: `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). Where dependencies aren't available, fall back to a `Blocked by: #<n>, #<n>` line at the top of the child body. A ticket is unblocked when every blocker is closed.
@@ -48,3 +49,14 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (see **Count open blockers**, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+
+## Slice operations
+
+Used by `/to-tickets`, `/implement`, `/implement-slice` and `/implement-spec`. A spec is cut into slices; each slice's tickets merge into its slice branch, and the slice lands on the main branch once it is whole. Every operation below is a convention above (sub-issues, blocking, labels, comment, close), so a repo whose tracker document lacks this section runs them the same way.
+
+- **Slice map**: a sub-issue of the spec (see **Make an issue a sub-issue of a parent**), labelled `slice-map` and no triage label. If the repo lacks the label, create it once: `gh label create slice-map --description "Index of a slice's tickets"`.
+- **Ticket**: a sub-issue of its slice map, labelled `ready-for-agent`. A slice with a single unit has no map: its one ticket is a sub-issue of the spec.
+- **Build order**: the order of the map's sub-issue list. Add the tickets in build order (skeleton, tests, units, closing), and read it back with `gh api repos/<owner>/<repo>/issues/<map>/sub_issues --jq '.[] | "\(.number) \(.state) \(.title)"'`. Without sub-issues, the task list in the map body holds the order.
+- **Blocking**: see **Blocking** under Conventions. Edges between slices run between slice maps only; a one-unit slice's ticket stands in for a map.
+- **Close a ticket**: GitHub closes an issue on its own only when a pull request merges into the default branch, and a ticket's pull request merges into its slice branch. Once that merge has succeeded, close the ticket by hand as in **Close**. The comment says what was built, each acceptance criterion as met or not met, and anything that ended up different from what the ticket said. Then append one line to the map's "Built so far": `[ticket title](link): the gist`, plus any difference, and `(reviewed by the developer)` when the pull request carried the `requires-human-review` label.
+- **Close a slice map**: when the slice lands on the main branch, close the map as in **Close**.

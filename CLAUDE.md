@@ -13,7 +13,7 @@ When I invoke one of the skills below, start your first reply with one line reco
 | `/diagnosing-bugs` | Opus high, or Fable for hard ones |
 | `/code-review` | Opus, high |
 | `/implement`, `/tdd` | Opus, medium (high if a ticket keeps going red) |
-| `/implement-spec` | Opus, medium |
+| `/implement-slice`, `/implement-spec` | Opus, medium |
 | `/retro`, `/improve-codebase-architecture`, `/prototype` | Opus, medium–high |
 | `/pr`, `/handoff`, `/wait-what`, `/wizard` | Sonnet, medium |
 | `/research` | Sonnet, medium |
@@ -32,7 +32,7 @@ I'm new to finance and trading. This applies to everything I read: chat, issues,
 
 - **Emulate a successful day trader** (someone who opens and closes trades within the same day). The agent is meant to work the way one does. For each design choice, ask how such a trader would do it, and recommend from there.
 - **Reliability first, for now.** Prefer a standard tool used as it comes over our own adjustments to it.
-- **The spec is the source.** Version 1 is specified in the issue [Spec: version 1 of the trading agent with memory](https://github.com/lofeodo/agentic-jev-trader/issues/82) and its comments: ten appendices, then the record of the decisions made while it was assembled. What the spec leaves open is listed at the end of each appendix. `docs/project-breakdown.md` is the original brief, superseded and kept for history: it carries no authority.
+- **The spec is the source.** Version 1 is specified in the issue [Spec: version 1 of the trading agent with memory](https://github.com/lofeodo/agentic-jev-trader/issues/82) and its comments. The body is the overview, each decision linking to its detail: one comment per topic, headed "Appendix N, section k". What the spec leaves open is behind each area's "left to the build" link in the body. The work is cut into slices (a slice is one end-to-end piece of the spec that can be shown working on its own); how slices and their tickets sit on the tracker is in `docs/agents/issue-tracker.md`, section Slice operations. `docs/project-breakdown.md` is the original brief, superseded and kept for history: it carries no authority.
 
 ## Commands
 
