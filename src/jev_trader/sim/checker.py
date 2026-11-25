@@ -16,8 +16,9 @@ and #176): its sims are stored and their jobs started. Until the agent with memo
 sim with memory's job fails in its first moment ("not built yet"), before any paid call; a
 measurement, build-up or free sim without memory really runs, calling Jev up to its cap.
 
-`check_models` is the request's own refusal about models, before any sim is planned: only a
-measurement names more than one.
+`check_models` is the request's own refusals about models, before any sim is planned: every
+model named must be known, even one no sim of the start would use, and only a measurement names
+more than one.
 
 **Refusal 2, the memory** (appendix 5, section 2; ADR 0007). A sim with memory starts from a
 copy of another sim's memory: the base memory (the latest finished build-up sim's on the
@@ -135,11 +136,13 @@ def check_together(
 
 
 def check_models(kind: str, models: list[str]) -> list[Refusal]:
-    """What is wrong with the models a start names (`models`, in lower case, each once): only
-    a measurement plays more than one."""
+    """What is wrong with the models a start names (`models`, in lower case, each once): each
+    must be known, even one no sim of the start would use, and only a measurement plays more
+    than one."""
+    refusals = [r for model in models for r in _unknown_name(model)]
     if kind == "measurement" or len(models) <= 1:
-        return []
-    return [
+        return refusals
+    return refusals + [
         Refusal(
             "one_model",
             f"a {kind} sim uses one model, not {len(models)}",
@@ -401,13 +404,17 @@ def _request(sim: Planned, info: DatasetInfo, unbuilt_allowed: bool) -> list[Ref
 def _unknown_model(sim: Planned) -> list[Refusal]:
     """Refusal 6: a model that is not one of the models in `config/llm.toml`. Only the agent
     with memory has a model; its name is already in lower case (`runner.plan_sim`)."""
+    return [] if sim.model is None else _unknown_name(sim.model)
+
+
+def _unknown_name(model: str) -> list[Refusal]:
     known = load_model_settings().models
-    if sim.model is None or sim.model in known:
+    if model in known:
         return []
     return [
         Refusal(
             "unknown_model",
-            f'there is no model "{sim.model}"',
+            f'there is no model "{model}"',
             f"pick {' or '.join(known)}",
         )
     ]

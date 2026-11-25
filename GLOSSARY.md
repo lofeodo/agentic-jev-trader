@@ -128,6 +128,10 @@ _Avoid_: Build-up run, seeding run, training run, warm-up run
 A sim on days the developer chooses, started from the web app to watch the agent trade or to try something. It cannot use test period days, and its results never count toward a conclusion.
 _Avoid_: Custom run, open run, sandbox
 
+**Partner**:
+A free sim's second sim, asked for with the New trading sim form's tick box: the same days played the other way (without memory when the first sim has memory, with it when not), side by side.
+_Avoid_: Twin, pair, other side
+
 **Spending cap**:
 The amount of spending on Jev and LLM calls at which code stops a sim, once the current step has ended. It counts money paid for model calls, never trading losses. A sim stopped by its spending cap can be resumed under a new one.
 _Avoid_: Call budget, run budget, dollar cap

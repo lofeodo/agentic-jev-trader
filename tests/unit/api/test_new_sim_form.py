@@ -2,8 +2,6 @@
 sections 3 to 6): `GET /sims/check` (may this sim start, and what would it cost?) and `POST /sims`
 for each kind of sim the app starts: measurement, build-up and free.
 
-Dormant until the slice's closing ticket (#182) switches them on: see `pytestmark` below.
-
 The dataset is made up: four days of one crypto asset with a bar at every step. Day 1 (steps 1
 to 96) is the warm-up; day 2 (97 to 192) holds the base memory, a finished build-up sim; day 3
 (193 to 288) is free; day 4 (289 to 384) is the test period "rising market". No test calls a
@@ -23,10 +21,6 @@ from jev_trader.llm.models import load_model_settings
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket, Period
 from jev_trader.sim.store import InMemorySimStore
 from tests.unit.api.conftest import StandInBuilds, StandInLauncher
-
-# Dormant: the slice's tests, written before its behaviour. The closing ticket (#182) deletes
-# this line to switch them on.
-pytestmark = pytest.mark.skip(reason="dormant until #182 switches it on")
 
 NOW = datetime(2026, 11, 24, 12, 0)
 CEILING = 75.0
@@ -561,3 +555,71 @@ def test_whatever_the_check_refuses_the_start_refuses_too(sims, launcher, setup)
     assert answer.status_code == 409
     assert codes(answer.json()["refusals"]) == refused
     assert snapshot(sims) == before and launcher.started == []
+
+
+def test_a_model_no_sim_would_use_is_still_refused_when_unknown(api):
+    """A free sim without memory uses no model, but a name it does not know is still a mistake."""
+    answer = check(api, free_sim(variant="memory_off", models=["gpt-9"]))
+
+    assert "unknown_model" in codes(answer["refusals"])
+
+
+def test_a_measurement_must_name_a_test_period(api, sims, launcher):
+    wanted = measurement(market=None, **DAY_3)
+    before = snapshot(sims)
+
+    answer = api.post("/sims", json=wanted)
+
+    assert answer.status_code == 409
+    assert codes(answer.json()["refusals"]) == {"measurement_needs_period"}
+    assert '"rising market"' in answer.json()["refusals"][0]["message"]
+    assert snapshot(sims) == before and launcher.started == []
+
+
+def test_the_api_numbers_a_measurements_repeats(api, sims):
+    first = start(api, measurement())
+    for sim_id in first:
+        sims.update(sim_id, STATUS="finished")
+    second = start(api, measurement(models=[GLM]))
+
+    def repeats(ids):
+        return {
+            sims.sim(i).get("REPEAT_NUMBER")
+            for i in ids
+            if sims.sim(i)["VARIANT"] != "buy_hold"
+        }
+
+    assert repeats(first) == {1}
+    assert repeats(second) == {2}
+
+
+def test_the_holding_sim_is_made_with_the_first_sims_on_a_stretch_and_shared(
+    api, sims, launcher
+):
+    first = start(api, free_sim())
+    second = start(api, free_sim(variant="memory_off"))
+
+    [holding] = [i for i in first if sims.sim(i)["VARIANT"] == "buy_hold"]
+    assert (sims.sim(holding)["FIRST_STEP"], sims.sim(holding)["LAST_STEP"]) == (
+        193,
+        288,
+    )
+    assert holding in launcher.started
+    assert all(sims.sim(i)["VARIANT"] != "buy_hold" for i in second)
+
+
+@pytest.mark.parametrize("wanted", [measurement(), build_up()])
+def test_the_holding_sim_is_never_a_repeat_or_the_base_memory(api, sims, wanted):
+    """Made by a measurement or a build-up, the holding sim is stored as a free sim with no
+    test period, so the comparison never counts it and it never becomes the base memory."""
+    base = sims.base_memory_sim(DATASET)
+
+    ids = start(api, wanted)
+    [holding] = [i for i in ids if sims.sim(i)["VARIANT"] == "buy_hold"]
+    sims.update(holding, STATUS="finished")
+
+    assert (sims.sim(holding)["KIND"], sims.sim(holding).get("MARKET")) == (
+        "free",
+        None,
+    )
+    assert sims.base_memory_sim(DATASET) == base

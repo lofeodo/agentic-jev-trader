@@ -4,7 +4,10 @@
   then starts its job: `python -m jev_trader.sim resume <id>`, the command the developer types.
   A measurement makes a sim with memory for each model named and one without memory they share
   (three sims for both models, a pair for one); a free sim uses one model, the default
-  (`config/llm.toml`) unless one is named, and makes its partner too if asked.
+  (`config/llm.toml`) unless one is named, and makes its partner too if asked. A measurement's
+  sims share a repeat number, one more than the last measurement's on the same test period. The
+  sim holding the five assets is made with the first sims on a stretch of days, and shared by
+  every later sim on those days.
 - **Stop** kills the job at once, then marks the sim "stopped by hand". The half-done step is
   thrown away and redone on resume. A job already gone (not responding) is simply marked.
 - **Resume** restarts a stopped or not responding sim from its last stored step, after making
@@ -33,7 +36,7 @@ from datetime import date, datetime, timedelta
 from pydantic import BaseModel
 
 from jev_trader.api.sim_page import SimNotFound
-from jev_trader.api.sims_list import is_not_responding
+from jev_trader.api.sims_list import HOLDING, holding_sims, is_not_responding, stretch
 from jev_trader.api.store import ApiStore
 from jev_trader.dataset.bars import STEPS_PER_DAY
 from jev_trader.jobs import JobNotKilled, Launcher
@@ -108,6 +111,10 @@ def _variants_and_models(
         other = "memory_off" if wanted.variant == "memory_on" else "memory_on"
         sims.append((other, model))
     return sims
+
+
+def _period_names(info) -> str:
+    return ", ".join(f'"{p.name}"' for p in info.test_periods()) or "none"
 
 
 class SimCheck(BaseModel):
@@ -210,6 +217,8 @@ class Jobs:
             )
             for variant, model in _variants_and_models(wanted, models)
         ]
+        if wanted.variant != HOLDING:
+            sims += self._holding_and_repeat(wanted, sims, spending)
         refused += checker.check_together(
             [sim.planned for sim in sims],
             info,
@@ -219,20 +228,74 @@ class Jobs:
         )
         if not refused:
             return sims, []
+        refused = list(dict.fromkeys(refused))  # a model refused twice is said once
         return sims, _from_checker(checker.Refused(refused)).refusals
 
+    def _holding_and_repeat(
+        self, wanted: SimToStart, sims: list[PlannedSim], spending: SpendingSettings
+    ) -> list[PlannedSim]:
+        """What a start of the agent's sims needs from the sims already stored, read once.
+
+        A measurement's sims get a repeat number, one more than the last on its test period.
+        The sim holding the five assets is planned when none yet holds them over these days
+        from this starting amount: made with the first sims on them, shared by every later one.
+        Whatever started it, it is stored as a free sim with no test period named, so it is
+        never taken for a repeat of a measurement or for the base memory.
+        """
+        stored = self.store.sims()
+        if wanted.kind == "measurement":
+            repeat = 1 + max(
+                (
+                    s.get("REPEAT_NUMBER") or 0
+                    for s in stored
+                    if s["DATASET"] == wanted.dataset
+                    and s["KIND"] == "measurement"
+                    and s.get("MARKET") == wanted.market
+                ),
+                default=0,
+            )
+            for sim in sims:
+                sim.row["REPEAT_NUMBER"] = repeat
+        if stretch(sims[0].row) in holding_sims(stored):
+            return []
+        first = sims[0].planned
+        return [
+            plan_sim(
+                self.store,
+                self.store,
+                SimRequest(
+                    dataset=wanted.dataset,
+                    variant=HOLDING,
+                    kind="free",
+                    first_step=first.first_step,
+                    last_step=first.last_step,
+                    starting_value=wanted.starting_value,
+                ),
+                spending,
+            )
+        ]
+
     def _steps(self, wanted: SimToStart, info) -> tuple[int, int]:
+        if (
+            wanted.kind == "measurement"
+            and wanted.market is None
+            and wanted.variant != HOLDING
+        ):
+            raise _refuse(
+                "measurement_needs_period",
+                "a measurement plays one test period whole, not days of its own: "
+                f"name one ({_period_names(info)})",
+            )
         if wanted.market is not None:
             if wanted.first_day or wanted.last_day:
                 raise _refuse("days_and_period", "give a test period or days, not both")
             for period in info.test_periods():
                 if period.name == wanted.market:
                     return period.first_step, period.last_step
-            names = ", ".join(f'"{p.name}"' for p in info.test_periods()) or "none"
             raise _refuse(
                 "no_such_period",
                 f'dataset {info.dataset_id} has no test period "{wanted.market}"; '
-                f"it has {names}",
+                f"it has {_period_names(info)}",
             )
         first_step, last_step = info.warm_up_last_step + 1, info.last_step
         if wanted.first_day or wanted.last_day:
