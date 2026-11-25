@@ -80,12 +80,12 @@ def memory_of(con, sim_id):
 
 @pytest.fixture
 def left_memory(sim_login, made_up_dataset, remove_sims):
-    """A finished sim that left two decisions and their outcomes; returns the store, the
-    dataset and the sim."""
+    """A finished build-up sim (Jev alone, memory_off) that left two decisions and their
+    outcomes; returns the store, the dataset and the sim."""
     store = SnowflakeSimStore(sim_login)
     dataset_id = made_up_dataset(days=2)
     source = store.create(
-        sim_row(dataset_id, KIND="build-up", VARIANT="memory_on", STATUS="finished")
+        sim_row(dataset_id, KIND="build-up", VARIANT="memory_off", STATUS="finished")
     )
     remove_sims.append(source)
     with sim_login.cursor() as cur:
