@@ -10,7 +10,6 @@ to 96) is the warm-up; day 2 (97 to 192) holds the base memory, a finished build
 paid service: the jobs are stand-ins and the money is rows in `SIM.CALLS`.
 """
 
-import math
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -34,10 +33,8 @@ CEILING = 75.0
 DATASET = 7
 HAIKU, GLM = "claude-haiku-5-5", "glm-5.3-flash"
 DAY_3 = {"first_day": "2025-03-03", "last_day": "2025-03-03"}  # free days
-TEST_DAYS = {
-    "first_day": "2025-03-03",
-    "last_day": "2025-03-04",
-}  # reach the test period
+# Days 3 and 4: free days running on into the test period.
+DAYS_INTO_TEST_PERIOD = {"first_day": "2025-03-03", "last_day": "2025-03-04"}
 
 
 def dataset(status="published"):
@@ -204,7 +201,7 @@ def snapshot(sims):
 
 
 def new_agent_sims(sims, before):
-    """The sims of the agent (not the holding sim) created since `before`, by ID."""
+    """The sims of the agent (not the sim holding the five assets) created since `before`, by ID."""
     return {
         i: row
         for i, row in sims.sims.items()
@@ -228,7 +225,7 @@ def test_the_check_stores_nothing_and_starts_nothing(api, sims, launcher, wanted
 def test_a_refused_check_stores_nothing_either(api, sims, launcher):
     before = snapshot(sims)
 
-    answer = check(api, free_sim(models=["gpt-9"], **TEST_DAYS))
+    answer = check(api, free_sim(models=["gpt-9"], **DAYS_INTO_TEST_PERIOD))
 
     assert answer["refusals"]
     assert snapshot(sims) == before
@@ -240,11 +237,11 @@ def test_the_check_answers_an_estimate_and_a_cap_of_one_and_a_half_times_it(api)
 
     assert answer["refusals"] == []
     assert answer["estimate_usd"] > 0
-    # Rounded up to the next cent: an estimate of $3.00 gives a cap of $4.50.
-    assert (
-        answer["spending_cap_usd"]
-        == math.ceil(round(answer["estimate_usd"] * 1.5 * 100, 6)) / 100
-    )
+    # One and a half times the estimate, rounded up to a whole cent: never below it, and less
+    # than a cent above it (an estimate of $3.00 gives a cap of $4.50).
+    one_and_a_half = answer["estimate_usd"] * 1.5
+    assert one_and_a_half <= answer["spending_cap_usd"] < one_and_a_half + 0.01
+    assert answer["spending_cap_usd"] == round(answer["spending_cap_usd"], 2)
     assert answer["ceiling_usd"] == CEILING
 
 
@@ -285,7 +282,7 @@ def assert_refused(refusals, code, *words):
 
 def test_test_period_days_are_refused_in_a_free_sim(api):
     assert_refused(
-        check(api, free_sim(**TEST_DAYS))["refusals"],
+        check(api, free_sim(**DAYS_INTO_TEST_PERIOD))["refusals"],
         "test_period_days",
         "rising market",
     )
@@ -298,14 +295,16 @@ def test_test_period_days_are_refused_in_a_build_up_sim(api):
 
 
 def test_a_measurement_may_use_its_test_period(api):
-    assert "test_period_days" not in codes(check(api, measurement())["refusals"])
+    answer = check(api, measurement())
+
+    assert answer["refusals"] == []
+    assert answer["estimate_usd"] > 0
 
 
 def test_a_memory_holding_records_from_after_the_first_day_is_refused(launcher):
     sims = InMemorySimStore()
-    add_base_memory(
-        sims, record_step=200
-    )  # recorded on day 3, the free sim's first day
+    # A decision recorded on day 3, the free sim's first day.
+    add_base_memory(sims, record_step=200)
     api = client(make_store(sims), launcher)
 
     assert_refused(check(api, free_sim())["refusals"], "memory_from_the_future", "200")
@@ -353,7 +352,8 @@ def test_a_model_name_is_known_whatever_its_capitals(api):
     """The spec writes `GLM-5.3-Flash`; the settings store `glm-5.3-flash`."""
     answer = check(api, free_sim(models=["GLM-5.3-Flash"]))
 
-    assert "unknown_model" not in codes(answer["refusals"])
+    assert answer["refusals"] == []
+    assert answer["estimate_usd"] > 0
 
 
 def test_every_refusal_comes_back_together(launcher):
@@ -365,7 +365,7 @@ def test_every_refusal_comes_back_together(launcher):
     paid_call(sims, None, 74.99)
     api = client(make_store(sims, status="being built"), launcher)
 
-    answer = check(api, free_sim(models=["gpt-9"], **TEST_DAYS))
+    answer = check(api, free_sim(models=["gpt-9"], **DAYS_INTO_TEST_PERIOD))
 
     assert codes(answer["refusals"]) >= {
         "test_period_days",
@@ -440,16 +440,6 @@ def test_a_free_sim_uses_the_one_model_named(api, sims):
     assert llm_model(row) == GLM
 
 
-def test_a_free_sim_naming_two_models_is_refused(api, sims, launcher):
-    before = snapshot(sims)
-
-    answer = api.post("/sims", json=free_sim(models=[HAIKU, GLM]))
-
-    assert answer.status_code == 409
-    assert answer.json()["refusals"]
-    assert snapshot(sims) == before and launcher.started == []
-
-
 def test_a_free_sim_with_its_partner_plays_the_same_days_the_other_way(api, sims):
     before = snapshot(sims)
 
@@ -506,32 +496,44 @@ def test_what_a_start_creates_costs_what_the_check_said(api, sims):
     )
 
 
+# Each setup makes one refusal: it may add rows to `sims`, and returns the dataset's status and
+# the sim wanted.
+
+
 def setup_test_period_days(sims):
-    return free_sim(**TEST_DAYS)
+    return "published", free_sim(**DAYS_INTO_TEST_PERIOD)
 
 
 def setup_future_memory(sims):
-    sims.tables["MEMORY.DECISIONS"][0]["STEP"] = 250
-    return free_sim()
+    add_base_memory(sims, record_step=250)  # the newest build-up sim is the base memory
+    return "published", free_sim()
 
 
 def setup_over_ceiling(sims):
     paid_call(sims, None, 74.99)
-    return free_sim()
+    return "published", free_sim()
 
 
 def setup_fifth_sim(sims):
     for _ in range(4):
         sim_in_progress(sims)
-    return free_sim()
+    return "published", free_sim()
+
+
+def setup_unpublished_dataset(sims):
+    return "being built", free_sim()
 
 
 def setup_unknown_model(sims):
-    return measurement(models=[HAIKU, "gpt-9"])
+    return "published", measurement(models=[HAIKU, "gpt-9"])
+
+
+def setup_free_sim_with_two_models(sims):
+    return "published", free_sim(models=[HAIKU, GLM])  # a free sim uses one model
 
 
 def setup_practice(sims):
-    return free_sim(kind="practice", variant="memory_off")
+    return "published", free_sim(kind="practice", variant="memory_off")
 
 
 @pytest.mark.parametrize(
@@ -541,18 +543,15 @@ def setup_practice(sims):
         setup_future_memory,
         setup_over_ceiling,
         setup_fifth_sim,
+        setup_unpublished_dataset,
         setup_unknown_model,
+        setup_free_sim_with_two_models,
         setup_practice,
-        "dataset not published",
     ],
 )
 def test_whatever_the_check_refuses_the_start_refuses_too(sims, launcher, setup):
-    if setup == "dataset not published":
-        api = client(make_store(sims, status="being built"), launcher)
-        wanted = free_sim()
-    else:
-        api = client(make_store(sims), launcher)
-        wanted = setup(sims)
+    status, wanted = setup(sims)
+    api = client(make_store(sims, status=status), launcher)
     before = snapshot(sims)
 
     refused = codes(check(api, wanted)["refusals"])
