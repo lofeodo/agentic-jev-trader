@@ -44,6 +44,8 @@ export type QualityCheck = Schemas["QualityCheck"];
 export type PriceChart = Schemas["PriceChart"];
 export type SimToStart = Schemas["SimToStart"];
 export type SimCheck = Schemas["SimCheck"];
+export type SimsStarted = Schemas["SimsStarted"];
+export type ModelChoice = Schemas["ModelChoice"];
 
 async function read<T>(path: string): Promise<T> {
   const answer = await fetch(`/api${path}`);
@@ -56,6 +58,7 @@ export const fetchSpendingTotal = () => read<SpendingTotal>("/spending/total");
 export const fetchSpending = () => read<Spending>("/spending");
 export const fetchPlaybook = () => read<Playbook>("/playbook");
 export const fetchComparison = () => read<Comparison>("/comparison");
+export const fetchModels = () => read<ModelChoice>("/models");
 export const fetchDatasets = () => read<DatasetsList>("/datasets");
 export const fetchDataset = (id: number) => read<DatasetPage>(`/datasets/${id}`);
 // `ticker`: the asset's real ticker, such as AAPL.
@@ -124,6 +127,9 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 
 export const buildDataset = (wanted: DatasetToBuild) => post<DatasetStarted>("/datasets", wanted);
 export const stopDataset = (id: number) => post<DatasetPage>(`/datasets/${id}/stop`);
+// Starts the sim or sims `wanted` describes (a measurement starts two or three); refused with
+// every reason, as `checkSim` would have answered.
+export const startSim = (wanted: SimToStart) => post<SimsStarted>("/sims", wanted);
 export const stopSim = (id: number) => post<SimHeader>(`/sims/${id}/stop`);
 // `spendingCapUsd`: a new cap, needed only when the spending cap stopped the sim.
 export const resumeSim = (id: number, spendingCapUsd: number | null) =>

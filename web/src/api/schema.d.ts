@@ -120,6 +120,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Model Choice
+         * @description The New trading sim form's Model choice: the models, and the default it pre-selects.
+         */
+        get: operations["modelChoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/playbook": {
         parameters: {
             query?: never;
@@ -855,6 +875,24 @@ export interface components {
             reason: string;
             /** Step */
             step: number;
+        };
+        /**
+         * ModelChoice
+         * @description The LLMs a sim may name and the one a free sim uses unless the developer picks another
+         *     (`config/llm.toml`).
+         */
+        ModelChoice: {
+            /** Default Model */
+            default_model: string;
+            /** Models */
+            models: components["schemas"]["ModelOption"][];
+        };
+        /** ModelOption */
+        ModelOption: {
+            /** Label */
+            label: string;
+            /** Model */
+            model: string;
         };
         /** ModelResult */
         ModelResult: {
@@ -1710,6 +1748,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    modelChoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelChoice"];
                 };
             };
         };
