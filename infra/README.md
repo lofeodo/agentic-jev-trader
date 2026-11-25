@@ -106,8 +106,10 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
 
 - `terraform/kubernetes/` is Terraform's Kubernetes part, a root of its own with its own
   state: the memory server, the API and the web app in the cluster. It has no resources yet.
-- `images.py` builds the two images (recipes `Dockerfile` and `web/Dockerfile`) and loads
-  them into kind. Not built yet.
+- `images.py` builds the two images (an image is a packed copy of a program with everything
+  it needs to run; recipes `Dockerfile` and `web/Dockerfile`) and loads them into kind. Not
+  built yet.
 
-`JOB_LAUNCHER=kubernetes` in `.env` is accepted, but starting a job with it fails as not built
+`JOB_LAUNCHER=kubernetes` in `.env` (start each sim or dataset build as a Kubernetes Job, a
+one-off run inside the cluster) is accepted, but starting a job with it is refused as not built
 yet. CI's `deployment-check` job holds the deployment check's steps, each doing nothing yet.

@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # What the wait-until-healthy step asks, inside the cluster: each service's health route.
-      MEMORY_HEALTH: http://memory:8765/health # the memory server's /health
+      MEMORY_HEALTH: http://memory:8765/health
       API_HEALTH: http://api:8000/health
       WEB_HEALTH: http://web/
     steps:

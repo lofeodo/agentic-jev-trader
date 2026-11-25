@@ -9,8 +9,9 @@ listens on this computer only. It starts sims' jobs as `JOB_LAUNCHER` in `.env` 
 the default: programs on this computer, each printing to `logs/sims/sim-<id>.log`), on the
 database it serves, and dataset builds the same way (`logs/datasets/dataset-<id>.log`, beside
 the build's settings file). `kubernetes` (Jobs in the kind cluster) is accepted, but starting a
-job with it fails as not built yet. A build logs in as the builder and needs `TWELVE_DATA_API_KEY`. `describe` needs no login. Output is plain ASCII: `conda run` on
-Windows fails on other characters.
+job with it fails as not built yet. A build logs in as the builder and needs
+`TWELVE_DATA_API_KEY`. `describe` needs no login. Output is plain ASCII: `conda run` on Windows
+fails on other characters.
 """
 
 import argparse

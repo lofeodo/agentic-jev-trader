@@ -43,7 +43,7 @@ from jev_trader.api.sims_list import SimsList, sims_list
 from jev_trader.api.spending import Spending, spending
 from jev_trader.api.store import ApiStore
 from jev_trader.api.trades import Filters, TradesTable, trades_table
-from jev_trader.jobs import Builds, Launcher
+from jev_trader.jobs import Builds, Launcher, NotBuiltYet
 from jev_trader.sim.store import now
 
 LOCAL_CLIENTS = frozenset({"127.0.0.1", "::1"})
@@ -220,6 +220,12 @@ def create_app(
     @app.exception_handler(Refused)
     def refused(request: Request, refused: Refused):
         body = Refusals(refusals=refused.refusals)
+        return JSONResponse(body.model_dump(), status_code=409)
+
+    # A launcher in place but not built yet (JOB_LAUNCHER=kubernetes) refuses like any other job.
+    @app.exception_handler(NotBuiltYet)
+    def not_built_yet(request: Request, error: NotBuiltYet):
+        body = Refusals(refusals=[Refusal(code="not_built_yet", message=str(error))])
         return JSONResponse(body.model_dump(), status_code=409)
 
     @app.post("/sims", operation_id="startSim", status_code=202, responses=REFUSED)

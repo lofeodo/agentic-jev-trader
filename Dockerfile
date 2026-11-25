@@ -4,7 +4,7 @@
 #   API             python -m jev_trader.api serve
 #   sim job         python -m jev_trader.sim resume <sim id>
 #   dataset build   python -m jev_trader.dataset build <settings file>
-# Built and loaded into kind by `python infra/images.py build`, tagged with the git commit.
+# Built and loaded into kind by `conda run -n agentic-jev-trader python infra/images.py build`, tagged with the git commit.
 # It never holds a secret: .dockerignore keeps .env, keys and saved tables out.
 #
 # Skeleton: the code and the pinned dependencies arrive with the slice's images ticket (#198).
