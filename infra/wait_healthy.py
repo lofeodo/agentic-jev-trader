@@ -3,7 +3,10 @@
 The deployment check's last wait: the memory server, the API and the web app each report
 healthy. A developer can run it by hand against their own kind cluster, from the repo root:
 
-    conda run -n agentic-jev-trader python infra/wait_healthy.py http://localhost:8765/health http://localhost:8000/health
+    conda run -n agentic-jev-trader python infra/wait_healthy.py http://localhost:8765/health http://localhost:8000/health http://localhost:8080/
+
+The addresses are the memory server's, the API's and the web app's, wherever the cluster's
+services are reachable from (these examples assume each is forwarded to this computer).
 
 Each address is asked every `--every` seconds until it answers with a success (any 2xx or 3xx
 status); one that has answered is not asked again. It ends with 0 once all have answered, or
@@ -74,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         help="seconds between rounds of asking (default 5)",
     )
     args = parser.parse_args(argv)
+    # Named here, not left to the default, so it is looked up when called (tests replace it).
     never = wait_until_healthy(
         args.urls, args.timeout, args.every, is_healthy=answers_healthy
     )

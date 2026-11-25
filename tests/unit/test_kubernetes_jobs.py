@@ -1,15 +1,19 @@
 """Sims and dataset builds as Jobs in the kind cluster, `JOB_LAUNCHER=kubernetes` (spec
-appendix 8, section 8.10). A Job is Kubernetes' name for a program run once to its end.
+appendix 8, section 8.10). A Job is Kubernetes' name for a program run once to its end; the
+cluster runs that program in a pod (the running copy of the image), which the Job creates.
 
-No cluster here: `FakeBatchApi` stands in for the `kubernetes` package's `BatchV1Api`, keeping
-Jobs in a dict and answering as the real one does (the same model types, the same errors for a
-name already taken or a Job not found).
+No cluster here: `FakeCluster` stands in for the `kubernetes` package's API clients, keeping
+Jobs (and ConfigMaps, small stored files a Job can read) in dicts and answering as the real
+ones do: the same model types, the same errors for a name already taken or a thing not found.
+It answers both the Jobs calls (`BatchV1Api`) and the ConfigMap calls (`CoreV1Api`), so the one
+`client` stands for whichever the launcher uses.
 """
 
 import pytest
 from kubernetes.client import (
     ApiClient,
     ApiException,
+    V1ConfigMap,
     V1Job,
     V1JobCondition,
     V1JobStatus,
@@ -29,27 +33,39 @@ from jev_trader.jobs import (
 pytestmark = pytest.mark.skip(reason="dormant: the kind-cluster slice's tests (#115)")
 
 DATABASE = "TRADING_AGENT_TEST"
+SETTINGS = 'name = "made-up"\ntickers = ["SPY"]\n'
+# Deleting a Job with either of these also deletes its pod, so the program stops. Without one,
+# the API's default for Jobs leaves the pod running.
+REMOVES_THE_POD = ("Foreground", "Background")
 
 
-class FakeBatchApi:
-    """The Jobs part of a cluster. `finish` and `fail` play a Job's program ending."""
+def plain(thing) -> dict:
+    """A model or a dict, as the plain data the cluster stores."""
+    return ApiClient().sanitize_for_serialization(thing)
+
+
+class FakeCluster:
+    """A cluster's Jobs and ConfigMaps. `run`, `finish` and `fail` play a Job's program."""
 
     def __init__(self, refuse_deletes: bool = False):
-        self.jobs: dict[
-            tuple[str, str], dict
-        ] = {}  # (namespace, name) -> the Job as sent
+        # (namespace, name) -> the Job as sent
+        self.jobs: dict[tuple[str, str], dict] = {}
         self.states: dict[tuple[str, str], V1JobStatus] = {}
+        self.config_maps: dict[tuple[str, str], dict] = {}
+        # (name, propagation_policy) of each Job deleted
+        self.deleted: list[tuple[str, str | None]] = []
         self.refuse_deletes = refuse_deletes
 
+    # Jobs (BatchV1Api)
+
     def create_namespaced_job(self, namespace, body, **_):
-        job = ApiClient().sanitize_for_serialization(
-            body
-        )  # a model or a dict, as plain data
+        job = plain(body)
         key = (namespace, job["metadata"]["name"])
         if key in self.jobs:
             raise ApiException(status=409, reason="AlreadyExists")
         self.jobs[key] = job
-        self.states[key] = V1JobStatus()  # just created: no pod yet
+        # Just created: no pod yet, so nothing counted in its status.
+        self.states[key] = V1JobStatus()
         return self._read(key)
 
     def read_namespaced_job(self, name, namespace, **_):
@@ -58,12 +74,15 @@ class FakeBatchApi:
     def read_namespaced_job_status(self, name, namespace, **_):
         return self._read((namespace, name))
 
-    def delete_namespaced_job(self, name, namespace, **_):
+    def delete_namespaced_job(self, name, namespace, propagation_policy=None, **kw):
         key = (namespace, name)
         if key not in self.jobs:
             raise ApiException(status=404, reason="NotFound")
         if self.refuse_deletes:
             raise ApiException(status=403, reason="Forbidden")
+        body = plain(kw.get("body") or {})
+        policy = propagation_policy or body.get("propagationPolicy")
+        self.deleted.append((name, policy))
         del self.jobs[key], self.states[key]
 
     def _read(self, key):
@@ -75,7 +94,27 @@ class FakeBatchApi:
             status=self.states[key],
         )
 
-    # What happens in the cluster on its own.
+    # ConfigMaps (CoreV1Api)
+
+    def create_namespaced_config_map(self, namespace, body, **_):
+        config_map = plain(body)
+        key = (namespace, config_map["metadata"]["name"])
+        if key in self.config_maps:
+            raise ApiException(status=409, reason="AlreadyExists")
+        self.config_maps[key] = config_map
+        return V1ConfigMap(data=config_map.get("data"))
+
+    def read_namespaced_config_map(self, name, namespace, **_):
+        key = (namespace, name)
+        if key not in self.config_maps:
+            raise ApiException(status=404, reason="NotFound")
+        return V1ConfigMap(data=self.config_maps[key].get("data"))
+
+    def delete_namespaced_config_map(self, name, namespace, **_):
+        if self.config_maps.pop((namespace, name), None) is None:
+            raise ApiException(status=404, reason="NotFound")
+
+    # What happens in the cluster on its own
 
     def the_job(self, prefix: str) -> tuple[tuple[str, str], dict]:
         """The one Job named for `prefix` (`sim-12`, `dataset-3`)."""
@@ -108,26 +147,27 @@ def command_of(job: dict) -> list[str]:
     return [*container.get("command", []), *container.get("args", [])]
 
 
+def sim_command(sim_id: int) -> list[str]:
+    return sim_job_command(sim_id, DATABASE)
+
+
+def build_command(dataset_id, settings_file, check) -> list[str]:
+    return dataset_job_command(dataset_id, settings_file, check, DATABASE)
+
+
 @pytest.fixture
 def cluster():
-    return FakeBatchApi()
+    return FakeCluster()
 
 
 @pytest.fixture
 def launcher(cluster):
-    return KubernetesLauncher(
-        lambda sim_id: sim_job_command(sim_id, DATABASE), client=cluster
-    )
+    return KubernetesLauncher(sim_command, client=cluster)
 
 
 @pytest.fixture
 def builds(cluster):
-    return KubernetesBuilds(
-        lambda dataset_id, settings_file, check: dataset_job_command(
-            dataset_id, settings_file, check, DATABASE
-        ),
-        client=cluster,
-    )
+    return KubernetesBuilds(build_command, client=cluster)
 
 
 # Sims
@@ -139,10 +179,7 @@ def test_a_sim_starts_as_a_job_named_for_it_running_the_sim_command(launcher, cl
     _, job = cluster.the_job("sim-12")
     # The command the local launcher runs, with the image's own Python in place of this
     # computer's.
-    assert command_of(job) == [
-        "python",
-        *sim_job_command(12, DATABASE)[1:],
-    ]
+    assert command_of(job) == ["python", *sim_command(12)[1:]]
 
 
 def test_a_job_counts_as_running_from_its_start_until_its_program_ends(
@@ -192,13 +229,15 @@ def test_a_mark_from_the_cluster_cannot_be_taken_for_a_program_on_this_computer(
     assert not launcher.start(12).startswith("pid ")
 
 
-def test_stopping_a_running_job_removes_it(launcher, cluster):
+def test_stopping_a_running_job_removes_it_and_its_pod(launcher, cluster):
     mark = launcher.start(12)
     cluster.run("sim-12")
 
     assert launcher.stop(mark) is True
 
     assert cluster.jobs == {}
+    [(_, policy)] = cluster.deleted
+    assert policy in REMOVES_THE_POD
     assert not launcher.is_running(mark)
 
 
@@ -212,10 +251,8 @@ def test_stopping_a_job_no_longer_running_kills_nothing(launcher, cluster):
 
 
 def test_a_job_the_cluster_will_not_remove_is_reported_not_killed():
-    cluster = FakeBatchApi(refuse_deletes=True)
-    launcher = KubernetesLauncher(
-        lambda sim_id: sim_job_command(sim_id, DATABASE), client=cluster
-    )
+    cluster = FakeCluster(refuse_deletes=True)
+    launcher = KubernetesLauncher(sim_command, client=cluster)
     mark = launcher.start(12)
     cluster.run("sim-12")
 
@@ -224,61 +261,90 @@ def test_a_job_the_cluster_will_not_remove_is_reported_not_killed():
 
 
 def test_a_sim_resumed_after_its_job_ended_starts_again(launcher, cluster):
-    """Stopped and resumed, or ended and carried on: the old Job's name must not block it."""
+    """Stopped and resumed, or ended and carried on: the old Job's name must not block it.
+    Reusing the name (after removing the old Job) and taking a fresh one are both fine."""
     first = launcher.start(12)
     cluster.finish("sim-12")
 
     second = launcher.start(12)
 
     assert launcher.is_running(second)
-    assert not launcher.is_running(first) or first == second
+    if second != first:
+        assert not launcher.is_running(first)
 
 
 # Dataset builds
 
 
+def strings_in(thing) -> list[str]:
+    """Every text value anywhere in a Job or ConfigMap, as plain data."""
+    if isinstance(thing, str):
+        return [thing]
+    if isinstance(thing, dict):
+        thing = list(thing.values())
+    if isinstance(thing, list):
+        return [text for part in thing for text in strings_in(part)]
+    return []
+
+
+def settings_reaching(job: dict, cluster: FakeCluster) -> bool:
+    """Whether the settings text reaches the Job: written in the Job itself, or in a
+    ConfigMap the Job names."""
+    if SETTINGS in strings_in(job):
+        return True
+    named = strings_in(job["spec"]["template"]["spec"])
+    return any(
+        SETTINGS in strings_in(config_map.get("data")) and name in named
+        for (_, name), config_map in cluster.config_maps.items()
+    )
+
+
 def test_a_build_starts_as_a_job_named_for_its_dataset_running_the_build_command(
     builds, cluster
 ):
-    builds.start(3, 'name = "made-up"\n', check=False)
+    builds.start(3, SETTINGS, check=False)
 
     _, job = cluster.the_job("dataset-3")
     command = command_of(job)
-    # The local builds' command, with the image's Python, on a settings file inside the Job.
+    # The local builds' command, with the image's Python, on a settings file inside the pod.
     settings_file = command[4]
-    assert command == [
-        "python",
-        "-m",
-        "jev_trader.dataset",
-        "build",
-        settings_file,
-        "--dataset-id",
-        "3",
-        "--database",
-        DATABASE,
-        "--no-check",
-    ]
+    assert command == ["python", *build_command(3, settings_file, False)[1:]]
+    assert "--no-check" in command
+
+
+def test_a_build_job_carries_its_settings(builds, cluster):
+    builds.start(3, SETTINGS, check=True)
+
+    _, job = cluster.the_job("dataset-3")
+    assert settings_reaching(job, cluster)
+    assert builds.settings_text(3) == SETTINGS
+
+
+def test_a_build_the_api_never_started_has_no_settings(builds):
+    assert builds.settings_text(4) is None
 
 
 def test_a_checked_build_runs_without_the_no_check_switch(builds, cluster):
-    builds.start(3, 'name = "made-up"\n', check=True)
+    builds.start(3, SETTINGS, check=True)
 
     _, job = cluster.the_job("dataset-3")
     assert "--no-check" not in command_of(job)
 
 
-def test_stopping_a_running_build_removes_its_job(builds, cluster):
-    builds.start(3, 'name = "made-up"\n', check=True)
+def test_stopping_a_running_build_removes_its_job_and_its_pod(builds, cluster):
+    builds.start(3, SETTINGS, check=True)
     cluster.run("dataset-3")
 
     assert builds.stop(3) is True
 
     assert cluster.jobs == {}
+    [(_, policy)] = cluster.deleted
+    assert policy in REMOVES_THE_POD
 
 
 def test_stopping_a_build_with_no_running_job_kills_nothing(builds, cluster):
     assert builds.stop(4) is False  # never started
 
-    builds.start(3, 'name = "made-up"\n', check=True)
+    builds.start(3, SETTINGS, check=True)
     cluster.finish("dataset-3")
     assert builds.stop(3) is False  # ended already
