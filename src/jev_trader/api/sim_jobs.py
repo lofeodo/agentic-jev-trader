@@ -36,7 +36,7 @@ from datetime import date, datetime, timedelta
 from pydantic import BaseModel
 
 from jev_trader.api.sim_page import SimNotFound
-from jev_trader.api.sims_list import holding_sims, is_not_responding
+from jev_trader.api.sims_list import HOLDING, holding_sims, is_not_responding, stretch
 from jev_trader.api.store import ApiStore
 from jev_trader.dataset.bars import STEPS_PER_DAY
 from jev_trader.jobs import JobNotKilled, Launcher
@@ -111,6 +111,10 @@ def _variants_and_models(
         other = "memory_off" if wanted.variant == "memory_on" else "memory_on"
         sims.append((other, model))
     return sims
+
+
+def _period_names(info) -> str:
+    return ", ".join(f'"{p.name}"' for p in info.test_periods()) or "none"
 
 
 class SimCheck(BaseModel):
@@ -195,9 +199,6 @@ class Jobs:
         if refused:
             models = models[:1]  # plan the rest, so every refusal comes back together
         spending = self._spending()
-        plan = _variants_and_models(wanted, models)
-        if wanted.variant != "buy_hold":
-            plan += self._holding_wanted(wanted, first_step, last_step)
         sims = [
             plan_sim(
                 self.store,
@@ -214,13 +215,10 @@ class Jobs:
                 ),
                 spending,
             )
-            for variant, model in plan
+            for variant, model in _variants_and_models(wanted, models)
         ]
-        if wanted.kind == "measurement":
-            repeat = self._next_repeat(wanted.dataset, wanted.market)
-            for sim in sims:
-                if sim.row["VARIANT"] != "buy_hold":
-                    sim.row["REPEAT_NUMBER"] = repeat
+        if wanted.variant != HOLDING:
+            sims += self._holding_and_repeat(wanted, sims, spending)
         refused += checker.check_together(
             [sim.planned for sim in sims],
             info,
@@ -233,36 +231,60 @@ class Jobs:
         refused = list(dict.fromkeys(refused))  # a model refused twice is said once
         return sims, _from_checker(checker.Refused(refused)).refusals
 
-    def _holding_wanted(
-        self, wanted: SimToStart, first_step: int, last_step: int
-    ) -> list[tuple[str, None]]:
-        """The sim holding the five assets, when no sim yet holds them over these days from
-        this starting amount: made with the first sims on them, shared by every later one."""
-        days = (wanted.dataset, first_step, last_step, wanted.starting_value)
-        return [] if days in holding_sims(self.store.sims()) else [("buy_hold", None)]
+    def _holding_and_repeat(
+        self, wanted: SimToStart, sims: list[PlannedSim], spending: SpendingSettings
+    ) -> list[PlannedSim]:
+        """What a start of the agent's sims needs from the sims already stored, read once.
 
-    def _next_repeat(self, dataset: int, market: str | None) -> int:
-        """The API numbers a measurement's repeats: one more than the last on its test period."""
-        numbers = [
-            s.get("REPEAT_NUMBER") or 0
-            for s in self.store.sims()
-            if s["DATASET"] == dataset
-            and s["KIND"] == "measurement"
-            and s.get("MARKET") == market
+        A measurement's sims get a repeat number, one more than the last on its test period.
+        The sim holding the five assets is planned when none yet holds them over these days
+        from this starting amount: made with the first sims on them, shared by every later one.
+        Whatever started it, it is stored as a free sim with no test period named, so it is
+        never taken for a repeat of a measurement or for the base memory.
+        """
+        stored = self.store.sims()
+        if wanted.kind == "measurement":
+            repeat = 1 + max(
+                (
+                    s.get("REPEAT_NUMBER") or 0
+                    for s in stored
+                    if s["DATASET"] == wanted.dataset
+                    and s["KIND"] == "measurement"
+                    and s.get("MARKET") == wanted.market
+                ),
+                default=0,
+            )
+            for sim in sims:
+                sim.row["REPEAT_NUMBER"] = repeat
+        if stretch(sims[0].row) in holding_sims(stored):
+            return []
+        first = sims[0].planned
+        return [
+            plan_sim(
+                self.store,
+                self.store,
+                SimRequest(
+                    dataset=wanted.dataset,
+                    variant=HOLDING,
+                    kind="free",
+                    first_step=first.first_step,
+                    last_step=first.last_step,
+                    starting_value=wanted.starting_value,
+                ),
+                spending,
+            )
         ]
-        return max(numbers, default=0) + 1
 
     def _steps(self, wanted: SimToStart, info) -> tuple[int, int]:
         if (
             wanted.kind == "measurement"
             and wanted.market is None
-            and wanted.variant != "buy_hold"
+            and wanted.variant != HOLDING
         ):
-            names = ", ".join(f'"{p.name}"' for p in info.test_periods()) or "none"
             raise _refuse(
                 "measurement_needs_period",
                 "a measurement plays one test period whole, not days of its own: "
-                f"name one of {names}",
+                f"name one ({_period_names(info)})",
             )
         if wanted.market is not None:
             if wanted.first_day or wanted.last_day:
@@ -270,11 +292,10 @@ class Jobs:
             for period in info.test_periods():
                 if period.name == wanted.market:
                     return period.first_step, period.last_step
-            names = ", ".join(f'"{p.name}"' for p in info.test_periods()) or "none"
             raise _refuse(
                 "no_such_period",
                 f'dataset {info.dataset_id} has no test period "{wanted.market}"; '
-                f"it has {names}",
+                f"it has {_period_names(info)}",
             )
         first_step, last_step = info.warm_up_last_step + 1, info.last_step
         if wanted.first_day or wanted.last_day:

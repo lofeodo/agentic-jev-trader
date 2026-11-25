@@ -606,3 +606,20 @@ def test_the_holding_sim_is_made_with_the_first_sims_on_a_stretch_and_shared(
     )
     assert holding in launcher.started
     assert all(sims.sim(i)["VARIANT"] != "buy_hold" for i in second)
+
+
+@pytest.mark.parametrize("wanted", [measurement(), build_up()])
+def test_the_holding_sim_is_never_a_repeat_or_the_base_memory(api, sims, wanted):
+    """Made by a measurement or a build-up, the holding sim is stored as a free sim with no
+    test period, so the comparison never counts it and it never becomes the base memory."""
+    base = sims.base_memory_sim(DATASET)
+
+    ids = start(api, wanted)
+    [holding] = [i for i in ids if sims.sim(i)["VARIANT"] == "buy_hold"]
+    sims.update(holding, STATUS="finished")
+
+    assert (sims.sim(holding)["KIND"], sims.sim(holding).get("MARKET")) == (
+        "free",
+        None,
+    )
+    assert sims.base_memory_sim(DATASET) == base

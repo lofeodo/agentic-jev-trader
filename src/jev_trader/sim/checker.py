@@ -16,8 +16,9 @@ and #176): its sims are stored and their jobs started. Until the agent with memo
 sim with memory's job fails in its first moment ("not built yet"), before any paid call; a
 measurement, build-up or free sim without memory really runs, calling Jev up to its cap.
 
-`check_models` is the request's own refusal about models, before any sim is planned: only a
-measurement names more than one.
+`check_models` is the request's own refusals about models, before any sim is planned: every
+model named must be known, even one no sim of the start would use, and only a measurement names
+more than one.
 
 **Refusal 2, the memory** (appendix 5, section 2; ADR 0007). A sim with memory starts from a
 copy of another sim's memory: the base memory (the latest finished build-up sim's on the
