@@ -123,8 +123,8 @@ class SimStore(Protocol):
         """For each table with any, how many of the sim's record IDs appear more than once."""
 
     def base_memory_sim(self, dataset: int) -> int | None:
-        """The sim whose memory is the dataset's base memory: its latest finished build-up sim;
-        None if it has none."""
+        """The sim whose memory is the dataset's base memory: its latest finished build-up sim
+        of the agent (never a holding sim); None if it has none."""
 
     def memory_last_step(self, sim_id: int) -> int | None:
         """The latest step anything in the sim's memory was recorded at: a decision's step, or
@@ -276,6 +276,7 @@ class InMemorySimStore:
             for sim_id, sim in self.sims.items()
             if sim["DATASET"] == dataset
             and sim["KIND"] == "build-up"
+            and sim["VARIANT"] != "buy_hold"
             and sim["STATUS"] == SimStatus.FINISHED
         ]
         return max(found, default=None)

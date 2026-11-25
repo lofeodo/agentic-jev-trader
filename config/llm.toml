@@ -1,12 +1,18 @@
-# The LLM that picks which past episodes Jev reads, in a sim with memory (spec appendix 5,
-# section 9). One setting names provider and model, "provider:model"; a sim uses one model for its
-# whole run and stores it with its settings.
-#
-# "anthropic:claude-haiku-5-5" (Claude Haiku) or "openai:glm-5.3-flash" (GLM Flash, reached
-# through Z.ai's OpenAI-style address).
-model = "anthropic:claude-haiku-5-5"
+# The LLM a sim with memory uses to pick which past episodes Jev is shown (spec appendix 8,
+# section 4; appendix 5, section 9). Jev itself is set in `jev.toml`. A sim uses one model for its whole run.
 
-# How each provider is called. Only the block of the provider named above is used.
+# The model a free sim uses unless the developer picks the other: Claude Haiku until the
+# measurement sims are done, then whatever the developer sets here.
+default_model = "claude-haiku-5-5"
+
+# The models a sim may name, each with the provider that serves it: a sim's settings store both
+# as one setting, such as "anthropic:claude-haiku-5-5". The one checker refuses any other model
+# ("unknown model").
+[models]
+"claude-haiku-5-5" = "anthropic"
+"glm-5.3-flash" = "openai"
+
+# How each provider is called. Only the block of the sim's provider is used.
 #
 # - key_variable: the variable in .env holding the key; code passes it to the model itself.
 # - retries: quick retries after the first try, waiting first_retry_wait_seconds and then twice as

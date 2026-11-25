@@ -120,6 +120,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Model Choice
+         * @description The New trading sim form's Model choice: the models, and the default it pre-selects.
+         */
+        get: operations["modelChoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/playbook": {
         parameters: {
             query?: never;
@@ -153,6 +173,27 @@ export interface paths {
          *     command line.
          */
         post: operations["startSim"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sims/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Sim
+         * @description May this sim start, and what would it cost? Takes what starting a sim takes; stores
+         *     nothing and starts nothing. The New trading sim form asks it as its choices change.
+         */
+        get: operations["checkSim"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -835,6 +876,24 @@ export interface components {
             /** Step */
             step: number;
         };
+        /**
+         * ModelChoice
+         * @description The LLMs a sim may name and the one a free sim uses unless the developer picks another
+         *     (`config/llm.toml`).
+         */
+        ModelChoice: {
+            /** Default Model */
+            default_model: string;
+            /** Models */
+            models: components["schemas"]["ModelOption"][];
+        };
+        /** ModelOption */
+        ModelOption: {
+            /** Label */
+            label: string;
+            /** Model */
+            model: string;
+        };
         /** ModelResult */
         ModelResult: {
             /** Difference Usd */
@@ -1158,6 +1217,24 @@ export interface components {
             /** Volume Level */
             volume_level: string | null;
         };
+        /**
+         * SimCheck
+         * @description May this sim start, and what would it cost? Every refusal at once, and the money in US
+         *     dollars: the estimate and cap of all the sims the request creates, and what is left under
+         *     the ceiling for new sims (money paid and other sims' caps taken off).
+         */
+        SimCheck: {
+            /** Ceiling Usd */
+            ceiling_usd: number;
+            /** Estimate Usd */
+            estimate_usd: number;
+            /** Left Under Ceiling Usd */
+            left_under_ceiling_usd: number;
+            /** Refusals */
+            refusals: components["schemas"]["Refusal"][];
+            /** Spending Cap Usd */
+            spending_cap_usd: number;
+        };
         /** SimHeader */
         SimHeader: {
             /** Assets */
@@ -1268,6 +1345,13 @@ export interface components {
             last_day?: string | null;
             /** Market */
             market?: string | null;
+            /** Models */
+            models?: string[] | null;
+            /**
+             * Partner
+             * @default false
+             */
+            partner: boolean;
             /**
              * Starting Value
              * @default 10000
@@ -1668,6 +1752,26 @@ export interface operations {
             };
         };
     };
+    modelChoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelChoice"];
+                };
+            };
+        };
+    };
     playbook: {
         parameters: {
             query?: never;
@@ -1737,6 +1841,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Refusals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    checkSim: {
+        parameters: {
+            query: {
+                dataset: number;
+                kind: string;
+                variant: string;
+                market?: string | null;
+                first_day?: string | null;
+                last_day?: string | null;
+                starting_value?: number;
+                models?: string[] | null;
+                partner?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimCheck"];
                 };
             };
             /** @description Validation Error */

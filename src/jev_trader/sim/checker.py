@@ -1,16 +1,25 @@
 """The one checker: every refusal of a sim comes from here (spec appendix 8, section 8.6).
 
 `check` returns every refusal at once, each with a code, what is wrong, and how to fix it;
-`require_allowed` raises them together as `Refused`. `check_resume` is the part that still
-applies when a stopped sim is carried on. The sim command uses both now; the form
-(`GET /sims/check`) and the API's start and resume will use them too.
+`require_allowed` raises them together as `Refused`. `check_together` checks the sims one start
+creates as a group (a measurement's three, say): the ceiling and the limit on sims in progress
+count them all. `check_resume` is the part that still applies when a stopped sim is carried on.
+The sim command uses `check`; the API's start and the form's question (`GET /sims/check`) use
+`check_together`, and its resume `check_resume`.
 
-Of the spec's six refusals, these are built: test period days in a sim that is not a
-measurement (1), a memory the sim may not start from (2), a cap that could take spending past
-the ceiling (3), a fifth sim in progress (4), and a dataset that is not published (5). The
-unknown model (6) comes with choosing the model when a sim starts (appendix 8, section 4). The
-other refusals are the limits of what is built so far, and a sim with memory whose LLM has no key
-in `.env`, checked on a start and on a resume, before its job builds the LLM client.
+All six of the spec's refusals are built: test period days in a sim that is not a measurement
+(1), a memory the sim may not start from (2), a cap that could take spending past the ceiling
+(3), a fifth sim in progress (4), a dataset that is not published (5), and an unknown model (6).
+The other refusals are the limits of what is built so far (only practice sims of the agent, with
+or without memory), and a sim with memory whose LLM has no key in `.env`, checked on a start and
+on a resume, before its job builds the LLM client. A start from the app is let past the "not
+built yet" one (the developer's decision on the New trading sim form's tickets, #174 and #176):
+its measurement and free sims, with or without memory, really run, calling Jev (and the LLM) up
+to their caps.
+
+`check_models` is the request's own refusals about models, before any sim is planned: every
+model named must be known, even one no sim of the start would use, and only a measurement names
+more than one.
 
 **Refusal 2, the memory** (appendix 5, section 2; ADR 0007). A sim with memory starts from a
 copy of another sim's memory: the base memory (the latest finished build-up sim's on the
@@ -35,6 +44,7 @@ import os
 from dataclasses import dataclass
 
 from jev_trader.dataset.store import DatasetStatus
+from jev_trader.llm.models import load_model_settings
 from jev_trader.llm.settings import LlmSettings, load_call_settings
 from jev_trader.sim.market import DatasetInfo
 from jev_trader.sim.spending import SpendingSettings
@@ -76,25 +86,73 @@ class Planned:
         None  # a practice sim's cap, if the developer raised it
     )
     memory_from: int | None = None  # the sim whose memory it starts from a copy of
-    llm_model: str | None = None  # the agent with memory's LLM, "provider:model"
+    model: str | None = (
+        None  # the LLM a sim with memory uses, such as "claude-haiku-5-5"
+    )
 
 
 def check(
     sim: Planned, info: DatasetInfo, store: SimStore, settings: SpendingSettings
 ) -> list[Refusal]:
     """Every reason the spec refuses `sim`, in a fixed order; empty if it may start."""
-    refusals = _dataset(info) + _request(sim, info) + _memory(sim, store)
-    if sim.variant == "buy_hold":
+    return check_together([sim], info, store, settings)
+
+
+def check_together(
+    sims: list[Planned],
+    info: DatasetInfo,
+    store: SimStore,
+    settings: SpendingSettings,
+    *,
+    unbuilt_allowed: bool = False,
+) -> list[Refusal]:
+    """Every reason the spec refuses starting `sims` together (one start's sims, all on one
+    dataset), in a fixed order, each said once; empty if they may start.
+
+    The ceiling counts all their caps at once, and the limit on sims in progress all the agent's
+    sims among them. `unbuilt_allowed` lets through what is not built yet (the agent's sims
+    beyond practice sims): a start from the app, which the developer allowed for the New trading
+    sim form. Those sims really run, up to their caps."""
+    refusals = _dataset(info)
+    for sim in sims:
+        refusals += (
+            _request(sim, info, unbuilt_allowed)
+            + _unknown_model(sim)
+            + _memory(sim, store)
+        )
+    agents = [sim for sim in sims if sim.variant != "buy_hold"]
+    if agents:
+        for sim in agents:
+            refusals += (
+                _practice_cap(sim, settings)
+                + _test_period_days(sim, info)
+                + _llm_key(sim.model and load_model_settings().providers.get(sim.model))
+            )
+        practice = any(sim.kind == "practice" for sim in agents)
+        refusals += _ceiling(
+            sum(sim.spending_cap or 0.0 for sim in agents),
+            store,
+            settings,
+            settings.practice_cap_usd if practice else 0.0,
+            sim_count=len(agents),
+        ) + _too_many(store, settings, adding=len(agents))
+    return list(dict.fromkeys(refusals))
+
+
+def check_models(kind: str, models: list[str]) -> list[Refusal]:
+    """What is wrong with the models a start names (`models`, in lower case, each once): each
+    must be known, even one no sim of the start would use, and only a measurement plays more
+    than one."""
+    refusals = [r for model in models for r in _unknown_name(model)]
+    if kind == "measurement" or len(models) <= 1:
         return refusals
-    lowest_cap = settings.practice_cap_usd if sim.kind == "practice" else 0.0
-    return (
-        refusals
-        + _practice_cap(sim, settings)
-        + _test_period_days(sim, info)
-        + _ceiling(sim.spending_cap or 0.0, store, settings, lowest_cap)
-        + _too_many(store, settings)
-        + _llm_key(sim.llm_model)
-    )
+    return refusals + [
+        Refusal(
+            "one_model",
+            f"a {kind} sim uses one model, not {len(models)}",
+            f"pick one of {', '.join(models)}",
+        )
+    ]
 
 
 def require_allowed(
@@ -118,7 +176,7 @@ def check_resume(
     return (
         _ceiling(left, store, settings, None, excluding=sim["ID"])
         + _too_many(store, settings, excluding=sim["ID"])
-        + _llm_key(llm and llm["model"])
+        + _llm_key(llm and LlmSettings(llm["model"]).provider)
     )
 
 
@@ -259,8 +317,9 @@ def _dataset(info: DatasetInfo) -> list[Refusal]:
     ]
 
 
-def _request(sim: Planned, info: DatasetInfo) -> list[Refusal]:
-    """The limits of what is built, and steps the dataset does not have."""
+def _request(sim: Planned, info: DatasetInfo, unbuilt_allowed: bool) -> list[Refusal]:
+    """The limits of what is built (unless `unbuilt_allowed`), and steps the dataset does not
+    have."""
     found = []
     if sim.variant not in VARIANTS:
         found.append(
@@ -278,12 +337,20 @@ def _request(sim: Planned, info: DatasetInfo) -> list[Refusal]:
                 f"pick one of {', '.join(KINDS)}",
             )
         )
-    elif sim.variant != "buy_hold" and sim.kind != "practice":
+    elif sim.variant != "buy_hold" and sim.kind != "practice" and not unbuilt_allowed:
         found.append(
             Refusal(
                 "not_built",
                 f"only practice sims of the agent are built so far, not {sim.kind} sims",
                 "start a practice sim",
+            )
+        )
+    elif sim.variant == "memory_on" and sim.kind == "build-up":
+        found.append(
+            Refusal(
+                "build_up_reads_no_memory",
+                "a build-up sim plays Jev alone and reads no memory: it builds the base memory",
+                "pick memory_off",
             )
         )
     if not sim.first_step <= sim.last_step:
@@ -333,6 +400,25 @@ def _request(sim: Planned, info: DatasetInfo) -> list[Refusal]:
     return found
 
 
+def _unknown_model(sim: Planned) -> list[Refusal]:
+    """Refusal 6: a model that is not one of the models in `config/llm.toml`. Only the agent
+    with memory has a model; its name is already in lower case (`runner.plan_sim`)."""
+    return [] if sim.model is None else _unknown_name(sim.model)
+
+
+def _unknown_name(model: str) -> list[Refusal]:
+    known = load_model_settings().models
+    if model in known:
+        return []
+    return [
+        Refusal(
+            "unknown_model",
+            f'there is no model "{model}"',
+            f"pick {' or '.join(known)}",
+        )
+    ]
+
+
 def _test_period_days(sim: Planned, info: DatasetInfo) -> list[Refusal]:
     """Refusal 1: nothing but a measurement may see the test period's days."""
     if sim.kind == "measurement":
@@ -373,9 +459,11 @@ def _ceiling(
     settings: SpendingSettings,
     lowest_cap: float | None,
     excluding: int | None = None,
+    sim_count: int = 1,
 ) -> list[Refusal]:
     """Refusal 3: money paid, plus what the other sims in progress may still spend under their
-    caps, plus what this sim may spend (`may_add`), must stay within the ceiling.
+    caps, plus what this sim (or these `sim_count` sims started together) may spend (`may_add`), must stay
+    within the ceiling.
 
     `lowest_cap` is the smallest cap this sim could be given (0 when a shorter sim gives a
     smaller one); None when its cap cannot change, as on a resume."""
@@ -396,12 +484,15 @@ def _ceiling(
         fix = wait
     elif lowest_cap > 0:  # a practice sim given a higher cap
         fix = f"give a --spending-cap of ${room:.2f} or less, or {wait}"
-    else:
+    elif sim_count == 1:
         fix = f"shorten the sim so its cap is ${room:.2f} or less, or {wait}"
+    else:
+        fix = f"shorten the sims so their caps add up to ${room:.2f} or less, or {wait}"
+    these = "this sim" if sim_count == 1 else f"these {sim_count} sims"
     return [
         Refusal(
             "over_ceiling",
-            f"this sim may spend ${may_add:.2f} more, which could take spending to "
+            f"{these} may spend ${may_add:.2f} more, which could take spending to "
             f"${spoken_for + may_add:.2f}, past the ${settings.ceiling_usd:.2f} ceiling "
             f"(${paid:.2f} paid, ${may_still_spend:.2f} more allowed to the sims in "
             f"progress; ${room:.2f} is left)",
@@ -410,42 +501,52 @@ def _ceiling(
     ]
 
 
-def _llm_key(model: str | None) -> list[Refusal]:
-    """The agent with memory calls its LLM with the key the provider's block in
-    `config/llm.toml` names: refused when `.env` does not set it."""
-    if model is None:
+def _llm_key(provider: str | None) -> list[Refusal]:
+    """The agent with memory calls its LLM with the key `provider`'s block in `config/llm.toml`
+    names: refused when `.env` does not set it. None: no LLM, or an unknown model (refusal 6)."""
+    if provider is None:
         return []
-    variable = load_call_settings(LlmSettings(model).provider).key_variable
+    variable = load_call_settings(provider).key_variable
     if os.environ.get(variable):
         return []
     return [
         Refusal(
             "llm_key_missing",
-            f"{variable} is not set: the agent with memory calls {model} with it",
+            f"{variable} is not set: the agent with memory calls its LLM with it",
             f"set {variable} in .env",
         )
     ]
 
 
 def _too_many(
-    store: SimStore, settings: SpendingSettings, excluding: int | None = None
+    store: SimStore,
+    settings: SpendingSettings,
+    excluding: int | None = None,
+    adding: int = 1,
 ) -> list[Refusal]:
     """Refusal 4: no more sims of the agent in progress at once than the setting allows, with
-    no waiting line."""
+    no waiting line. `adding` is how many sims of the agent the start adds."""
     running = [
         s
         for s in store.sims_in_progress()
         if s["VARIANT"] != "buy_hold" and s["ID"] != excluding
     ]
-    if len(running) < settings.most_sims_in_progress:
+    most = settings.most_sims_in_progress
+    if len(running) + adding <= most:
         return []
     names = ", ".join(
         f"sim {s['ID']} ({s['KIND']}, {s['VARIANT']}, {s['STATUS']})" for s in running
     )
-    return [
-        Refusal(
-            "too_many_sims",
-            f"{len(running)} sims in progress, the most at once: {names}",
-            "wait for one to finish, or stop one",
+    if adding == 1:
+        problem = f"{len(running)} sims in progress, the most at once: {names}"
+    else:
+        problem = (
+            f"this start adds {adding} sims to the {len(running)} in progress, past the "
+            f"most at once ({most}): {names or 'none in progress'}"
         )
-    ]
+    too_many = len(running) + adding - most
+    if too_many == 1:
+        fix = "wait for one to finish, or stop one"
+    else:
+        fix = f"wait for {too_many} to finish, or stop {too_many}"
+    return [Refusal("too_many_sims", problem, fix)]

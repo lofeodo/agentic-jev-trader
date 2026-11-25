@@ -1,8 +1,9 @@
 """The model setting: one setting naming provider and model, and a small block of settings per
 provider saying how it is called (spec appendix 5, section 9).
 
-`config/llm.toml` holds the setting as "provider:model", the form the API reads back from a
-sim's settings (`SETTINGS.llm.model`, `jev_trader.api.llm_names`), and one block per provider:
+A sim's settings hold the setting as "provider:model" (`SETTINGS.llm.model`, read back by
+`jev_trader.api.llm_names`), made from the model the sim names and its provider in
+`config/llm.toml` (`jev_trader.llm.models`). The file also holds one block per provider:
 its key, its retries, how many calls it takes at once, its prices, and what LangChain's model is
 built with.
 """
@@ -10,6 +11,8 @@ built with.
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from jev_trader.llm.models import load_model_settings
 
 LLM_SETTINGS_PATH = Path(__file__).resolve().parents[3] / "config" / "llm.toml"
 PROVIDERS = ("anthropic", "openai")
@@ -81,8 +84,9 @@ class CallSettings:
 
 
 def load_llm_settings(path: Path = LLM_SETTINGS_PATH) -> LlmSettings:
-    with open(path, "rb") as file:
-        return LlmSettings(model=tomllib.load(file)["model"])
+    """The default model's setting (`default_model` in `config/llm.toml`)."""
+    models = load_model_settings(path)
+    return LlmSettings(model=models.setting(models.default_model))
 
 
 def load_call_settings(provider: str, path: Path = LLM_SETTINGS_PATH) -> CallSettings:
