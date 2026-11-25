@@ -1,0 +1,75 @@
+# TEMPORARY, removed before ticket #199's pull request merges: proves Terraform's Kubernetes
+# part applies to a throwaway kind cluster with dummy secrets and the three services become
+# ready. The lasting deployment check is ticket #201's, in ci.yml.
+name: Ticket 199 apply check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the two images
+        run: |
+          python3 infra/images.py build --no-load
+          echo "TAG=$(python3 infra/images.py tag)" >> "$GITHUB_ENV"
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: jev-trader
+          config: infra/kind-cluster.yaml
+      - name: Load the images
+        run: |
+          kind load docker-image "jev-trader:$TAG" --name jev-trader
+          kind load docker-image "jev-trader-web:$TAG" --name jev-trader
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.5
+          terraform_wrapper: false
+      - name: Apply with dummy secrets
+        working-directory: infra/terraform/kubernetes
+        env:
+          TF_VAR_snowflake_account: dummy-account
+          TF_VAR_snowflake_private_key_passphrase: dummy-passphrase-1234
+          TF_VAR_twelve_data_api_key: dummy-twelve-data-5678
+          TF_VAR_typesafe_api_key: dummy-typesafe-9012
+          TF_VAR_anthropic_api_key: dummy-anthropic-3456
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          for login in api memory sim builder; do echo "dummy-key-text-$login" > "$RUNNER_TEMP/keys/$login.p8"; done
+          terraform init -input=false -backend-config="path=$RUNNER_TEMP/k8s.tfstate"
+          terraform apply -input=false -auto-approve -var "image_tag=$TAG" -var "snowflake_keys_dir=$RUNNER_TEMP/keys"
+      - name: No secret value in Terraform's state
+        run: |
+          if grep -E 'dummy-(account|passphrase|twelve|typesafe|anthropic|key-text)' "$RUNNER_TEMP/k8s.tfstate"; then exit 1; fi
+      - name: Pods and what this computer reaches
+        run: |
+          kubectl get pods,services -n jev-trader -o wide
+          curl --fail --silent http://127.0.0.1:8080/ | grep -q '<div id="root">'
+          curl --fail --silent http://127.0.0.1:8081/health
+          curl --fail --silent http://127.0.0.1:8080/api/health
+          kubectl run probe -n jev-trader --rm -i --restart=Never --image=curlimages/curl -- curl --fail --silent http://memory:8765/health
+      - name: Secrets each pod sees
+        run: |
+          for app in memory api; do
+            echo "== $app"
+            kubectl exec -n jev-trader "deploy/$app" -- sh -c 'env | cut -d= -f1 | sort; ls /snowflake/keys'
+          done
+      - name: The API's permissions
+        run: |
+          sa=system:serviceaccount:jev-trader:api
+          kubectl auth can-i create jobs.batch -n jev-trader --as "$sa"
+          kubectl auth can-i delete jobs.batch -n jev-trader --as "$sa"
+          if kubectl auth can-i create jobs.batch -n default --as "$sa"; then exit 1; fi
+          if kubectl auth can-i get secrets -n jev-trader --as "$sa"; then exit 1; fi
+          if kubectl auth can-i create pods -n jev-trader --as "$sa"; then exit 1; fi
+      - name: Logs on failure
+        if: failure()
+        run: |
+          kubectl get pods -n jev-trader -o wide || true
+          kubectl describe pods -n jev-trader || true
+          for app in memory api web; do kubectl logs -n jev-trader "deploy/$app" --all-containers || true; done

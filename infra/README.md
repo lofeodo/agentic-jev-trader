@@ -104,13 +104,29 @@ cannot be shown to work on its own on this account.
 The same code can also run in a local kind cluster (a small Kubernetes cluster inside Docker,
 which runs and restarts programs). Its pieces sit beside the Snowflake setup, apart from it:
 
+- `kind-cluster.yaml` is the cluster's own settings: `kind create cluster --config
+  infra/kind-cluster.yaml` makes the cluster `jev-trader`, which opens two ports to this
+  computer only (127.0.0.1): the web app at http://127.0.0.1:8080 and the API at
+  http://127.0.0.1:8081. The memory server is reached from inside the cluster only.
 - `terraform/kubernetes/` is Terraform's Kubernetes part, a root of its own with its own
-  state: the memory server, the API and the web app in the cluster. It has no resources yet.
+  state, kept outside the repo like the Snowflake part's (`-backend-config=path=...`). One
+  apply puts the memory server, the API and the web app in the namespace `jev-trader`, each
+  from the images tagged `image_tag`, and waits until each answers its health address. It also
+  makes what the jobs need: one secret per Snowflake login (`snowflake-api`, `snowflake-memory`,
+  `snowflake-sim`, `snowflake-builder`, each holding the account, the passphrase and that
+  login's key only), `models` (the Jev and LLM keys, for sims) and `twelve-data` (for builds),
+  and the API's permission to create, read and delete Jobs (and the ConfigMaps that carry a
+  build's settings) in that namespace only. Each service reads its own login's secret only.
+  The values come in as `TF_VAR_*` (the names in `terraform/kubernetes/variables.tf`) plus the
+  keys folder (`snowflake_keys_dir`), and reach the cluster through write-only attributes, so
+  Terraform's state never holds them. After changing a secret's value, raise
+  `secrets_revision` by one, or Terraform does not send it. The ZAI key (the benchmark, on this
+  computer only) and the LangSmith key (optional tracing) do not enter the cluster.
 - `images.py` builds the two images (an image is a packed copy of a program with everything
   it needs to run; recipes `Dockerfile` and `web/Dockerfile`), tags both with the git commit
   and copies them into kind straight from this computer, with no image registry (an online
   store of images the cluster would otherwise download from). It needs Docker running, the
-  cluster created (`kind create cluster --name jev-trader`) and every change committed, since
+  cluster created (`kind create cluster --config infra/kind-cluster.yaml`) and every change committed, since
   the tag names the commit:
 
   ```
@@ -122,8 +138,10 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
   (`python -m jev_trader.memory serve`, `... api serve`, `... sim resume <id>`,
   `... dataset build <file>`). The web image serves the built web app on port 80 and hands its
   `/api/...` requests to the API at `API_URL` (`http://api:8000`, the cluster's API service,
-  which must exist when the web app starts). Both servers still listen on their own container
-  only (`127.0.0.1`); opening them to the rest of the cluster comes with Terraform's part.
+  which must exist when the web app starts). In the cluster both servers run with
+  `--in-cluster`: they listen on every address of their container, the API answers any caller
+  on the cluster's private network (not only this computer), and both log in to Snowflake on
+  first use rather than at start, so they report healthy even with dummy logins.
 - `wait_healthy.py` waits until the memory server, the API and the web app each answer their
   health address, and names any that never did (the deployment check's wait; the docstring
   has the command to run it by hand against your own cluster).
