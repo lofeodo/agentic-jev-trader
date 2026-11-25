@@ -98,3 +98,16 @@ A third default cannot be closed: Snowflake's own application role `SNOWFLAKE.PU
 holds the all-models role, and even `ACCOUNTADMIN` may not revoke it. So the builder can
 use other models too, and `check` warns about it; the per-model grant is in place but
 cannot be shown to work on its own on this account.
+
+## The kind cluster (being built)
+
+The same code can also run in a local kind cluster (a small Kubernetes cluster inside Docker,
+which runs and restarts programs). Its pieces sit beside the Snowflake setup, apart from it:
+
+- `terraform/kubernetes/` is Terraform's Kubernetes part, a root of its own with its own
+  state: the memory server, the API and the web app in the cluster. It has no resources yet.
+- `images.py` builds the two images (recipes `Dockerfile` and `web/Dockerfile`) and loads
+  them into kind. Not built yet.
+
+`JOB_LAUNCHER=kubernetes` in `.env` is accepted, but starting a job with it fails as not built
+yet. CI's `deployment-check` job holds the deployment check's steps, each doing nothing yet.

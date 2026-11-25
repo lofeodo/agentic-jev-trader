@@ -9,7 +9,16 @@ import time
 import psutil
 import pytest
 
-from jev_trader.jobs import LocalBuilds, LocalLauncher, launcher_named, this_process
+from jev_trader.jobs import (
+    KubernetesBuilds,
+    KubernetesLauncher,
+    LocalBuilds,
+    LocalLauncher,
+    NotBuiltYet,
+    builds_named,
+    launcher_named,
+    this_process,
+)
 
 
 def sleeper(sim_id: int) -> list[str]:
@@ -90,12 +99,29 @@ def test_a_program_records_where_it_runs():
     assert LocalLauncher.find(mark).pid == psutil.Process().pid
 
 
-def test_only_the_local_launcher_is_built_so_far(tmp_path):
+def test_the_setting_names_a_local_or_kubernetes_launcher_and_nothing_else(tmp_path):
     assert isinstance(launcher_named("local", tmp_path, "TRADING_AGENT"), LocalLauncher)
-    with pytest.raises(ValueError, match="kubernetes"):
-        launcher_named("kubernetes", tmp_path, "TRADING_AGENT")
+    assert isinstance(
+        launcher_named("kubernetes", tmp_path, "TRADING_AGENT"), KubernetesLauncher
+    )
+    assert isinstance(builds_named("local", tmp_path, "TRADING_AGENT"), LocalBuilds)
+    assert isinstance(
+        builds_named("kubernetes", tmp_path, "TRADING_AGENT"), KubernetesBuilds
+    )
     with pytest.raises(ValueError, match="local"):
         launcher_named("ssh", tmp_path, "TRADING_AGENT")
+    with pytest.raises(ValueError, match="local"):
+        builds_named("ssh", tmp_path, "TRADING_AGENT")
+
+
+def test_a_job_in_the_cluster_is_not_built_yet(tmp_path):
+    launcher = launcher_named("kubernetes", tmp_path, "TRADING_AGENT")
+    builds = builds_named("kubernetes", tmp_path, "TRADING_AGENT")
+
+    with pytest.raises(NotBuiltYet, match="not built yet"):
+        launcher.start(12)
+    with pytest.raises(NotBuiltYet, match="not built yet"):
+        builds.start(3, "", check=True)
 
 
 def test_a_mark_without_a_start_time_cannot_be_confirmed_so_nothing_is_killed(launcher):
