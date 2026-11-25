@@ -97,6 +97,8 @@ class SimRequest:
     )
     # The sim whose memory a sim with memory starts from a copy of. None: the base memory.
     memory_from: int | None = None
+    # The LLM a sim with memory uses, such as "claude-haiku-5-5".
+    model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -222,6 +224,7 @@ def create_sim(
         spending_cap=cap,
         spending_cap_given=request.spending_cap,
         memory_from=memory_from,
+        model=request.model,
     )
     require_allowed(planned, info, store, spending)
     return store.create(

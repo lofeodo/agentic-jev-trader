@@ -5,7 +5,7 @@ import { useState } from "react";
 import { buildDataset, type DatasetLine, fetchDatasets, RefusedError } from "./api/client";
 import { checkSummary, datasetStatus } from "./datasetWords";
 import { day } from "./format";
-import { ErrorBox, SectionHeading } from "./pieces";
+import { ErrorBox, field, fieldLabel as label, formButton as button, SectionHeading } from "./pieces";
 import { usePoll } from "./usePoll";
 
 const REFRESH_MS = 5_000;
@@ -13,10 +13,6 @@ const building = (d: DatasetLine) => d.status === "being built";
 
 const th = "border-b border-rule py-[.4rem] pr-[2ch] text-left font-mono text-[13.5px] font-light tracking-wider text-dim";
 const td = "py-[.42rem] pr-[2ch] align-top";
-const field = "bg-amber px-[1ch] py-1 font-mono text-screen placeholder:text-screen/60";
-const label = "font-mono text-[13.5px] tracking-wider text-dim";
-const button =
-  "cursor-pointer border-[1.5px] border-amber px-[2ch] py-1.5 font-mono tracking-widest text-amber uppercase hover:bg-amber hover:text-screen disabled:cursor-wait disabled:opacity-60";
 
 export function DatasetsScreen() {
   const { data, error } = usePoll(fetchDatasets, REFRESH_MS, (list) => list.datasets.some(building));

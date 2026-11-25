@@ -2627,6 +2627,43 @@
         "title": "ScorecardLine",
         "type": "object"
       },
+      "SimCheck": {
+        "description": "May this sim start, and what would it cost? Every refusal at once, and the money in US\ndollars: the estimate and cap of all the sims the request creates, and what is left under\nthe ceiling for new sims (money paid and other sims' caps taken off).",
+        "properties": {
+          "ceiling_usd": {
+            "title": "Ceiling Usd",
+            "type": "number"
+          },
+          "estimate_usd": {
+            "title": "Estimate Usd",
+            "type": "number"
+          },
+          "left_under_ceiling_usd": {
+            "title": "Left Under Ceiling Usd",
+            "type": "number"
+          },
+          "refusals": {
+            "items": {
+              "$ref": "#/components/schemas/Refusal"
+            },
+            "title": "Refusals",
+            "type": "array"
+          },
+          "spending_cap_usd": {
+            "title": "Spending Cap Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "refusals",
+          "estimate_usd",
+          "spending_cap_usd",
+          "left_under_ceiling_usd",
+          "ceiling_usd"
+        ],
+        "title": "SimCheck",
+        "type": "object"
+      },
       "SimHeader": {
         "properties": {
           "assets": {
@@ -3021,6 +3058,25 @@
               }
             ],
             "title": "Market"
+          },
+          "models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Models"
+          },
+          "partner": {
+            "default": false,
+            "title": "Partner",
+            "type": "boolean"
           },
           "starting_value": {
             "default": 10000.0,
@@ -3966,6 +4022,153 @@
           }
         },
         "summary": "Start Sim"
+      }
+    },
+    "/sims/check": {
+      "get": {
+        "description": "May this sim start, and what would it cost? Takes what starting a sim takes; stores\nnothing and starts nothing. The New trading sim form asks it as its choices change.",
+        "operationId": "checkSim",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dataset",
+            "required": true,
+            "schema": {
+              "title": "Dataset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": true,
+            "schema": {
+              "title": "Variant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "market",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Market"
+            }
+          },
+          {
+            "in": "query",
+            "name": "first_day",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "First Day"
+            }
+          },
+          {
+            "in": "query",
+            "name": "last_day",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Day"
+            }
+          },
+          {
+            "in": "query",
+            "name": "starting_value",
+            "required": false,
+            "schema": {
+              "default": 10000.0,
+              "title": "Starting Value",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "models",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Models"
+            }
+          },
+          {
+            "in": "query",
+            "name": "partner",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Partner",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimCheck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Sim"
       }
     },
     "/sims/{sim_id}": {
