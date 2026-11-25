@@ -15,7 +15,7 @@ const SCREENS: { screen: Screen | null; title: string; href: string | null }[] =
 
 // The command line under the menu: what to do on the screen.
 const COMMANDS: Record<Screen, string> = {
-  sims: "Read only: sims start from the command line",
+  sims: "Start a sim with the form, or open one to follow it",
   comparison: "Read only: did memory help, per market and per model",
   datasets: "Build a dataset with the form, or open one to follow its build",
   playbook: "Read only: the candle patterns the agent can spot",

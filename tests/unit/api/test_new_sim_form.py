@@ -2,8 +2,6 @@
 sections 3 to 6): `GET /sims/check` (may this sim start, and what would it cost?) and `POST /sims`
 for each kind of sim the app starts: measurement, build-up and free.
 
-Dormant until the slice's closing ticket (#182) switches them on: see `pytestmark` below.
-
 The dataset is made up: four days of one crypto asset with a bar at every step. Day 1 (steps 1
 to 96) is the warm-up; day 2 (97 to 192) holds the base memory, a finished build-up sim; day 3
 (193 to 288) is free; day 4 (289 to 384) is the test period "rising market". No test calls a
@@ -23,10 +21,6 @@ from jev_trader.llm.models import load_model_settings
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket, Period
 from jev_trader.sim.store import InMemorySimStore
 from tests.unit.api.conftest import StandInBuilds, StandInLauncher
-
-# Dormant: the slice's tests, written before its behaviour. The closing ticket (#182) deletes
-# this line to switch them on.
-pytestmark = pytest.mark.skip(reason="dormant until #182 switches it on")
 
 NOW = datetime(2026, 11, 24, 12, 0)
 CEILING = 75.0
