@@ -22,9 +22,11 @@ Choices the spec leaves to the build:
   same way for both and the wait is long enough for Z.ai (whose client gives up after about 1.5
   seconds). Retried: lost connections, timeouts, and what a provider asks to be retried (408,
   409, 429 and server errors), and a refusal. Any other refusal of the request fails at once.
-- The cap on calls at once holds within one program (a sim's job). A sim makes one call at a
-  time, so two GLM sims stay inside Z.ai's 4.
+- The cap on calls at once holds within one program (a sim's job). Two GLM sims stay inside
+  Z.ai's 4 as long as each makes one call at a time, which is the tool loop's to keep.
 - When the provider names no model in its reply, the call records the model the setting names.
+- A failed call's figures ride on `LlmFailed`, but the stopped step's records are not written,
+  as with Jev: its stop reason and error are on the sim's row.
 """
 
 import os
@@ -44,7 +46,7 @@ from jev_trader.llm.settings import CallSettings, LlmSettings, load_call_setting
 # Errors a provider may answer differently a moment later.
 RETRIED_STATUS = (408, 409, 429)
 # The finish reasons of a safety refusal.
-REFUSED = ("refusal", "content_filter", "sensitive")
+REFUSAL_REASONS = ("refusal", "content_filter", "sensitive")
 
 
 @dataclass(frozen=True)
@@ -70,6 +72,8 @@ class LlmCall:
 
 @dataclass(frozen=True)
 class LlmReply:
+    """The LLM's reply to one call, and what the call took."""
+
     message: AIMessage  # as it came: goes back in the conversation unchanged
     call: LlmCall
 
@@ -157,7 +161,7 @@ class LlmClient:
                 message = self._invoke(runnable, list(messages))
                 return LlmReply(message, self._measured(message, began, retries))
             except (anthropic.APIError, openai.APIError, _Refused) as error:
-                if not _retried(error) or retries == self.calling.retries:
+                if not _worth_retrying(error) or retries == self.calling.retries:
                     call = self._failed(error, began, retries)
                     raise LlmFailed(
                         f"the LLM failed after {retries} retries: {call.error}", call
@@ -176,7 +180,7 @@ class LlmClient:
             metadata.get("normalized_finish_reason"),
             metadata.get("finish_reason"),
         )
-        if any(reason in REFUSED for reason in reasons):
+        if any(reason in REFUSAL_REASONS for reason in reasons):
             raise _Refused(f"the provider refused the request ({reasons[1]})")
         return message
 
@@ -218,7 +222,7 @@ class LlmClient:
         )
 
 
-def _retried(error: Exception) -> bool:
+def _worth_retrying(error: Exception) -> bool:
     if isinstance(
         error, _Refused | anthropic.APIConnectionError | openai.APIConnectionError
     ):

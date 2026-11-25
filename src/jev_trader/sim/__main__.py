@@ -44,7 +44,7 @@ from jev_trader.jev.client import (
     JevSettings,
     load_jev_settings,
 )
-from jev_trader.llm.clients import LlmFailed
+from jev_trader.llm.selection import LlmFailed
 from jev_trader.sim.checker import (
     KINDS,
     PRACTICE_MOST_STEPS,

@@ -463,20 +463,16 @@ def run_sim(
                     return SimResult(sim_id, broker.account_value(), steps_stored, True)
     except StepAlreadyWritten:
         raise  # another copy is running it: leave its row alone
-    except JevFailed as error:
-        store.update(
-            sim_id,
-            STATUS=str(SimStatus.STOPPED),
-            STOP_REASON=str(StopReason.JEV_FAILED),
-            FAILURE_REASON=str(error),
-            ENDED_AT=now(),
+    except (JevFailed, LlmFailed) as error:
+        reason = (
+            StopReason.JEV_FAILED
+            if isinstance(error, JevFailed)
+            else StopReason.LLM_FAILED
         )
-        raise
-    except LlmFailed as error:
         store.update(
             sim_id,
             STATUS=str(SimStatus.STOPPED),
-            STOP_REASON=str(StopReason.LLM_FAILED),
+            STOP_REASON=str(reason),
             FAILURE_REASON=str(error),
             ENDED_AT=now(),
         )

@@ -14,7 +14,8 @@ model = "anthropic:claude-haiku-5-5"
 #   failed"); it can be resumed. A refusal (the provider's safety filter declining) counts as a
 #   failed try.
 # - most_in_flight: the most calls this program has waiting on the provider at once.
-# - Prices in US dollars per million tokens. Estimates until the first practice sim measures
+# - Prices in US dollars per million tokens (a token is a small piece of text, about three
+#   quarters of a word). Estimates until the first practice sim measures
 #   them: at $0.10 per million read and $0.50 per million written, a call reading 3,000 tokens and
 #   writing 200 costs $0.0004.
 # - [<provider>.model]: what LangChain's model is built with, as it comes. No tool call is ever
@@ -33,10 +34,12 @@ dollars_per_million_cache_writes = 0.125
 dollars_per_million_tokens_out = 0.50
 
 [anthropic.model]
-# Thinking stays on (with it off the model can skip a tool call it needs), at low effort so it
+# Thinking (the model working the request through privately before it answers, paid as
+# written tokens) stays on (with it off the model can skip a tool call it needs), at low effort so it
 # skips thinking on simple requests.
 reasoning_effort = "low"
-# Prompt caching on: the API caches the prompt's unchanged opening by itself.
+# Prompt caching on: the API keeps the prompt's unchanged opening for 5 minutes ("ephemeral")
+# and charges a tenth of the price to read it again.
 model_kwargs = { cache_control = { type = "ephemeral" } }
 
 [openai]
@@ -44,7 +47,7 @@ service = "zai"
 key_variable = "ZAI_API_KEY"
 retries = 3
 first_retry_wait_seconds = 0.5
-# Z.ai refuses a fifth request at once (HTTP 429, error 1302), and its quick retries are too
+# Z.ai refuses a fifth request at once (its "too many requests" answer: HTTP 429, error 1302), and its quick retries are too
 # short to outlast four slow calls: code holds its own calls to 4.
 most_in_flight = 4
 dollars_per_million_tokens_in = 0.15
