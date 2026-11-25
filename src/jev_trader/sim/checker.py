@@ -12,8 +12,12 @@ All six of the spec's refusals are built: test period days in a sim that is not 
 (3), a fifth sim in progress (4), a dataset that is not published (5), and an unknown model (6).
 The other refusals are the limits of what is built so far. A start from the app is let past the
 two "not built yet" ones (the developer's decision on the New trading sim form's tickets, #174
-and #176): its sims are stored and their jobs started, and a sim with memory's job fails in its
-first moment ("not built yet"), before any paid call, until the agent with memory is built.
+and #176): its sims are stored and their jobs started. Until the agent with memory is built, a
+sim with memory's job fails in its first moment ("not built yet"), before any paid call; a
+measurement, build-up or free sim without memory really runs, calling Jev up to its cap.
+
+`check_models` is the request's own refusal about models, before any sim is planned: only a
+measurement names more than one.
 
 **Refusal 2, the memory** (appendix 5, section 2; ADR 0007). A sim with memory starts from a
 copy of another sim's memory: the base memory (the latest finished build-up sim's on the
@@ -105,8 +109,9 @@ def check_together(
     The ceiling counts all their caps at once, and the limit on sims in progress all the agent's
     sims among them. `unbuilt_allowed` lets through what is not built yet (the agent with memory,
     and the agent without memory beyond practice sims): a start from the app, which the developer
-    allowed so the New trading sim form works before the agent with memory does. Such a sim's job
-    then fails in its first moment, before any paid call."""
+    allowed so the New trading sim form works before the agent with memory does. A sim with
+    memory's job then fails in its first moment, before any paid call; a sim without memory
+    really runs, up to its cap."""
     refusals = _dataset(info)
     for sim in sims:
         refusals += (
@@ -124,9 +129,23 @@ def check_together(
             store,
             settings,
             settings.practice_cap_usd if practice else 0.0,
-            sims=len(agents),
+            sim_count=len(agents),
         ) + _too_many(store, settings, adding=len(agents))
     return list(dict.fromkeys(refusals))
+
+
+def check_models(kind: str, models: list[str]) -> list[Refusal]:
+    """What is wrong with the models a start names (`models`, in lower case, each once): only
+    a measurement plays more than one."""
+    if kind == "measurement" or len(models) <= 1:
+        return []
+    return [
+        Refusal(
+            "one_model",
+            f"a {kind} sim uses one model, not {len(models)}",
+            f"pick one of {', '.join(models)}",
+        )
+    ]
 
 
 def require_allowed(
@@ -324,6 +343,14 @@ def _request(sim: Planned, info: DatasetInfo, unbuilt_allowed: bool) -> list[Ref
                 "start a practice sim",
             )
         )
+    elif sim.variant == "memory_on" and sim.kind == "build-up":
+        found.append(
+            Refusal(
+                "build_up_reads_no_memory",
+                "a build-up sim plays Jev alone and reads no memory: it builds the base memory",
+                "pick memory_off",
+            )
+        )
     if not sim.first_step <= sim.last_step:
         found.append(
             Refusal(
@@ -426,10 +453,10 @@ def _ceiling(
     settings: SpendingSettings,
     lowest_cap: float | None,
     excluding: int | None = None,
-    sims: int = 1,
+    sim_count: int = 1,
 ) -> list[Refusal]:
     """Refusal 3: money paid, plus what the other sims in progress may still spend under their
-    caps, plus what this sim (or these `sims` started together) may spend (`may_add`), must stay
+    caps, plus what this sim (or these `sim_count` sims started together) may spend (`may_add`), must stay
     within the ceiling.
 
     `lowest_cap` is the smallest cap this sim could be given (0 when a shorter sim gives a
@@ -451,11 +478,11 @@ def _ceiling(
         fix = wait
     elif lowest_cap > 0:  # a practice sim given a higher cap
         fix = f"give a --spending-cap of ${room:.2f} or less, or {wait}"
-    elif sims == 1:
+    elif sim_count == 1:
         fix = f"shorten the sim so its cap is ${room:.2f} or less, or {wait}"
     else:
         fix = f"shorten the sims so their caps add up to ${room:.2f} or less, or {wait}"
-    these = "this sim" if sims == 1 else f"these {sims} sims"
+    these = "this sim" if sim_count == 1 else f"these {sim_count} sims"
     return [
         Refusal(
             "over_ceiling",

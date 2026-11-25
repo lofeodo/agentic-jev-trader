@@ -18,9 +18,12 @@ start stores.
 
 Every refusal comes back together with a code and a message saying what to change. A start goes
 through the one checker (`jev_trader.sim.checker`), its sims checked together and let past the
-two "not built yet" refusals (see `checker`); a resume goes through its `check_resume` (the
-ceiling, with the new cap if one is given, and the limit of sims in progress). The checks only
-the API makes (command-line-only kinds, days, a free sim's one model, the new cap) stay here.
+two "not built yet" refusals (see `checker`): until the agent with memory is built, a sim with
+memory's job fails in its first moment, before any paid call, while a sim without memory really
+runs and calls Jev, up to its cap. A resume goes through `check_resume` (the ceiling, with the
+new cap if one is given, and the limit of sims in progress). The checks only the API makes
+(command-line-only kinds, days, the new cap) stay here; a request that fails them, having no
+steps to check, gets only those refusals.
 """
 
 import math
@@ -92,8 +95,8 @@ def _variants_and_models(
 ) -> list[tuple[str, str | None]]:
     """The sims a start makes, each as its variant and model (None: the default; only the
     agent with memory uses one). A measurement plays both sides: memory with each model named,
-    and one sim without memory the models share. A free or build-up sim is one sim, and its
-    partner if asked for: the same days the other way."""
+    and one sim without memory the models share. A free or build-up sim is one sim; a free sim
+    also makes its partner if asked for: the same days the other way."""
     model = models[0] if models else None
     if wanted.variant not in ("memory_on", "memory_off"):
         # The holding sim, or a variant the checker refuses.
@@ -101,7 +104,7 @@ def _variants_and_models(
     if wanted.kind == "measurement":
         return [("memory_on", m) for m in models or [None]] + [("memory_off", None)]
     sims = [(wanted.variant, model)]
-    if wanted.partner:
+    if wanted.partner and wanted.kind == "free":
         other = "memory_off" if wanted.variant == "memory_on" else "memory_on"
         sims.append((other, model))
     return sims
@@ -185,16 +188,9 @@ class Jobs:
         except Refused as refused:
             return [], refused.refusals
         models = list(dict.fromkeys(m.lower() for m in wanted.models or []))
-        refusals = []
-        if wanted.kind != "measurement" and len(models) > 1:
-            refusals.append(
-                Refusal(
-                    code="one_model",
-                    message=f"a {wanted.kind} sim uses one model, not {len(models)}. "
-                    "Fix: pick one of them",
-                )
-            )
-            models = models[:1]
+        refused = checker.check_models(wanted.kind, models)
+        if refused:
+            models = models[:1]  # plan the rest, so every refusal comes back together
         spending = self._spending()
         sims = [
             plan_sim(
@@ -214,16 +210,16 @@ class Jobs:
             )
             for variant, model in _variants_and_models(wanted, models)
         ]
-        refused = checker.check_together(
+        refused += checker.check_together(
             [sim.planned for sim in sims],
             info,
             self.store,
             spending,
             unbuilt_allowed=True,
         )
-        if refused:
-            refusals += _from_checker(checker.Refused(refused)).refusals
-        return sims, refusals
+        if not refused:
+            return sims, []
+        return sims, _from_checker(checker.Refused(refused)).refusals
 
     def _steps(self, wanted: SimToStart, info) -> tuple[int, int]:
         if wanted.market is not None:

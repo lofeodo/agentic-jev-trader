@@ -51,7 +51,7 @@ from jev_trader.broker import (
 from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.reading import Reading
 from jev_trader.jobs import this_process
-from jev_trader.llm.models import ModelSettings, load_model_settings
+from jev_trader.llm.models import load_model_settings
 from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
 from jev_trader.sim.agent import AgentWithoutMemory
@@ -228,14 +228,13 @@ def plan_sim(
     market: Market,
     request: SimRequest,
     spending: SpendingSettings,
-    models: ModelSettings | None = None,
 ) -> PlannedSim:
     """Work out the sim's estimate, cap, memory and LLM, and the row it would be stored as.
     Checks nothing and stores nothing.
 
     The agent with memory gets the model asked for, in lower case, or else the default. A model
     not in `config/llm.toml` is kept as given for the checker to refuse."""
-    models = models or load_model_settings()
+    models = load_model_settings()
     info = market.dataset(request.dataset)
     model = None
     if request.variant == "memory_on":
