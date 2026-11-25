@@ -18,12 +18,16 @@ position screen is built.
 `--memory-from SIM` (on `practice` and `start`) starts the agent with memory from a copy of a
 finished sim's memory: on `practice`, the rehearsal's later sims start from the small memory its
 first sim left. A sim with memory given none starts from the base memory, the latest finished
-build-up sim's. The copy is made when the sim's job first marks it running. The agent with memory
-is not built yet: until it is, the checker refuses such a sim before creating it.
+build-up sim's. The copy is made when the sim's job first marks it running. Only practice sims of
+the agent are built so far. The agent with memory also calls the LLM (its key in `.env`: the
+provider's `key_variable` in `config/llm.toml`), which costs money, and reads memory through the
+memory server, which must be running on the same database first (`python -m jev_trader.memory
+serve`, at the address in `config/memory_server.toml`): the sim is refused before it is created
+if the server does not answer.
 
 Every start and resume goes through the one checker (`checker.py`): a refused sim stores
 nothing (a refused resume leaves the sim as it was), and each reason is printed with its fix.
-`--database TRADING_AGENT_TEST` uses the test database. It needs migrations V5 and V6 applied.
+`--database TRADING_AGENT_TEST` uses the test database. It needs migrations V5 to V10 applied.
 
 Logs in as the sim login (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`,
 the key `sim.p8` in `SNOWFLAKE_LOCAL_DIR`); Jev's key is `TYPESAFE_API_KEY` in `.env`. Output is
@@ -33,6 +37,7 @@ plain ASCII: `conda run` on Windows fails on other characters.
 import argparse
 import sys
 import time
+from contextlib import ExitStack
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -44,7 +49,9 @@ from jev_trader.jev.client import (
     JevSettings,
     load_jev_settings,
 )
-from jev_trader.llm.selection import LlmFailed
+from jev_trader.llm.selection import LlmFailed, LlmSelector, SelectionLimits
+from jev_trader.llm.settings import LlmSettings
+from jev_trader.memory.bridge import Connection, local_url
 from jev_trader.sim.checker import (
     KINDS,
     PRACTICE_MOST_STEPS,
@@ -171,6 +178,38 @@ def _yes_share(name: str, asked: int, yes: int) -> str:
     return f"{name}: {asked} asked, {yes} said yes ({yes / asked:.1%})."
 
 
+def wants_memory(args) -> bool:
+    """Whether the sim the command starts is the agent with memory."""
+    if args.command == "practice":
+        return args.memory_from is not None
+    return args.command == "start" and args.variant == "memory_on"
+
+
+def open_memory(market, dataset: int, held: ExitStack, database: str) -> Connection:
+    """A connection to the memory server, kept open in `held` for the whole sim. Raises
+    ValueError when the server does not answer."""
+    url = local_url()
+    connection = Connection(url, list(market.playbook(dataset)))
+    try:
+        held.enter_context(connection)
+    except Exception as error:
+        raise ValueError(
+            f"the memory server at {url} did not answer ({type(error).__name__}). Start it "
+            "first, on the same database, in its own terminal: conda run -n "
+            f"agentic-jev-trader python -m jev_trader.memory serve --database {database}"
+        ) from error
+    return connection
+
+
+def selector_for(sim: dict) -> LlmSelector:
+    """The LLM's selection, with the model and limits the sim started with."""
+    settings = sim["SETTINGS"]
+    return LlmSelector(
+        LlmSettings(**settings["llm"]),
+        limits=SelectionLimits(**settings["selection_limits"]),
+    )
+
+
 def default_steps_per_write(sim: dict) -> int:
     """Many steps per write for the holding sim, which calls nothing paid; one otherwise."""
     return HOLDING_STEPS_PER_WRITE if sim["VARIANT"] == "buy_hold" else 1
@@ -254,11 +293,16 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     store, market = SnowflakeSimStore(connection), SnowflakeMarket(connection)
     jev = None
+    held = ExitStack()  # the memory server's connection, for a sim with memory
+    memory = None
     try:
         try:
+            # Checked first, so a missing key or memory server leaves no sim row behind.
             if args.command == "practice":
-                # Checked first, so a missing key leaves no sim row behind.
                 JevClient(load_jev_settings()).close()
+            if wants_memory(args):
+                memory = open_memory(market, args.dataset, held, args.database)
+            if args.command == "practice":
                 sim_id = start_practice(args, store, market)
             elif args.command == "start":
                 sim_id = start_sim(args, store, market)
@@ -270,6 +314,11 @@ def main(argv: list[str] | None = None) -> int:
             if args.command == "resume":
                 require_resumable(sim, store, load_spending_settings())
             jev = jev_client_for(sim)
+            lookups_at = selector = None
+            if sim["VARIANT"] == "memory_on":
+                if memory is None:
+                    memory = open_memory(market, sim["DATASET"], held, args.database)
+                lookups_at, selector = memory.lookups_at, selector_for(sim)
         except Refused as refused:
             for line in refusal_lines(refused):
                 print(line)
@@ -290,6 +339,8 @@ def main(argv: list[str] | None = None) -> int:
                 or default_steps_per_write(sim),
                 report=lambda line: print(line, flush=True),
                 jev=jev,
+                lookups_at=lookups_at,
+                selector=selector,
             )
         except ValueError as refused:
             print(f"Refused: {refused}")
@@ -316,6 +367,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     finally:
+        held.close()
         if jev is not None:
             jev.close()
         connection.close()

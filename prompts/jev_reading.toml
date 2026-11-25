@@ -65,6 +65,9 @@ pick_question = 'Which of these should the account do with {asset} at this step?
 trade_long = "Long, {width} stop price: buy at the next bar's open, about {price}. Code sells if the price falls to {stop}, {distance} below."
 trade_short = "Short, {width} stop price: sell borrowed units at the next bar's open, about {price}. Code buys them back if the price rises to {stop}, {distance} above."
 largest_size = ' Largest size code allows with it: {amount}.'
+# Recorded only, in the agent with memory: asked beside the pick when at least one past episode
+# is shown.
+memories_relevant_question = 'Do the past episodes shown fit the current situation?'
 no_trade = 'No trade: open no position in this asset at this step.'
 
 # The full evaluation, request 2: the same background ending with the trade picked, the size asked

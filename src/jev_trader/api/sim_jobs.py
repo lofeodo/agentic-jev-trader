@@ -1,17 +1,31 @@
 """Starting, stopping and resuming a sim from the API (spec appendix 8, sections 8.3, 8.7, 8.10).
 
-- **Start** stores the sim's row through the same check as the command line, marks it running,
+- **Start** stores the rows of the sims asked for through the one checker, marks each running,
   then starts its job: `python -m jev_trader.sim resume <id>`, the command the developer types.
+  A measurement makes a sim with memory for each model named and one without memory they share
+  (three sims for both models, a pair for one); a free sim uses one model, the default
+  (`config/llm.toml`) unless one is named, and makes its partner too if asked. A measurement's
+  sims share a repeat number, one more than the last measurement's on the same test period. The
+  sim holding the five assets is made with the first sims on a stretch of days, and shared by
+  every later sim on those days.
 - **Stop** kills the job at once, then marks the sim "stopped by hand". The half-done step is
   thrown away and redone on resume. A job already gone (not responding) is simply marked.
 - **Resume** restarts a stopped or not responding sim from its last stored step, after making
   sure its old job is gone. A sim its spending cap stopped needs a new cap, above what it has
   spent and not able to take total spending past the ceiling.
 
+**Check** answers the New trading sim form before a start: the refusals, the cost estimate, the
+spending cap and what is left under the ceiling, storing nothing. It works the start's sims out
+exactly as the start does, so the two refuse the same things and the check's money is what the
+start stores.
+
 Every refusal comes back together with a code and a message saying what to change. A start goes
-through the one checker (`jev_trader.sim.checker`) inside `create_sim`; a resume goes through its
-`check_resume` (the ceiling, with the new cap if one is given, and the limit of sims in
-progress). The checks only the API makes (command-line-only kinds, days, the new cap) stay here.
+through the one checker (`jev_trader.sim.checker`), its sims checked together and let past the
+"not built yet" refusal (see `checker`): each sim really runs and calls Jev (and, with memory,
+the LLM), up to its cap. A resume goes through `check_resume` (the ceiling, with the
+new cap if one is given, and the limit of sims in progress). The checks only the API makes
+(command-line-only kinds, days, the new cap) stay here; a request that fails them, having no
+steps to check, gets only those refusals.
 """
 
 import math
@@ -21,12 +35,12 @@ from datetime import date, datetime, timedelta
 from pydantic import BaseModel
 
 from jev_trader.api.sim_page import SimNotFound
-from jev_trader.api.sims_list import is_not_responding
+from jev_trader.api.sims_list import HOLDING, holding_sims, is_not_responding, stretch
 from jev_trader.api.store import ApiStore
 from jev_trader.dataset.bars import STEPS_PER_DAY
 from jev_trader.jobs import JobNotKilled, Launcher
 from jev_trader.sim import checker
-from jev_trader.sim.runner import SimRequest, create_sim
+from jev_trader.sim.runner import PlannedSim, SimRequest, plan_sim
 from jev_trader.sim.spending import SpendingSettings, load_spending_settings
 from jev_trader.sim.store import SimStatus, StopReason
 
@@ -70,6 +84,48 @@ class SimToStart(BaseModel):
     first_day: date | None = None
     last_day: date | None = None
     starting_value: float = 10_000.0
+    # The LLM or LLMs, such as ["claude-haiku-5-5", "glm-5.3-flash"]: a measurement names one or
+    # both, a free sim one. None: the default (`config/llm.toml`).
+    models: list[str] | None = None
+    # A free sim's partner: the same days played the other way (with memory or without), side
+    # by side. A measurement always plays both.
+    partner: bool = False
+
+
+def _variants_and_models(
+    wanted: SimToStart, models: list[str]
+) -> list[tuple[str, str | None]]:
+    """The sims a start makes, each as its variant and model (None: the default; only the
+    agent with memory uses one). A measurement plays both sides: memory with each model named,
+    and one sim without memory the models share. A free or build-up sim is one sim; a free sim
+    also makes its partner if asked for: the same days the other way."""
+    model = models[0] if models else None
+    if wanted.variant not in ("memory_on", "memory_off"):
+        # The holding sim, or a variant the checker refuses.
+        return [(wanted.variant, model)]
+    if wanted.kind == "measurement":
+        return [("memory_on", m) for m in models or [None]] + [("memory_off", None)]
+    sims = [(wanted.variant, model)]
+    if wanted.partner and wanted.kind == "free":
+        other = "memory_off" if wanted.variant == "memory_on" else "memory_on"
+        sims.append((other, model))
+    return sims
+
+
+def _period_names(info) -> str:
+    return ", ".join(f'"{p.name}"' for p in info.test_periods()) or "none"
+
+
+class SimCheck(BaseModel):
+    """May this sim start, and what would it cost? Every refusal at once, and the money in US
+    dollars: the estimate and cap of all the sims the request creates, and what is left under
+    the ceiling for new sims (money paid and other sims' caps taken off)."""
+
+    refusals: list[Refusal]
+    estimate_usd: float
+    spending_cap_usd: float
+    left_under_ceiling_usd: float
+    ceiling_usd: float
 
 
 class Resumption(BaseModel):
@@ -85,50 +141,160 @@ class Jobs:
     spending_ceiling: float
     quiet_limit: timedelta
 
+    def check(self, wanted: SimToStart) -> SimCheck:
+        """The form's question about `wanted`: stores nothing, starts nothing. The money is that
+        of every sim the start would create: its cap is the sum of their caps, each rounded up
+        to the cent on its own, so it is what the start stores."""
+        sims, refusals = self._plan(wanted)
+        return SimCheck(
+            refusals=refusals,
+            estimate_usd=sum(sim.row["ESTIMATED_COST"] for sim in sims),
+            spending_cap_usd=round(
+                sum(sim.row["SPENDING_CAP"] or 0.0 for sim in sims), 2
+            ),
+            left_under_ceiling_usd=max(
+                0.0, math.floor(round(self._room_under_ceiling(None) * 100, 6)) / 100
+            ),
+            ceiling_usd=self.spending_ceiling,
+        )
+
     def start(self, wanted: SimToStart, at: datetime) -> list[int]:
+        """Store every sim `wanted` makes, through the same check as `check`, then start each
+        one's job. Refused, it stores and starts nothing."""
+        sims, refusals = self._plan(wanted)
+        if refusals:
+            raise Refused(*refusals)
+        sim_ids = [sim.store_in(self.store) for sim in sims]
+        for sim_id in sim_ids:
+            self._launch(sim_id, at, {})
+        return sim_ids
+
+    def _plan(self, wanted: SimToStart) -> tuple[list[PlannedSim], list[Refusal]]:
+        """The sims `wanted` makes, worked out but not stored, and every reason to refuse
+        them: the API's own first, then the one checker's for the sims as a group."""
         if wanted.kind in COMMAND_LINE_ONLY:
-            raise _refuse(
-                "command_line_only",
-                f"a {wanted.kind} sim is started from the command line only: "
-                "python -m jev_trader.sim",
-            )
+            return [], [
+                Refusal(
+                    code="command_line_only",
+                    message=f"a {wanted.kind} sim is started from the command line only: "
+                    "python -m jev_trader.sim",
+                )
+            ]
         try:
             info = self.store.dataset(wanted.dataset)
         except KeyError:
-            raise _refuse(
-                "no_such_dataset", f"there is no dataset {wanted.dataset}"
-            ) from None
-        first_step, last_step = self._steps(wanted, info)
-        request = SimRequest(
-            dataset=wanted.dataset,
-            variant=wanted.variant,
-            kind=wanted.kind,
-            first_step=first_step,
-            last_step=last_step,
-            starting_value=wanted.starting_value,
-            market=wanted.market,
-        )
+            return [], [
+                Refusal(
+                    code="no_such_dataset",
+                    message=f"there is no dataset {wanted.dataset}",
+                )
+            ]
         try:
-            sim_id = create_sim(self.store, self.store, request, self._spending())
-        except checker.Refused as refused:
-            raise _from_checker(refused) from None
-        except ValueError as refused:
-            raise _refuse("not_allowed", str(refused)) from None
-        self._launch(sim_id, at, {})
-        return [sim_id]
+            first_step, last_step = self._steps(wanted, info)
+        except Refused as refused:
+            return [], refused.refusals
+        models = list(dict.fromkeys(m.lower() for m in wanted.models or []))
+        refused = checker.check_models(wanted.kind, models)
+        if refused:
+            models = models[:1]  # plan the rest, so every refusal comes back together
+        spending = self._spending()
+        sims = [
+            plan_sim(
+                self.store,
+                self.store,
+                SimRequest(
+                    dataset=wanted.dataset,
+                    variant=variant,
+                    kind=wanted.kind,
+                    first_step=first_step,
+                    last_step=last_step,
+                    starting_value=wanted.starting_value,
+                    market=wanted.market,
+                    model=model,
+                ),
+                spending,
+            )
+            for variant, model in _variants_and_models(wanted, models)
+        ]
+        if wanted.variant != HOLDING:
+            sims += self._holding_and_repeat(wanted, sims, spending)
+        refused += checker.check_together(
+            [sim.planned for sim in sims],
+            info,
+            self.store,
+            spending,
+            unbuilt_allowed=True,
+        )
+        if not refused:
+            return sims, []
+        refused = list(dict.fromkeys(refused))  # a model refused twice is said once
+        return sims, _from_checker(checker.Refused(refused)).refusals
+
+    def _holding_and_repeat(
+        self, wanted: SimToStart, sims: list[PlannedSim], spending: SpendingSettings
+    ) -> list[PlannedSim]:
+        """What a start of the agent's sims needs from the sims already stored, read once.
+
+        A measurement's sims get a repeat number, one more than the last on its test period.
+        The sim holding the five assets is planned when none yet holds them over these days
+        from this starting amount: made with the first sims on them, shared by every later one.
+        Whatever started it, it is stored as a free sim with no test period named, so it is
+        never taken for a repeat of a measurement or for the base memory.
+        """
+        stored = self.store.sims()
+        if wanted.kind == "measurement":
+            repeat = 1 + max(
+                (
+                    s.get("REPEAT_NUMBER") or 0
+                    for s in stored
+                    if s["DATASET"] == wanted.dataset
+                    and s["KIND"] == "measurement"
+                    and s.get("MARKET") == wanted.market
+                ),
+                default=0,
+            )
+            for sim in sims:
+                sim.row["REPEAT_NUMBER"] = repeat
+        if stretch(sims[0].row) in holding_sims(stored):
+            return []
+        first = sims[0].planned
+        return [
+            plan_sim(
+                self.store,
+                self.store,
+                SimRequest(
+                    dataset=wanted.dataset,
+                    variant=HOLDING,
+                    kind="free",
+                    first_step=first.first_step,
+                    last_step=first.last_step,
+                    starting_value=wanted.starting_value,
+                ),
+                spending,
+            )
+        ]
 
     def _steps(self, wanted: SimToStart, info) -> tuple[int, int]:
+        if (
+            wanted.kind == "measurement"
+            and wanted.market is None
+            and wanted.variant != HOLDING
+        ):
+            raise _refuse(
+                "measurement_needs_period",
+                "a measurement plays one test period whole, not days of its own: "
+                f"name one ({_period_names(info)})",
+            )
         if wanted.market is not None:
             if wanted.first_day or wanted.last_day:
                 raise _refuse("days_and_period", "give a test period or days, not both")
             for period in info.test_periods():
                 if period.name == wanted.market:
                     return period.first_step, period.last_step
-            names = ", ".join(f'"{p.name}"' for p in info.test_periods()) or "none"
             raise _refuse(
                 "no_such_period",
                 f'dataset {info.dataset_id} has no test period "{wanted.market}"; '
-                f"it has {names}",
+                f"it has {_period_names(info)}",
             )
         first_step, last_step = info.warm_up_last_step + 1, info.last_step
         if wanted.first_day or wanted.last_day:
@@ -236,8 +402,9 @@ class Jobs:
         """The spending settings, with the ceiling the API was started with."""
         return replace(load_spending_settings(), ceiling_usd=self.spending_ceiling)
 
-    def _room_under_ceiling(self, sim_id: int) -> float:
-        """The ceiling, less money already spent and the unspent caps of other sims in progress."""
+    def _room_under_ceiling(self, sim_id: int | None) -> float:
+        """The ceiling, less money already spent and the unspent caps of the sims in progress
+        but `sim_id`."""
         spent_by = self.store.spent_by_sim()
         promised = sum(
             max(0.0, s["SPENDING_CAP"] - spent_by.get(s["ID"], 0.0))

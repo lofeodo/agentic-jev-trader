@@ -7,11 +7,15 @@ Runs on the in-memory store and the made-up market of `conftest.py`, with the fa
 `test_agent_without_memory.py` and memory's lookups faked by hand.
 """
 
+from dataclasses import replace
+
 import pytest
 
-from jev_trader.jev.reading import PastEpisodes, Reading
+from jev_trader.jev.reading import MEMORIES_RELEVANT, PastEpisodes, Reading
 from jev_trader.llm.selection import Selection, StandInSelector
-from jev_trader.llm.wording import prompt_version
+from jev_trader.llm.wording import ANSWER_TOOL, LlmWording, prompt_version
+from jev_trader.memory import render
+from jev_trader.memory.bridge import LOOKUP_TOOLS
 from jev_trader.memory.episodes import Episode
 from jev_trader.memory.lookups import Episodes, Found, SearchResult
 from jev_trader.memory.track_record import TrackRecord
@@ -19,6 +23,7 @@ from jev_trader.sim.runner import run_sim, settings_document
 from jev_trader.sim.store import InMemorySimStore
 from tests.unit.sim.test_agent_without_memory import (
     CRYPTO,
+    DATASET,
     fake_jev,
     practice,
     with_snapshots,
@@ -76,15 +81,6 @@ def fake_memory(held=()):
     return (lambda context: FakeLookups(context, list(held), asked)), asked
 
 
-@pytest.fixture
-def memory_on_runs(monkeypatch):
-    """The runner's "not built yet" guard lifted: the checker's refusal stays until the slice's
-    closing ticket."""
-    monkeypatch.setattr(
-        "jev_trader.sim.runner.BUILT_VARIANTS", ("buy_hold", "memory_off", "memory_on")
-    )
-
-
 def sim_with_memory(store, market):
     """A practice sim with memory on day 2, its row written as the runner reads it."""
     sim_id = practice(store, market)
@@ -94,7 +90,7 @@ def sim_with_memory(store, market):
 
 
 def test_a_full_evaluation_with_memory_reaches_jev_and_is_stored(
-    market, memory_on_runs
+    market,
 ):
     market = with_snapshots(market)
     store = InMemorySimStore()
@@ -143,7 +139,7 @@ class Chooses(StandInSelector):
     ],
 )
 def test_each_nothing_to_show_case_is_its_own_state(
-    market, memory_on_runs, monkeypatch, held, chosen, state
+    market, monkeypatch, held, chosen, state
 ):
     seen, original = [], Reading.pick_request
 
@@ -166,3 +162,92 @@ def test_each_nothing_to_show_case_is_its_own_state(
     assert (selector.asked > 0) == (state is not PastEpisodes.NONE_YET)
     if state is PastEpisodes.SELECTED:
         assert sent[0].episodes == (PAST,)
+
+
+@pytest.mark.parametrize(
+    ("held", "chosen", "asked"),
+    [((), (), False), ((PAST,), (), False), ((PAST,), (PAST.id,), True)],
+)
+def test_the_pick_asks_whether_the_episodes_shown_fit_only_when_some_are(
+    market, held, chosen, asked
+):
+    market = with_snapshots(market)
+    store = InMemorySimStore()
+    jev, sent = fake_jev(lambda n: 0.9)
+    lookups_at, _ = fake_memory(held)
+    sim_id = sim_with_memory(store, market)
+
+    run_sim(
+        store,
+        market,
+        sim_id,
+        jev=jev,
+        lookups_at=lookups_at,
+        selector=Chooses(chosen),
+    )
+
+    picks = [b for b in sent if "pick_1" in b["questions"]]
+    assert picks
+    assert all((MEMORIES_RELEVANT in b["questions"]) == asked for b in picks)
+    evaluations = [
+        d
+        for d in store.rows("MEMORY.DECISIONS", sim_id)
+        if d["KIND"] == "full_evaluation"
+    ]
+    fits = {d["MEMORIES_RELEVANT"] for d in evaluations}
+    assert fits == ({0.9} if asked else {None})
+
+
+def test_the_standing_instructions_and_tools_are_stored_once_per_prompt_version(
+    market,
+):
+    market = with_snapshots(market)
+    store = InMemorySimStore()
+    jev, _ = fake_jev(lambda n: 0.9)
+    lookups_at, _ = fake_memory([PAST])
+    sim_id = sim_with_memory(store, market)
+
+    run_sim(store, market, sim_id, jev=jev, lookups_at=lookups_at)
+
+    [(version, (system_prompt, tools))] = store.prompts.items()
+    assert version == prompt_version()
+    assert system_prompt == LlmWording().system_prompt()
+    assert [t["name"] for t in tools] == [*LOOKUP_TOOLS, ANSWER_TOOL]
+
+
+def test_a_changed_word_in_how_an_episode_is_written_changes_the_prompt_version():
+    episodes = render.load_wording()
+    edited = {**episodes, "same_asset": episodes["same_asset"] + " (made-up)"}
+
+    assert prompt_version(episodes=edited) != prompt_version()
+
+
+def test_a_sim_whose_llm_wording_changed_cannot_carry_on(market):
+    market = with_snapshots(market)
+    store = InMemorySimStore()
+    jev, _ = fake_jev()
+    lookups_at, _ = fake_memory()
+    sim_id = sim_with_memory(store, market)
+    store.sims[sim_id]["SETTINGS"]["prompt_version"] = "an older one"
+
+    with pytest.raises(ValueError, match="prompt version"):
+        run_sim(store, market, sim_id, jev=jev, lookups_at=lookups_at)
+
+
+def test_the_track_record_is_read_for_the_last_4_bars_patterns_only(market):
+    market = with_snapshots(market)
+    market.notes["doji"] = ("bearish", "A made-up shape.")
+    for assets in market.snapshots_by_step[DATASET].values():
+        for asset, snapshot in assets.items():
+            assets[asset] = replace(
+                snapshot, patterns=("hammer", "doji"), window_patterns=("hammer",)
+            )
+    store = InMemorySimStore()
+    jev, _ = fake_jev(lambda n: 0.9)
+    lookups_at, asked = fake_memory([PAST])
+    sim_id = sim_with_memory(store, market)
+
+    run_sim(store, market, sim_id, jev=jev, lookups_at=lookups_at)
+
+    read = {a[1] for a in asked if a[0] == "track_record"}
+    assert read == {"hammer"}  # the latest daily bar's doji is left out

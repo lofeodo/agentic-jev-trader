@@ -143,6 +143,11 @@ class PastEpisodes(StrEnum):
     NONE_YET = "none_yet"  # memory holds none yet, so the LLM was not asked
 
 
+# The recorded-only question of request 1 when past episodes are shown (spec appendix 4,
+# section 10).
+MEMORIES_RELEVANT = "memories_relevant"
+
+
 @dataclass(frozen=True)
 class MemorySections:
     """The agent with memory's two sections of a full evaluation's background: the track
@@ -448,23 +453,30 @@ class Reading:
         orders: list[list[str]],
         memory: MemorySections | None = None,
     ) -> JevRequest:
-        """Request 1 of a full evaluation: which of the seven options, asked once per order.
+        """Request 1 of a full evaluation: which of the seven options, asked once per order,
+        and, when at least one past episode is shown, whether they fit (recorded only).
 
         `orders` lists the option names in the order each copy sends them. Without memory the
         background is the screen's: the memory sections are absent, with nothing said about it.
         """
         options = self.pick_options(asset, account, trades)
         instructions = self.wording["pick_question"].format(asset=asset.asset_id)
+        questions = {
+            f"pick_{n}": {
+                "type": "choice",
+                "instructions": instructions,
+                "criteria": {name: options[name] for name in order},
+            }
+            for n, order in enumerate(orders, start=1)
+        }
+        if memory is not None and memory.episodes:
+            questions[MEMORIES_RELEVANT] = {
+                "type": "noul",
+                "instructions": self.wording["memories_relevant_question"],
+            }
         return JevRequest(
             background=self._background(asset, account, playbook, memory),
-            questions={
-                f"pick_{n}": {
-                    "type": "choice",
-                    "instructions": instructions,
-                    "criteria": {name: options[name] for name in order},
-                }
-                for n, order in enumerate(orders, start=1)
-            },
+            questions=questions,
         )
 
     def size_request(

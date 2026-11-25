@@ -18,8 +18,8 @@ retries. Either stops the sim.
 
 The LLM sees episodes by short labels (E1, E2, ...) numbered in the order they first appear in
 the evaluation; code maps them back to stored decision IDs. Every message after the standing
-instructions is kept word for word (the instructions are the same for every evaluation of one
-prompt version).
+instructions is kept word for word; the instructions and the tools, the same for every
+evaluation of one prompt version, are stored once per version (`standing_part`).
 
 Choices the spec leaves to the build:
 
@@ -224,6 +224,26 @@ class SystemWallClock:
         time.sleep(seconds)
 
 
+def wording_within(limits: SelectionLimits) -> LlmWording:
+    """The LLM's texts, naming `limits`."""
+    return LlmWording(
+        most_lookups=limits.most_lookups,
+        most_selected=limits.most_selected,
+        note_length=limits.note_length,
+    )
+
+
+def standing_part(
+    limits: SelectionLimits, patterns: list[str]
+) -> tuple[str, str, list[dict]]:
+    """What every full evaluation's exchange opens with, the same for one prompt version: the
+    version, the standing instructions, and the four tools as the first call offers them
+    (`patterns`: every candle pattern name in the playbook). Stored once per version."""
+    wording = wording_within(limits)
+    offered = [*definitions(FULL_EVALUATION, patterns), wording.answer_tool()]
+    return wording.version, wording.system_prompt(), [_tool(d) for d in offered]
+
+
 class LlmSelector:
     """The LLM's selection: a tool loop over `model` (by default the client `settings` names),
     within `limits`, timed by `clock`, in the words of `wording`, whose prompt version every
@@ -242,11 +262,7 @@ class LlmSelector:
         self.client = LlmClient(
             settings, model, now=self.clock.monotonic, sleep=self.clock.sleep
         )
-        self.wording = LlmWording(
-            most_lookups=self.limits.most_lookups,
-            most_selected=self.limits.most_selected,
-            note_length=self.limits.note_length,
-        )
+        self.wording = wording_within(self.limits)
         self.prompt_version = self.wording.version
 
     def select(

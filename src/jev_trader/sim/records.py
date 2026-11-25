@@ -173,6 +173,7 @@ def decision_row(
         "SIZE_AFTER_TRIMMING": e and e.size_after_trimming,
         "LIMITED_BY": e and e.limited_by,
         "ACTION": action,
+        "MEMORIES_RELEVANT": e and e.memories_relevant,
     }
 
 
@@ -284,6 +285,7 @@ def _decision_columns(
         "LIMIT_HIT": None,
         "EPISODES_SHOWN": None,
         "LOOKUPS": None,
+        "MEMORIES_RELEVANT": None,
         # An open position's columns, empty for an asset with no position.
         "POSITION": None,
         "STANDING": None,

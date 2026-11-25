@@ -52,8 +52,9 @@ evaluation's request 1 it runs memory's first search and the LLM's selection
 selected. Its choices the spec leaves to the build:
 
 - Memory "holds none yet" when code's first search finds nothing; the LLM is then not asked.
-- The track record is read for each candle pattern the situation text names now (the
-  snapshot's patterns) and each direction.
+- The track record is read for each candle pattern of the last 4 bars, newest first (the
+  latest hourly and daily bars' patterns left out, as the spec's "last 4 bars" says), and
+  each direction.
 """
 
 import copy
@@ -82,6 +83,7 @@ from jev_trader.jev.position_review import (
     reduce_share,
 )
 from jev_trader.jev.reading import (
+    MEMORIES_RELEVANT,
     AccountView,
     AssetView,
     JevRequest,
@@ -418,9 +420,18 @@ class _DecisionAtStep(_AssetAtStep):
             self.memory,
         )
         reply = self._ask(request, "pick")
-        answers = {q: reply.choice(q, names) for q in request.questions}
+        copies = [q for q in request.questions if q != MEMORIES_RELEVANT]
+        answers = {q: reply.choice(q, names) for q in copies}
         pick = read_pick(average_copies(list(answers.values())), trades)
-        return Evaluation(candidates=trades, answers=answers, pick=pick)
+        if MEMORIES_RELEVANT not in request.questions:
+            return Evaluation(candidates=trades, answers=answers, pick=pick)
+        fit = reply.noul(MEMORIES_RELEVANT)
+        return Evaluation(
+            candidates=trades,
+            answers={**answers, MEMORIES_RELEVANT: fit},
+            pick=pick,
+            memories_relevant=fit,
+        )
 
     def _size_and_order(self, account: AccountView, evaluation: Evaluation) -> str:
         """Ask the size, place the order, and say what was done: an entry, or nothing."""
@@ -650,13 +661,13 @@ class _DecisionWithMemory(_DecisionAtStep):
 
     def _recall(self) -> MemorySections:
         """Code's first search, then the LLM's selection, and the track record for each candle
-        pattern showing now and each direction. Memory holding nothing yet asks no LLM."""
+        pattern of the last 4 bars and each direction. Memory holding nothing yet asks no LLM."""
         lookups = self.agent.lookups_at(
             LookupContext(self.agent.sim_id, self.step, self.asset)
         )
         track_records = tuple(
             lookups.track_record(pattern, direction)
-            for pattern in self.snapshot.patterns
+            for pattern in self.snapshot.recent_patterns
             for direction in DIRECTIONS
         )
         first_search = lookups.search()

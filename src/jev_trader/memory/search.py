@@ -31,6 +31,7 @@ Choices the spec leaves to the build (appendix 5, "Not decided by any ticket"):
 """
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -154,7 +155,7 @@ class Candidate:
     step: int
 
 
-def best_without_repeats(ranked: list[Candidate], how_many: int) -> list[Candidate]:
+def best_without_repeats(ranked: Iterable[Candidate], how_many: int) -> list[Candidate]:
     """The first `how_many` of `ranked` (best first), skipping any from the same asset less than
     8 steps from one already kept."""
     kept: list[Candidate] = []

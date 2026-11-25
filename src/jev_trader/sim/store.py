@@ -123,8 +123,8 @@ class SimStore(Protocol):
         """For each table with any, how many of the sim's record IDs appear more than once."""
 
     def base_memory_sim(self, dataset: int) -> int | None:
-        """The sim whose memory is the dataset's base memory: its latest finished build-up sim;
-        None if it has none."""
+        """The sim whose memory is the dataset's base memory: its latest finished build-up sim
+        of the agent (never a holding sim); None if it has none."""
 
     def memory_last_step(self, sim_id: int) -> int | None:
         """The latest step anything in the sim's memory was recorded at: a decision's step, or
@@ -142,6 +142,10 @@ class SimStore(Protocol):
 
     def save_reading(self, version: str, opening: str) -> None:
         """Store the opening of Jev's background, once per reading version."""
+
+    def save_prompt(self, version: str, system_prompt: str, tools: list[dict]) -> None:
+        """Store the LLM's standing instructions and the tools it is offered, once per prompt
+        version."""
 
     def spent(self, sim_id: int) -> float:
         """The dollars of the sim's recorded paid calls."""
@@ -189,6 +193,7 @@ class InMemorySimStore:
         self.sims: dict[int, dict] = {}
         self.tables: dict[str, list[dict]] = defaultdict(list)
         self.readings: dict[str, str] = {}
+        self.prompts: dict[str, tuple[str, list[dict]]] = {}
         self._kill_in: int | None = None
 
     def kill_on_write(self, n: int) -> None:
@@ -271,6 +276,7 @@ class InMemorySimStore:
             for sim_id, sim in self.sims.items()
             if sim["DATASET"] == dataset
             and sim["KIND"] == "build-up"
+            and sim["VARIANT"] != "buy_hold"
             and sim["STATUS"] == SimStatus.FINISHED
         ]
         return max(found, default=None)
@@ -302,6 +308,9 @@ class InMemorySimStore:
 
     def save_reading(self, version: str, opening: str) -> None:
         self.readings.setdefault(version, opening)
+
+    def save_prompt(self, version: str, system_prompt: str, tools: list[dict]) -> None:
+        self.prompts.setdefault(version, (system_prompt, tools))
 
     def spent(self, sim_id: int) -> float:
         return sum(r["COST_USD"] or 0.0 for r in self.rows("SIM.CALLS", sim_id))

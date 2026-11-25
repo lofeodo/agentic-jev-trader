@@ -1,8 +1,9 @@
 """Starting a sim and running it to its last step (spec appendix 1, sections 1 and 6; appendix 6).
 
-`create_sim` works out the sim's cost estimate and spending cap, has the one checker
-(`checker.py`) refuse it or let it through, and stores the sim's row with every setting it
-will run with.
+`plan_sim` works out the sim's cost estimate, spending cap and the row it would be stored as,
+with every setting it will run with; `create_sim` has the one checker (`checker.py`) refuse it or
+let it through, then stores that row. The API plans the sims of one start together and checks
+them as a group (`jev_trader.api.sim_jobs`).
 A sim with memory gets the sim its memory is copied from on its row (`MEMORY_FROM_SIM`): the one
 asked for, or else the base memory.
 `run_sim` runs it, or resumes it from its last completed step. A sim with memory that has stored
@@ -50,12 +51,14 @@ from jev_trader.broker import (
 from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.reading import Reading
 from jev_trader.jobs import this_process
+from jev_trader.llm.models import load_model_settings
 from jev_trader.llm.selection import (
     LlmFailed,
     MemoryLookups,
     SelectionLimits,
     Selector,
     StandInSelector,
+    standing_part,
 )
 from jev_trader.llm.settings import load_llm_settings
 from jev_trader.llm.wording import prompt_version
@@ -64,7 +67,6 @@ from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
 from jev_trader.sim.agent import AgentWithMemory, AgentWithoutMemory
 from jev_trader.sim.checker import (
-    BUILT_VARIANTS,
     Planned,
     require_allowed,
     require_memory,
@@ -107,6 +109,9 @@ class SimRequest:
     )
     # The sim whose memory a sim with memory starts from a copy of. None: the base memory.
     memory_from: int | None = None
+    # The LLM a sim with memory uses, such as "claude-haiku-5-5", in any capitals. None: the
+    # default (`config/llm.toml`).
+    model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -151,12 +156,16 @@ def _cents_down(amount: float) -> float:
 # Starting a sim
 
 
-def settings_document(starting_value: float, variant: str = "buy_hold") -> dict:
+def settings_document(
+    starting_value: float, variant: str = "buy_hold", llm: str | None = None
+) -> dict:
     """Every setting the sim runs with, stored on its row so a resumed sim uses the same ones.
 
     The holding sim applies no risk profile and calls no model, so it stores neither. The agent's
-    sims add their risk profile, how Jev is called, and the reading version; the agent with
-    memory adds its LLM, the selection's limits and the prompt version.
+    sims add their risk profile, how Jev is called, and the reading version; the agent with memory
+    also its LLM, `llm`, one setting naming provider and model (`"anthropic:claude-haiku-5-5"`),
+    read back by `jev_trader.api.llm_names` (by default the default model's), the selection's
+    limits and the prompt version.
     """
     costs = load_trading_costs()
     document = {
@@ -171,7 +180,7 @@ def settings_document(starting_value: float, variant: str = "buy_hold") -> dict:
         document["jev"] = asdict(load_jev_settings())
         document["reading_version"] = Reading(costs, risk).version
     if variant == "memory_on":
-        document["llm"] = asdict(load_llm_settings())
+        document["llm"] = {"model": llm or load_llm_settings().model}
         document["selection_limits"] = asdict(SelectionLimits())
         document["prompt_version"] = prompt_version()
     return document
@@ -198,6 +207,19 @@ def code_version() -> str:
         return "unknown"
 
 
+@dataclass(frozen=True)
+class PlannedSim:
+    """A sim worked out but not stored: what the checker checks, and its row but the code
+    version (asking git takes a moment, and the form's check plans sims often)."""
+
+    planned: Planned
+    row: dict
+
+    def store_in(self, store: SimStore) -> int:
+        """Store the sim's row, with status created; returns its ID."""
+        return store.create({**self.row, "CODE_VERSION": code_version()})
+
+
 def create_sim(
     store: SimStore,
     market: Market,
@@ -209,8 +231,29 @@ def create_sim(
     Returns its ID. Raises `checker.Refused` with every reason it was refused, storing nothing.
     """
     spending = spending or load_spending_settings()
+    sim = plan_sim(store, market, request, spending)
+    require_allowed(sim.planned, market.dataset(request.dataset), store, spending)
+    return sim.store_in(store)
+
+
+def plan_sim(
+    store: SimStore,
+    market: Market,
+    request: SimRequest,
+    spending: SpendingSettings,
+) -> PlannedSim:
+    """Work out the sim's estimate, cap, memory and LLM, and the row it would be stored as.
+    Checks nothing and stores nothing.
+
+    The agent with memory gets the model asked for, in lower case, or else the default. A model
+    not in `config/llm.toml` is kept as given for the checker to refuse."""
+    models = load_model_settings()
     info = market.dataset(request.dataset)
-    settings = settings_document(request.starting_value, request.variant)
+    model = None
+    if request.variant == "memory_on":
+        model = (request.model or models.default_model).lower()
+    llm = models.setting(model) if model in models.providers else model
+    settings = settings_document(request.starting_value, request.variant, llm)
     estimate = 0.0
     if request.variant != "buy_hold":
         share = store.latest_tier_2_share()
@@ -237,25 +280,23 @@ def create_sim(
         spending_cap=cap,
         spending_cap_given=request.spending_cap,
         memory_from=memory_from,
+        model=model,
     )
-    require_allowed(planned, info, store, spending)
-    return store.create(
-        {
-            "DATASET": request.dataset,
-            "KIND": request.kind,
-            "VARIANT": request.variant,
-            "MARKET": request.market,
-            "FIRST_STEP": request.first_step,
-            "LAST_STEP": request.last_step,
-            "STARTING_VALUE": request.starting_value,
-            "RANDOM_SEED": request.random_seed,
-            "SETTINGS": settings,
-            "CODE_VERSION": code_version(),
-            "ESTIMATED_COST": estimate,
-            "SPENDING_CAP": cap,
-            "MEMORY_FROM_SIM": memory_from,
-        }
-    )
+    row = {
+        "DATASET": request.dataset,
+        "KIND": request.kind,
+        "VARIANT": request.variant,
+        "MARKET": request.market,
+        "FIRST_STEP": request.first_step,
+        "LAST_STEP": request.last_step,
+        "STARTING_VALUE": request.starting_value,
+        "RANDOM_SEED": request.random_seed,
+        "SETTINGS": settings,
+        "ESTIMATED_COST": estimate,
+        "SPENDING_CAP": cap,
+        "MEMORY_FROM_SIM": memory_from,
+    }
+    return PlannedSim(planned, row)
 
 
 # Running it
@@ -307,8 +348,6 @@ def run_sim(
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
         raise ValueError(f"sim {sim_id} is finished: code writes nothing more to it")
-    if sim["VARIANT"] not in BUILT_VARIANTS:
-        raise ValueError(f"the {sim['VARIANT']} variant is not built yet")
     is_agent = sim["VARIANT"] != "buy_hold"
     if is_agent and jev is None:
         raise ValueError(f"the {sim['VARIANT']} variant needs a Jev client")
@@ -342,6 +381,17 @@ def run_sim(
                 f"and the wording is now {reading.version}: it cannot carry on"
             )
         store.save_reading(reading.version, reading.opening)
+        if with_memory:
+            version, system_prompt, tools = standing_part(
+                SelectionLimits(**settings["selection_limits"]),
+                list(market.playbook(info.dataset_id)),
+            )
+            if version != settings["prompt_version"]:
+                raise ValueError(
+                    f"sim {sim_id} started on prompt version {settings['prompt_version']}, "
+                    f"and the LLM's wording is now {version}: it cannot carry on"
+                )
+            store.save_prompt(version, system_prompt, tools)
         agent_arguments = (
             sim_id,
             info.dataset_id,

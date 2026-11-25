@@ -3,7 +3,8 @@
 The words live in `prompts/llm_selection.toml` (the standing instructions, the layout of the
 messages that hold episodes, the answer tool, the limit and re-ask messages) and
 `prompts/llm_tools.toml` (the three lookup tools). The **prompt version** is a short fingerprint
-worked out from both, so a changed word gives a new version and nobody bumps a number by hand.
+worked out from both and from `prompts/episodes.toml` (how a past episode is written), so a
+changed word gives a new version and nobody bumps a number by hand.
 It is stored with the sim's settings and on every full evaluation.
 
 `LlmWording` builds each text from plain data and returns it exactly, as the walkthrough page's
@@ -20,7 +21,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from jev_trader.memory import bridge
+from jev_trader.memory import bridge, render
 from jev_trader.memory.lookups import MOST_READ
 from jev_trader.memory.search import FULL_EVALUATION, Filters
 
@@ -36,12 +37,18 @@ def load_wording(path: Path = WORDING_PATH) -> dict:
         return tomllib.load(file)
 
 
-def prompt_version(wording: dict | None = None, tools: dict | None = None) -> str:
-    """The fingerprint of the LLM's wording and its lookup tools' descriptions."""
+def prompt_version(
+    wording: dict | None = None,
+    tools: dict | None = None,
+    episodes: dict | None = None,
+) -> str:
+    """The fingerprint of the LLM's wording, its lookup tools' descriptions, and the words a past
+    episode is written in (`prompts/episodes.toml`, shared with Jev's background)."""
     fingerprinted = json.dumps(
         {
             "wording": load_wording() if wording is None else wording,
             "tools": bridge.load_wording() if tools is None else tools,
+            "episodes": render.load_wording() if episodes is None else episodes,
         },
         sort_keys=True,
     )

@@ -178,7 +178,7 @@ class SnowflakeSimStore(_Connection):
     def base_memory_sim(self, dataset: int) -> int | None:
         [(sim_id,)] = self._run(
             "SELECT MAX(ID) FROM SIM.SIMS WHERE DATASET = ? AND KIND = 'build-up' "
-            "AND STATUS = ?",
+            "AND VARIANT <> 'buy_hold' AND STATUS = ?",
             (dataset, str(SimStatus.FINISHED)),
         )
         return sim_id
@@ -235,6 +235,18 @@ class SnowflakeSimStore(_Connection):
             "WHEN NOT MATCHED THEN INSERT (READING_VERSION, OPENING, CREATED_AT) "
             "VALUES (new.READING_VERSION, new.OPENING, new.CREATED_AT)",
             (version, opening, now()),
+        )
+
+    def save_prompt(self, version: str, system_prompt: str, tools: list[dict]) -> None:
+        self._run(
+            "MERGE INTO SIM.LLM_PROMPTS AS stored "
+            "USING (SELECT ? AS PROMPT_VERSION, ? AS SYSTEM_PROMPT, ? AS TOOLS, "
+            "? AS CREATED_AT) AS new "
+            "ON stored.PROMPT_VERSION = new.PROMPT_VERSION "
+            "WHEN NOT MATCHED THEN INSERT (PROMPT_VERSION, SYSTEM_PROMPT, TOOLS, CREATED_AT) "
+            "VALUES (new.PROMPT_VERSION, new.SYSTEM_PROMPT, PARSE_JSON(new.TOOLS), "
+            "new.CREATED_AT)",
+            (version, system_prompt, json.dumps(tools), now()),
         )
 
     def spent(self, sim_id: int) -> float:
@@ -425,22 +437,18 @@ class SnowflakeMarket(_Connection):
             (FIFTEEN_MINUTES, dataset_id, first_step, last_step),
         ):
             lists = found[asset].pattern_lists(step) if asset in found else None
-            names = (
-                ()
+            window = (
+                []
                 if lists is None
-                else tuple(
-                    dict.fromkeys(
-                        [name for name, _ in sorted(lists.window, key=lambda p: p[1])]
-                        + list(lists.hourly)
-                        + list(lists.daily)
-                    )
-                )
+                else [name for name, _ in sorted(lists.window, key=lambda p: p[1])]
             )
+            longer = [] if lists is None else [*lists.hourly, *lists.daily]
             by_step.setdefault(step, {})[asset] = Snapshot(
                 situation_text=situation,
                 typical_move=None if share is None else share * close,
                 bars_left=bars_left,
-                patterns=names,
+                patterns=tuple(dict.fromkeys(window + longer)),
+                window_patterns=tuple(dict.fromkeys(window)),
             )
         return by_step
 
