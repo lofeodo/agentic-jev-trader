@@ -8,6 +8,10 @@
   sure its old job is gone. A sim its spending cap stopped needs a new cap, above what it has
   spent and not able to take total spending past the ceiling.
 
+**Check** answers the New trading sim form before a start: the refusals, the cost estimate, the
+spending cap and what is left under the ceiling, storing nothing. For now it answers a placeholder
+of that shape; the New trading sim form's later tickets build it on the one checker.
+
 Every refusal comes back together with a code and a message saying what to change. A start goes
 through the one checker (`jev_trader.sim.checker`) inside `create_sim`; a resume goes through its
 `check_resume` (the ceiling, with the new cap if one is given, and the limit of sims in
@@ -70,6 +74,21 @@ class SimToStart(BaseModel):
     first_day: date | None = None
     last_day: date | None = None
     starting_value: float = 10_000.0
+    # The LLM or LLMs, such as ["claude-haiku-5-5", "GLM-5.3-Flash"]: a measurement names one or
+    # both, a free sim one. None: the default (`config/llm.toml`).
+    models: list[str] | None = None
+
+
+class SimCheck(BaseModel):
+    """May this sim start, and what would it cost? Every refusal at once, and the money in US
+    dollars: the estimate and cap of all the sims the request creates, and what is left under
+    the ceiling for new sims (money paid and other sims' caps taken off)."""
+
+    refusals: list[Refusal]
+    estimate_usd: float
+    spending_cap_usd: float
+    left_under_ceiling_usd: float
+    ceiling_usd: float
 
 
 class Resumption(BaseModel):
@@ -84,6 +103,17 @@ class Jobs:
     launcher: Launcher
     spending_ceiling: float
     quiet_limit: timedelta
+
+    def check(self, wanted: SimToStart) -> SimCheck:
+        """The form's question about `wanted`: stores nothing, starts nothing. A placeholder
+        until the one checker answers it."""
+        return SimCheck(
+            refusals=[],
+            estimate_usd=0.0,
+            spending_cap_usd=0.0,
+            left_under_ceiling_usd=0.0,
+            ceiling_usd=self.spending_ceiling,
+        )
 
     def start(self, wanted: SimToStart, at: datetime) -> list[int]:
         if wanted.kind in COMMAND_LINE_ONLY:
@@ -107,6 +137,7 @@ class Jobs:
             last_step=last_step,
             starting_value=wanted.starting_value,
             market=wanted.market,
+            model=wanted.models[0] if wanted.models else None,
         )
         try:
             sim_id = create_sim(self.store, self.store, request, self._spending())

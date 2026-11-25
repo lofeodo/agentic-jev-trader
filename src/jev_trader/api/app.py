@@ -30,7 +30,14 @@ from jev_trader.api.datasets import (
 from jev_trader.api.measurements import Measurements, measurements
 from jev_trader.api.playbook import Playbook, playbook
 from jev_trader.api.scorecard import Scorecard, Split, scorecard
-from jev_trader.api.sim_jobs import Jobs, Refusal, Refused, Resumption, SimToStart
+from jev_trader.api.sim_jobs import (
+    Jobs,
+    Refusal,
+    Refused,
+    Resumption,
+    SimCheck,
+    SimToStart,
+)
 from jev_trader.api.sim_page import (
     Chart,
     LiveFigures,
@@ -130,6 +137,13 @@ def create_app(
     @app.exception_handler(SimNotFound)
     def no_such_sim(request: Request, missing: SimNotFound):
         return JSONResponse({"detail": f"There is no sim {missing}."}, status_code=404)
+
+    # Before `/sims/{sim_id}`, which would otherwise take "check" for a sim's ID.
+    @app.get("/sims/check", operation_id="checkSim")
+    def check_sim(wanted: Annotated[SimToStart, Query()]) -> SimCheck:
+        """May this sim start, and what would it cost? Takes what starting a sim takes; stores
+        nothing and starts nothing. The New trading sim form asks it as its choices change."""
+        return jobs.check(wanted)
 
     @app.get("/sims/{sim_id}", operation_id="simHeader")
     def sim_header(sim_id: int) -> SimHeader:

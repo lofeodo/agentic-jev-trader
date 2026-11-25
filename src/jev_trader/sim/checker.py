@@ -2,14 +2,14 @@
 
 `check` returns every refusal at once, each with a code, what is wrong, and how to fix it;
 `require_allowed` raises them together as `Refused`. `check_resume` is the part that still
-applies when a stopped sim is carried on. The sim command uses both now; the form
-(`GET /sims/check`) and the API's start and resume will use them too.
+applies when a stopped sim is carried on. The sim command and the API's start and resume use
+them; the form's question (`GET /sims/check`) will too.
 
 Of the spec's six refusals, these are built: test period days in a sim that is not a
 measurement (1), a memory the sim may not start from (2), a cap that could take spending past
 the ceiling (3), a fifth sim in progress (4), and a dataset that is not published (5). The
-unknown model (6) comes with the agent with memory. The other refusals are the limits of what is
-built so far.
+unknown model (6) has its place, `_unknown_model`, which refuses nothing yet. The other refusals
+are the limits of what is built so far.
 
 **Refusal 2, the memory** (appendix 5, section 2; ADR 0007). A sim with memory starts from a
 copy of another sim's memory: the base memory (the latest finished build-up sim's on the
@@ -74,13 +74,18 @@ class Planned:
         None  # a practice sim's cap, if the developer raised it
     )
     memory_from: int | None = None  # the sim whose memory it starts from a copy of
+    model: str | None = (
+        None  # the LLM a sim with memory uses, such as "claude-haiku-5-5"
+    )
 
 
 def check(
     sim: Planned, info: DatasetInfo, store: SimStore, settings: SpendingSettings
 ) -> list[Refusal]:
     """Every reason the spec refuses `sim`, in a fixed order; empty if it may start."""
-    refusals = _dataset(info) + _request(sim, info) + _memory(sim, store)
+    refusals = (
+        _dataset(info) + _request(sim, info) + _unknown_model(sim) + _memory(sim, store)
+    )
     if sim.variant == "buy_hold":
         return refusals
     lowest_cap = settings.practice_cap_usd if sim.kind == "practice" else 0.0
@@ -332,6 +337,12 @@ def _request(sim: Planned, info: DatasetInfo) -> list[Refusal]:
             )
         )
     return found
+
+
+def _unknown_model(sim: Planned) -> list[Refusal]:
+    """Refusal 6: a model that is not one of the models in `config/llm.toml`. Refuses nothing
+    yet: the New trading sim form fills it in."""
+    return []
 
 
 def _test_period_days(sim: Planned, info: DatasetInfo) -> list[Refusal]:

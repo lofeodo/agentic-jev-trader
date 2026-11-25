@@ -73,6 +73,11 @@ export function SimsScreen({ sims, error }: { sims: SimLine[] | null; error: str
       <p className="mb-6 text-center text-[1.1rem] text-dim">
         Every sim, against simply holding the five assets
       </p>
+      <p className="mb-6 text-center font-mono tracking-wider">
+        <a href="#/sims/new" className="text-amber underline decoration-rule underline-offset-4 hover:text-pale">
+          New trading sim
+        </a>
+      </p>
 
       {error && (
         <div role="alert" className="mb-6 border-[1.5px] border-rule">

@@ -159,6 +159,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sims/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Sim
+         * @description May this sim start, and what would it cost? Takes what starting a sim takes; stores
+         *     nothing and starts nothing. The New trading sim form asks it as its choices change.
+         */
+        get: operations["checkSim"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sims/{sim_id}": {
         parameters: {
             query?: never;
@@ -1158,6 +1179,24 @@ export interface components {
             /** Volume Level */
             volume_level: string | null;
         };
+        /**
+         * SimCheck
+         * @description May this sim start, and what would it cost? Every refusal at once, and the money in US
+         *     dollars: the estimate and cap of all the sims the request creates, and what is left under
+         *     the ceiling for new sims (money paid and other sims' caps taken off).
+         */
+        SimCheck: {
+            /** Ceiling Usd */
+            ceiling_usd: number;
+            /** Estimate Usd */
+            estimate_usd: number;
+            /** Left Under Ceiling Usd */
+            left_under_ceiling_usd: number;
+            /** Refusals */
+            refusals: components["schemas"]["Refusal"][];
+            /** Spending Cap Usd */
+            spending_cap_usd: number;
+        };
         /** SimHeader */
         SimHeader: {
             /** Assets */
@@ -1268,6 +1307,8 @@ export interface components {
             last_day?: string | null;
             /** Market */
             market?: string | null;
+            /** Models */
+            models?: string[] | null;
             /**
              * Starting Value
              * @default 10000
@@ -1737,6 +1778,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Refusals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    checkSim: {
+        parameters: {
+            query: {
+                dataset: number;
+                kind: string;
+                variant: string;
+                market?: string | null;
+                first_day?: string | null;
+                last_day?: string | null;
+                starting_value?: number;
+                models?: string[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimCheck"];
                 };
             };
             /** @description Validation Error */

@@ -1,0 +1,9 @@
+# The LLM a sim with memory uses to pick which past episodes Jev is shown (spec appendix 8,
+# section 4). Jev itself is set in `jev.toml`.
+
+# The models a sim may name. The one checker refuses any other ("unknown model").
+models = ["claude-haiku-5-5", "GLM-5.3-Flash"]
+
+# The model a free sim uses unless the developer picks the other: Claude Haiku until the
+# measurement sims are done, then whatever the developer sets here.
+default_model = "claude-haiku-5-5"

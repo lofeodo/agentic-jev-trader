@@ -42,6 +42,8 @@ export type DatasetToBuild = Schemas["DatasetToBuild"];
 export type DatasetStarted = Schemas["DatasetStarted"];
 export type QualityCheck = Schemas["QualityCheck"];
 export type PriceChart = Schemas["PriceChart"];
+export type SimToStart = Schemas["SimToStart"];
+export type SimCheck = Schemas["SimCheck"];
 
 async function read<T>(path: string): Promise<T> {
   const answer = await fetch(`/api${path}`);
@@ -89,6 +91,17 @@ export function fetchScorecard(id: number, split: Split[]) {
   const ask = new URLSearchParams();
   for (const part of split) ask.append("split", part);
   return read<Scorecard>(`/sims/${id}/scorecard${split.length ? `?${ask}` : ""}`);
+}
+
+// The New trading sim form's question: may this sim start, and what would it cost? Takes what
+// starting a sim takes; stores nothing.
+export function checkSim(wanted: SimToStart) {
+  const ask = new URLSearchParams();
+  for (const [name, value] of Object.entries(wanted)) {
+    if (value === null || value === undefined) continue;
+    for (const one of Array.isArray(value) ? value : [value]) ask.append(name, String(one));
+  }
+  return read<SimCheck>(`/sims/check?${ask}`);
 }
 
 // A request to the API was refused: every reason, each saying how to fix it.
