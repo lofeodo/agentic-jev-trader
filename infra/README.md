@@ -107,8 +107,19 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
 - `terraform/kubernetes/` is Terraform's Kubernetes part, a root of its own with its own
   state: the memory server, the API and the web app in the cluster. It has no resources yet.
 - `images.py` builds the two images (an image is a packed copy of a program with everything
-  it needs to run; recipes `Dockerfile` and `web/Dockerfile`) and loads them into kind. Not
-  built yet.
+  it needs to run; recipes `Dockerfile` and `web/Dockerfile`), tags both with the git commit
+  and loads them into kind, with no image registry. It needs Docker running and the cluster
+  created (`kind create cluster --name jev-trader`):
+
+  ```
+  conda run -n agentic-jev-trader python infra/images.py build
+  ```
+
+  The Python image holds the code, `config/`, `prompts/`, `datasets/` and the pinned
+  dependencies, never `.env`, a key or saved tables; each piece is started by its own command
+  (`python -m jev_trader.memory serve`, `... api serve`, `... sim resume <id>`,
+  `... dataset build <file>`). The web image serves the built web app on port 80 and hands its
+  `/api/...` requests to the API at `API_URL` (`http://api:8000`, the cluster's API service).
 - `wait_healthy.py` waits until the memory server, the API and the web app each answer their
   health address, and names any that never did (the deployment check's wait; the docstring
   has the command to run it by hand against your own cluster).

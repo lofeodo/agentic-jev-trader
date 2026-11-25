@@ -1,0 +1,19 @@
+# The web image's server (web/Dockerfile): the built app's files, and /api/... handed to the
+# API with /api taken off, as the dev server does (vite.config.ts).
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+
+    location /api/ {
+        set $api_upstream ${API_URL};
+        rewrite ^/api/(.*)$ /$1 break;
+        proxy_pass $api_upstream;
+    }
+
+    # The app has one page; any other path gets it too.
+    location / {
+        try_files $uri /index.html;
+    }
+}
