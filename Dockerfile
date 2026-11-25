@@ -33,15 +33,15 @@ COPY prompts ./prompts
 COPY datasets ./datasets
 RUN pip install --no-deps -e .
 
-# The commit the image was built from: a sim records it (there is no git in the image).
-ARG CODE_VERSION=unknown
-ENV CODE_VERSION=${CODE_VERSION}
-
 # Runs as a plain user; logs/ is the one folder the code writes to.
 RUN useradd --create-home --uid 10001 jev \
     && mkdir logs \
     && chown jev logs
 USER jev
+
+# The commit the image was built from: a sim records it (there is no git in the image).
+ARG CODE_VERSION=unknown
+ENV CODE_VERSION=${CODE_VERSION}
 
 # Each piece names its own command; with none, the image lists the commands.
 CMD ["python", "-c", "print('python -m jev_trader.memory serve | jev_trader.api serve | jev_trader.sim resume <id> | jev_trader.dataset build <file>')"]

@@ -175,8 +175,8 @@ def code_version() -> str:
 
     In the Python image there is no git: the image carries its commit in `CODE_VERSION`.
     """
-    if os.environ.get("CODE_VERSION"):
-        return os.environ["CODE_VERSION"]
+    if version := os.environ.get("CODE_VERSION"):
+        return version
     try:
         return subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],

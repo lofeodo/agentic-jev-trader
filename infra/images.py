@@ -64,12 +64,26 @@ def git(*args: str) -> str:
 
 
 def commit_tag() -> str:
+    """The same short commit `jev_trader.sim.runner.code_version` records for a sim."""
     return git("rev-parse", "--short", "HEAD")
 
 
 def run(command: list[str]) -> bool:
+    """Run a command, passing on what it prints as plain ASCII: the web build prints other
+    characters, on which `conda run` on Windows fails."""
     print("> " + " ".join(command), flush=True)
-    return subprocess.run(command, check=False, cwd=REPO_ROOT).returncode == 0
+    with subprocess.Popen(
+        command,
+        cwd=REPO_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    ) as process:
+        for line in process.stdout:
+            print(line.rstrip().encode("ascii", "replace").decode("ascii"), flush=True)
+    return process.returncode == 0
 
 
 def build(load: bool, cluster: str) -> int:
@@ -78,12 +92,11 @@ def build(load: bool, cluster: str) -> int:
     if missing:
         print("not found on this computer: " + ", ".join(missing))
         return 2
-    tag = commit_tag()
     if git("status", "--porcelain"):
-        print(
-            f"note: the checkout has uncommitted changes; the images hold them but are "
-            f"tagged {tag}"
-        )
+        # The tag names a commit; a sim run from the image records it as the code it ran.
+        print("the checkout has uncommitted changes: commit them first, then build")
+        return 2
+    tag = commit_tag()
     for image in IMAGES:
         if not run(image.build_command(tag)):
             print(f"building {image.name} failed")
@@ -113,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "tag":
         print(commit_tag())
         return 0
-    return build(not args.no_load, args.cluster)
+    return build(load=not args.no_load, cluster=args.cluster)
 
 
 if __name__ == "__main__":
