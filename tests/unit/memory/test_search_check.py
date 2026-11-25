@@ -1,11 +1,14 @@
-"""The free check of the memory's search values (spec appendix 9, section 7), on made-up
+"""The free check of the episode search's values (spec appendix 9, section 7), on made-up
 memories whose expected figures are worked out by hand in each test."""
+
+import random
 
 import pytest
 
 from jev_trader.memory.__main__ import main
-from jev_trader.memory.search import SearchSettings
-from jev_trader.memory.search_check import Record, check
+from jev_trader.memory.lookups import Lookups
+from jev_trader.memory.search import Filters, SearchSettings
+from jev_trader.memory.search_check import Memory, Record, check, ended_as
 from jev_trader.storage.snowflake import DATABASE
 
 UP, DOWN = (1.0, 0.0), (-1.0, 0.0)
@@ -46,6 +49,9 @@ def clustered(id, step, ended):
 
 
 TWO = SearchSettings(results=2)
+ALTERNATING = [
+    clustered(f"r{n}", 10 * n, "up" if n % 2 else "down") for n in range(1, 7)
+]
 
 
 def test_similar_records_ending_alike_beat_random_ones():
@@ -55,9 +61,7 @@ def test_similar_records_ending_alike_beat_random_ones():
     r4: r2 (alike) and one of r1, r3 (not): 1/2; at random 1/3.
     r5: r1 and r3: 2/2; at random 2/4.
     r6: r2 and r4: 2/2; at random 2/5."""
-    memory = [
-        clustered(f"r{n}", 10 * n, "up" if n % 2 else "down") for n in range(1, 7)
-    ]
+    memory = ALTERNATING
     found = check(memory, TWO)
     assert found.checked == 4
     assert found.similar_alike == pytest.approx((0.5 + 0.5 + 1 + 1) / 4)
@@ -124,9 +128,7 @@ def test_the_two_values_change_which_records_are_called_similar():
 
 def test_a_sample_checks_records_spread_evenly_over_the_memory():
     """3 of 6: the 1st, 3rd and 6th. The 1st has nothing before it; r3 scores 1/2, r6 2/2."""
-    memory = [
-        clustered(f"r{n}", 10 * n, "up" if n % 2 else "down") for n in range(1, 7)
-    ]
+    memory = ALTERNATING
     found = check(memory, TWO, sample=3)
     assert found.checked == 2
     assert found.similar_alike == pytest.approx((0.5 + 1) / 2)
@@ -140,13 +142,8 @@ def run(capsys, *argv, memory):
         asked.update(sim=sim, after=after, database=database)
         return {"memory_search": {"results": 2}}, memory
 
-    code = main(["check-search", *argv], load_memory=load)
+    code = main(["check-search", *argv], read_memory=load)
     return code, capsys.readouterr().out, asked
-
-
-ALTERNATING = [
-    clustered(f"r{n}", 10 * n, "up" if n % 2 else "down") for n in range(1, 7)
-]
 
 
 def test_the_command_reports_in_plain_words_with_the_sims_own_values(capsys):
@@ -186,3 +183,57 @@ def test_the_command_says_when_similar_records_did_no_better(capsys):
     assert "ended the same way 0.0% of the time" in out
     assert "did not end the same way more often than random ones" in out
     assert "--shape-share" in out
+
+
+def test_the_best_of_several_values_is_named(capsys):
+    """Shapes holding all the say keep the clusters apart (75.0%, as in the first test); context
+    holding it all sees every record as alike and returns the earliest two."""
+    _, out, _ = run(capsys, "--sim", "7", "--shape-share", "0", "1", memory=ALTERNATING)
+    assert "Best of the values tried: shapes 100% of the say" in out
+
+
+def test_the_check_picks_what_the_live_search_picks(memory):
+    """30 earlier no-trade episodes over 3 assets, 2 steps apart (6 within one asset, so some
+    are repeats), with scattered vectors and texts: for an episode at step 200, the check's 10
+    are the 10 the memory server's search returns, in the same order."""
+    draw = random.Random(118)
+
+    def snapshot():
+        return {
+            "features": vector(*[draw.uniform(-2, 2) for _ in range(58)]),
+            "embedding": tuple(draw.uniform(-1, 1) for _ in range(3)),
+        }
+
+    for n in range(30):
+        memory.no_trade("ABC"[n % 3], 2 * n + 1, **snapshot())
+    now = memory.no_trade("A", 200, **snapshot())
+
+    live = Lookups(memory.store).search(
+        memory.sim, 200, "A", "full_evaluation", Filters()
+    )
+    store = memory.store
+    endings = {
+        o["DECISION"]: o
+        for o in store.outcomes_table
+        if o["KIND"] == "price_after_4_bars"
+    }
+    records = []
+    for d in store.decisions_table:
+        snap = store.snapshots[(d["DATASET"], d["ASSET"], d["STEP"])]
+        ending = endings[d["ID"]]
+        records.append(
+            Record(
+                id=d["ID"],
+                asset=d["ASSET"],
+                step=d["STEP"],
+                kind=d["KIND"],
+                direction=None,
+                known_from=max(d["OUTCOMES_KNOWN_FROM"], ending["KNOWN_FROM"]),
+                features=snap["FEATURE_VECTOR"],
+                embedding=snap["EMBEDDING"],
+                ended=ended_as(ending["VALUE"]["change"]),
+            )
+        )
+    found = Memory(records).similar_to(now, SearchSettings())
+    assert len(found) == 10
+    assert found == [f.episode.id for f in live.episodes]

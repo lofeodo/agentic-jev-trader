@@ -1,4 +1,4 @@
-"""Start the memory MCP server, or check the memory's search values.
+"""Start the memory MCP server, or check the episode search's values.
 
     conda run -n agentic-jev-trader python -m jev_trader.memory serve
     conda run -n agentic-jev-trader python -m jev_trader.memory check-search --sim 12
@@ -19,6 +19,7 @@ the test database. Output is plain ASCII: `conda run` on Windows fails on other 
 import argparse
 import sys
 import tomllib
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -58,7 +59,7 @@ def serve(database: str, port: int | None) -> int:
     return 0
 
 
-def load_from_snowflake(sim: int, after: str, database: str):
+def load_from_snowflake(sim: int, after: str, database: str) -> tuple[dict, list]:
     """The sim's settings and memory, read as the memory login. LoginNotSet if it is not set."""
     load_dotenv(REPO_ROOT / ".env")
     connection = connect("memory", database=database)
@@ -68,9 +69,9 @@ def load_from_snowflake(sim: int, after: str, database: str):
         connection.close()
 
 
-def check_search(args, load_memory) -> int:
+def check_search(args: argparse.Namespace, read_memory: Callable) -> int:
     try:
-        settings, records = load_memory(args.sim, args.after, args.database)
+        settings, records = read_memory(args.sim, args.after, args.database)
     except (LoginNotSet, UnknownSim) as problem:
         print(f"Cannot read sim {args.sim}'s memory: {problem}")
         return 2
@@ -84,7 +85,9 @@ def check_search(args, load_memory) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None, load_memory=load_from_snowflake) -> int:
+def main(
+    argv: list[str] | None = None, read_memory: Callable = load_from_snowflake
+) -> int:
     parser = argparse.ArgumentParser(prog="python -m jev_trader.memory")
     commands = parser.add_subparsers(dest="command", required=True)
     serving = commands.add_parser("serve", help="start the memory MCP server")
@@ -108,7 +111,7 @@ def main(argv: list[str] | None = None, load_memory=load_from_snowflake) -> int:
     checking.add_argument("--database", default=DATABASE)
     args = parser.parse_args(argv)
     if args.command == "check-search":
-        return check_search(args, load_memory)
+        return check_search(args, read_memory)
     return serve(args.database, args.port)
 
 

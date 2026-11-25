@@ -1,48 +1,61 @@
-"""The free check of the memory's search values (spec appendix 9, section 7).
+"""The free check of the episode search's values (spec appendix 9, section 7).
 
 Episode search ranks past episodes partly by a feature vector whose weights rest on two values set
 by hand: shapes against context (half the say each) and how much less each older bar counts (15%).
-The check asks whether those values find records that matter: for each record in a memory, did
-the records the search calls most similar end the same way more often than records picked at
-random did? It calls no model and costs nothing.
+The check asks whether those values find records that matter: for each record (episode) in a
+memory, did the records the search calls most similar end the same way more often than records
+picked at random did? It calls no model and costs nothing.
 
 Each record is looked up the way the agent would have looked it up at its own step: among the
 memory's earlier records of the same job (a full evaluation finds full evaluations, a position
-review finds reviews of positions in the same direction), with no filter. The search is the real
-one (`search.py`): both rankings, merged, repeats removed, `results` kept. "Picked at random" is
-every record that search could have returned, so its share is the exact average of a random pick,
-with no luck in it. Each checked record counts once in both shares.
+review finds reviews of positions in the same direction), with no filter. It is the search's own
+recipe (`search.py`): its weights, both rankings, the merge, repeats removed, `results` kept. Only
+the two rankings are redone here, in numpy, over the whole memory at once, with the same order
+rules (straight-line distance, cosine similarity, ties by ID): one Snowflake query per record would
+take hours. A test checks that it picks what `Lookups.search` picks. "Picked at random" is every
+record that search could have returned, so its share is the exact average of a random pick, with
+no luck in it. Each checked record counts once in both shares.
 
 Choices the spec leaves to the build:
 
 - **Ended the same way** is the price going the same way (up, down, or not at all) over the same
   time after the decision: after 4 bars unless another is chosen. Every episode has the three
-  prices, whatever was decided, so every record can be compared with every other.
-- A record can be compared only once that price is known too, not just its episode complete (a
-  trade closing in 2 bars completes its episode before its 4-bar price is in). So no record is
-  compared with one whose ending falls in its own future.
+  prices, whatever was decided, so every record can be compared with every other. It is not how a
+  trade ended, which only traded records have.
+- A record can be compared only once that price is known too, not just its episode complete: one
+  stricter rule than the live search. A trade closing in 2 bars completes its episode before its
+  4-bar price is in; the live search may return it then, the check leaves it out until the price
+  is in. So no record is compared with one whose ending falls in its own future.
 - A record with fewer earlier records than the search returns is not checked: it has nothing to
   pick from.
 - The feature vector ranking is also reported alone, since only it depends on the two values.
+
+A caveat for reading the result: records close in time can move together whatever they look like
+(two coins on the same morning), so part of a lead over random may come from timing, not from
+the values. Comparing values against each other is fairer than comparing one with random.
 """
 
 import json
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 
-from jev_trader.memory.outcomes import OutcomeKind
+from jev_trader.memory.outcomes import EPISODE_KINDS, OutcomeKind
 from jev_trader.memory.search import (
     POSITION_REVIEW,
     Candidate,
+    Job,
     SearchSettings,
     best_without_repeats,
     feature_weights,
     merge,
 )
 from jev_trader.memory.store import UnknownSim
+
+Ending = Literal["up", "down", "flat"]
 
 
 @dataclass(frozen=True)
@@ -52,21 +65,23 @@ class Record:
     id: str
     asset: str
     step: int
-    kind: str  # full_evaluation or position_review
+    kind: Job
     direction: str | None  # a review's position: long or short
     known_from: int  # the step from which it and its ending are known
     features: Sequence[float]  # the 58-number feature vector
     embedding: Sequence[float]  # the situation text's embedding
-    ended: str  # up, down or flat
+    ended: Ending
 
 
-def ended_as(change: float) -> str:
+def ended_as(change: float) -> Ending:
     """Which way the price went: a change of 0.002 (0.2%) is up."""
     return "up" if change > 0 else "down" if change < 0 else "flat"
 
 
 @dataclass(frozen=True)
 class Tally:
+    """What the check found for one set of values."""
+
     checked: int  # records with enough earlier records to look up
     similar_alike: float  # share of the search's results that ended as their record did
     vector_alike: float  # the same, ranked by the feature vector alone
@@ -84,63 +99,121 @@ def _top(scores: np.ndarray, ids: np.ndarray, top: int) -> np.ndarray:
     return within[np.lexsort((ids[within], scores[within]))][:top]
 
 
-def check(
-    records: Sequence[Record], settings: SearchSettings, sample: int | None = None
-) -> Tally:
-    """Look each record up in the records before it; `sample` checks only that many, evenly
-    spread over the memory."""
-    weights = np.array(feature_weights(settings))
-    features = np.array([r.features for r in records], dtype=float) * weights
-    embeddings = np.array([r.embedding for r in records], dtype=float)
-    norms = np.linalg.norm(embeddings, axis=1)
-    embeddings = embeddings / np.where(norms == 0, 1.0, norms)[:, None]
-    ids = np.array([r.id for r in records])
-    index = {r.id: i for i, r in enumerate(records)}
-    steps = np.array([r.step for r in records])
-    known = np.array([r.known_from for r in records])
-    kinds = np.array([r.kind for r in records])
-    directions = np.array([r.direction or "" for r in records])
-    ended = np.array([r.ended for r in records])
+def _candidate(r: Record) -> Candidate:
+    return Candidate(r.id, r.asset, r.step)
 
-    looked_up = range(len(records))
-    if sample is not None and sample < len(records):
-        looked_up = sorted(
-            {int(i) for i in np.linspace(0, len(records) - 1, sample).round()}
+
+@dataclass(frozen=True)
+class _Found:
+    similar: list[int]  # positions of what the search returns
+    nearest: list[int]  # the same by the feature vector alone
+    pool: np.ndarray  # positions of everything it could have returned
+
+
+class Memory:
+    """A memory's records, held as arrays so that each can be looked up quickly, for as many
+    sets of values as are tried. The text ranking does not depend on them: it is worked out once
+    per record."""
+
+    def __init__(self, records: Iterable[Record]):
+        self.records = list(records)
+        r = self.records
+        self._features = np.array([x.features for x in r], dtype=float)
+        embeddings = np.array([x.embedding for x in r], dtype=float)
+        norms = np.linalg.norm(embeddings, axis=1)
+        self._embeddings = embeddings / np.where(norms == 0, 1.0, norms)[:, None]
+        self._ids = np.array([x.id for x in r])
+        self._index = {x.id: i for i, x in enumerate(r)}
+        self._steps = np.array([x.step for x in r])
+        self._known = np.array([x.known_from for x in r])
+        self._kinds = np.array([x.kind for x in r])
+        self._directions = np.array([x.direction or "" for x in r])
+        self.ended = np.array([x.ended for x in r])
+        self._by_text: dict[tuple[int, int], np.ndarray] = {}
+        self._weighted_by: dict[tuple[float, ...], np.ndarray] = {}
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def similar_to(self, id: str, settings: SearchSettings) -> list[str]:
+        """The IDs the search returns for the record `id`, best first."""
+        found = self._look_up(self._index[id], settings)
+        return [self.records[i].id for i in found.similar] if found else []
+
+    def _pool(self, q: int) -> np.ndarray:
+        r = self.records[q]
+        pool = (
+            (self._steps < r.step) & (self._known <= r.step) & (self._kinds == r.kind)
         )
-
-    similar, vector, random = [], [], []
-    for q in looked_up:
-        r = records[q]
-        pool = (steps < r.step) & (known <= r.step) & (kinds == r.kind)
         if r.kind == POSITION_REVIEW:
-            pool &= directions == directions[q]
-        pool_at = np.flatnonzero(pool)
-        if len(pool_at) < settings.results:
-            continue
-        distance = np.linalg.norm(features - features[q], axis=1)[pool_at]
-        closeness = (embeddings @ embeddings[q])[pool_at]
-        pool_ids = ids[pool_at]
-        top = settings.each_ranking_top
-        by_vector = pool_at[_top(distance, pool_ids, top)]
-        by_text = pool_at[_top(-closeness, pool_ids, top)]
+            pool &= self._directions == self._directions[q]
+        return np.flatnonzero(pool)
+
+    def _weighted(self, settings: SearchSettings) -> np.ndarray:
+        """Every feature vector multiplied by the weights these values give, kept per values."""
+        key = feature_weights(settings)
+        if key not in self._weighted_by:
+            self._weighted_by[key] = self._features * np.array(key)
+        return self._weighted_by[key]
+
+    def _look_up(self, q: int, settings: SearchSettings) -> _Found | None:
+        pool = self._pool(q)
+        if len(pool) < settings.results:
+            return None
+        records, ids, top = self.records, self._ids[pool], settings.each_ranking_top
+        # Worked out over the whole memory, then cut to the pool: cheaper than copying the pool.
+        features = self._weighted(settings)
+        distance = np.linalg.norm(features - features[q], axis=1)[pool]
+        by_vector = pool[_top(distance, ids, top)]
+        if (q, top) not in self._by_text:
+            closeness = (self._embeddings @ self._embeddings[q])[pool]
+            self._by_text[(q, top)] = pool[_top(-closeness, ids, top)]
+        by_text = self._by_text[(q, top)]
         merged = merge(
             [records[i].id for i in by_vector], [records[i].id for i in by_text]
         )
         kept = best_without_repeats(
-            [_candidate(records[index[m.id]]) for m in merged], settings.results
+            [_candidate(records[self._index[m.id]]) for m in merged], settings.results
         )
         nearest = best_without_repeats(
             [_candidate(records[i]) for i in by_vector], settings.results
         )
-        if len(nearest) < settings.results < len(pool_at):
+        if len(nearest) < settings.results < len(pool):
             # Repeats removed left too few: the vector ranking alone reaches further down.
-            whole = pool_at[_top(distance, pool_ids, len(pool_at))]
+            whole = pool[_top(distance, ids, len(pool))]
             nearest = best_without_repeats(
                 (_candidate(records[i]) for i in whole), settings.results
             )
-        similar.append(_alike([index[c.id] for c in kept], ended, r.ended))
-        vector.append(_alike([index[c.id] for c in nearest], ended, r.ended))
-        random.append(_alike(pool_at, ended, r.ended))
+        return _Found(
+            [self._index[c.id] for c in kept],
+            [self._index[c.id] for c in nearest],
+            pool,
+        )
+
+
+def check(
+    memory: Memory | Sequence[Record],
+    settings: SearchSettings,
+    sample: int | None = None,
+) -> Tally:
+    """Look each record up in the records before it; `sample` checks only that many, evenly
+    spread over the memory."""
+    if not isinstance(memory, Memory):
+        memory = Memory(memory)
+    looked_up: Iterable[int] = range(len(memory))
+    if sample is not None and sample < len(memory):
+        looked_up = sorted(
+            {int(i) for i in np.linspace(0, len(memory) - 1, sample).round()}
+        )
+    similar, vector, random = [], [], []
+    for q in looked_up:
+        found = memory._look_up(q, settings)
+        if found is None:
+            continue
+        way = memory.records[q].ended
+        similar.append(_alike(found.similar, memory.ended, way))
+        vector.append(_alike(found.nearest, memory.ended, way))
+        random.append(_alike(found.pool, memory.ended, way))
     return Tally(
         checked=len(similar),
         similar_alike=_mean(similar),
@@ -165,8 +238,9 @@ _MEMORY = (
     "JOIN FEATURES.SNAPSHOTS S ON S.DATASET = D.DATASET AND S.ASSET = D.ASSET "
     "AND S.STEP = D.STEP "
     "JOIN MEMORY.OUTCOMES O ON O.SIM = D.SIM AND O.DECISION = D.ID AND O.KIND = ? "
-    "WHERE D.SIM = ? AND D.KIND IN ('full_evaluation', 'position_review') "
-    "AND D.OUTCOMES_KNOWN_FROM IS NOT NULL ORDER BY D.STEP, D.ID"
+    "WHERE D.SIM = ? AND D.KIND IN ("
+    + ", ".join(f"'{k}'" for k in EPISODE_KINDS)
+    + ") AND D.OUTCOMES_KNOWN_FROM IS NOT NULL ORDER BY D.STEP, D.ID"
 )
 
 
@@ -218,9 +292,12 @@ def report(
     sample: int | None = None,
 ) -> str:
     """The check for each set of values tried, in plain words (ASCII only)."""
-    lines = []
+    memory = Memory(records)
+    lines: list[str] = []
+    tallies = []
     for i, settings in enumerate(tried):
-        tally = check(records, settings, sample)
+        tally = check(memory, settings, sample)
+        tallies.append((tally, settings))
         if i == 0:
             lines += [
                 (
@@ -258,21 +335,29 @@ def report(
         if gap > 0:
             lines.append(
                 "  So similar records ended the same way more often than random ones, "
-                f"by {gap:.1f} percentage points."
+                f"by {gap:.1f} percentage points ({_percent(tally.similar_alike)} against "
+                f"{_percent(tally.random_alike)})."
             )
         else:
             lines.append(
                 "  So similar records did not end the same way more often than random "
                 "ones. Try other values: --shape-share and --bar-decay each take several."
             )
+    checked = [(t, s) for t, s in tallies if t.checked]
+    if len(checked) > 1:
+        best, settings = max(checked, key=lambda found: found[0].similar_alike)
+        lines += [
+            "",
+            (
+                f"Best of the values tried: shapes {_share(settings.shape_share)} of the "
+                f"say, each older bar {_share(settings.bar_decay)} less "
+                f"({_percent(best.similar_alike)} ended the same way)."
+            ),
+        ]
     return "\n".join(lines)
 
 
-def _candidate(r: Record) -> Candidate:
-    return Candidate(r.id, r.asset, r.step)
-
-
-def _alike(positions, ended: np.ndarray, way: str) -> float:
+def _alike(positions: Iterable[int], ended: np.ndarray, way: str) -> float:
     return float(np.mean(ended[list(positions)] == way))
 
 
