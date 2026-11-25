@@ -7,8 +7,11 @@ asset and the job are filled in by code) and returns a `Selection`: the chosen e
 most useful first, and a one-line note, with what the decision record stores about how they
 were chosen.
 
-Only the stand-in is built: it selects none and looks nothing up. The real selector is a small
-LangGraph tool loop over the LLM client the model setting names (`jev_trader.llm.clients`).
+Only stand-ins are built: they select none and look nothing up. The real selector
+(`LlmSelector`) is a small LangGraph tool loop over the LLM client the model setting names
+(`jev_trader.llm.clients`), timed by a `WallClock` so its tests can run on a fake one. A provider
+call still failing after its retries, or a third failed reply, raises `LlmFailed`, which stops
+the sim.
 
 Choices the spec leaves to the build:
 
@@ -16,10 +19,14 @@ Choices the spec leaves to the build:
   itself is asynchronous, so the real lookups wrap it.
 """
 
+import time
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+from langchain_core.language_models import BaseChatModel
+
+from jev_trader.llm.settings import LlmSettings
 from jev_trader.memory.lookups import MOST_READ, Episodes, SearchResult
 from jev_trader.memory.search import RESULTS
 from jev_trader.memory.track_record import TrackRecord
@@ -109,3 +116,42 @@ class StandInSelector:
 
     def select(self, lookups: MemoryLookups, first_search: SearchResult) -> Selection:
         return Selection(episode_ids=(), note="")
+
+
+class LlmFailed(Exception):
+    """The LLM could not be used: a call still failing after its retries, or the third failed
+    reply in one evaluation. It stops the sim, which can be resumed (stop reason "LLM failed")."""
+
+
+class WallClock(Protocol):
+    """Where the selection reads the time taken from, for its 60 seconds (not the dataset's
+    step clock)."""
+
+    def monotonic(self) -> float: ...
+
+
+class SystemWallClock:
+    def monotonic(self) -> float:
+        return time.monotonic()
+
+
+class LlmSelector:
+    """The LLM's selection: a tool loop over `model` (by default the client `settings` names),
+    within `limits`, timed by `clock`.
+
+    Not built yet: it selects none and looks nothing up, as the stand-in does.
+    """
+
+    def __init__(
+        self,
+        settings: LlmSettings,
+        model: BaseChatModel | None = None,
+        limits: SelectionLimits | None = None,
+        clock: WallClock | None = None,
+    ):
+        self.settings, self.model = settings, model
+        self.limits = limits or SelectionLimits()
+        self.clock = clock or SystemWallClock()
+
+    def select(self, lookups: MemoryLookups, first_search: SearchResult) -> Selection:
+        return StandInSelector().select(lookups, first_search)

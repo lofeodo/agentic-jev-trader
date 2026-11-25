@@ -48,6 +48,12 @@ The free tests (`tests/unit` and `tests/recorded`, network blocked), exactly as 
 conda run -n agentic-jev-trader python -m pytest tests/unit tests/recorded --block-network
 ```
 
+A slice's tests are written before its code and kept **dormant** (marked `dormant`, skipped in that run and in CI) until the slice's closing ticket removes the marker. To run them by hand, add `--run-dormant`:
+
+```
+conda run -n agentic-jev-trader python -m pytest tests/unit --block-network --run-dormant
+```
+
 Style check, as CI runs it (`ruff format .` fixes formatting):
 
 ```
