@@ -1,4 +1,5 @@
 // Small pieces shared by the sim page and its side panel.
+import type { ReactNode } from "react";
 import type { AssetName, DecisionLine, LiveFigures, OrderLine, Price } from "./api/client";
 import { dollars, price } from "./format";
 
@@ -24,14 +25,22 @@ export function PriceTag({ price: p }: { price: Price }) {
   );
 }
 
-export function ErrorBox({ title, text }: { title: string; text: string }) {
+// `text` or `children`: what went wrong, as one paragraph or as the caller lays it out.
+export function ErrorBox({ title, text, children }: { title: string; text?: string; children?: ReactNode }) {
   return (
     <div role="alert" className="border-[1.5px] border-rule">
       <div className="bg-amber px-[2ch] py-1 font-mono text-[13.5px] tracking-widest text-screen">{title}</div>
-      <p className="px-[2ch] py-2 whitespace-pre-line">{text}</p>
+      {text !== undefined && <p className="px-[2ch] py-2 whitespace-pre-line">{text}</p>}
+      {children}
     </div>
   );
 }
+
+// A form's field label, its input box, and its button.
+export const fieldLabel = "font-mono text-[13.5px] tracking-wider text-dim";
+export const field = "bg-amber px-[1ch] py-1 font-mono text-screen placeholder:text-screen/60";
+export const formButton =
+  "cursor-pointer border-[1.5px] border-amber px-[2ch] py-1.5 font-mono tracking-widest text-amber uppercase hover:bg-amber hover:text-screen disabled:cursor-wait disabled:opacity-60";
 
 // A label sharing a box with its value, split by a line.
 export function Pair({ name, value }: { name: string; value: string }) {
