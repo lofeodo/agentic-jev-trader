@@ -5,8 +5,17 @@ It has no login, so it answers only the developer's own computer, checked twice:
 - the connection must come from this computer;
 - the address asked for must be this computer's. Without this, a web page open in the
   developer's browser could reach the API through a domain name pointed at 127.0.0.1.
+
+In the kind cluster (`in_cluster`) its callers are the cluster's own: the web app's server, the
+cluster's health checks, the cluster's other pods, and this computer through the port the
+cluster opens. Each reaches it from a private network address, so it answers any of those, and
+the address name `api` too, the API's name in the cluster. The check on the caller then guards
+little: what keeps other computers out is that the cluster opens its port on 127.0.0.1 only
+(infra/kind-cluster.yaml). The check on the address name still holds: the web app's server
+passes on the browser's own, so a web page under another name is refused.
 """
 
+import ipaddress
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Annotated
@@ -48,6 +57,15 @@ from jev_trader.sim.store import now
 
 LOCAL_CLIENTS = frozenset({"127.0.0.1", "::1"})
 LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
+# The API's name in the kind cluster: the web app's server asks for it under this name.
+CLUSTER_HOSTS = ["api"]
+
+
+def _on_a_private_network(address: str) -> bool:
+    try:
+        return ipaddress.ip_address(address).is_private
+    except ValueError:
+        return False
 
 
 class Health(BaseModel):
@@ -84,24 +102,33 @@ def create_app(
     builds: Builds,
     clock: Callable[[], datetime] = now,
     moment_window_steps: int = 8,
+    in_cluster: bool = False,
 ) -> FastAPI:
     """`moment_window_steps`: how many steps either side of a moment count as "around then".
 
     `launcher` starts and kills the sims' jobs, `builds` the dataset builds' (both as the
-    `JOB_LAUNCHER` setting says)."""
+    `JOB_LAUNCHER` setting says). `in_cluster`: it runs in the kind cluster and answers the
+    cluster's callers too (module docstring)."""
     app = FastAPI(title="Jev trader API", version="1")
     jobs = Jobs(store, launcher, spending_ceiling, not_responding_after)
     datasets = DatasetBuilds(store, builds)
 
     @app.middleware("http")
     async def only_this_computer(request: Request, call_next):
-        if request.client is None or request.client.host not in LOCAL_CLIENTS:
+        caller = request.client.host if request.client else None
+        allowed = caller in LOCAL_CLIENTS or (
+            in_cluster and caller is not None and _on_a_private_network(caller)
+        )
+        if not allowed:
             return JSONResponse(
                 {"detail": "This API answers only its own computer."}, status_code=403
             )
         return await call_next(request)
 
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=LOCAL_HOSTS)
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=LOCAL_HOSTS + CLUSTER_HOSTS if in_cluster else LOCAL_HOSTS,
+    )
 
     # A finished sim never changes, so its reports are worked out once and kept here, in memory
     # only (appendix 8, section 8.9). Nothing stores a finished report.

@@ -10,8 +10,10 @@ the default: programs on this computer, each printing to `logs/sims/sim-<id>.log
 database it serves, and dataset builds the same way (`logs/datasets/dataset-<id>.log`, beside
 the build's settings file). `kubernetes` (Jobs in the kind cluster) is accepted, but starting a
 job with it fails as not built yet. A build logs in as the builder and needs
-`TWELVE_DATA_API_KEY`. `describe` needs no login. Output is plain ASCII: `conda run` on Windows
-fails on other characters.
+`TWELVE_DATA_API_KEY`. `--in-cluster` is for its pod in the kind cluster: it listens on every
+address of its container and answers the cluster's callers too (`jev_trader.api.app`). It logs
+in to Snowflake on the first request that reads, not at start. `describe` needs no login.
+Output is plain ASCII: `conda run` on Windows fails on other characters.
 """
 
 import argparse
@@ -30,12 +32,15 @@ from jev_trader.broker.config import CONFIG_DIR
 from jev_trader.jobs import builds_named, launcher_named
 from jev_trader.sim.spending import load_spending_settings
 from jev_trader.sim.store import InMemorySimStore
-from jev_trader.storage.snowflake import DATABASE, LoginNotSet, connect
+from jev_trader.storage.snowflake import DATABASE, ConnectionOnFirstUse, LoginNotSet
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 JOB_LOGS = REPO_ROOT / "logs" / "sims"
 # Each dataset build the API starts: its settings file, where its job runs, what it prints.
 BUILD_FILES = REPO_ROOT / "logs" / "datasets"
+# Where it listens: this computer only, or in its pod every address of the container.
+THIS_COMPUTER = "127.0.0.1"
+EVERY_ADDRESS = "0.0.0.0"
 
 
 def load_settings(path: Path = CONFIG_DIR / "api.toml") -> dict:
@@ -56,7 +61,7 @@ def describe(path: Path) -> None:
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
-def serve(database: str, port: int) -> int:
+def serve(database: str, port: int, in_cluster: bool = False) -> int:
     import uvicorn
 
     from jev_trader.api.snowflake_store import SnowflakeApiStore
@@ -70,7 +75,7 @@ def serve(database: str, port: int) -> int:
         print(refused)
         return 2
     try:
-        connection = connect("api", database=database)
+        connection = ConnectionOnFirstUse("api", database=database)
     except LoginNotSet as missing:
         print(missing)
         return 2
@@ -82,9 +87,10 @@ def serve(database: str, port: int) -> int:
         moment_window_steps=settings["moment_window_steps"],
         launcher=launcher,
         builds=builds,
+        in_cluster=in_cluster,
     )
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port)
+        uvicorn.run(app, host=EVERY_ADDRESS if in_cluster else THIS_COMPUTER, port=port)
     finally:
         connection.close()
     return 0
@@ -96,13 +102,18 @@ def main(argv: list[str] | None = None) -> int:
     start = commands.add_parser("serve", help="start the API on this computer")
     start.add_argument("--database", default=DATABASE)
     start.add_argument("--port", type=int, default=8000)
+    start.add_argument(
+        "--in-cluster",
+        action="store_true",
+        help="serve the rest of the kind cluster (in its pod there)",
+    )
     write = commands.add_parser("describe", help="write the API's description")
     write.add_argument("path", type=Path)
     args = parser.parse_args(argv)
     if args.command == "describe":
         describe(args.path)
         return 0
-    return serve(args.database, args.port)
+    return serve(args.database, args.port, args.in_cluster)
 
 
 if __name__ == "__main__":

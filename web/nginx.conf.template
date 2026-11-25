@@ -6,8 +6,12 @@ server {
     listen 80;
     root /usr/share/nginx/html;
 
+    # The browser's own address name goes on to the API, which refuses any but this
+    # computer's. Without it, nginx would send the API's cluster name (`api`), which the API
+    # accepts, and a web page under another name pointed at 127.0.0.1 could get through.
     location /api/ {
         proxy_pass ${API_URL}/;
+        proxy_set_header Host $host;
     }
 
     # The app has one page; any other path gets it too.

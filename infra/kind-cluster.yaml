@@ -1,0 +1,20 @@
+# The local kind cluster (spec appendix 10, section 3):
+#   kind create cluster --config infra/kind-cluster.yaml
+# Its one node opens the web app and the API to this computer only (127.0.0.1), on the node
+# ports Terraform's Kubernetes part gives them (local.this_computer in
+# infra/terraform/kubernetes/main.tf): the web app at http://127.0.0.1:8080, the API at
+# http://127.0.0.1:8081. The memory server stays inside the cluster.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: jev-trader
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      - containerPort: 30081
+        hostPort: 8081
+        listenAddress: "127.0.0.1"
+        protocol: TCP
