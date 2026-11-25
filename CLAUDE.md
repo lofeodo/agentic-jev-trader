@@ -115,7 +115,7 @@ Check the episode search's values (spec appendix 9, section 7), once, after the 
 conda run -n agentic-jev-trader python -m jev_trader.memory check-search --sim 12
 ```
 
-The local kind cluster (a small Kubernetes cluster inside Docker; `infra/README.md`) runs the same code: the memory server, the API and the web app as long-lived services, and each sim or dataset build the API starts as a Job (a one-off run). It needs Docker Desktop running and `kind`, `kubectl` and `terraform` installed. It is for proving the route; the sims that count run as plain programs on this computer. Make the cluster once (it opens the web app at http://127.0.0.1:8080 and the API at http://127.0.0.1:8081, to this computer only):
+The local kind cluster (a small Kubernetes cluster inside Docker; `infra/README.md`) runs the same code: the memory server, the API and the web app as long-lived services, and each sim or dataset build the API starts as a Job (a one-off run). It needs Docker Desktop running and `kind`, `kubectl` and `terraform` installed (`winget install Kubernetes.kind`, then a new terminal: the open ones do not see it). It is for proving the route; the sims that count run as plain programs on this computer. Make the cluster once (it opens the web app at http://127.0.0.1:8080 and the API at http://127.0.0.1:8081, to this computer only):
 
 ```
 kind create cluster --config infra/kind-cluster.yaml
