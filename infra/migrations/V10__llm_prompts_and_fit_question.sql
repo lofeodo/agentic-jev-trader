@@ -5,8 +5,9 @@
 -- What every LLM exchange of one prompt version opens with, stored once: SYSTEM_PROMPT, the
 -- standing instructions word for word, and TOOLS, the four tools as the first call offers them
 -- (name, description, inputs). SIM.LLM_EXCHANGES keeps every message after these. The lookup
--- tools' lists of candle patterns come from the playbook of the dataset's TA-Lib version: the
--- row keeps the first sim's.
+-- tools' lists of candle patterns come from the playbook of the dataset's TA-Lib version, and the
+-- numbers in the instructions from the sim's selection limits (the same for every sim so far):
+-- neither is part of the prompt version, so the row keeps the first sim's.
 CREATE TABLE SIM.LLM_PROMPTS (
     PROMPT_VERSION VARCHAR NOT NULL PRIMARY KEY,
     SYSTEM_PROMPT VARCHAR NOT NULL,

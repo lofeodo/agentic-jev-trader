@@ -14,6 +14,7 @@ import pytest
 from jev_trader.jev.reading import MEMORIES_RELEVANT, PastEpisodes, Reading
 from jev_trader.llm.selection import Selection, StandInSelector
 from jev_trader.llm.wording import ANSWER_TOOL, LlmWording, prompt_version
+from jev_trader.memory import render
 from jev_trader.memory.bridge import LOOKUP_TOOLS
 from jev_trader.memory.episodes import Episode
 from jev_trader.memory.lookups import Episodes, Found, SearchResult
@@ -212,6 +213,13 @@ def test_the_standing_instructions_and_tools_are_stored_once_per_prompt_version(
     assert version == prompt_version()
     assert system_prompt == LlmWording().system_prompt()
     assert [t["name"] for t in tools] == [*LOOKUP_TOOLS, ANSWER_TOOL]
+
+
+def test_a_changed_word_in_how_an_episode_is_written_changes_the_prompt_version():
+    episodes = render.load_wording()
+    edited = {**episodes, "same_asset": episodes["same_asset"] + " (made-up)"}
+
+    assert prompt_version(episodes=edited) != prompt_version()
 
 
 def test_a_sim_whose_llm_wording_changed_cannot_carry_on(market):
