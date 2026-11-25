@@ -14,6 +14,8 @@ An order Jev decided carries its decision's ID; code's own orders (a stop price,
 the sim's end, the holding sim's purchases) carry none.
 """
 
+from typing import TYPE_CHECKING
+
 from jev_trader.broker import Broker, Charge, ClosingReason, Fill, Order, OrderKind
 from jev_trader.jev.client import JevReply
 from jev_trader.jev.full_evaluation import Evaluation
@@ -28,6 +30,9 @@ from jev_trader.sim.store import (
     KIND_SCREEN,
     now,
 )
+
+if TYPE_CHECKING:  # the selection reads memory, whose outcomes build on these records
+    from jev_trader.llm.selection import Selection
 
 
 def order_id(sim_id: int, step_decided: int, asset: str, number: int) -> str:
@@ -165,6 +170,16 @@ def decision_row(
         "LIMITED_BY": e and e.limited_by,
         "ACTION": action,
     }
+
+
+def selection_columns(selection: "Selection | None") -> dict:
+    """A full evaluation's columns for how the LLM selected its past episodes: the episodes
+    shown, opened and selected, the note, each lookup, any limit hit, the model and the prompt
+    version (spec appendix 5, section 6). None without memory.
+
+    Not stored yet: the decision record has no columns for them until its table gains them.
+    """
+    return {}
 
 
 def position_decision_row(
