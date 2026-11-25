@@ -29,13 +29,14 @@ TABLES = (
     "SIM.SIM_EVENTS",
     "SIM.CALLS",
     "SIM.JEV_REQUESTS",
+    "SIM.LLM_EXCHANGES",
     "MEMORY.DECISIONS",
     "MEMORY.OUTCOMES",
 )
 # A sim's memory: the tables a sim with memory starts from a copy of (spec appendix 6, section
 # 3.5). Each row's SIM is the memory it belongs to; FIRST_WRITTEN_BY the sim that wrote it.
-# Only the MEMORY tables a step writes are copied: a later MEMORY table (POSITIONS,
-# TOOL_CALLS, ...) must go into TABLES to be part of the copy.
+# Only the MEMORY tables a step writes are copied: a later MEMORY table (POSITIONS, ...) must go
+# into TABLES to be part of the copy.
 MEMORY_TABLES = tuple(name for name in TABLES if name.startswith("MEMORY."))
 # A decision's KIND. An asset with no position: a screen alone (tier 0 or 1), or a full evaluation
 # (tier 2); both began with the screen, unless code skipped it. An open position: a position

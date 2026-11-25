@@ -92,7 +92,7 @@ from jev_trader.jev.reading import (
     Reading,
     size_option_name,
 )
-from jev_trader.llm.selection import MemoryLookups, Selection, Selector
+from jev_trader.llm.selection import MemoryLookups, Selection, Selector, Situation
 from jev_trader.memory.bridge import LookupContext
 from jev_trader.memory.outcomes import Outcomes, is_last_bar_of_day
 from jev_trader.memory.search import DIRECTIONS
@@ -160,7 +160,9 @@ class AgentWithoutMemory:
             "MEMORY.DECISIONS": [],
             "MEMORY.OUTCOMES": [],
             "SIM.JEV_REQUESTS": [],
+            "SIM.LLM_EXCHANGES": [],
             "SIM.CALLS": [],
+            "SIM.SIM_EVENTS": [],
         }
         self._note_bars(step, broker, bars)
         open_ids = {str(p.position_id) for p in broker.positions.values()}
@@ -660,14 +662,40 @@ class _DecisionWithMemory(_DecisionAtStep):
         first_search = lookups.search()
         if not first_search.episodes:
             return MemorySections(self.step, track_records, PastEpisodes.NONE_YET)
-        self.selection = self.agent.selector.select(lookups, first_search)
-        self.rows["SIM.CALLS"] += [
-            records.llm_call_row(self.agent.sim_id, self.step, self.asset, call, n)
-            for n, call in enumerate(self.selection.calls, start=1)
-        ]
+        self.selection = self.agent.selector.select(
+            Situation(
+                asset=self.asset,
+                asset_class=self.view.asset_class,
+                step=self.step,
+                text=self.snapshot.situation_text,
+                patterns=self.snapshot.patterns,
+                playbook=self.agent.playbook,
+            ),
+            lookups,
+            first_search,
+        )
+        self._store_selection(self.selection)
         if not self.selection.episode_ids:
             return MemorySections(self.step, track_records, PastEpisodes.NONE_SELECTED)
         chosen = lookups.read(list(self.selection.episode_ids)).episodes
         return MemorySections(
             self.step, track_records, PastEpisodes.SELECTED, tuple(chosen)
         )
+
+    def _store_selection(self, selection: Selection) -> None:
+        """How the LLM selected, beyond what the decision row holds: the exchange word for word,
+        each call, and the notable moments."""
+        sim_id, step, asset = self.agent.sim_id, self.step, self.asset
+        self.rows["SIM.LLM_EXCHANGES"].append(
+            records.llm_exchange_row(sim_id, step, asset, selection)
+        )
+        self.rows["SIM.CALLS"] += [
+            records.llm_call_row(sim_id, step, asset, call, n)
+            for n, call in enumerate(selection.calls, start=1)
+        ]
+        events = self.rows["SIM.SIM_EVENTS"]
+        for event in selection.events:
+            number = 1 + sum(e["KIND"] == event.kind for e in events)
+            events.append(
+                records.event_row(sim_id, step, event.kind, number, event.details)
+            )

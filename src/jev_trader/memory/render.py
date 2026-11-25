@@ -18,7 +18,8 @@ Choices the spec leaves to the build:
 - A measurement not available at the time leaves its word out of the one-line setting.
 - A trade stored before its best and worst, its journal or the money it put in were kept with
   its outcomes reads without them.
-- An episode in full whose prices afterwards are not stored leaves its "Afterwards" line out.
+- An episode in full whose prices afterwards are not stored leaves its "Afterwards" line out;
+  its one line leaves the price moves empty.
 """
 
 import math
@@ -207,10 +208,10 @@ def summary_line(episode: Episode, label: str, reader: Reader) -> str:
         columns += [
             _standing(episode, w),
             step_text(episode.review, w),
-            f"{_price_after(episode, w)}; {_review_ended(episode, ': ', w)}",
+            "; ".join([*_moves(episode, w), _review_ended(episode, ": ", w)]),
         ]
     elif episode.decided == NO_TRADE:
-        columns += [w["no_trade"], _price_after(episode, w)]
+        columns += [w["no_trade"], "".join(_moves(episode, w))]
     else:
         t = episode.trade
         columns += [
@@ -220,6 +221,11 @@ def summary_line(episode: Episode, label: str, reader: Reader) -> str:
             _trade_ended(episode, ": ", w),
         ]
     return w["column_separator"].join(columns)
+
+
+def _moves(episode: Episode, w: dict) -> list[str]:
+    """Where the price went afterwards, or nothing when those prices are not stored."""
+    return [] if episode.prices is None else [_price_after(episode, w)]
 
 
 def _afterwards(episode: Episode, w: dict) -> list[str]:

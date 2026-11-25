@@ -274,6 +274,7 @@ class _Batch:
             "SIM.SIM_EVENTS": [],
             "SIM.CALLS": [],
             "SIM.JEV_REQUESTS": [],
+            "SIM.LLM_EXCHANGES": [],
             "MEMORY.DECISIONS": [],
             "MEMORY.OUTCOMES": [],
         }
@@ -300,7 +301,7 @@ def run_sim(
     The agent's sims need `jev`, store one step per write, and stop at their spending cap. A call
     to Jev that still fails after its retries stops the sim and raises `JevFailed`. The agent
     with memory also needs memory's lookups (`lookups_at`) and the LLM's selection step
-    (`selector`; for now the stand-in, which selects none); an LLM that cannot be used stops
+    (`selector`; by default the stand-in, which selects none); an LLM that cannot be used stops
     the sim and raises `LlmFailed`.
     """
     sim = store.sim(sim_id)

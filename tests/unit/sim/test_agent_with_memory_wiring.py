@@ -129,7 +129,7 @@ class Chooses(StandInSelector):
     def __init__(self, chosen):
         self.chosen, self.asked = chosen, 0
 
-    def select(self, lookups, first_search):
+    def select(self, situation, lookups, first_search):
         self.asked += 1
         return Selection(episode_ids=self.chosen, note="Made-up note.")
 
