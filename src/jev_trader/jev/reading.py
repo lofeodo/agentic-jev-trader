@@ -160,7 +160,7 @@ class MemorySections:
     def newest_first(self) -> tuple["Episode", ...]:
         """The episodes as Jev reads them: newest first, so the LLM's order of preference does
         not reach Jev."""
-        return tuple(sorted(self.episodes, key=lambda e: -e.step))
+        return tuple(sorted(self.episodes, key=lambda e: (-e.step, e.id)))
 
     def __post_init__(self):
         if bool(self.episodes) != (self.past_episodes is PastEpisodes.SELECTED):
@@ -377,10 +377,10 @@ class Reading:
         wording: Mapping | None = None,
         episode_wording: Mapping | None = None,
     ):
-        from jev_trader.memory import (
-            render,
-        )  # memory reaches back here through the records
+        # Imported here: memory reaches back to this module through the sim's records.
+        from jev_trader.memory import render
 
+        self._render = render  # the episode renderer the LLM's lookups share
         self.risk = risk
         self.wording = dict(load_wording() if wording is None else wording)
         self.episode_wording = dict(
@@ -780,13 +780,11 @@ class Reading:
         return (self._track_record(memory), self._past_episodes(asset, memory))
 
     def _track_record(self, memory: MemorySections) -> str:
-        from jev_trader.memory import render
-
         w = self.wording
         if not memory.track_records:
             return f"{w['track_record_heading']}\n{w['track_record_no_pattern']}"
         lines = [
-            render.track_record_line(r, self.episode_wording)
+            self._render.track_record_line(r, self.episode_wording)
             for r in memory.track_records
         ]
         footer = w["track_record_footer"].format(
@@ -795,8 +793,7 @@ class Reading:
         return "\n".join([w["track_record_heading"], *lines, footer])
 
     def _past_episodes(self, asset: AssetView, memory: MemorySections) -> str:
-        from jev_trader.memory import render
-
+        render = self._render
         w = self.wording
         if memory.past_episodes is PastEpisodes.NONE_YET:
             return f"{w['past_episodes_none_heading']}\n{w['past_episodes_none_yet']}"
