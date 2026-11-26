@@ -98,6 +98,8 @@ class MadeUpInputs:
     none yet); `with_memory` False runs the agent without memory. `sim_ends_here` makes the step
     the sim's last, where everything is sold (ADR 0009). `playbook` is every candle pattern's
     lean and shape: the dataset build's own unless a scenario says otherwise.
+    `start_of_day_value` is what the account was worth at the last midnight UTC, which the
+    daily loss limit compares with (None: the cash, so nothing has been lost today).
     """
 
     step: int
@@ -107,6 +109,7 @@ class MadeUpInputs:
     memory: tuple[PastEpisode, ...] = ()
     with_memory: bool = True
     cash: float = 10_000.0
+    start_of_day_value: float | None = None
     position: MadeUpPosition | None = None
     sim_ends_here: bool = False
     playbook: Playbook = field(default_factory=the_playbook)
@@ -225,6 +228,7 @@ def run_scenario(scenario: Scenario, tracing: Tracing | None = None) -> Scenario
         costs=costs,
         stop_settings=stops,
         risk=risk,
+        start_of_day_value=inputs.start_of_day_value,
     )
     last_step = step if inputs.sim_ends_here else step + 1
     asked: list[tuple] = []
