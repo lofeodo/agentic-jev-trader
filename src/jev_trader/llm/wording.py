@@ -12,6 +12,15 @@ text-building functions do (`docs/llm-prompt-walkthrough.html`). Nothing it is g
 holds a clock time, a sim or step number, a real date or a random ID, so the same situation
 gives the same request. A past episode's one line and its record in full are written by
 `jev_trader.memory.render`, shared with Jev's background.
+
+The LLM has two jobs (a full evaluation, and a position review), each with its own standing
+instructions and first message. Only the first job's words are in `prompts/` so far.
+
+EMPTY SLOT, for the ticket "Position review with memory: second job wording, one prompt
+version" (#178): the second job's standing instructions, first message and filter words below
+(`REVIEW_STAND_IN`) are a stand-in that is only enough to run. That ticket moves the real words
+into `prompts/llm_selection.toml`, so the prompt version covers both jobs, and updates the
+walkthrough page.
 """
 
 import hashlib
@@ -23,13 +32,52 @@ from pathlib import Path
 
 from jev_trader.memory import bridge, render
 from jev_trader.memory.lookups import MOST_READ
-from jev_trader.memory.search import FULL_EVALUATION, Filters
+from jev_trader.memory.search import FULL_EVALUATION, POSITION_REVIEW, Filters, Job
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "llm_selection.toml"
 VERSION_LENGTH = 12
 
 ANSWER_TOOL = "select_episodes"
 ANY = "any"  # a filter left unset
+
+# EMPTY SLOT (#178): a stand-in for the second job's words, enough to run, outside the prompt
+# version. Its real words go into `prompts/llm_selection.toml` under `[position_review]`, with
+# the review lines' own column headings (the stand-in reuses the full evaluation's) and the
+# standing filter words (merged under the prompt file's in `filters_text`).
+REVIEW_STAND_IN = {
+    "system_prompt": (
+        "Stand-in instructions for a position review. Select up to {most_selected} past "
+        "position reviews most like the present moment, with up to {most_lookups} lookups, "
+        "then call select_episodes."
+    ),
+    "first_message": """
+# Current situation
+Asset: {asset} ({asset_class})
+{situation}
+
+# The position now
+{standing}
+
+# The {episodes} most like it, closest first
+{columns}
+{summaries}""",
+    "standing": (
+        "A {direction} of {put_in}, open {bars_open} bars, {profit} ({percent}), stop price "
+        "{stop} away; best so far {best}, worst {worst}."
+    ),
+    "end_of_session": (
+        "This is the last step of the session from which an order is carried out today. "
+        "A position still open after it is held overnight."
+    ),
+    "filters": {
+        "hold": "hold",
+        "close": "close",
+        "reduce": "reduce",
+        "add": "add",
+        "in_profit": "in profit",
+        "at_a_loss": "at a loss",
+    },
+}
 
 
 def load_wording(path: Path = WORDING_PATH) -> dict:
@@ -57,9 +105,9 @@ def prompt_version(
 
 @dataclass(frozen=True)
 class LlmWording:
-    """The LLM's texts for a full evaluation, within the selection's limits (the same
-    defaults as `jev_trader.llm.selection.SelectionLimits`). A position review's words are not
-    in `prompts/` yet: they come with position reviews with memory.
+    """The LLM's texts for both jobs, within the selection's limits (the same defaults as
+    `jev_trader.llm.selection.SelectionLimits`). A position review's words are a stand-in
+    (`REVIEW_STAND_IN`) until #178 puts them in `prompts/`.
     """
 
     most_lookups: int = 6
@@ -80,8 +128,10 @@ class LlmWording:
             "note_length": self.note_length,
         }
 
-    def system_prompt(self) -> str:
-        """The standing instructions, sent first in every call."""
+    def system_prompt(self, job: Job = FULL_EVALUATION) -> str:
+        """The standing instructions of `job`, sent first in every call of it."""
+        if job == POSITION_REVIEW:
+            return REVIEW_STAND_IN["system_prompt"].format(**self._limits())
         return self.wording[FULL_EVALUATION]["system_prompt"].format(**self._limits())
 
     def answer_tool(self) -> bridge.ToolDefinition:
@@ -132,6 +182,43 @@ class LlmWording:
             + pattern_notes
         )
 
+    def review_first_message(
+        self,
+        asset: str,
+        asset_class: str,
+        situation: str,
+        standing: Mapping,
+        end_of_session: bool,
+        summaries: Sequence[str],
+        pattern_notes: str = "",
+    ) -> str:
+        """The first message of a position review: as a full evaluation's, with the position's
+        standing (`PositionView.standing`: direction, dollars, bars open, profit or loss, stop
+        price distance, best and worst so far) and, at an end-of-session review, its one line."""
+        w = REVIEW_STAND_IN
+        position = w["standing"].format(
+            direction=standing["direction"],
+            put_in=f"${standing['put_in']:,.0f}",
+            bars_open=standing["bars_open"],
+            profit=f"{standing['profit']:+,.0f} dollars",
+            percent=f"{standing['percent']:+.1f}%",
+            stop=f"{100 * standing['stop_distance']:.1f}%",
+            best=f"{standing['best']:+,.0f} dollars",
+            worst=f"{standing['worst']:+,.0f} dollars",
+        )
+        if end_of_session:
+            position += "\n" + w["end_of_session"]
+        return (
+            w["first_message"].format(
+                asset=asset,
+                asset_class=asset_class,
+                situation=situation,
+                standing=position,
+                **self._listing(summaries),
+            )
+            + pattern_notes
+        )
+
     def search_result(
         self,
         filters: Filters,
@@ -160,15 +247,16 @@ class LlmWording:
 
     def filters_text(self, filters: Filters) -> str:
         """ "same asset, bullish engulfing, any decision": the asset, the pattern and what was
-        decided, in that order."""
-        words = self.wording["messages"]["filters"]
-        return ", ".join(
-            [
-                words["any_asset" if filters.asset == ANY else filters.asset],
-                words["any_pattern"] if filters.pattern == ANY else filters.pattern,
-                words["any_decision" if filters.decided == ANY else filters.decided],
-            ]
-        )
+        decided, in that order; in a position review, then the standing when it is set."""
+        words = {**REVIEW_STAND_IN["filters"], **self.wording["messages"]["filters"]}
+        said = [
+            words["any_asset" if filters.asset == ANY else filters.asset],
+            words["any_pattern"] if filters.pattern == ANY else filters.pattern,
+            words["any_decision" if filters.decided == ANY else filters.decided],
+        ]
+        if filters.standing != ANY:
+            said.append(words[filters.standing])
+        return ", ".join(said)
 
     def pattern_notes(
         self, names: Iterable[str], playbook: Mapping[str, tuple[str, str]]

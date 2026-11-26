@@ -178,8 +178,8 @@ def decision_row(
 
 
 def selection_columns(selection: "Selection | None") -> dict:
-    """A full evaluation's columns for how the LLM selected its past episodes (spec appendix 5,
-    section 6; appendix 6, section 3.5): the model, the prompt version, the episodes selected
+    """A full evaluation's or position review's columns for how the LLM selected its past
+    episodes (spec appendix 5, section 6; appendix 6, section 3.5): the model, the prompt version, the episodes selected
     (stored IDs, most useful first), the note, any limit hit, every episode shown (its label,
     ranks, which search found it first, whether it was opened in full), and each lookup in
     order (tool, inputs, episode IDs returned, latency, why it was refused if it was). Empty
@@ -200,9 +200,9 @@ def selection_columns(selection: "Selection | None") -> dict:
 def llm_exchange_row(
     sim_id: int, step: int, asset: str, selection: "Selection"
 ) -> dict:
-    """The LLM's exchange in one full evaluation, word for word: every message after the
-    standing instructions (the same for every evaluation of one prompt version), each failed
-    reply, and the smaller slips carried on from."""
+    """The LLM's exchange in one full evaluation or position review, word for word: every
+    message after the standing instructions (the same for every evaluation of one prompt
+    version), each failed reply, and the smaller slips carried on from."""
     decision = decision_id(sim_id, step, asset)
     return {
         "ID": decision,
@@ -255,6 +255,7 @@ def position_decision_row(
         "END_OF_SESSION": r and r.end_of_session,
         "THESIS_INTACT": r and r.thesis_intact,
         "REDUCE_SHARE": r and r.reduce_share,
+        "MEMORIES_RELEVANT": r and r.memories_relevant,
     }
 
 
@@ -277,7 +278,7 @@ def _decision_columns(
         "JEV_VERSION": None if reply is None else reply.model,
         # Set once every outcome the episode needs is known (`jev_trader.memory.outcomes`).
         "OUTCOMES_KNOWN_FROM": None,
-        # How the LLM selected a full evaluation's past episodes, empty unless it was asked.
+        # How the LLM selected past episodes, empty unless it was asked.
         "LLM_MODEL": None,
         "PROMPT_VERSION": None,
         "SELECTED": None,
@@ -347,8 +348,8 @@ def jev_call_row(
 def llm_call_row(
     sim_id: int, step: int, asset: str, call: LlmCall, number: int
 ) -> dict:
-    """One call to the LLM in a full evaluation's selection: its `number` among them, from 1.
-    MODEL is the model the provider says answered."""
+    """One call to the LLM in a full evaluation's or position review's selection: its
+    `number` among them, from 1. MODEL is the model the provider says answered."""
     return {
         "ID": f"{sim_id}-{step}-{asset}-select-{number}",
         "SIM": sim_id,

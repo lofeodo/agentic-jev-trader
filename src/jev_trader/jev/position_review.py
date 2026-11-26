@@ -57,6 +57,8 @@ class Review:
     size_chosen: float | None = None  # after an add: Jev's weighted average, in dollars
     size_after_trimming: float | None = None  # what the limits left of it when placed
     limited_by: str | None = None  # the limit that trimmed it, if one did
+    # Recorded only, with memory: do the past episodes shown fit? None when none were shown.
+    memories_relevant: float | None = None
 
 
 def reduce_share(probabilities: Mapping[str, float]) -> float:
