@@ -13,7 +13,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from jev_trader.benchmark.moments import SavedMoment
-from jev_trader.llm.clients import LlmCall
+from jev_trader.llm.clients import LlmCall, LlmFailed
 from jev_trader.llm.selection import Selection
 from jev_trader.llm.settings import LlmSettings
 
@@ -32,7 +32,8 @@ class Attempt:
     `episode_ids` are the stored decision IDs the model named, most useful first (none when it
     never answered). `calls` holds each call to the model, its tokens and cost. `selection` is
     the whole selection (lookups, failed replies, the exchange word for word) when the model
-    answered, and None when it did not.
+    answered, and None when it did not; `failure` is then why not (`LlmFailed`, with its
+    failed replies and the exchange up to the failure).
     """
 
     moment: SavedMoment
@@ -42,6 +43,7 @@ class Attempt:
     episode_ids: tuple[str, ...]
     calls: tuple[LlmCall, ...]
     selection: Selection | None = None
+    failure: LlmFailed | None = None
 
     @property
     def went_wrong(self) -> bool:

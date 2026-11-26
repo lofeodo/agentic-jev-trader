@@ -4,7 +4,7 @@ and reports which one keeps messing up (spec appendix 9, section 8; appendix 8, 
 Nothing is traded and Jev is not asked: an attempt ends when the model names its episodes, so it
 only spends LLM money. The parts, in the order the command uses them:
 
-- `moments`: the saved moments the build-up sim left (`SavedMoment`, `saved_moments`);
+- `moments`: the saved moments drawn from the build-up sim (`SavedMoment`, `BuildUpSim`);
 - `attempts`: one model's attempt at one moment (`Attempt`), what makes it (`ModelRunner`) and
   where it is kept (`AttemptLog`);
 - `runner`: the real runner (`SelectionRunner`) and the run over every pass, moment and model

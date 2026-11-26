@@ -86,11 +86,18 @@ class LlmFailed(Exception):
     """The LLM could not be used: a call still failing after its retries, or the third failed
     reply in one evaluation. It stops the sim, which can be resumed (stop reason "LLM failed").
 
-    `call` holds the failed call's figures, its error included, when a call failed."""
+    `call` holds the failed call's figures, its error included, when a call failed. Raised out
+    of a selection (`jev_trader.llm.selection.LlmSelector.select`), it also carries what the
+    evaluation had made by then: `calls`, every call to the LLM in order (the failed one last,
+    when a call failed), `failed_replies` word for word, and `exchange`, every message after the
+    standing instructions."""
 
     def __init__(self, message: str, call: LlmCall | None = None):
         super().__init__(message)
         self.call = call
+        self.calls: tuple[LlmCall, ...] = () if call is None else (call,)
+        self.failed_replies: tuple[str, ...] = ()
+        self.exchange: tuple[dict, ...] = ()
 
 
 class _Refused(Exception):
