@@ -38,6 +38,7 @@ class SpendingSettings:
     jev_tokens_per_request: int
     jev_requests_per_full_evaluation: int
     llm_dollars_per_tier_2: float
+    benchmark_cap_usd: float
 
 
 def load_spending_settings(
