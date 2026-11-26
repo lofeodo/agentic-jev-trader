@@ -223,7 +223,7 @@ class Filters:
         )
 
 
-def _trade_line(sim: Sim, trade: Trade, step_reached: int | None) -> TradeLine:
+def trade_line(sim: Sim, trade: Trade, step_reached: int | None) -> TradeLine:
     asset = trade.asset
     exit_price = trade.exit_price
     return TradeLine(
@@ -329,7 +329,7 @@ def trades_table(
     looks = no_trade_looks(store.decisions(sim_id))
 
     kept = [t for t in trades if filters.keeps(t, reached)]
-    lines = [(t.decided_step, t.asset, _trade_line(sim, t, reached)) for t in kept]
+    lines = [(t.decided_step, t.asset, trade_line(sim, t, reached)) for t in kept]
     if filters.no_trade:
         lines += [(d["STEP"], d["ASSET"], _no_trade_line(sim, d)) for d in looks]
     lines.sort(key=lambda line: (line[0], line[1]))

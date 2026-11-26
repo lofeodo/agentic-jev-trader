@@ -78,6 +78,29 @@ class ApiStore(Protocol):
         """The sim's paid calls (`SIM.CALLS`): at least DECISION, PURPOSE, COST_USD and
         LATENCY_SECONDS."""
 
+    # What the Trade page and the decision trail read (spec appendix 7, sections 6 and 7).
+
+    def decision(self, sim_id: int, decision_id: str) -> dict | None:
+        """One of the sim's own `MEMORY.DECISIONS` rows, every column; None if there is none."""
+
+    def position_decisions(self, sim_id: int, position: int) -> list[dict]:
+        """The sim's own `MEMORY.DECISIONS` rows about one open position (its position screens
+        and reviews), every column but the candidate trades, in step order."""
+
+    def jev_requests(self, sim_id: int, decision_ids: list[str]) -> list[dict]:
+        """The sim's `SIM.JEV_REQUESTS` rows of those decisions, word for word, each with the
+        OPENING of its reading version (`SIM.JEV_READINGS`) joined on."""
+
+    def llm_exchange(self, sim_id: int, decision_id: str) -> dict | None:
+        """The decision's `SIM.LLM_EXCHANGES` row, with its prompt version's standing
+        instructions and tools joined on (`SIM.LLM_PROMPTS`), each by job: SYSTEM_PROMPTS and
+        TOOLS. None if the LLM was not asked."""
+
+    def closes(
+        self, dataset: int, asset: str, first_step: int, last_step: int
+    ) -> dict[int, float]:
+        """One asset's 15-minute closes (rescaled) from `first_step` to `last_step`, by step."""
+
     def comparison_figures(self, sim_ids: list[int]) -> dict[int, dict]:
         """What the Comparison screen needs of each sim, summed in the database:
 
@@ -320,6 +343,41 @@ class InMemoryApiStore:
 
     def calls(self, sim_id):
         return [dict(r) for r in self._sims.rows("SIM.CALLS", sim_id)]
+
+    def decision(self, sim_id, decision_id):
+        for row in self._sims.own_rows("MEMORY.DECISIONS", sim_id):
+            if row["ID"] == decision_id:
+                return dict(row)
+        return None
+
+    def position_decisions(self, sim_id, position):
+        return sorted(
+            (
+                {k: v for k, v in r.items() if k != "CANDIDATE_TRADES"}
+                for r in self._sims.own_rows("MEMORY.DECISIONS", sim_id)
+                if r.get("POSITION") == position
+            ),
+            key=lambda r: r["STEP"],
+        )
+
+    def jev_requests(self, sim_id, decision_ids):
+        wanted = set(decision_ids)
+        return [
+            {**r, "OPENING": self._sims.readings.get(r["READING_VERSION"])}
+            for r in self._sims.rows("SIM.JEV_REQUESTS", sim_id)
+            if r["DECISION"] in wanted
+        ]
+
+    def llm_exchange(self, sim_id, decision_id):
+        for row in self._sims.rows("SIM.LLM_EXCHANGES", sim_id):
+            if row["DECISION"] == decision_id:
+                prompts, tools = self._sims.prompts.get(row["PROMPT_VERSION"], ({}, {}))
+                return {**row, "SYSTEM_PROMPTS": prompts, "TOOLS": tools}
+        return None
+
+    def closes(self, dataset, asset, first_step, last_step):
+        stored = self._closes.get(dataset, {}).get(asset, {})
+        return {s: c for s, c in stored.items() if first_step <= s <= last_step}
 
     def comparison_figures(self, sim_ids):
         found = {}
