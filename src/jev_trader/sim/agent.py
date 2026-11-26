@@ -108,6 +108,7 @@ from jev_trader.sim.store import (
     ACTION_NOTHING,
     ACTION_REDUCE,
 )
+from jev_trader.sim.tracing import Tracing, jev_reply_outputs
 
 _STEPS_LOADED_AT_ONCE = 96  # a day
 NO_TYPICAL_MOVE = "no_typical_move"
@@ -132,8 +133,12 @@ class AgentWithoutMemory:
         reading: Reading,
         stop_settings: StopPriceSettings,
         random_seed: int,
+        tracing: Tracing | None = None,
     ):
         self.sim_id = sim_id
+        self.tracing = (
+            tracing or Tracing()
+        )  # a sample of full evaluations, to LangSmith
         self.dataset = dataset
         self.last_step = last_step
         self.market = market
@@ -325,7 +330,11 @@ class _AssetAtStep:
 
     def _ask(self, request: JevRequest, purpose: str) -> JevReply:
         sim_id = self.agent.sim_id
-        reply = self.agent.jev.ask(request)
+        with self.agent.tracing.jev_request(
+            purpose, request.background, request.questions
+        ) as traced:
+            reply = self.agent.jev.ask(request)
+            traced.result(jev_reply_outputs(reply.body))
         self.rows["SIM.JEV_REQUESTS"].append(
             records.jev_request_row(
                 sim_id, self.step, self.asset, self.reading, request, reply, purpose
@@ -399,10 +408,14 @@ class _DecisionAtStep(_AssetAtStep):
         if screen.noul("screen") < self.reading.risk.screen_cut_off:
             self._store_decision(None, screen)
             return
-        evaluation = self._pick(account)
-        action = ACTION_NOTHING
-        if evaluation.pick != NO_TRADE:
-            action = self._size_and_order(account, evaluation)
+        with self.agent.tracing.full_evaluation(
+            self.agent.sim_id, self.step, self.asset
+        ) as traced:
+            evaluation = self._pick(account)
+            action = ACTION_NOTHING
+            if evaluation.pick != NO_TRADE:
+                action = self._size_and_order(account, evaluation)
+            traced.result({"pick": evaluation.pick, "action": action})
         self._store_decision(None, screen, evaluation, action)
 
     def _pick(self, account: AccountView) -> Evaluation:

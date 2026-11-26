@@ -86,6 +86,7 @@ from jev_trader.sim.store import (
     StopReason,
     now,
 )
+from jev_trader.sim.tracing import Tracing
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -336,6 +337,7 @@ def run_sim(
     jev: JevClient | None = None,
     lookups_at: Callable[[LookupContext], MemoryLookups] | None = None,
     selector: Selector | None = None,
+    tracing: Tracing | None = None,
 ) -> SimResult:
     """Run the sim from its first step, or resume it after its last completed step.
 
@@ -343,7 +345,8 @@ def run_sim(
     to Jev that still fails after its retries stops the sim and raises `JevFailed`. The agent
     with memory also needs memory's lookups (`lookups_at`) and the LLM's selection step
     (`selector`; by default the stand-in, which selects none); an LLM that cannot be used stops
-    the sim and raises `LlmFailed`.
+    the sim and raises `LlmFailed`. `tracing` sends a sample of full evaluations to LangSmith; by
+    default the sim kind's sample, and only when the environment switches LangSmith on.
     """
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
@@ -373,6 +376,8 @@ def run_sim(
             "it needs a higher cap to carry on"
         )
     strategy = BuyHold(first_step, sim["STARTING_VALUE"])
+    if tracing is None:
+        tracing = Tracing.for_kind(sim["KIND"]) if is_agent else Tracing()
     if is_agent:
         reading = Reading(costs, risk)
         if reading.version != settings["reading_version"]:
@@ -407,9 +412,10 @@ def run_sim(
                 *agent_arguments,
                 lookups_at=lookups_at,
                 selector=selector or StandInSelector(),
+                tracing=tracing,
             )
         else:
-            strategy = AgentWithoutMemory(*agent_arguments)
+            strategy = AgentWithoutMemory(*agent_arguments, tracing=tracing)
 
     last_completed = sim["LAST_COMPLETED_STEP"]
     if last_completed is None:
@@ -465,16 +471,17 @@ def run_sim(
             | ({last_step} if start <= last_step else set())
         )
         for step in steps:
-            _run_step(
-                sim_id,
-                step,
-                previous,
-                last_step,
-                broker,
-                strategy,
-                bars_by_step.get(step, {}),
-                batch,
-            )
+            with tracing.off():  # only a full evaluation opens a trace
+                _run_step(
+                    sim_id,
+                    step,
+                    previous,
+                    last_step,
+                    broker,
+                    strategy,
+                    bars_by_step.get(step, {}),
+                    batch,
+                )
             previous = step
             if batch.steps >= steps_per_write or step == last_step:
                 spent += sum(r["COST_USD"] for r in batch.rows["SIM.CALLS"])
