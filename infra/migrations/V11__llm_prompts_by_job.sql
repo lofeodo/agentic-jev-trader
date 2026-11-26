@@ -8,14 +8,11 @@
 --   (name, description, inputs).
 --
 -- Rows stored before this held only the full evaluation's: SYSTEM_PROMPT as plain text and TOOLS
--- as a list. This rewrites them to the same shape, under 'full_evaluation' alone, so every row
--- reads one way. A row already by job has TOOLS as an object and is left as it is.
-UPDATE SIM.LLM_PROMPTS
-SET
-    SYSTEM_PROMPT = TO_JSON(OBJECT_CONSTRUCT('full_evaluation', SYSTEM_PROMPT)),
-    TOOLS = OBJECT_CONSTRUCT('full_evaluation', TOOLS)
-WHERE IS_ARRAY(TOOLS);
-
+-- as a list. The UPDATE below rewrites them to the same shape, under 'full_evaluation' alone (so
+-- reading 'position_review' on them gives NULL: those prompt versions had no second job). A row
+-- already by job has TOOLS as an object and is left as it is, so running this twice changes
+-- nothing.
+--
 -- Notes that V9 and V10 wrote for full evaluations only, now that a position review with memory
 -- asks the LLM too:
 --
@@ -26,4 +23,10 @@ WHERE IS_ARRAY(TOOLS);
 -- MEMORY.DECISIONS.MEMORIES_RELEVANT: also asked in a position review when at least one past
 --   episode is shown.
 -- SIM.LLM_EXCHANGES: one row per full evaluation or position review in which the LLM was asked;
---   ID is that decision's ID.
+--   ID is that decision's ID. Its MESSAGES follow the standing instructions of that decision's
+--   job, the same for every decision of that job under one PROMPT_VERSION.
+UPDATE SIM.LLM_PROMPTS
+SET
+    SYSTEM_PROMPT = TO_JSON(OBJECT_CONSTRUCT('full_evaluation', SYSTEM_PROMPT)),
+    TOOLS = OBJECT_CONSTRUCT('full_evaluation', TOOLS)
+WHERE IS_ARRAY(TOOLS);
