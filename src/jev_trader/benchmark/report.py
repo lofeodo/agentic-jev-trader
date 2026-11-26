@@ -290,7 +290,8 @@ def render(shown: Figures) -> str:
             f"{LIMITS.seconds:.0f}-second limit reached, "
             "or a call still failing after 3 retries. A model whose attempts go wrong more than "
             f"{LEFT_OUT_PER_100} "
-            "times in 100 (more than 15 of its 150, both jobs together) sits out the measurement "
+            "times in 100 (both jobs together, out of the attempts made: more than 15 of a full "
+            "run's 150) sits out the measurement "
             "sims."
         ),
         "",
