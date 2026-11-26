@@ -587,8 +587,7 @@ def run_step(
     bars: dict[str, Bar],
     batch: StepBatch,
 ) -> None:
-    """One step, worked out in memory: its records go into `batch`. `run_sim` runs each step
-    through it; the recorded-answer tests run one scenario's step through it alone."""
+    """One step, worked out in memory: its records go into `batch`."""
     waiting_before = {o.order_id for o in broker.waiting_orders}
     fills_before = len(broker.fills)
     cancelled_before = len(broker.cancelled_orders)

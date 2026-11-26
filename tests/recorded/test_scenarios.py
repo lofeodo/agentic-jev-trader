@@ -4,7 +4,7 @@ the records stored with its saved expected result, in `__snapshots__/test_scenar
 
 Rewrite the expected results after a deliberate change, then read the difference:
 
-    python -m pytest tests/recorded --snapshot-update
+    conda run -n agentic-jev-trader python -m pytest tests/recorded --block-network --snapshot-update
 
 The frame is in `scenarios.py`. Only one trivial scenario is here so far, which asks no model:
 the real scenarios come with the slice's units.

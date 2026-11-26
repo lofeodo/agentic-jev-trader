@@ -116,9 +116,6 @@ class _NoMemoryServerYet:
     """Memory's lookups, until the real memory server over the in-memory stand-in is wired
     in (#168)."""
 
-    def __init__(self, memory: tuple[Episode, ...]):
-        self.memory = memory
-
     def search(self, **filters: str) -> SearchResult:
         raise NotImplementedError("memory's lookups come with ticket #168")
 
@@ -148,10 +145,8 @@ class _NotedLookups:
         return self.lookups.track_record(pattern, direction)
 
 
-def _noted(
-    memory: tuple[Episode, ...], asked: list[tuple]
-) -> Callable[[LookupContext], MemoryLookups]:
-    source = _NoMemoryServerYet(memory)
+def _noted(asked: list[tuple]) -> Callable[[LookupContext], MemoryLookups]:
+    source = _NoMemoryServerYet()
     return lambda context: _NotedLookups(source, asked)
 
 
@@ -217,15 +212,24 @@ def run_scenario(scenario: Scenario) -> ScenarioResult:
         if inputs.with_memory:
             agent = AgentWithMemory(
                 *arguments,
-                lookups_at=_noted(inputs.memory, asked),
+                lookups_at=_noted(asked),
                 selector=LlmSelector(load_llm_settings()),
                 tracing=Tracing(),
             )
         else:
             agent = AgentWithoutMemory(*arguments, tracing=Tracing())
         batch = StepBatch()
+        # The step before is the step itself: no midnight passes, so no night is charged.
+        previous = step
         run_step(
-            SIM, step, step, last_step, broker, agent, {ASSET: inputs.bars[-1]}, batch
+            SIM,
+            step,
+            previous,
+            last_step,
+            broker,
+            agent,
+            {ASSET: inputs.bars[-1]},
+            batch,
         )
     tables = batch.tables()
     orders = tables.pop("SIM.ORDERS")
