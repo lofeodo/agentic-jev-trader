@@ -18,6 +18,7 @@ from jev_trader.memory import render
 from jev_trader.memory.bridge import LOOKUP_TOOLS
 from jev_trader.memory.episodes import Episode
 from jev_trader.memory.lookups import Episodes, Found, SearchResult
+from jev_trader.memory.search import FULL_EVALUATION, POSITION_REVIEW
 from jev_trader.memory.track_record import TrackRecord
 from jev_trader.sim.runner import run_sim, settings_document
 from jev_trader.sim.store import InMemorySimStore
@@ -209,10 +210,12 @@ def test_the_standing_instructions_and_tools_are_stored_once_per_prompt_version(
 
     run_sim(store, market, sim_id, jev=jev, lookups_at=lookups_at)
 
-    [(version, (system_prompt, tools))] = store.prompts.items()
+    [(version, (system_prompts, tools))] = store.prompts.items()
     assert version == prompt_version()
-    assert system_prompt == LlmWording().system_prompt()
-    assert [t["name"] for t in tools] == [*LOOKUP_TOOLS, ANSWER_TOOL]
+    jobs = (FULL_EVALUATION, POSITION_REVIEW)
+    assert system_prompts == {job: LlmWording().system_prompt(job) for job in jobs}
+    for job in jobs:
+        assert [t["name"] for t in tools[job]] == [*LOOKUP_TOOLS, ANSWER_TOOL]
 
 
 def test_a_changed_word_in_how_an_episode_is_written_changes_the_prompt_version():

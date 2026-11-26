@@ -234,7 +234,7 @@ A reply from the LLM from which code can neither run a lookup nor take an answer
 _Avoid_: Invalid output, malformed answer
 
 **Prompt version**:
-The name of one exact wording of everything the LLM is sent that is not data: its standing instructions, its tool descriptions, and the layout of each message. Every sim and every full evaluation records the one it used.
+The name of one exact wording of everything the LLM is sent that is not data: its standing instructions, its tool descriptions, and the layout of each message, for both of its jobs (full evaluations and position reviews). Every sim, every full evaluation and every position review records the one it used.
 _Avoid_: Prompt revision, prompt ID
 
 **Transcript**:

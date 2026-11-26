@@ -143,9 +143,14 @@ class SimStore(Protocol):
     def save_reading(self, version: str, opening: str) -> None:
         """Store the opening of Jev's background, once per reading version."""
 
-    def save_prompt(self, version: str, system_prompt: str, tools: list[dict]) -> None:
-        """Store the LLM's standing instructions and the tools it is offered, once per prompt
-        version."""
+    def save_prompt(
+        self,
+        version: str,
+        system_prompts: dict[str, str],
+        tools: dict[str, list[dict]],
+    ) -> None:
+        """Store the LLM's standing instructions and the tools it is offered, each by job (a
+        full evaluation, a position review), once per prompt version."""
 
     def spent(self, sim_id: int) -> float:
         """The dollars of the sim's recorded paid calls."""
@@ -193,7 +198,7 @@ class InMemorySimStore:
         self.sims: dict[int, dict] = {}
         self.tables: dict[str, list[dict]] = defaultdict(list)
         self.readings: dict[str, str] = {}
-        self.prompts: dict[str, tuple[str, list[dict]]] = {}
+        self.prompts: dict[str, tuple[dict[str, str], dict[str, list[dict]]]] = {}
         self._kill_in: int | None = None
 
     def kill_on_write(self, n: int) -> None:
@@ -309,8 +314,13 @@ class InMemorySimStore:
     def save_reading(self, version: str, opening: str) -> None:
         self.readings.setdefault(version, opening)
 
-    def save_prompt(self, version: str, system_prompt: str, tools: list[dict]) -> None:
-        self.prompts.setdefault(version, (system_prompt, tools))
+    def save_prompt(
+        self,
+        version: str,
+        system_prompts: dict[str, str],
+        tools: dict[str, list[dict]],
+    ) -> None:
+        self.prompts.setdefault(version, (system_prompts, tools))
 
     def spent(self, sim_id: int) -> float:
         return sum(r["COST_USD"] or 0.0 for r in self.rows("SIM.CALLS", sim_id))

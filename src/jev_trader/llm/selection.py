@@ -259,16 +259,18 @@ def wording_within(limits: SelectionLimits) -> LlmWording:
 
 def standing_part(
     limits: SelectionLimits, patterns: list[str]
-) -> tuple[str, str, list[dict]]:
-    """What every full evaluation's exchange opens with, the same for one prompt version: the
-    version, the standing instructions, and the four tools as the first call offers them
-    (`patterns`: every candle pattern name in the playbook). Stored once per version.
-
-    EMPTY SLOT (#178): only the first job's part is stored; the second job's standing
-    instructions and tools join it when its words move into `prompts/`."""
+) -> tuple[str, dict[Job, str], dict[Job, list[dict]]]:
+    """What every exchange of one prompt version opens with, the same for every full
+    evaluation and every position review of it: the version, then by job its standing
+    instructions and its four tools as the first call offers them (`patterns`: every candle
+    pattern name in the playbook). Stored once per version."""
     wording = wording_within(limits)
-    offered = [*definitions(FULL_EVALUATION, patterns), wording.answer_tool()]
-    return wording.version, wording.system_prompt(), [_tool(d) for d in offered]
+    jobs = (FULL_EVALUATION, POSITION_REVIEW)
+    tools = {
+        job: [_tool(d) for d in (*definitions(job, patterns), wording.answer_tool())]
+        for job in jobs
+    }
+    return wording.version, {job: wording.system_prompt(job) for job in jobs}, tools
 
 
 class LlmSelector:
@@ -536,7 +538,10 @@ class _Evaluation:
             summaries = self._summaries(result.episodes, from_first_search=False)
             named = [p for f in result.episodes for p in f.episode.patterns]
             text = self.wording.search_result(
-                Filters(**args), summaries, self._pattern_notes(named)
+                Filters(**args),
+                summaries,
+                self._pattern_notes(named),
+                self.situation.job,
             )
             return text, tuple(f.episode.id for f in result.episodes)
         if name == READ:

@@ -150,18 +150,24 @@ def test_a_screens_records_are_written_and_its_cost_is_summed(
 def test_the_llms_standing_instructions_are_stored_once_per_prompt_version(sim_login):
     """Needs `infra/migrations/V10__llm_prompts_and_fit_question.sql` applied."""
     store = SnowflakeSimStore(sim_login)
-    version, system_prompt, tools = standing_part(SelectionLimits(), ["hammer"])
+    version, system_prompts, tools = standing_part(SelectionLimits(), ["hammer"])
 
-    store.save_prompt(version, system_prompt, tools)
-    store.save_prompt(version, system_prompt, tools)  # stored once
+    store.save_prompt(version, system_prompts, tools)
+    store.save_prompt(version, system_prompts, tools)  # stored once
 
     with sim_login.cursor() as cur:
         cur.execute(
-            "SELECT COUNT(*), MIN(SYSTEM_PROMPT), MIN(TOOLS[3]:name::VARCHAR) "
+            "SELECT COUNT(*), "
+            "MIN(PARSE_JSON(SYSTEM_PROMPT):position_review::VARCHAR), "
+            "MIN(TOOLS:full_evaluation[3]:name::VARCHAR) "
             "FROM SIM.LLM_PROMPTS WHERE PROMPT_VERSION = ?",
             (version,),
         )
-        assert cur.fetchone() == (1, system_prompt, "select_episodes")
+        assert cur.fetchone() == (
+            1,
+            system_prompts["position_review"],
+            "select_episodes",
+        )
 
 
 def test_a_full_evaluation_is_written_beside_a_screen_and_both_are_counted(

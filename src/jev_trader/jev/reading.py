@@ -808,12 +808,17 @@ class Reading:
         return "\n\n".join(s for s in sections if s)
 
     def _memory(
-        self, asset: AssetView, memory: MemorySections | None
+        self, asset: AssetView, memory: MemorySections | None, review: bool = False
     ) -> tuple[str, str]:
-        """The track record and past-episodes sections; both absent without memory."""
+        """The track record and past-episodes sections; both absent without memory. In a
+        position review (`review`) the past episodes are earlier reviews, and their heading
+        says so."""
         if memory is None:
             return ("", "")
-        return (self._track_record(memory), self._past_episodes(asset, memory))
+        return (
+            self._track_record(memory),
+            self._past_episodes(asset, memory, review),
+        )
 
     def _track_record(self, memory: MemorySections) -> str:
         w = self.wording
@@ -828,7 +833,9 @@ class Reading:
         )
         return "\n".join([w["track_record_heading"], *lines, footer])
 
-    def _past_episodes(self, asset: AssetView, memory: MemorySections) -> str:
+    def _past_episodes(
+        self, asset: AssetView, memory: MemorySections, review: bool
+    ) -> str:
         render = self._render
         w = self.wording
         if memory.past_episodes is PastEpisodes.NONE_YET:
@@ -847,7 +854,8 @@ class Reading:
             render.full_episode(e, w["episode_label"].format(number=n), reader)
             for n, e in enumerate(memory.newest_first, start=1)
         ]
-        heading = w["past_episodes_heading"].format(count=len(blocks))
+        key = "review_past_episodes_heading" if review else "past_episodes_heading"
+        heading = w[key].format(count=len(blocks))
         return "\n".join([heading, "\n\n".join(blocks)])
 
     def _trade_text(self, trade: CandidateTrade, price: float) -> str:
@@ -971,7 +979,7 @@ class Reading:
             self._open_positions(others, w["other_positions_heading"]),
             self._position(asset, position),
             self._asset(asset, held=True),
-            *self._memory(asset, memory),
+            *self._memory(asset, memory, review=True),
             self._pattern_notes(named, playbook),
         ]
         return "\n\n".join(s for s in sections if s)
