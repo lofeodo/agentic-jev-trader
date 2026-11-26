@@ -4,8 +4,7 @@ The page's own code writes the screen's, the full evaluation's, the position scr
 position review's text from its made-up story. This test runs that code with Node and compares
 it, word for word, with what our code writes from the same story. The full evaluation is compared
 with memory (tab 2, and the "nothing to show" cases A and B) and without (case C); the review
-without memory (tabs 4 and 5) and with it (tab 5's past reviews, the slice "position review with
-memory": its tests are dormant until the slice's closing ticket).
+without memory (tabs 4 and 5) and with it (tab 5's past reviews).
 """
 
 import json
@@ -518,7 +517,6 @@ def review_memory(story) -> MemorySections:
     return MemorySections(NOW, REVIEW_TRACK_RECORD, PastEpisodes.SELECTED, episodes)
 
 
-@pytest.mark.dormant
 def test_the_reviews_background_with_memory_is_the_pages_word_for_word(story):
     names = ["hold", "close", "reduce", "add"]
 
@@ -533,7 +531,6 @@ def test_the_reviews_background_with_memory_is_the_pages_word_for_word(story):
     }
 
 
-@pytest.mark.dormant
 def test_the_reduce_request_with_memory_is_the_pages_word_for_word(story):
     request = reading().reduce_request(
         *position_views(story), memory=review_memory(story)
