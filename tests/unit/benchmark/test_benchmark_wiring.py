@@ -5,7 +5,7 @@ and hands every attempt to the report. What each part does is tested with the sl
 
 import pytest
 
-from jev_trader.benchmark import NotBuilt, records, report, runner, spending
+from jev_trader.benchmark import NotBuilt, records, spending
 from jev_trader.benchmark import __main__ as command
 from jev_trader.benchmark.attempts import Attempt, Outcome
 from jev_trader.benchmark.made_up import made_up_moments
@@ -143,7 +143,6 @@ def test_the_real_command_says_what_is_not_built(capsys, tmp_path, monkeypatch):
         lambda: spending.SpendMeter(1.5).add(0.1),
         lambda: records.call_rows(None),
         lambda: records.SnowflakeAttemptLog(None).keep(None),
-        lambda: report.report(runner.BenchmarkRun(())),
     ],
 )
 def test_each_stub_says_it_is_not_built(stub):
