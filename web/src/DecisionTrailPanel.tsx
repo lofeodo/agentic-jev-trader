@@ -241,13 +241,13 @@ function OrderFigures({ order }: { order: Order | null }) {
         rows={[
           ["Placed", dollars(order.amount_placed_usd)],
           ["Slippage", dollarsAndCents(order.slippage_usd)],
-          ["Commission or fee", dollarsAndCents(order.commission_or_fee_usd)],
+          ["Commission or trading fee", dollarsAndCents(order.commission_or_fee_usd)],
           ["Costs in all", dollarsAndCents(order.slippage_usd + order.commission_or_fee_usd)],
         ]}
       />
       <p className="mb-4 text-[14px] text-dim">
         Slippage: the price filled a little worse than the last one shown. Buying $2,000 at 0.05% above it costs $1.
-        Commission or fee: what the broker (for a stock) or the exchange (for crypto) charges for the trade, such
+        Commission or trading fee: what the broker (for a stock) or the exchange (for crypto) charges for the trade, such
         as $1 a stock order whatever its size, or 0.1% of a $1,000 crypto order, $1.
       </p>
     </>

@@ -166,8 +166,10 @@ const ANSWERS: Record<string, string> = {
 
 function answerWords(s: PositionStep) {
   const words = s.answer ? (ANSWERS[s.answer] ?? s.answer) : "--";
-  // The amount is what was carried out after the limits, not the size Jev chose (the trail shows both).
-  return s.amount_usd === null ? words : `${words}; ${dollars(s.amount_usd)} after the limits`;
+  // The amount is the order carried out: for an add, after the limits, not the size Jev chose
+  // (the trail shows both).
+  if (s.amount_usd === null) return words;
+  return s.answer === "add" ? `${words}; ${dollars(s.amount_usd)} after the limits` : `${words}, ${dollars(s.amount_usd)}`;
 }
 
 // A review stands out in an outlined box with its answer and Jev's probabilities; a step where the
@@ -390,7 +392,7 @@ function AssetKey({ simId, decision }: { simId: number; decision: string }) {
   if (!trail || trail.key.length === 0) return null;
   return (
     <div className="mt-4">
-      <div className={`mb-1 ${label}`}>The key</div>
+      <div className={`mb-1 ${label}`}>The asset key</div>
       <ul className="flex flex-wrap gap-3 font-mono text-[13.5px] tracking-wider">
         {trail.key.map((k: TrailKey) => (
           <li key={k.masked_id}>
