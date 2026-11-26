@@ -20,13 +20,16 @@ What the tests read, and so what the report must hold (spec appendix 9, section 
   decides".
 - Each selection overlap on one line naming the job ("full evaluation" or "position review"),
   the model, and the other model or "itself", its average then its standard deviation as
-  percentages ("75%" or "75.0%"). The standard deviation is the plain one over every pair
-  (`statistics.pstdev`), and both are compared rounded to a whole percent.
-- An early stop names the cap, "$1.50", in the report and on the command's output.
+  percentages ("75%" or "75.0%"). The standard deviation says how far the pairs typically sit
+  from the average: pairs of 50% and 100% average 75%, each 25 points away, so it is 25%; it is
+  the plain one over every pair (`statistics.pstdev`, not the sample one), and both are
+  compared rounded to a whole percent.
+- An early stop names the cap, "$1.50", in the report and on the command's output. The meter
+  adds whole cents (or allows a hair of rounding): in a computer, fourteen $0.10 attempts add up
+  to a hair over $1.40, and the made-up run must still let the fifteenth through to $1.50.
 """
 
 import re
-import statistics
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -401,7 +404,7 @@ def going_wrong_at(wrong: dict[int, str]) -> Plan:
     return plan
 
 
-KINDS = list(WRONG)
+SENTENCE, THREE_SENTENCES, TIME_LIMIT, RETRIES = WRONG
 
 
 def test_more_than_10_in_100_attempts_leaves_a_model_out(tmp_path):
@@ -413,8 +416,10 @@ def test_more_than_10_in_100_attempts_leaves_a_model_out(tmp_path):
         tmp_path,
         moments(full=5, reviews=5),
         {
-            HAIKU: going_wrong_at({1: KINDS[0], 2: KINDS[2], 3: KINDS[3]}),
-            GLM: going_wrong_at({1: KINDS[0], 2: KINDS[1], 6: KINDS[2], 7: KINDS[3]}),
+            HAIKU: going_wrong_at({1: SENTENCE, 2: TIME_LIMIT, 3: RETRIES}),
+            GLM: going_wrong_at(
+                {1: SENTENCE, 2: THREE_SENTENCES, 6: TIME_LIMIT, 7: RETRIES}
+            ),
         },
     )
 
@@ -430,7 +435,7 @@ def test_more_than_10_in_100_attempts_leaves_a_model_out(tmp_path):
 
 
 def test_when_both_models_are_left_out_the_developer_decides(tmp_path):
-    four_wrong = {1: KINDS[0], 2: KINDS[1], 6: KINDS[2], 7: KINDS[3]}
+    four_wrong = {1: SENTENCE, 2: THREE_SENTENCES, 6: TIME_LIMIT, 7: RETRIES}
     bench = Bench(
         tmp_path,
         moments(full=5, reviews=5),
@@ -489,7 +494,8 @@ def test_selection_overlap_between_the_models_for_each_job(tmp_path):
 def test_selection_overlap_of_a_model_with_itself_across_its_passes(tmp_path):
     # GLM alone. Moment 1: B, C, D at every pass, so its three pairs of passes are 100%.
     # Moment 2: A, then A, then A, B, C and D: the pairs are 100%, 25% and 25%. Over the six
-    # pairs of the full evaluations: average 75%, standard deviation about 35%.
+    # pairs of the full evaluations: average 75%; the pairs sit 25 or 50 points from it, a standard
+    # deviation of about 35%.
     wobble = {1: "A", 2: "A", 3: "ABCD"}
 
     def plan(number, attempt):
@@ -500,8 +506,6 @@ def test_selection_overlap_of_a_model_with_itself_across_its_passes(tmp_path):
 
     assert bench.run() == 0
 
-    pairs = [100, 100, 100, 100, 25, 25]
-    assert round(statistics.pstdev(pairs)) == 35
     assert overlap(bench.page, FULL, GLM, "itself") == (75, 35)
     assert overlap(bench.page, REVIEW, GLM, "itself") == (100, 0)
     assert HAIKU not in bench.page
@@ -525,11 +529,11 @@ def test_a_model_whose_cost_climbs_past_the_cap_makes_the_tool_stop_itself(
     # Haiku alone on four full evaluations, three passes: 12 attempts if nothing stops it. Its
     # k-th attempt reads 500,000 tokens k times over, at $0.10 a million: $0.05 times k. The
     # total climbs $0.05, $0.15, $0.30, $0.50, $0.75, $1.05, $1.40, $1.80, ...
-    made = []
+    attempts_so_far = []
 
     def plan(number, attempt):
-        made.append(number)
-        return [answers("A", tokens_in=500_000 * len(made))]
+        attempts_so_far.append(number)
+        return [answers("A", tokens_in=500_000 * len(attempts_so_far))]
 
     bench = Bench(tmp_path, moments(full=4, reviews=0), {HAIKU: plan})
 
