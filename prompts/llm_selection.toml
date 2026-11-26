@@ -55,6 +55,9 @@ Asset: {asset} ({asset_class})
 # The {episodes} most like it, closest first
 {columns}
 {summaries}'''
+# A past full evaluation's one line, in the first message and in any search: its layout is in
+# prompts/episodes.toml
+summary_columns = 'ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | what was decided | how it ended'
 
 # The second job: selecting past position reviews for a position review
 [position_review]
@@ -119,8 +122,6 @@ summary_columns = 'ID | how long ago | asset | part of the day, long-term trend,
 # The messages that hold episodes, in both jobs
 [messages]
 episodes = ['{n} past episode', '{n} past episodes']
-# A past full evaluation's one line; a past review's has its own columns ([position_review])
-summary_columns = 'ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | what was decided | how it ended'
 # Added below any message that names a candle pattern not yet explained in this evaluation
 pattern_notes_heading = '# Candle patterns named above'
 pattern_note = '{name}: {lean}. {shape}'
