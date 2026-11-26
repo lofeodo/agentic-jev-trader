@@ -108,7 +108,7 @@ export function TradeChart({ page, onOpenTrail }: { page: TradePage; onOpenTrail
         {stop !== null && (
           <g>
             <line className="stroke-pale" x1={x(opened)} x2={x(closed)} y1={y(stop)} y2={y(stop)} strokeDasharray="8 5" strokeWidth={1.4} />
-            <text className="chart-label fill-pale" x={(x(opened) + x(closed)) / 2} y={y(stop) - 8} textAnchor="middle">
+            <text className="chart-label fill-pale" x={x(opened) - 10} y={y(stop) + 5} textAnchor="end">
               stop price
             </text>
           </g>

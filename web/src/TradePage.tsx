@@ -12,21 +12,29 @@ import {
   type TradePage as TradePageAnswer,
 } from "./api/client";
 import { DecisionTrailPanel } from "./DecisionTrailPanel";
-import { AssetTag, DirectionWords, ErrorBox, Pair, PriceTag, SectionHeading, type OpenTrail } from "./pieces";
-import { ENDINGS, limitWords } from "./SimReport";
+import {
+  AssetTag,
+  DirectionWords,
+  ENDINGS,
+  ErrorBox,
+  Pair,
+  PriceTag,
+  SectionHeading,
+  fieldLabel as label,
+  limitWords,
+  type OpenTrail,
+  when,
+} from "./pieces";
 import { TradeChart } from "./TradeChart";
 import { useRead } from "./useRead";
-import { dayAndTime, dollars, dollarsAndCents, fromApi, signedDollars, units } from "./format";
+import { dollars, dollarsAndCents, signedDollars, units } from "./format";
 
 type PositionStep = TradePageAnswer["position_steps"][number];
 type MemoryRead = TradePageAnswer["entry_memory"];
 type TrailKey = DecisionTrail["key"][number];
 
 const note = "font-mono text-[12.5px] tracking-wider text-dim";
-const label = "font-mono text-[13.5px] tracking-wider text-dim";
 
-const when = (at: string | null, step: number | null) =>
-  at ? dayAndTime(fromApi(at)) : step === null ? "--" : `step ${step}`;
 const share = (value: number) => `${Math.round(value * 100)}%`;
 
 export function TradePage({ simId, trade }: { simId: number; trade: number }) {
@@ -73,11 +81,12 @@ function TradeBody({ simId, page, onOpenTrail }: { simId: number; page: TradePag
         )}
       </div>
 
-      <SectionHeading number={1} title="The price around the trade" says="15-minute closes, 8 hours either side" />
+      <SectionHeading number={1} title="The price around the trade" says="Closing price of each 15-minute bar, 32 bars either side" />
       <TradeChart page={page} onOpenTrail={onOpenTrail} />
       <p className={`mt-2 ${note}`}>
-        Square: the entry (where the trade opened). Dot: the close. Dashed: the stop price, where code
-        would close the trade at a loss. Shaded: while the trade was open. Ticks along the bottom: tall
+        Square: the entry (where the trade opened). Dot: where the trade closed. Dashed: the stop price,
+        where code closes the trade at a loss: long at $100 with a stop price of $97, code sells
+        once the price falls to $97, losing about $3 a share. Shaded: while the trade was open. Ticks along the bottom: tall
         for a position review, short for a step where the position screen said no. Prices: the real one;
         the one the agent saw follows in brackets in the readout.
       </p>
@@ -110,7 +119,7 @@ function TradeBody({ simId, page, onOpenTrail }: { simId: number; page: TradePag
   );
 }
 
-function Row({ name, children }: { name: string; children: ReactNode }) {
+function OrderRow({ name, children }: { name: string; children: ReactNode }) {
   return (
     <div className="contents">
       <dt className="text-dim">{name}</dt>
@@ -125,22 +134,23 @@ function Order({ page }: { page: TradePageAnswer }) {
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,560px)_1fr]">
       <dl className="grid grid-cols-[1fr_auto] gap-x-[2ch] gap-y-1 font-mono text-[15px]">
-        <Row name="Size Jev chose">{o.amount_chosen_usd === null ? "--" : dollars(o.amount_chosen_usd)}</Row>
-        <Row name="Size placed">{dollars(o.amount_placed_usd)}</Row>
-        <Row name="Trimmed by">{o.limited_by ? limitWords(o.limited_by) : "no limit: placed as chosen"}</Row>
-        <Row name="Units">{t.units === null ? "--" : units(t.units)}</Row>
-        <Row name="Entry price">{t.entry_price ? <PriceTag price={t.entry_price} /> : "--"}</Row>
-        <Row name="Stop price">{page.stop_price ? <PriceTag price={page.stop_price} /> : "none"}</Row>
-        <Row name="Exit price">{t.exit_price ? <PriceTag price={t.exit_price} /> : "still open"}</Row>
-        <Row name="Slippage">{dollarsAndCents(o.slippage_usd)}</Row>
-        <Row name="Commission or fee">{dollarsAndCents(o.commission_or_fee_usd)}</Row>
-        <Row name="All trading costs">{t.trading_costs_usd === null ? "--" : dollarsAndCents(t.trading_costs_usd)}</Row>
+        <OrderRow name="Size Jev chose">{o.amount_chosen_usd === null ? "--" : dollars(o.amount_chosen_usd)}</OrderRow>
+        <OrderRow name="Size placed">{dollars(o.amount_placed_usd)}</OrderRow>
+        <OrderRow name="Trimmed by">{o.limited_by ? limitWords(o.limited_by) : "no limit: placed as chosen"}</OrderRow>
+        <OrderRow name="Units">{t.units === null ? "--" : units(t.units)}</OrderRow>
+        <OrderRow name="Entry price">{t.entry_price ? <PriceTag price={t.entry_price} /> : "--"}</OrderRow>
+        <OrderRow name="Stop price">{page.stop_price ? <PriceTag price={page.stop_price} /> : "none"}</OrderRow>
+        <OrderRow name="Exit price">{t.exit_price ? <PriceTag price={t.exit_price} /> : "still open"}</OrderRow>
+        <OrderRow name="Slippage">{dollarsAndCents(o.slippage_usd)}</OrderRow>
+        <OrderRow name="Commission or trading fee">{dollarsAndCents(o.commission_or_fee_usd)}</OrderRow>
+        <OrderRow name="All trading costs">{t.trading_costs_usd === null ? "--" : dollarsAndCents(t.trading_costs_usd)}</OrderRow>
       </dl>
       <p className="text-[14px] text-dim">
         Jev names a size; code then trims it to fit the risk limits (caps on the account that code
-        enforces). Jev chose $2,000, the trade risk limit allowed $1,000: $1,000 is placed. Slippage:
+        enforces). If Jev chose $3,000 and a limit allowed $1,500, $1,500 is placed. Slippage:
         the order filled a little worse than the bar's price, such as buying at $100.05 when the bar
-        said $100.00. Commission or fee: what the broker charged for the order. The costs above are
+        said $100.00. Commission (stocks): a flat charge per order, such as $1. Trading fee (crypto): a
+        share of the order's value, such as 0.1% of $1,000, $1. The costs above are
         the entry order's; all trading costs adds every order of the trade and its nightly charges.
       </p>
     </div>
@@ -255,8 +265,9 @@ function NightlyCharges({ page }: { page: TradePageAnswer }) {
       )}
       <p className={`mt-2 ${note}`}>
         Borrow fee: a short (a bet the price falls) sells shares borrowed from the broker, who charges
-        a little for each night they are kept, such as 40 cents a night on $1,000. Loan interest: what
-        the account pays for money it borrowed to buy beyond its own cash.
+        a little for each day they are kept: at 10% a year, a $2,000 short pays about 55 cents a day.
+        Loan interest: what the account pays for money it borrowed to buy beyond its own cash: at 5%
+        a year, a $10,000 loan costs about $1.37 a day.
       </p>
     </>
   );
@@ -307,7 +318,7 @@ function Memory({ simId, page, onOpenTrail }: { simId: number; page: TradePageAn
         are word for word as Jev read them: assets by their masked IDs (disguised labels, so Jev
         cannot recall an asset's real history) and prices rescaled.
       </p>
-      {page.trade.decision && <Key simId={simId} decision={page.trade.decision} />}
+      {page.trade.decision && <AssetKey simId={simId} decision={page.trade.decision} />}
     </>
   );
 }
@@ -370,7 +381,9 @@ function MemoryBody({ memory }: { memory: MemoryRead }) {
   );
 }
 
-function Key({ simId, decision }: { simId: number; decision: string }) {
+const scale = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 4 });
+
+function AssetKey({ simId, decision }: { simId: number; decision: string }) {
   const read = useCallback(() => fetchTrail(simId, decision), [simId, decision]);
   const { data: trail } = useRead(read);
   if (!trail || trail.key.length === 0) return null;
@@ -380,7 +393,7 @@ function Key({ simId, decision }: { simId: number; decision: string }) {
       <ul className="flex flex-wrap gap-3 font-mono text-[13.5px] tracking-wider">
         {trail.key.map((k: TrailKey) => (
           <li key={k.masked_id}>
-            <Pair name={k.masked_id} value={`${k.name} (${k.ticker}), real price = shown / ${k.price_scale}`} />
+            <Pair name={k.masked_id} value={`${k.name} (${k.ticker}), real price = shown / ${scale.format(k.price_scale)}`} />
           </li>
         ))}
       </ul>
