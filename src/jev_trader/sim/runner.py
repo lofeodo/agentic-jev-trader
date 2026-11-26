@@ -20,6 +20,8 @@ write that marks it running (spec appendix 6, section 6). Then:
    default; the holding sim, which calls nothing paid, stores many at once.
 4. At the end the duplicate IDs are counted. None: the sim is finished. Any: it is failed.
 
+Each step reports its timing line, and the run the average of its steps (`timing.py`).
+
 A sim killed mid-step stored nothing of that step. Run again, it brings back its account as it
 stood after its last completed step (ADR 0013) and carries on from the next one, so it ends with
 the same records as a sim that never stopped.
@@ -87,6 +89,7 @@ from jev_trader.sim.store import (
     StopReason,
     now,
 )
+from jev_trader.sim.timing import StepTime, StepTimer, average
 from jev_trader.sim.tracing import Tracing
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -344,6 +347,7 @@ def run_sim(
     lookups_at: Callable[[LookupContext], MemoryLookups] | None = None,
     selector: Selector | None = None,
     tracing: Tracing | None = None,
+    timer: StepTimer | None = None,
 ) -> SimResult:
     """Run the sim from its first step, or resume it after its last completed step.
 
@@ -353,7 +357,21 @@ def run_sim(
     (`selector`; by default the stand-in, which selects none); an LLM that cannot be used stops
     the sim and raises `LlmFailed`. `tracing` sends a sample of full evaluations to LangSmith; by
     default the sim kind's sample, and only when the environment switches LangSmith on.
+    `timer` times each step's calls to the database, Jev, the LLM and memory (`timing.py`).
     """
+    timer = timer or StepTimer()
+    store = timer.timed(store, "database")
+    market = timer.timed(market, "database")
+    if jev is not None:
+        jev = timer.timed(jev, "jev")
+    if selector is not None:
+        selector = timer.timed(selector, "llm")
+    if lookups_at is not None:
+        untimed_lookups_at = lookups_at
+
+        def lookups_at(context: LookupContext) -> MemoryLookups:
+            return timer.timed(untimed_lookups_at(context), "memory")
+
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
         raise ValueError(f"sim {sim_id} is finished: code writes nothing more to it")
@@ -466,6 +484,7 @@ def run_sim(
             )
         )
     steps_stored = 0
+    times: list[StepTime] = []
 
     try:
         bars_by_step = (
@@ -477,6 +496,8 @@ def run_sim(
             | ({last_step} if start <= last_step else set())
         )
         for step in steps:
+            timer.start()
+            cap_reached = False
             with tracing.off():  # only a full evaluation opens a trace
                 run_step(
                     sim_id,
@@ -516,15 +537,18 @@ def run_sim(
                 last_completed, steps_stored = step, steps_stored + batch.steps
                 batch = StepBatch()
                 report(f"Stored up to step {step} of {last_step}.")
-                if cap_reached:
-                    store.update(
-                        sim_id,
-                        STATUS=str(SimStatus.STOPPED),
-                        STOP_REASON=str(StopReason.SPENDING_CAP),
-                        STOPPED_BY_CAP=True,
-                        ENDED_AT=now(),
-                    )
-                    return SimResult(sim_id, broker.account_value(), steps_stored, True)
+            times.append(timer.finish(step))
+            report(times[-1].line())
+            if cap_reached:
+                report(average(times))
+                store.update(
+                    sim_id,
+                    STATUS=str(SimStatus.STOPPED),
+                    STOP_REASON=str(StopReason.SPENDING_CAP),
+                    STOPPED_BY_CAP=True,
+                    ENDED_AT=now(),
+                )
+                return SimResult(sim_id, broker.account_value(), steps_stored, True)
     except StepAlreadyWritten:
         raise  # another copy is running it: leave its row alone
     except (JevFailed, LlmFailed) as error:
@@ -558,6 +582,8 @@ def run_sim(
         )
         raise
 
+    if times:
+        report(average(times))
     duplicates = store.duplicate_ids(sim_id)
     if duplicates:
         found = ", ".join(f"{n} in {table}" for table, n in sorted(duplicates.items()))
