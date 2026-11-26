@@ -3,8 +3,9 @@
 The page's own code writes the screen's, the full evaluation's, the position screen's and the
 position review's text from its made-up story. This test runs that code with Node and compares
 it, word for word, with what our code writes from the same story. The full evaluation is compared
-with memory (tab 2, and the "nothing to show" cases A and B) and without (case C); the review as
-the agent without memory sends it, since position reviews with memory are not built yet.
+with memory (tab 2, and the "nothing to show" cases A and B) and without (case C); the review
+without memory (tabs 4 and 5) and with it (tab 5's past reviews, the slice "position review with
+memory": its tests are dormant until the slice's closing ticket).
 """
 
 import json
@@ -30,6 +31,7 @@ from jev_trader.jev.reading import (
 from jev_trader.memory.episodes import Ended, Episode, Prices, Trade
 from jev_trader.memory.track_record import Group, TrackRecord
 from jev_trader.risk import load_risk_profile
+from tests.unit.llm.test_llm_walkthrough_page import past_review
 
 PAGE = Path(__file__).parents[3] / "docs" / "jev-reading-walkthrough.html"
 PRINT_THE_STORY = """
@@ -72,6 +74,10 @@ console.log(JSON.stringify({
   addOptions: (() => { const facts = positionFacts(POSITION, ASSET_LATER);
     return sizeOptions(ACCOUNT_LATER, POSITION, { stopShare: facts.stopDistance, riskUsed: facts.riskUsed, held: facts.worth }); })(),
   endOfSession: positionSection({ ...POSITION, barsAgo: 22, since: ["bars 1 to 21 hold"] }, ASSET_LATER, true),
+  reviews: REVIEW_MEMORY.episodes,
+  reviewWithMemory: positionReviewBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION, REVIEW_MEMORY),
+  reduceWithMemory: positionReviewBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION, REVIEW_MEMORY,
+    "Reduce: close part of the position and keep the rest."),
 }));
 """
 
@@ -484,3 +490,53 @@ def test_an_end_of_session_review_adds_the_pages_one_line(story):
         asset, account, playbook, position, [["hold", "close", "reduce", "add"]] * 5
     )
     assert story["endOfSession"] in request.background
+
+
+# The position review with memory (tab 5: the four past reviews tab 6 of the LLM walkthrough
+# selected, and the track record for the patterns of this moment)
+
+REVIEW_TRACK_RECORD = tracks(
+    ("spinning top", "long", fits(31, 14, 27, -19, 55, trend="with the trend"), 31),
+    (
+        "spinning top",
+        "short",
+        fits(12, 4, 22, -21, -80, trend="against the trend"),
+        12,
+    ),
+    (
+        "doji",
+        "long",
+        fits(19, 9, 30, -20, 70, trend="with the trend", volume_level="average"),
+        19,
+    ),
+    ("doji", "short", None, 7),
+)
+
+
+def review_memory(story) -> MemorySections:
+    episodes = tuple(past_review(e) for e in story["reviews"])
+    return MemorySections(NOW, REVIEW_TRACK_RECORD, PastEpisodes.SELECTED, episodes)
+
+
+@pytest.mark.dormant
+def test_the_reviews_background_with_memory_is_the_pages_word_for_word(story):
+    names = ["hold", "close", "reduce", "add"]
+
+    request = reading().action_request(
+        *position_views(story), [names] * 5, memory=review_memory(story)
+    )
+
+    assert request.background == story["reviewWithMemory"]
+    assert request.questions[MEMORIES_RELEVANT] == {
+        "type": "noul",
+        "instructions": story["memoriesRelevant"],
+    }
+
+
+@pytest.mark.dormant
+def test_the_reduce_request_with_memory_is_the_pages_word_for_word(story):
+    request = reading().reduce_request(
+        *position_views(story), memory=review_memory(story)
+    )
+
+    assert request.background == story["reduceWithMemory"]
