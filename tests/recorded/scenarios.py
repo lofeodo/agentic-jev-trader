@@ -202,12 +202,14 @@ def _without_run_to_run_columns(rows: list[dict]) -> list[dict]:
     ]
 
 
-def run_scenario(scenario: Scenario) -> ScenarioResult:
+def run_scenario(scenario: Scenario, tracing: Tracing | None = None) -> ScenarioResult:
     """Run the scenario's one step through the agent's whole decision path.
 
     Jev and the LLM are the real clients: their requests are answered from the test's saved
-    files, and a request with no saved answer fails the test.
+    files, and a request with no saved answer fails the test. `tracing` sends the step's full
+    evaluation to LangSmith, as a sim does; by default nothing is sent.
     """
+    tracing = tracing or Tracing()
     inputs = scenario.inputs
     if inputs.position is not None:
         raise NotImplementedError(
@@ -254,23 +256,25 @@ def run_scenario(scenario: Scenario) -> ScenarioResult:
                 *arguments,
                 lookups_at=_noted(memory, asked),
                 selector=LlmSelector(load_llm_settings()),
-                tracing=Tracing(),
+                tracing=tracing,
             )
         else:
-            agent = AgentWithoutMemory(*arguments, tracing=Tracing())
+            agent = AgentWithoutMemory(*arguments, tracing=tracing)
         batch = StepBatch()
         # The step before is the step itself: no midnight passes, so no night is charged.
         previous = step
-        run_step(
-            SIM,
-            step,
-            previous,
-            last_step,
-            broker,
-            agent,
-            {ASSET: made_up.series(ASSET).bar(step)},
-            batch,
-        )
+        # As in a sim: tracing is off around the step, and only a full evaluation opens a trace.
+        with tracing.off():
+            run_step(
+                SIM,
+                step,
+                previous,
+                last_step,
+                broker,
+                agent,
+                {ASSET: made_up.series(ASSET).bar(step)},
+                batch,
+            )
     tables = batch.tables()
     orders = tables.pop("SIM.ORDERS")
     return ScenarioResult(
