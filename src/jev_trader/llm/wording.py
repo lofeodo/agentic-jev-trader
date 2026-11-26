@@ -4,14 +4,18 @@ The words live in `prompts/llm_selection.toml` (the standing instructions, the l
 messages that hold episodes, the answer tool, the limit and re-ask messages) and
 `prompts/llm_tools.toml` (the three lookup tools). The **prompt version** is a short fingerprint
 worked out from both and from `prompts/episodes.toml` (how a past episode is written), so a
-changed word gives a new version and nobody bumps a number by hand.
-It is stored with the sim's settings and on every full evaluation.
+changed word gives a new version and nobody bumps a number by hand. One version covers both
+jobs. It is stored with the sim's settings and on every full evaluation and position review.
 
 `LlmWording` builds each text from plain data and returns it exactly, as the walkthrough page's
 text-building functions do (`docs/llm-prompt-walkthrough.html`). Nothing it is given or writes
 holds a clock time, a sim or step number, a real date or a random ID, so the same situation
 gives the same request. A past episode's one line and its record in full are written by
 `jev_trader.memory.render`, shared with Jev's background.
+
+The LLM has two jobs (a full evaluation, and a position review), each with its own standing
+instructions, first message and column headings for its one-line episodes; a call is sent one
+job's words, never both. Everything else is shared.
 """
 
 import hashlib
@@ -22,8 +26,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from jev_trader.memory import bridge, render
+from jev_trader.memory.episodes import Standing
 from jev_trader.memory.lookups import MOST_READ
-from jev_trader.memory.search import FULL_EVALUATION, Filters
+from jev_trader.memory.search import FULL_EVALUATION, POSITION_REVIEW, Filters, Job
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "llm_selection.toml"
 VERSION_LENGTH = 12
@@ -57,20 +62,21 @@ def prompt_version(
 
 @dataclass(frozen=True)
 class LlmWording:
-    """The LLM's texts for a full evaluation, within the selection's limits (the same
-    defaults as `jev_trader.llm.selection.SelectionLimits`). A position review's words are not
-    in `prompts/` yet: they come with position reviews with memory.
-    """
+    """The LLM's texts for both jobs, within the selection's limits (the same defaults as
+    `jev_trader.llm.selection.SelectionLimits`)."""
 
     most_lookups: int = 6
     most_selected: int = MOST_READ
     note_length: int = 200
     wording: dict = field(default_factory=load_wording, compare=False, repr=False)
     tools: dict = field(default_factory=bridge.load_wording, compare=False, repr=False)
+    episodes: dict = field(
+        default_factory=render.load_wording, compare=False, repr=False
+    )
 
     @property
     def version(self) -> str:
-        return prompt_version(self.wording, self.tools)
+        return prompt_version(self.wording, self.tools, self.episodes)
 
     def _limits(self) -> dict:
         return {
@@ -80,9 +86,9 @@ class LlmWording:
             "note_length": self.note_length,
         }
 
-    def system_prompt(self) -> str:
-        """The standing instructions, sent first in every call."""
-        return self.wording[FULL_EVALUATION]["system_prompt"].format(**self._limits())
+    def system_prompt(self, job: Job = FULL_EVALUATION) -> str:
+        """The standing instructions of `job`, sent first in every call of it."""
+        return self.wording[job]["system_prompt"].format(**self._limits())
 
     def answer_tool(self) -> bridge.ToolDefinition:
         """`select_episodes`, the answer: the same in both jobs, never counted, never taken
@@ -127,7 +133,40 @@ class LlmWording:
                 asset=asset,
                 asset_class=asset_class,
                 situation=situation,
-                **self._listing(summaries),
+                **self._listing(summaries, FULL_EVALUATION),
+            )
+            + pattern_notes
+        )
+
+    def review_first_message(
+        self,
+        asset: str,
+        asset_class: str,
+        situation: str,
+        standing: Standing,
+        end_of_session: bool,
+        summaries: Sequence[str],
+        pattern_notes: str = "",
+    ) -> str:
+        """The first message of a position review: as a full evaluation's, with the position's
+        standing (direction, dollars, bars open, profit or loss, stop price distance, best and
+        worst so far) and, at an end-of-session review, its one line."""
+        w = self.wording[POSITION_REVIEW]
+        position = w["position_now"].format(
+            standing=render.capitalized(render.standing(standing, self.episodes)),
+            best=render.signed_dollars(standing.best),
+            worst=render.signed_dollars(standing.worst),
+        )
+        if end_of_session:
+            position += "\n" + w["end_of_session"]
+        return (
+            w["first_message"].format(
+                asset=asset,
+                asset_class=asset_class,
+                situation=situation,
+                position=position,
+                direction=standing.direction,
+                **self._listing(summaries, POSITION_REVIEW),
             )
             + pattern_notes
         )
@@ -137,38 +176,40 @@ class LlmWording:
         filters: Filters,
         summaries: Sequence[str],
         pattern_notes: str = "",
+        job: Job = FULL_EVALUATION,
     ) -> str:
-        """A search the LLM asked for: the filters it set and one line per episode found,
-        closest first."""
+        """A search the LLM asked for in `job`: the filters it set and one line per episode
+        found, closest first, under the job's column headings."""
         m = self.wording["messages"]
         said = self.filters_text(filters)
         if not summaries:
             return m["no_match"].format(filters=said)
         return (
-            m["search_result"].format(filters=said, **self._listing(summaries))
+            m["search_result"].format(filters=said, **self._listing(summaries, job))
             + pattern_notes
         )
 
-    def _listing(self, summaries: Sequence[str]) -> dict:
-        """A list of one-line episodes: how many, the column headings, and the lines."""
+    def _listing(self, summaries: Sequence[str], job: Job) -> dict:
+        """A list of one-line episodes: how many, the job's column headings, and the lines."""
         m = self.wording["messages"]
         return {
             "episodes": _count(m["episodes"], len(summaries)),
-            "columns": m["summary_columns"],
+            "columns": self.wording[job]["summary_columns"],
             "summaries": "\n".join(summaries),
         }
 
     def filters_text(self, filters: Filters) -> str:
         """ "same asset, bullish engulfing, any decision": the asset, the pattern and what was
-        decided, in that order."""
+        decided, in that order; in a position review, then the standing when it is set."""
         words = self.wording["messages"]["filters"]
-        return ", ".join(
-            [
-                words["any_asset" if filters.asset == ANY else filters.asset],
-                words["any_pattern"] if filters.pattern == ANY else filters.pattern,
-                words["any_decision" if filters.decided == ANY else filters.decided],
-            ]
-        )
+        said = [
+            words["any_asset" if filters.asset == ANY else filters.asset],
+            words["any_pattern"] if filters.pattern == ANY else filters.pattern,
+            words["any_decision" if filters.decided == ANY else filters.decided],
+        ]
+        if filters.standing != ANY:
+            said.append(words[filters.standing])
+        return ", ".join(said)
 
     def pattern_notes(
         self, names: Iterable[str], playbook: Mapping[str, tuple[str, str]]

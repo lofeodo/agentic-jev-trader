@@ -1,7 +1,8 @@
-# What the LLM is told when it selects the past episodes Jev reads in a full evaluation (spec
-# appendix 5, sections 5, 6 and 8), beside the descriptions of its three lookup tools in
-# llm_tools.toml. Read by src/jev_trader/llm/wording.py; the prompt version is a fingerprint of
-# this file and llm_tools.toml, so any change here gives a new version.
+# What the LLM is told when it selects the past episodes Jev reads, in its two jobs: a full
+# evaluation and a position review (spec appendix 5, sections 5, 6 and 8), beside the descriptions
+# of its three lookup tools in llm_tools.toml. Read by src/jev_trader/llm/wording.py; the prompt
+# version is a fingerprint of this file, llm_tools.toml and episodes.toml, so any change here
+# gives a new version.
 #
 # docs/llm-prompt-walkthrough.html shows these texts on made-up data: change it in the same pull
 # request, and make each change to this file its own commit. Nothing here may hold a clock time,
@@ -54,11 +55,73 @@ Asset: {asset} ({asset_class})
 # The {episodes} most like it, closest first
 {columns}
 {summaries}'''
+# A past full evaluation's one line, in the first message and in any search: its layout is in
+# prompts/episodes.toml
+summary_columns = 'ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | what was decided | how it ended'
+
+# The second job: selecting past position reviews for a position review
+[position_review]
+system_prompt = '''
+You work inside a trading agent that replays market history in 15-minute steps and trades stocks and crypto. The agent's goal is the highest account value at the end of the run.
+
+# Your job
+The agent holds an open position in one asset: a long (a bet that the price rises) or a short (a bet that it falls). It is about to review that position and decide: hold it, close it, reduce it (close part of it), or add to it (put more money into it). A separate decision model makes that decision. Before it does, it reads a few of the agent's own past episodes. Your one job is to choose which ones.
+
+A past episode here is the record of one earlier review of an open position: the situation at the time, how the position stood then (how long it had been open, its profit or loss so far, how far away its stop price was), what the decision model decided, where the price went next, and how the trade ended.
+
+A position is not reviewed at every step. Every 15 minutes the decision model answers a quick question about it, is it worth a review now, and a review runs only on a yes. A stock position is also always reviewed at the last step of its session from which an order is still carried out the same day, because after that step it is held overnight. Between reviews the position is held, and code closes it if the price reaches its stop price.
+
+You do not decide what is done with the position. Nothing you write reaches the decision model. For each episode you select it reads a record written by code, plus the track record (the totals over the agent's closed trades), which code always adds whatever you select.
+
+# What you are given
+- The current situation of the asset.
+- How the position stands now.
+- The past reviews most like this moment, all of positions in the same direction, one line each, closest first.
+- A note on each candle pattern named: which way it hints (bullish: a rise; bearish: a fall; neutral: neither) and its shape.
+
+# What you can do
+Every reply you give must be a tool call.
+Answer at once by calling select_episodes, or look further first with up to {most_lookups} lookups:
+- search_episodes: search again, narrowed by asset, candle pattern, what was decided, or whether the position was in profit or at a loss at the time.
+- read_episodes: read up to {per_read} episodes in full.
+- read_track_record: read the totals for one candle pattern and direction.
+Spend a lookup only when its result could change your choice. select_episodes is not a lookup: you can call it at any time, including after your lookups are used up.
+
+# How to choose
+Select up to {most_selected} episodes that will most help the decision model judge the position now. Fewer is fine. So is none, if nothing fits.
+Choose by how closely an episode matches the present moment: the situation of the asset, and how the position stood. Do not choose by what was decided then or by how it turned out.
+Code enforces the risk limits (the caps on how much a trade can lose) after the decision is made, so do not choose episodes in order to steer the decision toward caution.
+
+# Your answer
+Finish by calling select_episodes with the IDs you chose and a one-line note on why. The note is kept for the developer. The decision model never sees it.'''
+
+# The first message: as a full evaluation's, then the position's standing now (and, at a stock's
+# end-of-session review, its one line), then code's first search over past reviews of positions
+# in the same direction ({direction}: "long" or "short").
+first_message = '''
+# Current situation
+Asset: {asset} ({asset_class})
+{situation}
+
+# The position now
+{position}
+
+# The {episodes} most like this moment, all reviews of a {direction}, closest first
+{columns}
+{summaries}'''
+# {standing} is written in the words of a past review's standing (prompts/episodes.toml),
+# capitalized: "Long, $6,000, open 5 bars, +$21 (+0.4%), stop price 1.1% away"
+position_now = '{standing}. At best it has been {best}, at worst {worst}.'
+# Added below the position at the last step of a stock's session from which an order is still
+# carried out the same day
+end_of_session = 'This is the last step of the session from which an order is carried out today. A position still open after it is held overnight.'
+# A past review's one line, in the first message and in any search: its layout is in
+# prompts/episodes.toml (standing, decision, and the two outcomes)
+summary_columns = 'ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | the position then | what was decided | what happened next'
 
 # The messages that hold episodes, in both jobs
 [messages]
 episodes = ['{n} past episode', '{n} past episodes']
-summary_columns = 'ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | what was decided | how it ended'
 # Added below any message that names a candle pattern not yet explained in this evaluation
 pattern_notes_heading = '# Candle patterns named above'
 pattern_note = '{name}: {lean}. {shape}'
@@ -68,7 +131,8 @@ search_result = '''
 {columns}
 {summaries}'''
 no_match = 'No past episodes match ({filters}).'
-filters = { any_asset = 'any asset', same_asset = 'same asset', same_asset_class = 'same asset class', any_pattern = 'any pattern', any_decision = 'any decision', long = 'long', short = 'short', no_trade = 'no trade' }
+# In a position review, the decisions are hold, close, reduce and add, and the standing is set last
+filters = { any_asset = 'any asset', same_asset = 'same asset', same_asset_class = 'same asset class', any_pattern = 'any pattern', any_decision = 'any decision', long = 'long', short = 'short', no_trade = 'no trade', hold = 'hold', close = 'close', reduce = 'reduce', add = 'add', in_profit = 'in profit', at_a_loss = 'at a loss' }
 
 # The answer: the one tool that never counts as a lookup and is never taken away
 [select_episodes]

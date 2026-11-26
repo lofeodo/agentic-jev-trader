@@ -387,7 +387,7 @@ def run_sim(
             )
         store.save_reading(reading.version, reading.opening)
         if with_memory:
-            version, system_prompt, tools = standing_part(
+            version, system_prompts, tools = standing_part(
                 SelectionLimits(**settings["selection_limits"]),
                 list(market.playbook(info.dataset_id)),
             )
@@ -396,7 +396,7 @@ def run_sim(
                     f"sim {sim_id} started on prompt version {settings['prompt_version']}, "
                     f"and the LLM's wording is now {version}: it cannot carry on"
                 )
-            store.save_prompt(version, system_prompt, tools)
+            store.save_prompt(version, system_prompts, tools)
         agent_arguments = (
             sim_id,
             info.dataset_id,

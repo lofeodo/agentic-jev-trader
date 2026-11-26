@@ -5,22 +5,27 @@ message of its made-up full evaluation and the search the LLM asks for in its se
 This test runs that code with Node and compares it, word for word, with what the selection sends
 from the same story, through a scripted fake LLM. A past episode in full is compared in
 `tests/unit/memory/test_render.py`.
+
+The second job (tab "Always sent" and tab 6: a position review) is compared the same way: its
+standing instructions, its two own tool descriptions, and its first message, at a review and at
+an end-of-session review.
 """
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from jev_trader.llm.selection import LlmSelector, Situation
+from jev_trader.llm.selection import LlmSelector, ReviewedPosition, Situation
 from jev_trader.llm.settings import load_llm_settings
 from jev_trader.llm.wording import ANSWER_TOOL, LlmWording
 from jev_trader.memory.bridge import definitions
-from jev_trader.memory.episodes import Ended, Episode, Prices, Trade
+from jev_trader.memory.episodes import Ended, Episode, Prices, Standing, Step, Trade
 from jev_trader.memory.lookups import Found, SearchResult
-from jev_trader.memory.search import FULL_EVALUATION
+from jev_trader.memory.search import FULL_EVALUATION, POSITION_REVIEW
 from tests.unit.sim.test_full_evaluation_with_memory import (
     FakeClock,
     ScriptedLlm,
@@ -43,6 +48,15 @@ console.log(JSON.stringify({{
   current: CURRENT, playbook: PLAYBOOK, episodes: EPISODES,
   firstSearch: FIRST_SEARCH.map(e => e.key), secondSearch: SECOND_SEARCH.map(e => e.key),
   first, found,
+  reviewSystemPrompt: reviewSystemPrompt(),
+  reviewTools: REVIEW_TOOLS.map(t => [t.name, t.description]),
+  reviews: REVIEWS, reviewCurrent: REVIEW_CURRENT,
+  positionNow: POSITION_NOW, positionAtClose: POSITION_AT_CLOSE,
+  reviewFirstSearch: REVIEW_FIRST_SEARCH.map(e => e.key),
+  reviewFirst: reviewFirstMessage(REVIEW_FIRST_SEARCH, makeEvaluation(REVIEW_CURRENT, PLAYBOOK),
+    POSITION_NOW),
+  reviewFirstAtClose: reviewFirstMessage(REVIEW_FIRST_SEARCH.slice(0, 2),
+    makeEvaluation(REVIEW_CURRENT, PLAYBOOK), POSITION_AT_CLOSE, true),
 }}));
 """
 NOW = 1000 * 96  # the step of the page's full evaluation
@@ -194,3 +208,156 @@ def test_the_fixed_messages_are_the_pages_word_for_word(story):
     assert w.answer_does_not_fit() == page["ANSWER_DOES_NOT_FIT"]
     allowed = ["any", "same_asset", "same_asset_class"]
     assert w.value_not_allowed("asset", allowed) == page["VALUE_NOT_ALLOWED"]
+
+
+# The second job: a position review (the slice "position review with memory")
+
+SHARES = {"a quarter": 0.25, "half": 0.5, "three quarters": 0.75}
+REDUCED = re.compile(r"reduce by (.+) \(that part: ([+-])\$([\d,]+)\)")
+ADDED = re.compile(r"add \$([\d,]+)")
+HANDLED = re.compile(r"bars? (\d+)(?: to (\d+))? (.+?)( \(this review\))?")
+ENDINGS = {"stop price reached": "stop_price"}
+
+
+def review_step(decided: str, bar: int) -> Step:
+    """What one of the page's past reviews decided, as memory stores it."""
+    if reduced := REDUCED.fullmatch(decided):
+        share, sign, profit = reduced.groups()
+        made = float(profit.replace(",", "")) * (-1 if sign == "-" else 1)
+        return Step(bar=bar, action="reduce", share=SHARES[share], profit=made)
+    if added := ADDED.fullmatch(decided):
+        amount = float(added.group(1).replace(",", ""))
+        return Step(bar=bar, action="add", amount=amount)
+    return Step(bar=bar, action=decided)
+
+
+def journal(handled: list[str]) -> list[Step]:
+    """A past review's whole trade, bar by bar, from the page's runs ("bars 1 to 5 hold")."""
+    steps = []
+    for run in handled:
+        first, last, what, this_review = HANDLED.fullmatch(run).groups()
+        for bar in range(int(first), int(last or first) + 1):
+            if what in ENDINGS:
+                step = Step(bar=bar, action=ENDINGS[what])
+            else:
+                step = review_step(what, bar)
+            steps.append(step.model_copy(update={"this_review": bool(this_review)}))
+    return steps
+
+
+def standing(p: dict) -> dict:
+    """A position's standing on the page, as `PositionView.standing` gives it."""
+    return {
+        "direction": p["direction"],
+        "put_in": p["dollars"],
+        "bars_open": p["bars"],
+        "profit": p["profit"],
+        "percent": p["percent"],
+        "stop_distance": p["stopPercent"] / 100,
+        "best": p["best"],
+        "worst": p["worst"],
+    }
+
+
+def past_review(e: dict) -> Episode:
+    """One of the page's made-up past position reviews, as memory stores it."""
+    part_of_day, trend, volume = e["setting"]
+    step = review_step(e["decided"], e["position"]["bars"])
+    ended, after = e["ended"], e["after"]
+    return Episode(
+        id=f"made-up-{e['key']}",
+        kind="position_review",
+        asset=e["asset"],
+        asset_class=e["assetClass"],
+        step=NOW - e["stepsAgo"],
+        situation=e["situation"],
+        patterns=e["patterns"],
+        longer_patterns=e.get("patternsOnLongerBars", []),
+        part_of_day=part_of_day,
+        trend=trend.removeprefix("long-term trend "),
+        volume=volume.removeprefix("volume "),
+        decided=step.action,
+        review=step,
+        standing=Standing(**standing(e["position"])),
+        prices=Prices(
+            after_1_bar=after["oneBar"] / 100,
+            after_4_bars=after["fourBars"] / 100,
+            end_of_day=after["endOfDay"] / 100,
+        ),
+        ended=Ended(
+            reason=REASONS[ended["reason"]],
+            bars_after=max(ended["bars"], 1),
+            profit=ended["profit"],
+            percent=ended["percent"],
+            closed_at_this_review=ended["bars"] == 0,
+        ),
+        journal=journal(e["handled"]),
+    )
+
+
+def review_situation(story, position: dict, end_of_session: bool) -> Situation:
+    current = story["reviewCurrent"]
+    return Situation(
+        asset=current["asset"],
+        asset_class=current["assetClass"],
+        step=NOW,
+        text=current["situation"],
+        patterns=tuple(current["patterns"]),
+        playbook={n: (p["lean"], p["shape"]) for n, p in story["playbook"].items()},
+        position=ReviewedPosition(
+            standing=Standing(**standing(position)), end_of_session=end_of_session
+        ),
+    )
+
+
+def review_sent(story, position: dict, end_of_session: bool, shown: int):
+    """The page's tab 6 as the selection sends it: the first message, then the answer."""
+    clock = FakeClock()
+    llm = ScriptedLlm(script=[answers([])], clock=clock)
+    selector = LlmSelector(load_llm_settings(), model=llm, clock=clock)
+    first_search = SearchResult(
+        episodes=[
+            Found(
+                episode=past_review(story["reviews"][k]),
+                vector_rank=rank,
+                text_rank=rank,
+                merged_rank=rank,
+            )
+            for rank, k in enumerate(story["reviewFirstSearch"][:shown], start=1)
+        ]
+    )
+    selector.select(
+        review_situation(story, position, end_of_session), None, first_search
+    )
+    return llm.calls
+
+
+def test_the_second_jobs_instructions_are_the_pages_word_for_word(story):
+    assert LlmWording().system_prompt(POSITION_REVIEW) == story["reviewSystemPrompt"]
+    [call] = review_sent(story, story["positionNow"], False, 10)
+    assert text_of(call.messages[0]) == story["reviewSystemPrompt"]
+
+
+def test_the_second_jobs_tools_are_described_as_on_the_page(story):
+    ours = [
+        *definitions(POSITION_REVIEW, list(story["playbook"])),
+        LlmWording().answer_tool(),
+    ]
+    described = {d.name: d.description for d in ours}
+    for name, description in story["reviewTools"]:
+        assert described[name] == description
+    # The other two read the same in both jobs.
+    first_job = dict(story["tools"])
+    for name in ("read_track_record", ANSWER_TOOL):
+        assert described[name] == first_job[name]
+
+
+def test_a_reviews_first_message_is_the_pages_word_for_word(story):
+    [call] = review_sent(story, story["positionNow"], False, 10)
+    assert text_of(call.messages[-1]) == story["reviewFirst"]
+
+
+def test_an_end_of_session_reviews_first_message_is_the_pages_word_for_word(story):
+    # Two past reviews found: the heading gives the real count.
+    [call] = review_sent(story, story["positionAtClose"], True, 2)
+    assert text_of(call.messages[-1]) == story["reviewFirstAtClose"]
