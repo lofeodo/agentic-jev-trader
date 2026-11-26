@@ -112,7 +112,7 @@ class PositionStep(BaseModel):
     # The position screen's answer, 0 to 1; None at end of session.
     screen_answer: float | None
     answer: str | None  # a review's: hold, close, reduce or add
-    amount_usd: float | None  # how much to reduce or add
+    amount_usd: float | None  # how much was added or reduced, after the limits
     probabilities: list[Probability]  # a review's: Jev's probability for each answer
     fresh_memory: MemoryRead | None  # a review's own memory, for its own moment
 

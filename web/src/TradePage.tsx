@@ -166,7 +166,8 @@ const ANSWERS: Record<string, string> = {
 
 function answerWords(s: PositionStep) {
   const words = s.answer ? (ANSWERS[s.answer] ?? s.answer) : "--";
-  return s.amount_usd === null ? words : `${words}, ${dollars(s.amount_usd)}`;
+  // The amount is what was carried out after the limits, not the size Jev chose (the trail shows both).
+  return s.amount_usd === null ? words : `${words}; ${dollars(s.amount_usd)} after the limits`;
 }
 
 // A review stands out in an outlined box with its answer and Jev's probabilities; a step where the
