@@ -269,7 +269,7 @@ class SnowflakeApiStore:
         rows = self._rows(
             "SELECT R.*, J.OPENING FROM SIM.JEV_REQUESTS R "
             "LEFT JOIN SIM.JEV_READINGS J ON J.READING_VERSION = R.READING_VERSION "
-            f"WHERE R.SIM = ? AND R.DECISION IN ({marks})",
+            f"WHERE R.SIM = ? AND R.DECISION IN ({marks}) ORDER BY R.ID",
             [sim_id, *decision_ids],
         )
         return [_read_json(row, ("QUESTIONS",)) for row in rows]

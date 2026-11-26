@@ -237,12 +237,12 @@ def trade_order(order: dict) -> TradeOrder:
 
 
 def order_placed(orders: list[dict], decision_id: str) -> TradeOrder | None:
-    """The order a decision placed, a carried-out one first; None if it placed none."""
-    placed = sorted(
-        (o for o in orders if o.get("DECISION") == decision_id),
-        key=lambda o: o["STATUS"] != "carried out",
-    )
-    return trade_order(placed[0]) if placed else None
+    """The order a decision placed and that was carried out; None if there is none (a
+    cancelled or still waiting order charged nothing)."""
+    for order in carried_out(orders):
+        if order.get("DECISION") == decision_id:
+            return trade_order(order)
+    return None
 
 
 def average_answers(answers: dict | None) -> list[Probability]:

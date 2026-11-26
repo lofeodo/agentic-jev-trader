@@ -48,6 +48,7 @@ from jev_trader.jev.position_review import HOLD
 from jev_trader.llm.selection import LimitHit, word_for_word
 from jev_trader.llm.wording import ANSWER_TOOL
 from jev_trader.sim.store import (
+    ACTION_ENTRY,
     KIND_FULL_EVALUATION,
     KIND_POSITION_REVIEW,
     KIND_POSITION_SCREEN,
@@ -161,14 +162,14 @@ def _tools_text(tools: list[dict]) -> str:
 
 
 def _reply_text(message: AIMessage) -> str:
-    content = message.content
+    """A reply as stored: its text, then each tool call it made (unreadable ones too) as
+    JSON."""
+    stored = json.loads(word_for_word(message))
+    content = stored["content"]
     text = (
         content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
     )
-    calls = [
-        json.dumps({"name": c["name"], "args": c["args"]}, ensure_ascii=False)
-        for c in message.tool_calls
-    ]
+    calls = [json.dumps(c, ensure_ascii=False) for c in stored["tool_calls"]]
     return "\n".join(part for part in [text, *calls] if part)
 
 
@@ -308,7 +309,10 @@ def _answer_outcome(decision: dict) -> str:
 
 
 def _full_evaluation_stops(
-    decision: dict, requests: list[dict], exchange: dict | None, order
+    decision: dict,
+    requests: list[dict],
+    exchange: dict | None,
+    order: TradeOrder | None,
 ) -> list[TrailStop]:
     pick = decision.get("PICK")
     stops = [
@@ -335,7 +339,10 @@ def _full_evaluation_stops(
 
 
 def _position_review_stops(
-    decision: dict, requests: list[dict], exchange: dict | None, order
+    decision: dict,
+    requests: list[dict],
+    exchange: dict | None,
+    order: TradeOrder | None,
 ) -> list[TrailStop]:
     stops = []
     if not decision.get("END_OF_SESSION"):
@@ -357,7 +364,7 @@ def _position(decision: dict, orders: list[dict]) -> int | None:
     if decision.get("POSITION") is not None:
         return decision["POSITION"]
     for order in orders:
-        if order.get("DECISION") == decision["ID"] and order["KIND"] == "entry":
+        if order.get("DECISION") == decision["ID"] and order["KIND"] == ACTION_ENTRY:
             return order["POSITION"]
     return None
 
