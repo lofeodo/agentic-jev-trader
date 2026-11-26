@@ -105,7 +105,7 @@ const FILTERS: { key: keyof TradeFilters & keyof FilterCounts; label: string }[]
   { key: "no_trade", label: "Add full evaluations with no trade" },
 ];
 
-const ENDINGS: Record<string, string> = {
+export const ENDINGS: Record<string, string> = {
   jev: "Jev chose to close it",
   stop_price: "Its stop price was reached",
   forced_close: "A forced close",
@@ -118,7 +118,7 @@ const MARKS: Record<string, string> = {
   "forced close": "Forced close: code closed every position",
 };
 
-const limitWords = (limit: string) => `the ${limit.replaceAll("_", " ")} limit`;
+export const limitWords = (limit: string) => `the ${limit.replaceAll("_", " ")} limit`;
 
 const when = (at: string | null, step: number | null) =>
   at ? dayAndTime(fromApi(at)) : step === null ? "--" : `step ${step}`;
