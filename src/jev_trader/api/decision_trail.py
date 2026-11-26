@@ -279,7 +279,7 @@ def _memory_stop(decision: dict, exchange: dict | None) -> TrailStop:
     )
 
 
-def _limit_words(limit: str) -> str:
+def _limit_name(limit: str) -> str:
     """A limit's stored name as the screens say it: `trade_risk` reads "trade risk"."""
     return limit.replace("_", " ")
 
@@ -289,9 +289,9 @@ def _limits_stop(decision: dict, order: TradeOrder | None) -> TrailStop:
     if limit is None:
         outcome = "not trimmed"
     elif order is None or not order.amount_placed_usd:
-        outcome = f"trimmed to nothing by the {_limit_words(limit)} limit"
+        outcome = f"trimmed to nothing by the {_limit_name(limit)} limit"
     else:
-        outcome = f"trimmed to ${order.amount_placed_usd:,.0f} by the {_limit_words(limit)} limit"
+        outcome = f"trimmed to ${order.amount_placed_usd:,.0f} by the {_limit_name(limit)} limit"
     return TrailStop(name="limits", outcome=outcome, messages=[])
 
 

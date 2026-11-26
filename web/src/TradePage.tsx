@@ -276,7 +276,7 @@ function NightlyCharges({ page }: { page: TradePageAnswer }) {
   );
 }
 
-// The key turns the masked IDs and rescaled prices memory was written in back into real ones; the
+// The asset key turns the masked IDs and rescaled prices memory was written in back into real ones; the
 // Trade page has none of its own, so it is read from the trail of the decision that opened it.
 function Memory({ simId, page, onOpenTrail }: { simId: number; page: TradePageAnswer; onOpenTrail: OpenTrail }) {
   const reviews = page.position_steps.filter((s) => s.kind === "review" && s.fresh_memory);
