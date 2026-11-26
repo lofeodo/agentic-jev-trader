@@ -29,7 +29,12 @@ Not built yet: an account holding a position on the asset (#170).
 """
 
 from collections.abc import AsyncIterator, Callable
-from contextlib import ExitStack, asynccontextmanager, closing
+from contextlib import (
+    AbstractAsyncContextManager,
+    ExitStack,
+    asynccontextmanager,
+    closing,
+)
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -148,7 +153,9 @@ class _NotedLookups:
         return self.lookups.track_record(pattern, direction)
 
 
-def _in_process(store: MemoryStore):
+def _in_process(
+    store: MemoryStore,
+) -> Callable[[], AbstractAsyncContextManager[ClientSession]]:
     """Sessions with the real memory server over `store`, reached in-process: the MCP SDK's
     `Client` takes the server object itself, so nothing goes over a network."""
 
@@ -233,6 +240,7 @@ def run_scenario(scenario: Scenario) -> ScenarioResult:
         )
         if inputs.with_memory:
             store = made_up_memory(made_up, step, inputs.memory)
+            # The address goes unused: the session reaches the server in-process.
             memory = held.enter_context(
                 Connection(
                     "in-process", list(inputs.playbook), open_session=_in_process(store)

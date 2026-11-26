@@ -63,6 +63,7 @@ class HandWrittenAnswers:
     def _jev(body: dict) -> dict:
         answers = {}
         for name, question in body["questions"].items():
+            # A noul is a yes/no question answered as the probability of yes: 0.9 is a yes.
             if question["type"] == "noul":
                 answers[name] = {"type": "noul", "noul": 0.9}
             elif question["type"] == "score":

@@ -8,8 +8,10 @@ by code, so nothing from a data provider lands in the repo.
   (`measure_asset`) and the real situation text are worked out from them, so what Jev and the
   LLM read is shaped as in a real dataset.
 - **Search numbers.** A real dataset's snapshot carries two lists of numbers the episode search
-  compares: its 58 standard scores (the feature vector) and the 768 numbers a Snowflake model
-  turns its situation text into (the embedding). Tests have no Snowflake, so code makes both
+  compares: its 58 standard scores (the feature vector: each measurement told as how far it
+  sits from its usual value, 0 being usual) and the 768 numbers a Snowflake model turns its
+  situation text into (the embedding: texts that say similar things get similar lists).
+  Tests have no Snowflake, so code makes both
   up: the feature vector is the measurements themselves (one not available counts as 0, the
   average), and the embedding counts the text's words, each word adding 1 to one of the 768
   places, picked by a hash of the word. Texts sharing words come out alike, as with the real
@@ -30,6 +32,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from enum import StrEnum
 
 from jev_trader.broker import Bar
 from jev_trader.dataset.bars import BAR_LENGTH, STEPS_PER_DAY
@@ -68,7 +71,8 @@ def the_playbook() -> Playbook:
 @dataclass(frozen=True)
 class MadeUpPrices:
     """How the made-up bars move. Each bar's close is its open moved by `drift` plus a random
-    part about `swing` in size (shares of the price: 0.002 is 0.2%), drawn from `seed`.
+    part about `swing` in size (shares of the price: 0.002 is 0.2%, so a $100 bar closes about
+    20 cents up or down), drawn from `seed`.
     `last_moves` replaces the random moves of the scenario's last bars, oldest first (0.01: the
     bar closes 1% above its open), and `last_volume` is the last bar's volume against the usual
     (2.0 is double). Each asset draws its own bars from the seed and its ID."""
@@ -118,12 +122,10 @@ class Series:
             ) from None
 
     def broker_bars(self) -> list[Bar]:
-        return [
-            Bar(step, b.open, b.high, b.low, b.close)
-            for step, b in zip(self.steps, self.bars)
-        ]
+        return [self.bar(step) for step in self.steps]
 
     def bar(self, step: int) -> Bar:
+        """The bar of `step` as the broker reads it."""
         b = self.bars[self._index(step)]
         return Bar(step, b.open, b.high, b.low, b.close)
 
@@ -139,7 +141,7 @@ class Series:
 
 
 def made_up_series(
-    asset: str, asset_class: str, last_step: int, prices: MadeUpPrices
+    asset: str, asset_class: StrEnum, last_step: int, prices: MadeUpPrices
 ) -> Series:
     """The asset's bars from step 1 to `last_step`, drawn from `prices`. `asset_class` may be
     the broker's or the dataset's: the measurements need the dataset's."""
@@ -200,7 +202,7 @@ class MadeUpMarket:
 
     def __init__(
         self,
-        asset_class: str,
+        asset_class: StrEnum,
         last_step: int,
         prices: MadeUpPrices,
         patterns: Mapping[str, Sequence[tuple[int, str]]],

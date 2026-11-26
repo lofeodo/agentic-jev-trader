@@ -2,9 +2,13 @@
 
 Each recorded-answer scenario names the one path it covers, word for word from this list, and
 `test_paths.py` fails when a scenario names a path not listed or a path has no scenario. The
-paths are the spec's, in its order; "each of the three 'nothing to show' cases" is written out as
-its three cases (appendix 4: the LLM selected none, memory holds none yet, the agent without
-memory).
+paths are the spec's, in its order, with two items written out so the check can hold them:
+
+- "each of the three 'nothing to show' cases" (appendix 4): two of them are already lines of the
+  list ("the LLM selects none", "a full evaluation in the agent without memory"), so only the
+  third, memory holding none yet, is added;
+- "everything is sold (ADR 0009), including the holding sim that holds the five assets" is two
+  paths, the agent's sim and the holding sim.
 
 Terms (appendices 1 and 4 have the rules): a **short** is a bet that the price falls (sell $2,000
 of borrowed stock, the price falls 1%, the account is up $20). A **stop price** is the price at
@@ -22,9 +26,7 @@ NO_POSITION = (
     "the LLM replies without a tool call and is asked again",
     "the LLM names an episode ID it was never shown",
     "the LLM selects none",
-    "nothing to show: the LLM selected none",
     "nothing to show: memory holds none yet",
-    "nothing to show: the agent without memory",
     "Jev picks no trade",
     "a pick where adding the probabilities by direction changes the winner",
     "a short is picked",
@@ -46,8 +48,11 @@ OPEN_POSITION = (
     "a forced close",
 )
 
-# ADR 0009, the holding sim (which holds the five assets) included.
-SIM_ENDS = ("everything is sold at the sim's last step",)
+# ADR 0009.
+SIM_ENDS = (
+    "everything is sold at the sim's last step",
+    "the holding sim sells the five assets at its last step",
+)
 
 # Tested with hand-written fake answers: failures cannot be recorded on demand.
 SERVICE_FAILURES = (
