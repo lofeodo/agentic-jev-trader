@@ -297,7 +297,15 @@ class LlmSelector:
     def select(
         self, situation: Situation, lookups: MemoryLookups, first_search: SearchResult
     ) -> Selection:
-        return _Evaluation(self, situation, lookups).run(first_search)
+        evaluation = _Evaluation(self, situation, lookups)
+        try:
+            return evaluation.run(first_search)
+        except LlmFailed as failed:
+            # What the evaluation made before it failed, for whoever records it.
+            failed.calls = (*evaluation.calls, *failed.calls)
+            failed.failed_replies = tuple(evaluation.failed)
+            failed.exchange = tuple(messages_to_dict(evaluation.messages[1:]))
+            raise
 
 
 # One evaluation's tool loop
