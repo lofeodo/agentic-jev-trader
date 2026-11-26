@@ -13,6 +13,7 @@ Skeleton: the answer is fixed and made up, of the right shape. Only an unknown s
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -45,7 +46,8 @@ class ChartMark(BaseModel):
 
 
 class TradeOrder(BaseModel):
-    """The order that opened the trade, and what it cost."""
+    """An order a decision placed (on the Trade page, the one that opened the trade): its size
+    before and after the risk limits, and what it cost."""
 
     amount_chosen_usd: float | None  # the size Jev chose, before the risk limits
     amount_placed_usd: float  # the size after trimming
@@ -82,7 +84,7 @@ class PositionStep(BaseModel):
 
     step: int
     at: datetime | None
-    kind: str  # "review" or "screen said no"
+    kind: Literal["review", "screen said no"]
     # A stock's end-of-session review, with no position screen first.
     end_of_session: bool
     decision: str | None  # opens the review's trail

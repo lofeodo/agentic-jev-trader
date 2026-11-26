@@ -1,5 +1,5 @@
 // Small pieces shared by the sim page and its side panel.
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import type { AssetName, DecisionLine, LiveFigures, OrderLine, Price } from "./api/client";
 import { dollars, price } from "./format";
 
@@ -25,9 +25,36 @@ export function PriceTag({ price: p }: { price: Price }) {
   );
 }
 
+// A side panel over the right of the page: its title bar, its Close button, and Escape to close.
+export function SidePanel({ title, wide, onClose, children }: { title: string; wide?: boolean; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <aside
+      aria-label={title}
+      className={`fixed top-0 right-0 bottom-0 z-30 ${wide ? "w-[min(720px,100vw)]" : "w-[min(480px,100vw)]"} overflow-y-auto border-l-[1.5px] border-rule bg-screen`}
+    >
+      <div className="flex items-center justify-between bg-amber px-[2ch] py-1 font-mono text-[13.5px] tracking-widest text-screen">
+        <span>{title}</span>
+        <button type="button" onClick={onClose} className="cursor-pointer font-mono tracking-widest uppercase" aria-label={`Close ${title.toLowerCase()}`}>
+          Close [Esc]
+        </button>
+      </div>
+      <div className="px-[2ch] py-4">{children}</div>
+    </aside>
+  );
+}
+
+// Opens the decision trail of the decision it is given.
+export type OpenTrail = (decision: string) => void;
+
 // Opens the decision trail of a trade, an open position or a decision; nothing for code's own
 // trades (holding), which no decision opened.
-export function TrailButton({ decision, onOpenTrail }: { decision: string | null; onOpenTrail: (decision: string) => void }) {
+export function TrailButton({ decision, onOpenTrail }: { decision: string | null; onOpenTrail: OpenTrail }) {
   if (decision === null) return null;
   return (
     <div>

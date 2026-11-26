@@ -19,7 +19,7 @@ import {
   type TradeFilters,
   type TradeLine,
 } from "./api/client";
-import { AssetTag, DirectionWords, ErrorBox, PriceTag, SectionHeading, TrailButton } from "./pieces";
+import { AssetTag, DirectionWords, ErrorBox, PriceTag, SectionHeading, TrailButton, type OpenTrail } from "./pieces";
 import { dayAndTime, dollars, dollarsAndCents, fromApi, signedDollars, units } from "./format";
 
 // A setting (appendix 8, section 8.9), like the 1-second one on the sim page.
@@ -73,7 +73,7 @@ export function SimReport({
   header: SimHeader;
   inProgress: boolean;
   firstNumber: number;
-  onOpenTrail: (decision: string) => void;
+  onOpenTrail: OpenTrail;
 }) {
   return (
     <>
@@ -123,7 +123,7 @@ const limitWords = (limit: string) => `the ${limit.replaceAll("_", " ")} limit`;
 const when = (at: string | null, step: number | null) =>
   at ? dayAndTime(fromApi(at)) : step === null ? "--" : `step ${step}`;
 
-function Trades({ id, inProgress, number, onOpenTrail }: { id: number; inProgress: boolean; number: number; onOpenTrail: (decision: string) => void }) {
+function Trades({ id, inProgress, number, onOpenTrail }: { id: number; inProgress: boolean; number: number; onOpenTrail: OpenTrail }) {
   const [filters, setFilters] = useState<TradeFilters>(NO_FILTERS);
   const [page, setPage] = useState(1);
   const { data: table, error } = usePolled(() => fetchTrades(id, filters, page, PAGE_SIZE), inProgress, [id, page, ...Object.values(filters)]);
@@ -221,7 +221,7 @@ function Marks({ marks }: { marks: DayMark[] }) {
 }
 
 // The time it opened leads to the trade's page; "trail" opens how it was decided.
-function TradeRow({ simId, line, onOpenTrail }: { simId: number; line: TradeLine; onOpenTrail: (decision: string) => void }) {
+function TradeRow({ simId, line, onOpenTrail }: { simId: number; line: TradeLine; onOpenTrail: OpenTrail }) {
   const tags = [line.trimmed && "trimmed", line.held_overnight && "overnight"].filter(Boolean).join(", ");
   return (
     <tr className={row}>
@@ -261,7 +261,7 @@ function TradeRow({ simId, line, onOpenTrail }: { simId: number; line: TradeLine
   );
 }
 
-function NoTradeRow({ line, onOpenTrail }: { line: TradeLine; onOpenTrail: (decision: string) => void }) {
+function NoTradeRow({ line, onOpenTrail }: { line: TradeLine; onOpenTrail: OpenTrail }) {
   const why =
     line.pick === "no_trade"
       ? "Jev picked no trade"

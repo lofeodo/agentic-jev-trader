@@ -122,6 +122,17 @@ class SpendingTotal(BaseModel):
     ceiling_usd: float
 
 
+def _not_found(what: str):
+    """A handler that answers 404 for a missing `what`, naming the ID asked for."""
+
+    def handler(request: Request, missing: Exception) -> JSONResponse:
+        return JSONResponse(
+            {"detail": f"There is no {what} {missing}."}, status_code=404
+        )
+
+    return handler
+
+
 def create_app(
     store: ApiStore,
     spending_ceiling: float,
@@ -182,21 +193,13 @@ def create_app(
     def list_sims() -> SimsList:
         return sims_list(store, clock(), not_responding_after)
 
-    @app.exception_handler(SimNotFound)
-    def no_such_sim(request: Request, missing: SimNotFound):
-        return JSONResponse({"detail": f"There is no sim {missing}."}, status_code=404)
-
-    @app.exception_handler(TradeNotFound)
-    def no_such_trade(request: Request, missing: TradeNotFound):
-        return JSONResponse(
-            {"detail": f"There is no trade {missing}."}, status_code=404
-        )
-
-    @app.exception_handler(DecisionNotFound)
-    def no_such_decision(request: Request, missing: DecisionNotFound):
-        return JSONResponse(
-            {"detail": f"There is no decision {missing}."}, status_code=404
-        )
+    # A sim, a trade or a decision that doesn't exist: the same "not found" for each.
+    for missing_kind, what in (
+        (SimNotFound, "sim"),
+        (TradeNotFound, "trade"),
+        (DecisionNotFound, "decision"),
+    ):
+        app.add_exception_handler(missing_kind, _not_found(what))
 
     # Before `/sims/{sim_id}`, which would otherwise take "check" for a sim's ID.
     @app.get("/sims/check", operation_id="checkSim")

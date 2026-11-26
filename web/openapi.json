@@ -485,7 +485,7 @@
         "properties": {
           "asset_key": {
             "items": {
-              "$ref": "#/components/schemas/jev_trader__api__datasets__KeyLine"
+              "$ref": "#/components/schemas/KeyLine"
             },
             "title": "Asset Key",
             "type": "array"
@@ -887,14 +887,28 @@
           },
           "key": {
             "items": {
-              "$ref": "#/components/schemas/jev_trader__api__decision_trail__KeyLine"
+              "$ref": "#/components/schemas/TrailKey"
             },
             "title": "Key",
             "type": "array"
           },
           "kind": {
+            "enum": [
+              "full_evaluation",
+              "position_review"
+            ],
             "title": "Kind",
             "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeOrder"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "position": {
             "anyOf": [
@@ -928,6 +942,7 @@
           "asset",
           "position",
           "stops",
+          "order",
           "key"
         ],
         "title": "DecisionTrail",
@@ -1182,6 +1197,44 @@
           "status"
         ],
         "title": "Health",
+        "type": "object"
+      },
+      "KeyLine": {
+        "properties": {
+          "asset_class": {
+            "title": "Asset Class",
+            "type": "string"
+          },
+          "masked_id": {
+            "title": "Masked Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price_scale": {
+            "title": "Price Scale",
+            "type": "number"
+          },
+          "provider_symbol": {
+            "title": "Provider Symbol",
+            "type": "string"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "masked_id",
+          "ticker",
+          "name",
+          "asset_class",
+          "provider_symbol",
+          "price_scale"
+        ],
+        "title": "KeyLine",
         "type": "object"
       },
       "LiveFigures": {
@@ -2493,6 +2546,10 @@
             ]
           },
           "kind": {
+            "enum": [
+              "review",
+              "screen said no"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -3965,7 +4022,7 @@
         "type": "object"
       },
       "TradeOrder": {
-        "description": "The order that opened the trade, and what it cost.",
+        "description": "An order a decision placed (on the Trade page, the one that opened the trade): its size\nbefore and after the risk limits, and what it cost.",
         "properties": {
           "amount_chosen_usd": {
             "anyOf": [
@@ -4158,6 +4215,35 @@
         "title": "TradesTable",
         "type": "object"
       },
+      "TrailKey": {
+        "description": "Turns a masked ID and its rescaled prices back into real ones.",
+        "properties": {
+          "masked_id": {
+            "title": "Masked Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price_scale": {
+            "title": "Price Scale",
+            "type": "number"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "masked_id",
+          "name",
+          "ticker",
+          "price_scale"
+        ],
+        "title": "TrailKey",
+        "type": "object"
+      },
       "TrailMessage": {
         "description": "One message that passed, word for word as stored.",
         "properties": {
@@ -4255,73 +4341,6 @@
           "type"
         ],
         "title": "ValidationError",
-        "type": "object"
-      },
-      "jev_trader__api__datasets__KeyLine": {
-        "properties": {
-          "asset_class": {
-            "title": "Asset Class",
-            "type": "string"
-          },
-          "masked_id": {
-            "title": "Masked Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "price_scale": {
-            "title": "Price Scale",
-            "type": "number"
-          },
-          "provider_symbol": {
-            "title": "Provider Symbol",
-            "type": "string"
-          },
-          "ticker": {
-            "title": "Ticker",
-            "type": "string"
-          }
-        },
-        "required": [
-          "masked_id",
-          "ticker",
-          "name",
-          "asset_class",
-          "provider_symbol",
-          "price_scale"
-        ],
-        "title": "KeyLine",
-        "type": "object"
-      },
-      "jev_trader__api__decision_trail__KeyLine": {
-        "description": "Turns a masked ID and its rescaled prices back into real ones.",
-        "properties": {
-          "masked_id": {
-            "title": "Masked Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "price_scale": {
-            "title": "Price Scale",
-            "type": "number"
-          },
-          "ticker": {
-            "title": "Ticker",
-            "type": "string"
-          }
-        },
-        "required": [
-          "masked_id",
-          "name",
-          "ticker",
-          "price_scale"
-        ],
-        "title": "KeyLine",
         "type": "object"
       }
     }

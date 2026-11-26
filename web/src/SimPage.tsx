@@ -26,6 +26,7 @@ import {
   PriceTag,
   SectionHeading,
   TrailButton,
+  type OpenTrail,
   decisionWords,
   orderWords,
   statusWords,
@@ -371,7 +372,7 @@ const td = "py-[.42rem] pr-[2ch] align-top font-mono text-[15px]";
 
 // A position's asset leads to its trade's page; "trail" and a decision's words open how it was
 // decided.
-function Now({ live, header, onOpenTrail }: { live: LiveFigures; header: SimHeader; onOpenTrail: (decision: string) => void }) {
+function Now({ live, header, onOpenTrail }: { live: LiveFigures; header: SimHeader; onOpenTrail: OpenTrail }) {
   return (
     <div>
       <SectionHeading number={1} title="Now" says="What the sim holds, and its latest orders" />

@@ -614,7 +614,7 @@ export interface components {
         /** DatasetPage */
         DatasetPage: {
             /** Asset Key */
-            asset_key: components["schemas"]["jev_trader__api__datasets__KeyLine"][];
+            asset_key: components["schemas"]["KeyLine"][];
             check: components["schemas"]["QualityCheck"] | null;
             /** Failure Reason */
             failure_reason: string | null;
@@ -744,9 +744,13 @@ export interface components {
             /** End Of Session */
             end_of_session: boolean;
             /** Key */
-            key: components["schemas"]["jev_trader__api__decision_trail__KeyLine"][];
-            /** Kind */
-            kind: string;
+            key: components["schemas"]["TrailKey"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "full_evaluation" | "position_review";
+            order: components["schemas"]["TradeOrder"] | null;
             /** Position */
             position: number | null;
             /** Step */
@@ -844,6 +848,21 @@ export interface components {
         Health: {
             /** Status */
             status: string;
+        };
+        /** KeyLine */
+        KeyLine: {
+            /** Asset Class */
+            asset_class: string;
+            /** Masked Id */
+            masked_id: string;
+            /** Name */
+            name: string;
+            /** Price Scale */
+            price_scale: number;
+            /** Provider Symbol */
+            provider_symbol: string;
+            /** Ticker */
+            ticker: string;
         };
         /** LiveFigures */
         LiveFigures: {
@@ -1203,8 +1222,11 @@ export interface components {
             /** End Of Session */
             end_of_session: boolean;
             fresh_memory: components["schemas"]["MemoryRead"] | null;
-            /** Kind */
-            kind: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "review" | "screen said no";
             /** Probabilities */
             probabilities: components["schemas"]["Probability"][];
             /** Screen Answer */
@@ -1646,7 +1668,8 @@ export interface components {
         };
         /**
          * TradeOrder
-         * @description The order that opened the trade, and what it cost.
+         * @description An order a decision placed (on the Trade page, the one that opened the trade): its size
+         *     before and after the risk limits, and what it cost.
          */
         TradeOrder: {
             /** Amount Chosen Usd */
@@ -1705,6 +1728,20 @@ export interface components {
             total: number;
         };
         /**
+         * TrailKey
+         * @description Turns a masked ID and its rescaled prices back into real ones.
+         */
+        TrailKey: {
+            /** Masked Id */
+            masked_id: string;
+            /** Name */
+            name: string;
+            /** Price Scale */
+            price_scale: number;
+            /** Ticker */
+            ticker: string;
+        };
+        /**
          * TrailMessage
          * @description One message that passed, word for word as stored.
          */
@@ -1742,35 +1779,6 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
-        };
-        /** KeyLine */
-        jev_trader__api__datasets__KeyLine: {
-            /** Asset Class */
-            asset_class: string;
-            /** Masked Id */
-            masked_id: string;
-            /** Name */
-            name: string;
-            /** Price Scale */
-            price_scale: number;
-            /** Provider Symbol */
-            provider_symbol: string;
-            /** Ticker */
-            ticker: string;
-        };
-        /**
-         * KeyLine
-         * @description Turns a masked ID and its rescaled prices back into real ones.
-         */
-        jev_trader__api__decision_trail__KeyLine: {
-            /** Masked Id */
-            masked_id: string;
-            /** Name */
-            name: string;
-            /** Price Scale */
-            price_scale: number;
-            /** Ticker */
-            ticker: string;
         };
     };
     responses: never;

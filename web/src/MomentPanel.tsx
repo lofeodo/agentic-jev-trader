@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchMoment, type Moment } from "./api/client";
-import { AssetTag, DirectionWords, ErrorBox, PriceTag, orderWords } from "./pieces";
+import { AssetTag, DirectionWords, ErrorBox, PriceTag, SidePanel, orderWords } from "./pieces";
 import { dayAndTime, dollars, fromApi, signedDollars, toApi, units } from "./format";
 
 export function MomentPanel({ simId, step, at, onClose }: { simId: number; step: number; at: Date; onClose: () => void }) {
@@ -23,31 +23,14 @@ export function MomentPanel({ simId, step, at, onClose }: { simId: number; step:
     };
   }, [simId, asked]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   return (
-    <aside
-      aria-label="A moment"
-      className="fixed top-0 right-0 bottom-0 z-30 w-[min(480px,100vw)] overflow-y-auto border-l-[1.5px] border-rule bg-screen"
-    >
-      <div className="flex items-center justify-between bg-amber px-[2ch] py-1 font-mono text-[13.5px] tracking-widest text-screen">
-        <span>A moment</span>
-        <button type="button" onClick={onClose} className="cursor-pointer font-mono tracking-widest uppercase" aria-label="Close the moment">
-          Close [Esc]
-        </button>
-      </div>
-      <div className="px-[2ch] py-4">
-        <h2 className="text-[1.4rem] leading-tight">{dayAndTime(moment ? fromApi(moment.at) : at)}</h2>
-        <p className="mb-4 font-mono text-[12.5px] tracking-wider text-dim">Step {moment?.step ?? step}</p>
-        {error && <ErrorBox title="Cannot read this moment" text={error} />}
-        {!moment && !error && <p className="font-mono text-dim">Loading...</p>}
-        {moment && <MomentBody moment={moment} />}
-      </div>
-    </aside>
+    <SidePanel title="A moment" onClose={onClose}>
+      <h2 className="text-[1.4rem] leading-tight">{dayAndTime(moment ? fromApi(moment.at) : at)}</h2>
+      <p className="mb-4 font-mono text-[12.5px] tracking-wider text-dim">Step {moment?.step ?? step}</p>
+      {error && <ErrorBox title="Cannot read this moment" text={error} />}
+      {!moment && !error && <p className="font-mono text-dim">Loading...</p>}
+      {moment && <MomentBody moment={moment} />}
+    </SidePanel>
   );
 }
 
