@@ -1,0 +1,73 @@
+# serializer version: 1
+# name: test_scenario[no_typical_move]
+  dict({
+    'memory_lookups': list([
+    ]),
+    'orders': list([
+    ]),
+    'records': dict({
+      'MEMORY.DECISIONS': list([
+        dict({
+          'ACTION': 'nothing',
+          'ANSWERS': None,
+          'ASSET': 'ASSET_01',
+          'CANDIDATE_TRADES': None,
+          'DATASET': 1,
+          'END_OF_SESSION': None,
+          'EPISODES_SHOWN': None,
+          'FIRST_WRITTEN_BY': 1,
+          'ID': '1-200-ASSET_01',
+          'JEV_VERSION': None,
+          'KIND': 'screen',
+          'LIMITED_BY': None,
+          'LIMIT_HIT': None,
+          'LLM_MODEL': None,
+          'LLM_NOTE': None,
+          'LOOKUPS': None,
+          'MEMORIES_RELEVANT': None,
+          'OUTCOMES_KNOWN_FROM': None,
+          'PICK': None,
+          'POSITION': None,
+          'PROMPT_VERSION': None,
+          'RATING': None,
+          'REDUCE_SHARE': None,
+          'SCREEN_ANSWER': None,
+          'SELECTED': None,
+          'SIM': 1,
+          'SIZE_AFTER_TRIMMING': None,
+          'SIZE_CHOSEN': None,
+          'SKIPPED_BECAUSE': 'no_typical_move',
+          'STANDING': None,
+          'STEP': 200,
+          'THESIS_INTACT': None,
+          'TIER': 0,
+        }),
+      ]),
+      'MEMORY.OUTCOMES': list([
+      ]),
+      'SIM.ACCOUNT_STEPS': list([
+        dict({
+          'ACCOUNT_VALUE': 10000.0,
+          'CASH': 10000.0,
+          'DAILY_LOSS_REACHED': False,
+          'EXPOSURE': 0,
+          'ID': '1-200',
+          'LOAN': 0.0,
+          'SIM': 1,
+          'START_OF_DAY_VALUE': 10000.0,
+          'STEP': 200,
+        }),
+      ]),
+      'SIM.CALLS': list([
+      ]),
+      'SIM.CHARGES': list([
+      ]),
+      'SIM.JEV_REQUESTS': list([
+      ]),
+      'SIM.LLM_EXCHANGES': list([
+      ]),
+      'SIM.SIM_EVENTS': list([
+      ]),
+    }),
+  })
+# ---
