@@ -83,7 +83,7 @@ conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
 
 `--memory-from <sim>` makes it a practice sim of the agent with memory, starting from a copy of the records (past decisions and how they turned out) that a finished sim left behind. This is for the rehearsal: three one-day practice sims before the year-long build-up sim, where the second and third start from the records the first left. Without `--memory-from`, a sim with memory starts from the base memory: the records of the latest finished build-up sim, the one-year sim that only fills memory. The checker refuses a memory holding anything recorded at or after the sim's first step, so the agent never remembers its own future. The agent with memory is not built yet, so for now the checker refuses such a sim before creating it ("not built yet").
 
-Start the API (logs in as the API login, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173. The API reads everything; its only writes are a sim's row in `SIM.SIMS` (start, Stop, Resume) and a dataset's row in `REF.DATASETS` (build, Stop). Starting or resuming a sim of the agent starts a job that calls Jev, so it costs money: ask first. A build from the Datasets screen runs `python -m jev_trader.dataset build` as the builder login, writing to Snowflake: ask first, as for the command. `JOB_LAUNCHER` in `.env` picks how jobs start: `local` (the default) runs each as a program here, each sim job printing to `logs/sims/sim-<id>.log`, each build to `logs/datasets/dataset-<id>.log` beside its settings file; `kubernetes` runs each as a Job in the kind cluster (`infra/README.md`), its output read with `kubectl logs job/<name> -n jev-trader`:
+Start the API (logs in as the API login, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173. The API reads everything; its only writes are a sim's row in `SIM.SIMS` (start, Stop, Resume) and a dataset's row in `REF.DATASETS` (build, Stop). Starting or resuming a sim of the agent starts a job that calls Jev, so it costs money: ask first. The New trading sim form (`#/sims/new`) starts measurement, build-up and free sims; `GET /sims/check`, which it asks on each change, is free and stores nothing. Unlike the command line, a start from the app is let past the checker's two "not built yet" refusals: a sim without memory really runs and calls Jev up to its cap, while a sim with memory's job fails at its first step, before any paid call. The first start on a stretch of days also starts the sim holding the five assets over them, which calls nothing paid. A build from the Datasets screen runs `python -m jev_trader.dataset build` as the builder login, writing to Snowflake: ask first, as for the command. `JOB_LAUNCHER` in `.env` picks how jobs start: `local` (the default) runs each as a program here, each sim job printing to `logs/sims/sim-<id>.log`, each build to `logs/datasets/dataset-<id>.log` beside its settings file; `kubernetes` runs each as a Job in the kind cluster (`infra/README.md`), its output read with `kubectl logs job/<name> -n jev-trader`:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.api serve
@@ -109,14 +109,49 @@ Start the memory MCP server, the agent's only MCP server (three read-only lookup
 conda run -n agentic-jev-trader python -m jev_trader.memory serve
 ```
 
+Check the episode search's values (spec appendix 9, section 7), once, after the build-up sim: whether the past episodes the search calls most similar ended the same way (the price went the same way) more often than random ones. It reads the sim's memory as the memory login and calls no model, so it costs nothing. The two values: how much of the say the shapes of the last 8 bars get against their surroundings (`--shape-share`, 0.5 is half), and how much less each older bar counts than the one after it (`--bar-decay`, 0.15 is 15% less). `--shape-share 0.3 0.5 0.7` and `--bar-decay 0.1 0.15 0.2` try other values (every pair is tried, the best is named), `--after` picks when the price is read (`1_bar`, `4_bars` by default, `end_of_day`), and `--sample 2000` checks fewer episodes for a quicker answer (all of a year's memory takes a few minutes):
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.memory check-search --sim 12
+```
+
+The local kind cluster (a small Kubernetes cluster inside Docker; `infra/README.md`) runs the same code: the memory server, the API and the web app as long-lived services, and each sim or dataset build the API starts as a Job (a one-off run). It needs Docker Desktop running and `kind`, `kubectl` and `terraform` installed (`winget install Kubernetes.kind`, then a new terminal: the open ones do not see it). It is for proving the route; the sims that count run as plain programs on this computer. Make the cluster once (it opens the web app at http://127.0.0.1:8080 and the API at http://127.0.0.1:8081, to this computer only):
+
+```
+kind create cluster --config infra/kind-cluster.yaml
+```
+
+Build both images, tagged with the current commit, and load them into the cluster (commit every change first: it refuses uncommitted changes, since the tag names the code inside):
+
+```
+conda run -n agentic-jev-trader python infra/images.py build
+```
+
+Deploy them with the real keys from `.env` (Terraform's Kubernetes part, `infra/deploy.py`; each key goes to Terraform as a `TF_VAR_*` variable and on to the cluster without Terraform keeping a copy, so no file and no Terraform record holds it). `plan` shows what would change; `apply` puts real keys into the cluster: ask first, each time. `--database TRADING_AGENT_TEST`, before `plan` or `apply`, serves the test database:
+
+```
+conda run -n agentic-jev-trader python infra/deploy.py plan
+conda run -n agentic-jev-trader python infra/deploy.py apply -auto-approve
+```
+
+In the cluster the API runs with `JOB_LAUNCHER=kubernetes`: each sim starts as the Job `sim-<id>-<6 characters>`, each build as `dataset-<id>-<database>`, from the API's own image. The money rules are the ones above: a sim of the agent calls Jev wherever it runs. A Job that ended is kept, so its output stays readable; Stop removes it:
+
+```
+kubectl get jobs -n jev-trader
+kubectl logs job/sim-12-a1b2c3 -n jev-trader
+```
+
+`JOB_LAUNCHER=kubernetes` in `.env` makes an API run on this computer start its Jobs in the same cluster (named `kind-jev-trader` in this computer's cluster settings, `~/.kube/config`), from the image of the checkout's commit. Remove the cluster, everything in it included: `kind delete cluster --name jev-trader`.
+
 Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).
+- The kind cluster runs the images of one commit. After a new commit, rebuild (`infra/images.py build`) and deploy again: the services restart on the new images. A sim Job runs the API's image, not this checkout. After changing a key in `.env`, deploy with `apply -auto-approve -var=secrets_revision=2` (one more than the last), or Terraform does not send the new value. In a worktree, `infra/deploy.py` finds no `.env`: load the main checkout's first, as below.
 - `.env` is gitignored, so it lives only in the main checkout: a git worktree has none. There, `tests/snowflake` skips with "Snowflake login not set" (the login is set; the worktree just can't see it), and anything else that reads `.env` finds nothing. Load the main checkout's `.env` into the environment first, never copy it: a short Python script that calls `dotenv.load_dotenv("<main checkout>/.env")` and then `pytest.main([...])`, run from the worktree.
 - A sim job started by the API runs the code of the checkout the API runs from, whichever copy is installed.
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
 - `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.
-- Every refusal before a sim starts or resumes comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. `run_sim` keeps its own guards for carrying a sim on (finished, cap already reached, changed wording), and `api/sim_jobs.py` the checks only the API makes (command-line-only kinds, days, a resume's new cap). The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.
+- Every refusal before a sim starts or resumes comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. `run_sim` keeps its own guards for carrying a sim on (finished, cap already reached, changed wording), and `api/sim_jobs.py` the checks only the API makes (command-line-only kinds, days, a resume's new cap). A start from the app is let past the checker's two "not built yet" refusals (`unbuilt_allowed`); the command line is not. So, until the agent with memory is built, a sim with memory started from the app fails in its first moment ($0), and a measurement, build-up or free sim without memory really runs and calls Jev, up to its cap. The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.
 
 ## Walkthroughs
 

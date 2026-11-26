@@ -68,13 +68,16 @@ def commit_tag() -> str:
     return git("rev-parse", "--short", "HEAD")
 
 
-def run(command: list[str]) -> bool:
-    """Run a command, passing on what it prints as plain ASCII: the web build prints other
-    characters, on which `conda run` on Windows fails."""
+def run(command: list[str], env: dict[str, str] | None = None) -> bool:
+    """Run a command, asking it nothing, and pass on what it prints as plain ASCII: the web
+    build and Terraform print other characters, on which `conda run` on Windows fails. `env`
+    replaces the environment it runs in."""
     print("> " + " ".join(command), flush=True)
     with subprocess.Popen(
         command,
         cwd=REPO_ROOT,
+        env=env,
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

@@ -178,7 +178,7 @@ class SnowflakeSimStore(_Connection):
     def base_memory_sim(self, dataset: int) -> int | None:
         [(sim_id,)] = self._run(
             "SELECT MAX(ID) FROM SIM.SIMS WHERE DATASET = ? AND KIND = 'build-up' "
-            "AND STATUS = ?",
+            "AND VARIANT <> 'buy_hold' AND STATUS = ?",
             (dataset, str(SimStatus.FINISHED)),
         )
         return sim_id
