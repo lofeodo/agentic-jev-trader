@@ -36,6 +36,11 @@ from jev_trader.api.datasets import (
     DatasetToBuild,
     PriceChart,
 )
+from jev_trader.api.decision_trail import (
+    DecisionNotFound,
+    DecisionTrail,
+    decision_trail,
+)
 from jev_trader.api.llm_names import model_label
 from jev_trader.api.measurements import Measurements, measurements
 from jev_trader.api.playbook import Playbook, playbook
@@ -59,6 +64,7 @@ from jev_trader.api.sim_page import (
 from jev_trader.api.sims_list import SimsList, sims_list
 from jev_trader.api.spending import Spending, spending
 from jev_trader.api.store import ApiStore
+from jev_trader.api.trade_page import TradeNotFound, TradePage, trade_page
 from jev_trader.api.trades import Filters, TradesTable, trades_table
 from jev_trader.jobs import Builds, Launcher
 from jev_trader.llm.models import load_model_settings
@@ -180,6 +186,18 @@ def create_app(
     def no_such_sim(request: Request, missing: SimNotFound):
         return JSONResponse({"detail": f"There is no sim {missing}."}, status_code=404)
 
+    @app.exception_handler(TradeNotFound)
+    def no_such_trade(request: Request, missing: TradeNotFound):
+        return JSONResponse(
+            {"detail": f"There is no trade {missing}."}, status_code=404
+        )
+
+    @app.exception_handler(DecisionNotFound)
+    def no_such_decision(request: Request, missing: DecisionNotFound):
+        return JSONResponse(
+            {"detail": f"There is no decision {missing}."}, status_code=404
+        )
+
     # Before `/sims/{sim_id}`, which would otherwise take "check" for a sim's ID.
     @app.get("/sims/check", operation_id="checkSim")
     def check_sim(wanted: Annotated[SimToStart, Query()]) -> SimCheck:
@@ -236,6 +254,24 @@ def create_app(
             ("trades", sim_id, filters, page, page_size),
             sim_id,
             lambda: trades_table(store, sim_id, filters, page, page_size),
+        )
+
+    @app.get("/sims/{sim_id}/trades/{trade}", operation_id="simTrade")
+    def sim_trade(sim_id: int, trade: int) -> TradePage:
+        """The Trade page: one trade, its chart, order, position reviews, nightly charges and
+        memory. `trade`: the position number, as the trades table's lines give it."""
+        return kept(
+            ("trade", sim_id, trade), sim_id, lambda: trade_page(store, sim_id, trade)
+        )
+
+    @app.get("/sims/{sim_id}/decisions/{decision}/trail", operation_id="decisionTrail")
+    def sim_decision_trail(sim_id: int, decision: str) -> DecisionTrail:
+        """Every stage of one decision, every message word for word as stored (masked IDs and
+        rescaled prices), with the key that turns them back into real ones."""
+        return kept(
+            ("trail", sim_id, decision),
+            sim_id,
+            lambda: decision_trail(store, sim_id, decision),
         )
 
     @app.get("/sims/{sim_id}/measurements", operation_id="simMeasurements")

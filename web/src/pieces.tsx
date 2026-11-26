@@ -25,6 +25,19 @@ export function PriceTag({ price: p }: { price: Price }) {
   );
 }
 
+// Opens the decision trail of a trade, an open position or a decision; nothing for code's own
+// trades (holding), which no decision opened.
+export function TrailButton({ decision, onOpenTrail }: { decision: string | null; onOpenTrail: (decision: string) => void }) {
+  if (decision === null) return null;
+  return (
+    <div>
+      <button type="button" onClick={() => onOpenTrail(decision)} className="cursor-pointer text-[12.5px] text-dim underline">
+        trail
+      </button>
+    </div>
+  );
+}
+
 // `text` or `children`: what went wrong, as one paragraph or as the caller lays it out.
 export function ErrorBox({ title, text, children }: { title: string; text?: string; children?: ReactNode }) {
   return (

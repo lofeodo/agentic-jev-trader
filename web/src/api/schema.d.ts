@@ -234,6 +234,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sims/{sim_id}/decisions/{decision}/trail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sim Decision Trail
+         * @description Every stage of one decision, every message word for word as stored (masked IDs and
+         *     rescaled prices), with the key that turns them back into real ones.
+         */
+        get: operations["decisionTrail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sims/{sim_id}/live": {
         parameters: {
             query?: never;
@@ -386,6 +407,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sims/{sim_id}/trades/{trade}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sim Trade
+         * @description The Trade page: one trade, its chart, order, position reviews, nightly charges and
+         *     memory. `trade`: the position number, as the trades table's lines give it.
+         */
+        get: operations["simTrade"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/spending": {
         parameters: {
             query?: never;
@@ -490,6 +532,17 @@ export interface components {
             /** Window Steps */
             window_steps: number;
         };
+        /**
+         * ChartBar
+         * @description One 15-minute bar's close, around the trade.
+         */
+        ChartBar: {
+            /** At */
+            at: string | null;
+            close: components["schemas"]["Price"];
+            /** Step */
+            step: number;
+        };
         /** ChartLine */
         ChartLine: {
             /** Label */
@@ -500,6 +553,21 @@ export interface components {
             role: string;
             /** Sim Id */
             sim_id: number;
+        };
+        /**
+         * ChartMark
+         * @description A mark on the chart: entry, stop price, close, or a position screen or review ticked.
+         */
+        ChartMark: {
+            /** At */
+            at: string | null;
+            /** Decision */
+            decision: string | null;
+            /** Kind */
+            kind: string;
+            price: components["schemas"]["Price"] | null;
+            /** Step */
+            step: number;
         };
         /** ChartPoint */
         ChartPoint: {
@@ -546,7 +614,7 @@ export interface components {
         /** DatasetPage */
         DatasetPage: {
             /** Asset Key */
-            asset_key: components["schemas"]["KeyLine"][];
+            asset_key: components["schemas"]["jev_trader__api__datasets__KeyLine"][];
             check: components["schemas"]["QualityCheck"] | null;
             /** Failure Reason */
             failure_reason: string | null;
@@ -653,6 +721,8 @@ export interface components {
             asset: components["schemas"]["AssetName"];
             /** At */
             at: string | null;
+            /** Decision */
+            decision: string;
             /** Kind */
             kind: string;
             /** Screen Answer */
@@ -663,6 +733,36 @@ export interface components {
             step: number;
             /** Tier */
             tier: number;
+        };
+        /** DecisionTrail */
+        DecisionTrail: {
+            asset: components["schemas"]["AssetName"];
+            /** At */
+            at: string | null;
+            /** Decision */
+            decision: string;
+            /** End Of Session */
+            end_of_session: boolean;
+            /** Key */
+            key: components["schemas"]["jev_trader__api__decision_trail__KeyLine"][];
+            /** Kind */
+            kind: string;
+            /** Position */
+            position: number | null;
+            /** Step */
+            step: number;
+            /** Stops */
+            stops: components["schemas"]["TrailStop"][];
+        };
+        /**
+         * EpisodeRead
+         * @description A past episode Jev read, as it was written for it.
+         */
+        EpisodeRead: {
+            /** Episode */
+            episode: string;
+            /** Text */
+            text: string;
         };
         /**
          * Fallback
@@ -744,21 +844,6 @@ export interface components {
         Health: {
             /** Status */
             status: string;
-        };
-        /** KeyLine */
-        KeyLine: {
-            /** Asset Class */
-            asset_class: string;
-            /** Masked Id */
-            masked_id: string;
-            /** Name */
-            name: string;
-            /** Price Scale */
-            price_scale: number;
-            /** Provider Symbol */
-            provider_symbol: string;
-            /** Ticker */
-            ticker: string;
         };
         /** LiveFigures */
         LiveFigures: {
@@ -849,6 +934,18 @@ export interface components {
             holding_sim_id: number | null;
             /** Through Step */
             through_step: number | null;
+        };
+        /**
+         * MemoryRead
+         * @description What Jev read from memory for one decision.
+         */
+        MemoryRead: {
+            /** Decision */
+            decision: string | null;
+            /** Episodes */
+            episodes: components["schemas"]["EpisodeRead"][];
+            /** Scorecard Lines */
+            scorecard_lines: string[];
         };
         /**
          * Meters
@@ -955,6 +1052,20 @@ export interface components {
             /** Value */
             value: number;
         };
+        /**
+         * NightlyCharge
+         * @description A charge the trade paid for being held overnight, such as a short's borrow fee.
+         */
+        NightlyCharge: {
+            /** Amount Usd */
+            amount_usd: number;
+            /** At */
+            at: string | null;
+            /** Kind */
+            kind: string;
+            /** Step */
+            step: number;
+        };
         /** NotableMoment */
         NotableMoment: {
             /** At */
@@ -973,6 +1084,8 @@ export interface components {
             /** Amount Chosen */
             amount_chosen: number | null;
             asset: components["schemas"]["AssetName"];
+            /** Decision */
+            decision: string | null;
             /** Direction */
             direction: string;
             entry_price: components["schemas"]["Price"];
@@ -1073,6 +1186,32 @@ export interface components {
             /** Talib Version */
             talib_version: string | null;
         };
+        /**
+         * PositionStep
+         * @description A step the open position was looked at: a review, or the position screen saying no
+         *     (nothing more asked: the position was held, guarded by its stop price).
+         */
+        PositionStep: {
+            /** Amount Usd */
+            amount_usd: number | null;
+            /** Answer */
+            answer: string | null;
+            /** At */
+            at: string | null;
+            /** Decision */
+            decision: string | null;
+            /** End Of Session */
+            end_of_session: boolean;
+            fresh_memory: components["schemas"]["MemoryRead"] | null;
+            /** Kind */
+            kind: string;
+            /** Probabilities */
+            probabilities: components["schemas"]["Probability"][];
+            /** Screen Answer */
+            screen_answer: number | null;
+            /** Step */
+            step: number;
+        };
         /** PositionThen */
         PositionThen: {
             asset: components["schemas"]["AssetName"];
@@ -1119,6 +1258,16 @@ export interface components {
             says: string;
             /** Winner */
             winner: string | null;
+        };
+        /**
+         * Probability
+         * @description One of Jev's answers and how likely it rated it, 0 to 1.
+         */
+        Probability: {
+            /** Option */
+            option: string;
+            /** Probability */
+            probability: number;
         };
         /**
          * QualityCheck
@@ -1496,6 +1645,37 @@ export interface components {
             units: number | null;
         };
         /**
+         * TradeOrder
+         * @description The order that opened the trade, and what it cost.
+         */
+        TradeOrder: {
+            /** Amount Chosen Usd */
+            amount_chosen_usd: number | null;
+            /** Amount Placed Usd */
+            amount_placed_usd: number;
+            /** Commission Or Fee Usd */
+            commission_or_fee_usd: number;
+            /** Limited By */
+            limited_by: string | null;
+            /** Slippage Usd */
+            slippage_usd: number;
+        };
+        /** TradePage */
+        TradePage: {
+            /** Bars */
+            bars: components["schemas"]["ChartBar"][];
+            entry_memory: components["schemas"]["MemoryRead"];
+            /** Marks */
+            marks: components["schemas"]["ChartMark"][];
+            /** Nightly Charges */
+            nightly_charges: components["schemas"]["NightlyCharge"][];
+            order: components["schemas"]["TradeOrder"];
+            /** Position Steps */
+            position_steps: components["schemas"]["PositionStep"][];
+            stop_price: components["schemas"]["Price"] | null;
+            trade: components["schemas"]["TradeLine"];
+        };
+        /**
          * TradeTick
          * @description One trade: a tick on the chart where it opened.
          */
@@ -1524,6 +1704,32 @@ export interface components {
             /** Total */
             total: number;
         };
+        /**
+         * TrailMessage
+         * @description One message that passed, word for word as stored.
+         */
+        TrailMessage: {
+            /** Marks */
+            marks: string[];
+            /** Role */
+            role: string;
+            /** Sender */
+            sender: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * TrailStop
+         * @description One box of the strip, and the messages behind it.
+         */
+        TrailStop: {
+            /** Messages */
+            messages: components["schemas"]["TrailMessage"][];
+            /** Name */
+            name: string;
+            /** Outcome */
+            outcome: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1536,6 +1742,35 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** KeyLine */
+        jev_trader__api__datasets__KeyLine: {
+            /** Asset Class */
+            asset_class: string;
+            /** Masked Id */
+            masked_id: string;
+            /** Name */
+            name: string;
+            /** Price Scale */
+            price_scale: number;
+            /** Provider Symbol */
+            provider_symbol: string;
+            /** Ticker */
+            ticker: string;
+        };
+        /**
+         * KeyLine
+         * @description Turns a masked ID and its rescaled prices back into real ones.
+         */
+        jev_trader__api__decision_trail__KeyLine: {
+            /** Masked Id */
+            masked_id: string;
+            /** Name */
+            name: string;
+            /** Price Scale */
+            price_scale: number;
+            /** Ticker */
+            ticker: string;
         };
     };
     responses: never;
@@ -1955,6 +2190,38 @@ export interface operations {
             };
         };
     };
+    decisionTrail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sim_id: number;
+                decision: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionTrail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     simLive: {
         parameters: {
             query?: {
@@ -2195,6 +2462,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TradesTable"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simTrade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sim_id: number;
+                trade: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradePage"];
                 };
             };
             /** @description Validation Error */
