@@ -46,6 +46,8 @@ track_record_no_pattern = 'No candle pattern shows in the last 4 bars, so there 
 track_record_footer = 'Each line is the narrowest group that fits the current situation and has at least {minimum} closed trades. A win is a trade that closed with a profit after trading costs.'
 # Newest first, so the order the LLM preferred them in does not reach Jev.
 past_episodes_heading = "# Past episodes: {count} of the account's own earlier decisions in situations like the current one, newest first"
+# The same in a position review, whose past episodes are earlier reviews
+review_past_episodes_heading = "# Past episodes: {count} of the account's own earlier reviews of an open position, at moments like the current one, newest first"
 episode_label = 'Episode {number}'
 # The two "nothing to show" cases, worded apart.
 past_episodes_none_heading = '# Past episodes'
