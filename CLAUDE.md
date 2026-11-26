@@ -68,6 +68,8 @@ Hand-run groups (spec appendix 10, section 6):
 
 - Saving fresh answers for `tests/recorded` (spec appendix 10, section 7): real LLM and Jev calls, keys read from `.env`. They cost money: run only with my go-ahead. `--record-mode=once` records only the tests whose file under `cassettes/` is missing, so delete the files (cassettes) to be re-recorded first. `conda run -n agentic-jev-trader python -m pytest tests/recorded --record-mode=once`
 
+- Rewriting the recorded-answer scenarios' expected results (kept with `syrupy` in `tests/recorded/__snapshots__/`) after a deliberate change, or after fresh answers are saved. Free: it calls nothing. Read the difference before committing it. `conda run -n agentic-jev-trader python -m pytest tests/recorded --block-network --snapshot-update`
+
 Build a dataset from its settings file in `datasets/` (downloads are free; it writes to Snowflake as the builder login, so ask before running it; `--database TRADING_AGENT_TEST` builds into the test database, `--no-check` publishes past the two limits):
 
 ```
