@@ -14,7 +14,8 @@ Choices the spec leaves to the build:
 
 - The failure rate is out of the attempts actually made (150 in a whole run; fewer when the
   cap stops it early), and "more than 10 in 100" is checked in whole numbers: 16 of 150 is out,
-  15 of 150 is not.
+  15 of 150 is not. The "both left out" line needs two models: one model run alone
+  (`--model`) and left out gets only its own verdict.
 - Selection overlap compares only attempts that ended with a selection (an attempt stopped
   before the model named anything has none). A model against itself compares every pair of its
   passes at the same moment (three passes make three pairs); against the other model, every
@@ -102,7 +103,7 @@ class Figures:
 
     @property
     def all_left_out(self) -> bool:
-        return bool(self.models) and all(m.left_out for m in self.models)
+        return len(self.models) > 1 and all(m.left_out for m in self.models)
 
 
 def name_of(attempt: Attempt) -> str:
@@ -115,7 +116,7 @@ def selected(attempt: Attempt) -> bool:
     return attempt.selection is not None or attempt.outcome is Outcome.FINE
 
 
-def alike(first: tuple[str, ...], second: tuple[str, ...]) -> float:
+def overlap_of(first: tuple[str, ...], second: tuple[str, ...]) -> float:
     """The episodes in both divided by the episodes in either; two empty count as alike."""
     either = set(first) | set(second)
     if not either:
@@ -142,7 +143,7 @@ def model_figures(name: str, attempts: list[Attempt]) -> ModelFigures:
         )
         for a in attempts
     ]
-    stopped = sum(
+    stopped_by_three = sum(
         a.outcome is Outcome.FAILED_REPLY and a.selection is None for a in attempts
     )
     return ModelFigures(
@@ -151,9 +152,9 @@ def model_figures(name: str, attempts: list[Attempt]) -> ModelFigures:
         went_wrong=went_wrong,
         cost_usd=sum(a.cost_usd for a in attempts),
         price_usd=price,
-        tokens_in=sum(call.tokens_in or 0 for call in calls),
+        tokens_in=sum(a.tokens_in for a in attempts),
         cached_tokens=sum(call.cached_tokens or 0 for call in calls),
-        tokens_out=sum(call.tokens_out or 0 for call in calls),
+        tokens_out=sum(a.tokens_out for a in attempts),
         thinking_tokens=sum(call.thinking_tokens or 0 for call in calls),
         seconds=statistics.fmean(seconds) if seconds else None,
         lookups=(
@@ -161,8 +162,8 @@ def model_figures(name: str, attempts: list[Attempt]) -> ModelFigures:
         ),
         lookup_limit_reached=sum(s.limit_hit is LimitHit.LOOKUPS for s in selections),
         failed_replies=sum(len(s.failed_replies) for s in selections)
-        + stopped * LIMITS.failed_replies_to_stop,
-        stopped_by_failed_replies=stopped,
+        + stopped_by_three * LIMITS.failed_replies_to_stop,
+        stopped_by_failed_replies=stopped_by_three,
         unknown_ids=sum(
             event.kind == UNKNOWN_ID_EVENT for s in selections for event in s.events
         ),
@@ -172,7 +173,7 @@ def model_figures(name: str, attempts: list[Attempt]) -> ModelFigures:
 def overlap(
     job: Job, model: str, other: str | None, pairs: list[tuple[Attempt, Attempt]]
 ) -> Overlap:
-    values = [alike(a.episode_ids, b.episode_ids) for a, b in pairs]
+    values = [overlap_of(a.episode_ids, b.episode_ids) for a, b in pairs]
     return Overlap(
         job=job,
         model=model,
@@ -222,7 +223,7 @@ def figures(run: BenchmarkRun) -> Figures:
 
 OUTCOME_WORDS = {
     Outcome.FAILED_REPLY: "failed replies",
-    Outcome.TIME_LIMIT: "60-second limit reached",
+    Outcome.TIME_LIMIT: f"{LIMITS.seconds:.0f}-second limit reached",
     Outcome.RETRIES_USED_UP: "calls still failing after 3 retries",
 }
 
@@ -266,7 +267,7 @@ def overlap_line(item: Overlap) -> str:
     )
 
 
-def render(found: Figures) -> str:
+def render(shown: Figures) -> str:
     out = [
         "# LLM benchmark",
         "",
@@ -278,23 +279,25 @@ def render(found: Figures) -> str:
         ),
         "",
     ]
-    if found.stopped:
-        out += [f"**The run stopped itself early:** {found.stopped}", ""]
+    if shown.stopped:
+        out += [f"**The run stopped itself early:** {shown.stopped}", ""]
     out += [
         "## Who is left out",
         "",
         (
             "An attempt goes wrong in one of three ways: a failed reply (an answer code cannot "
-            "use, such as a sentence where a tool call was required), the 60-second limit reached, "
-            "or a call still failing after 3 retries. A model whose attempts go wrong more than 10 "
+            "use, such as a sentence where a tool call was required), the "
+            f"{LIMITS.seconds:.0f}-second limit reached, "
+            "or a call still failing after 3 retries. A model whose attempts go wrong more than "
+            f"{LEFT_OUT_PER_100} "
             "times in 100 (more than 15 of its 150, both jobs together) sits out the measurement "
             "sims."
         ),
         "",
     ]
-    out += [verdict_line(model) for model in found.models] or ["- No attempts made."]
+    out += [verdict_line(model) for model in shown.models] or ["- No attempts made."]
     out.append("")
-    if found.all_left_out:
+    if shown.all_left_out:
         out += [
             "**Both models are left out: work stops and the developer decides.**",
             "",
@@ -312,7 +315,7 @@ def render(found: Figures) -> str:
         ),
         "",
     ]
-    out += [overlap_line(item) for item in found.overlaps] or ["- No attempts made."]
+    out += [overlap_line(item) for item in shown.overlaps] or ["- No attempts made."]
     out += [
         "",
         "## Cost",
@@ -326,7 +329,7 @@ def render(found: Figures) -> str:
         ),
         "",
     ]
-    for model in found.models:
+    for model in shown.models:
         out.append(
             f"- **{model.name}**: ${model.cost_usd:.2f} in all; "
             f"{dollars(model.price_usd[FULL_EVALUATION])} per full evaluation, "
@@ -345,7 +348,7 @@ def render(found: Figures) -> str:
         ),
         "",
     ]
-    for model in found.models:
+    for model in shown.models:
         seconds = "-" if model.seconds is None else f"{model.seconds:.1f}"
         lookups = "-" if model.lookups is None else f"{model.lookups:.1f}"
         out += [
