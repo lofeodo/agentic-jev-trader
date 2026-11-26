@@ -136,9 +136,8 @@ class AgentWithoutMemory:
         tracing: Tracing | None = None,
     ):
         self.sim_id = sim_id
-        self.tracing = (
-            tracing or Tracing()
-        )  # a sample of full evaluations, to LangSmith
+        # A sample of full evaluations, to LangSmith.
+        self.tracing = tracing or Tracing()
         self.dataset = dataset
         self.last_step = last_step
         self.market = market
@@ -330,8 +329,10 @@ class _AssetAtStep:
 
     def _ask(self, request: JevRequest, purpose: str) -> JevReply:
         sim_id = self.agent.sim_id
-        with self.agent.tracing.jev_request(
-            purpose, request.background, request.questions
+        with self.agent.tracing.step(
+            f"jev_{purpose}",
+            "llm",
+            {"background": request.background, "questions": request.questions},
         ) as traced:
             reply = self.agent.jev.ask(request)
             traced.result(jev_reply_outputs(reply.body))
@@ -675,8 +676,10 @@ class _DecisionWithMemory(_DecisionAtStep):
     def _recall(self) -> MemorySections:
         """Code's first search, then the LLM's selection, and the track record for each candle
         pattern of the last 4 bars and each direction. Memory holding nothing yet asks no LLM."""
-        lookups = self.agent.lookups_at(
-            LookupContext(self.agent.sim_id, self.step, self.asset)
+        lookups = self.agent.tracing.lookups(
+            self.agent.lookups_at(
+                LookupContext(self.agent.sim_id, self.step, self.asset)
+            )
         )
         track_records = tuple(
             lookups.track_record(pattern, direction)

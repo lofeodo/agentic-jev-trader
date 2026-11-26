@@ -21,7 +21,8 @@ Choices the spec leaves to the build:
 - Tuning, build-up and free sims trace 1 in 30, as measurement sims do.
 - A full evaluation's trace starts after its screen said yes and holds the pick and the size
   (each Jev request a step of its own, with its background, questions and reply), and with
-  memory the LLM's selection. Its result is the pick and what was done.
+  memory each memory lookup (code's and the LLM's) and the LLM's selection. Its result is the
+  pick and what was done.
 - No trace link is kept on an episode yet: no table has a column for it, and nothing reads it.
 """
 
@@ -33,12 +34,15 @@ from collections.abc import Iterator
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langsmith import Client, get_current_run_tree, trace, tracing_context
 from langsmith.utils import tracing_is_enabled
 
 from jev_trader.broker.config import CONFIG_DIR
+
+if TYPE_CHECKING:
+    from jev_trader.llm.selection import MemoryLookups
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +60,9 @@ def load_tracing_settings(path: Path = CONFIG_DIR / "tracing.toml") -> TracingSe
         return TracingSettings(**tomllib.load(file))
 
 
-def switched_on(environ: dict[str, str] | None = None) -> bool:
+def switched_on() -> bool:
     """LangSmith's own switch is on and its key is set."""
-    environ = os.environ if environ is None else environ
-    return bool(environ.get("LANGSMITH_API_KEY")) and tracing_is_enabled()
+    return bool(os.environ.get("LANGSMITH_API_KEY")) and tracing_is_enabled()
 
 
 class Traced:
@@ -85,10 +88,10 @@ class Tracing:
         """The tracing a sim of `kind` runs with: off unless the environment switches it on."""
         if not switched_on():
             return cls()
-        rate = (settings or load_tracing_settings()).sampling_rate(kind)
         try:
+            rate = (settings or load_tracing_settings()).sampling_rate(kind)
             return cls(Client(tracing_sampling_rate=rate))
-        except Exception:  # a bad setting must not stop the sim
+        except Exception:  # a missing or bad setting must not stop the sim
             logger.exception("LangSmith tracing is off")
             return cls()
 
@@ -120,23 +123,43 @@ class Tracing:
             yield Traced(run)
 
     @contextmanager
-    def jev_request(
-        self, purpose: str, background: str, questions: dict
-    ) -> Iterator[Traced]:
-        """One Jev request as a step of the open trace; nothing outside one."""
+    def step(self, name: str, run_type: str, inputs: dict) -> Iterator[Traced]:
+        """One call (a Jev request, a memory lookup) as a step of the open trace; nothing
+        outside one."""
         if self.client is None or get_current_run_tree() is None:
             yield Traced()
             return
         with _guarded(
             lambda stack: stack.enter_context(
-                trace(
-                    f"jev_{purpose}",
-                    run_type="llm",
-                    inputs={"background": background, "questions": questions},
-                )
+                trace(name, run_type=run_type, inputs=inputs)
             )
         ) as run:
             yield Traced(run)
+
+    def lookups(self, lookups: "MemoryLookups") -> "MemoryLookups":
+        """Memory's lookups with each call a step of the open trace: its request, result and
+        time taken. The memory server itself sends nothing to LangSmith."""
+        return lookups if self.client is None else _TracedLookups(lookups, self)
+
+
+class _TracedLookups:
+    def __init__(self, lookups: "MemoryLookups", tracing: Tracing):
+        self._lookups, self._tracing = lookups, tracing
+
+    def _call(self, name: str, inputs: dict):
+        with self._tracing.step(f"memory_{name}", "tool", inputs) as traced:
+            result = getattr(self._lookups, name)(**inputs)
+            traced.result({"result": result})
+        return result
+
+    def search(self, **filters: str):
+        return self._call("search", filters)
+
+    def read(self, episode_ids: list[str]):
+        return self._call("read", {"episode_ids": episode_ids})
+
+    def track_record(self, pattern: str, direction: str):
+        return self._call("track_record", {"pattern": pattern, "direction": direction})
 
 
 def jev_reply_outputs(body: str) -> dict:

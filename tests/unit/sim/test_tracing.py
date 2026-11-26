@@ -16,21 +16,29 @@ from requests.adapters import BaseAdapter
 
 from jev_trader.sim import tracing as tracing_module
 from jev_trader.sim.runner import run_sim
-from jev_trader.sim.store import InMemorySimStore
+from jev_trader.sim.store import KIND_FULL_EVALUATION, InMemorySimStore
 from jev_trader.sim.tracing import Tracing, load_tracing_settings
+from tests.unit.sim.test_agent_with_memory_wiring import (
+    PAST,
+    fake_memory,
+    sim_with_memory,
+)
 from tests.unit.sim.test_agent_without_memory import fake_jev, practice, with_snapshots
 
 
 class StandInLangSmith(BaseAdapter):
-    """LangSmith's web address, answering every request with `status`; keeps what it was sent."""
+    """LangSmith's web address, answering every request with `status`; keeps what it was sent.
+    A status of None: LangSmith cannot be reached."""
 
-    def __init__(self, status: int):
+    def __init__(self, status: int | None):
         super().__init__()
         self.status = status
         self.sent: list[requests.PreparedRequest] = []
 
     def send(self, request, **kwargs):
         self.sent.append(request)
+        if self.status is None:
+            raise requests.ConnectionError("made-up: LangSmith cannot be reached")
         response = requests.Response()
         response.status_code = self.status
         response.headers["retry-after"] = "0"
@@ -59,7 +67,7 @@ def full_evaluations(store, sim_id) -> int:
     return sum(
         1
         for row in store.rows("MEMORY.DECISIONS", sim_id)
-        if row["KIND"] == "full_evaluation"
+        if row["KIND"] == KIND_FULL_EVALUATION
     )
 
 
@@ -68,8 +76,9 @@ def yes_market(market):
     return with_snapshots(market)
 
 
-def test_a_sim_carries_on_when_langsmith_refuses_every_trace(yes_market):
-    refusing = StandInLangSmith(429)
+@pytest.mark.parametrize("status", [429, None], ids=["refused", "unreachable"])
+def test_a_sim_carries_on_when_langsmith_refuses_every_trace(yes_market, status):
+    refusing = StandInLangSmith(status)
     client = client_over(refusing)
     store = InMemorySimStore()
     jev, _ = fake_jev(lambda n: 0.9)
@@ -121,6 +130,34 @@ def test_each_full_evaluation_is_one_trace_and_checks_get_none(yes_market):
     assert {run["name"] for run in traces} == {"full_evaluation"}
     steps = {run["name"] for run in started if run.get("parent_run_id")}
     assert steps == {"jev_pick"}  # the fake Jev picks no trade, so no size is asked
+
+
+def test_memory_lookups_are_steps_of_the_full_evaluations_trace(yes_market):
+    accepting = StandInLangSmith(200)
+    client = client_over(accepting, auto_batch_tracing=False)
+    store = InMemorySimStore()
+    jev, _ = fake_jev(lambda n: 0.9)
+    lookups_at, _ = fake_memory([PAST])
+    sim_id = sim_with_memory(store, yes_market)
+
+    run_sim(
+        store,
+        yes_market,
+        sim_id,
+        jev=jev,
+        lookups_at=lookups_at,
+        tracing=Tracing(client),
+    )
+
+    started = [
+        json.loads(r.body)
+        for r in accepting.sent
+        if r.method == "POST" and r.url.endswith("/runs")
+    ]
+    roots = {run["name"] for run in started if run.get("parent_run_id") is None}
+    steps = {run["name"] for run in started if run.get("parent_run_id")}
+    assert roots == {"full_evaluation"}  # a lookup is never a trace of its own
+    assert {"memory_search", "memory_track_record", "jev_pick"} <= steps
 
 
 def test_the_share_traced_is_set_by_sim_kind(monkeypatch):
