@@ -18,7 +18,7 @@ from jev_trader.benchmark import NotBuilt
 from jev_trader.benchmark.attempts import Attempt, AttemptLog, ModelRunner
 from jev_trader.benchmark.moments import SavedMoment
 from jev_trader.benchmark.spending import CapReached, SpendMeter
-from jev_trader.llm.selection import MemoryLookups
+from jev_trader.llm.selection import LlmSelector, MemoryLookups, Selector
 from jev_trader.llm.settings import LlmSettings
 from jev_trader.memory.bridge import LookupContext
 
@@ -28,12 +28,20 @@ PASSES = 3
 
 
 class SelectionRunner:
-    """The real runner: the LLM's selection step (`jev_trader.llm.selection.LlmSelector`) on
-    the moment, its lookups from `lookups_at`, made for the moment's "now" in the base memory
-    (`jev_trader.memory.bridge.Connection.lookups_at`)."""
+    """The real runner: the LLM's selection step on the moment, its lookups from `lookups_at`,
+    made for the moment's "now" in the base memory
+    (`jev_trader.memory.bridge.Connection.lookups_at`).
 
-    def __init__(self, lookups_at: Callable[[LookupContext], MemoryLookups]):
+    `selector_for` makes the selector for one model: by default the real one
+    (`jev_trader.llm.selection.LlmSelector`); tests hand in one over a fake chat model."""
+
+    def __init__(
+        self,
+        lookups_at: Callable[[LookupContext], MemoryLookups],
+        selector_for: Callable[[LlmSettings], Selector] = LlmSelector,
+    ):
         self.lookups_at = lookups_at
+        self.selector_for = selector_for
 
     def run(self, moment: SavedMoment, model: LlmSettings, pass_number: int) -> Attempt:
         raise NotBuilt("a model's attempt at a saved moment")
