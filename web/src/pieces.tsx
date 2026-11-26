@@ -72,6 +72,23 @@ export function TrailButton({ decision, onOpenTrail }: { decision: string | null
   );
 }
 
+// A risk limit in words: "trade_risk" is "the trade risk limit".
+export const limitWords = (limit: string) => `the ${limit.replaceAll("_", " ")} limit`;
+
+// Named figures, one a row: the name on the left, the figure on the right.
+export function FigureRows({ rows, space = "mb-3" }: { rows: [string, string][]; space?: string }) {
+  return (
+    <dl className={`${space} grid grid-cols-[1fr_auto] gap-x-[2ch] gap-y-1 font-mono text-[15px]`}>
+      {rows.map(([name, figure]) => (
+        <div key={name} className="contents">
+          <dt className="text-dim">{name}</dt>
+          <dd className="text-right text-pale">{figure}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 // `text` or `children`: what went wrong, as one paragraph or as the caller lays it out.
 export function ErrorBox({ title, text, children }: { title: string; text?: string; children?: ReactNode }) {
   return (
@@ -193,9 +210,9 @@ export function orderWords(o: OrderLine) {
   const reason = REASONS[o.reason] ?? o.reason;
   const what = o.kind === "entry" ? "opened" : o.kind === "add" ? "added to" : o.kind === "reduce" ? "made smaller" : "closed";
   if (o.status === "waiting") return `${what}: waiting for the next bar (${reason})`;
-  if (o.status === "cancelled") return `${what}: cancelled${o.limited_by ? ` by the ${o.limited_by.replace("_", " ")} limit` : ""}`;
+  if (o.status === "cancelled") return `${what}: cancelled${o.limited_by ? ` by ${limitWords(o.limited_by)}` : ""}`;
   const side = o.side === "buy" ? "bought" : "sold";
   const value = o.value_usd === null ? "" : ` ${dollars(o.value_usd)}`;
-  const trimmed = o.limited_by && o.amount_chosen !== null ? `; Jev chose ${dollars(o.amount_chosen)}, trimmed by the ${o.limited_by.replace("_", " ")} limit` : "";
+  const trimmed = o.limited_by && o.amount_chosen !== null ? `; Jev chose ${dollars(o.amount_chosen)}, trimmed by ${limitWords(o.limited_by)}` : "";
   return `${what}: ${side}${value} (${reason}${trimmed})`;
 }

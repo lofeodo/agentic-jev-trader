@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchMoment, type Moment } from "./api/client";
-import { AssetTag, DirectionWords, ErrorBox, PriceTag, SidePanel, TrailButton, orderWords, type OpenTrail } from "./pieces";
+import { AssetTag, DirectionWords, ErrorBox, FigureRows, PriceTag, SidePanel, TrailButton, orderWords, type OpenTrail } from "./pieces";
 import { dayAndTime, dollars, fromApi, signedDollars, toApi, units } from "./format";
 
 export function MomentPanel({
@@ -47,15 +47,6 @@ export function MomentPanel({
   );
 }
 
-function Row({ name, figure }: { name: string; figure: string }) {
-  return (
-    <div className="contents">
-      <dt className="text-dim">{name}</dt>
-      <dd className="text-right text-pale">{figure}</dd>
-    </div>
-  );
-}
-
 function MomentBody({ moment, onOpenTrail }: { moment: Moment; onOpenTrail: OpenTrail }) {
   const a = moment.account;
   const gap = a && moment.holding_value !== null ? a.account_value - moment.holding_value : null;
@@ -66,16 +57,19 @@ function MomentBody({ moment, onOpenTrail }: { moment: Moment; onOpenTrail: Open
       {a === null ? (
         <p className="mb-6 font-mono text-dim">The sim had stored nothing yet.</p>
       ) : (
-        <dl className="mb-6 grid grid-cols-[1fr_auto] gap-x-[2ch] gap-y-1 font-mono text-[15px]">
-          <Row name="Account value" figure={dollars(a.account_value)} />
-          <Row name="Holding the five assets" figure={moment.holding_value === null ? "--" : dollars(moment.holding_value)} />
-          <Row name="Against holding" figure={gap === null ? "--" : signedDollars(gap)} />
-          <Row name="Since midnight UTC" figure={moment.since_midnight === null ? "--" : signedDollars(moment.since_midnight)} />
-          <Row name="Since the start" figure={moment.since_start === null ? "--" : signedDollars(moment.since_start)} />
-          <Row name="Cash" figure={dollars(a.cash)} />
-          <Row name="Held in positions" figure={dollars(a.exposure)} />
-          <Row name="Borrowed" figure={a.loan ? dollars(a.loan) : "none"} />
-        </dl>
+        <FigureRows
+          space="mb-6"
+          rows={[
+            ["Account value", dollars(a.account_value)],
+            ["Holding the five assets", moment.holding_value === null ? "--" : dollars(moment.holding_value)],
+            ["Against holding", gap === null ? "--" : signedDollars(gap)],
+            ["Since midnight UTC", moment.since_midnight === null ? "--" : signedDollars(moment.since_midnight)],
+            ["Since the start", moment.since_start === null ? "--" : signedDollars(moment.since_start)],
+            ["Cash", dollars(a.cash)],
+            ["Held in positions", dollars(a.exposure)],
+            ["Borrowed", a.loan ? dollars(a.loan) : "none"],
+          ]}
+        />
       )}
       <p className="mb-6 text-[14px] text-dim">
         Held in positions adds every position together, a bet on a fall counted like a bet on a rise.

@@ -7,6 +7,7 @@ import { bisector, line as d3line, area as d3area, scaleLinear } from "d3";
 import { useRef, useState } from "react";
 
 import type { ChartLine, TradeTick } from "./api/client";
+import type { OpenTrail } from "./pieces";
 import { dayAndTime, dollars, shortDay, signedDollars, stepTime } from "./format";
 
 const W = 1400;
@@ -49,7 +50,7 @@ export type ChartProps = {
   stepsStartAt: string | null;
   windowSteps: number;
   onPick: (step: number) => void;
-  onOpenTrail?: (decision: string) => void;
+  onOpenTrail: OpenTrail;
 };
 
 type Hover = { step: number; clientX: number; clientY: number };
@@ -230,8 +231,7 @@ export function SimChart(props: ChartProps) {
         />
 
         {/* Over the chart's click area, so a tick's click opens its trail, not the moment. */}
-        {onOpenTrail &&
-          ticks.map((t) => {
+        {ticks.map((t) => {
             const decision = t.decision;
             if (decision === null) return null;
             return (
