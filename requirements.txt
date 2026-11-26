@@ -17,6 +17,8 @@ langchain-openai==1.8.0
 openai==3.49.0
 # The LLM's tool loop, a small graph of our own (installed with langchain, pinned here)
 langgraph==1.2.20
+# Tracing a sample of full evaluations (installed with langchain, pinned here)
+langsmith==0.14.17
 typesafe-sdk==0.7.5
 httpx2==2.16.0
 
