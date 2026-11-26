@@ -1,7 +1,7 @@
 """The paths the real models would not take on demand, run on one hand-written answer each
 (spec appendix 10, sections 7 and 8).
 
-Two recording rounds tried each of these paths with real answers, and none came back:
+Three recording rounds tried these paths with real answers, and none came back:
 
 - **the LLM's slips**: in about 25 real evaluations Claude Haiku never hit its 6-lookup limit,
   never replied without a tool call, never named an episode it was not shown, and always
