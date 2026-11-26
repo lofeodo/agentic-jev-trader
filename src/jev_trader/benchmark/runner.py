@@ -14,11 +14,17 @@ each attempt it asks the spend meter; after it, the attempt is kept (`AttemptLog
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from jev_trader.benchmark import NotBuilt
-from jev_trader.benchmark.attempts import Attempt, AttemptLog, ModelRunner
-from jev_trader.benchmark.moments import SavedMoment
+from jev_trader.benchmark.attempts import Attempt, AttemptLog, ModelRunner, Outcome
+from jev_trader.benchmark.moments import SavedMoment, context_at
 from jev_trader.benchmark.spending import CapReached, SpendMeter
-from jev_trader.llm.selection import LlmSelector, MemoryLookups, Selector
+from jev_trader.llm.clients import LlmFailed
+from jev_trader.llm.selection import (
+    LimitHit,
+    LlmSelector,
+    MemoryLookups,
+    Selection,
+    Selector,
+)
 from jev_trader.llm.settings import LlmSettings
 from jev_trader.memory.bridge import LookupContext
 
@@ -44,7 +50,45 @@ class SelectionRunner:
         self.selector_for = selector_for
 
     def run(self, moment: SavedMoment, model: LlmSettings, pass_number: int) -> Attempt:
-        raise NotBuilt("a model's attempt at a saved moment")
+        lookups = self.lookups_at(context_at(moment.sim, moment.situation))
+        selector = self.selector_for(model)
+        try:
+            selection = selector.select(moment.situation, lookups, moment.first_search)
+        except LlmFailed as failed:
+            # A call still failing after its retries carries that call; the third failed
+            # reply carries none.
+            outcome = (
+                Outcome.FAILED_REPLY if failed.call is None else Outcome.RETRIES_USED_UP
+            )
+            return Attempt(
+                moment=moment,
+                model=model.model,
+                pass_number=pass_number,
+                outcome=outcome,
+                episode_ids=(),
+                calls=failed.calls,
+                failure=failed,
+            )
+        return Attempt(
+            moment=moment,
+            model=model.model,
+            pass_number=pass_number,
+            outcome=outcome_of(selection),
+            episode_ids=selection.episode_ids,
+            calls=selection.calls,
+            selection=selection,
+        )
+
+
+def outcome_of(selection: Selection) -> Outcome:
+    """How an answered attempt went: any reply code could not use makes it a failed reply,
+    even when a later reply answered; the 60-second limit reached makes it a time limit. The
+    limit of 6 lookups reached is not going wrong."""
+    if selection.failed_replies:
+        return Outcome.FAILED_REPLY
+    if selection.limit_hit is LimitHit.TIME:
+        return Outcome.TIME_LIMIT
+    return Outcome.FINE
 
 
 @dataclass(frozen=True)

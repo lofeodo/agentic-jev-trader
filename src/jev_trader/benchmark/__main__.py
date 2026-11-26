@@ -34,7 +34,7 @@ from dotenv import load_dotenv
 from jev_trader.benchmark import NotBuilt
 from jev_trader.benchmark.attempts import AttemptLog, ModelRunner
 from jev_trader.benchmark.made_up import FakeRunner, made_up_moments
-from jev_trader.benchmark.moments import SavedMoment, saved_moments
+from jev_trader.benchmark.moments import BuildUpSim, NoSavedMoments, SavedMoment
 from jev_trader.benchmark.records import NoAttemptLog, SnowflakeAttemptLog
 from jev_trader.benchmark.report import REPORT_PATH, report
 from jev_trader.benchmark.runner import SelectionRunner, run_benchmark
@@ -58,18 +58,18 @@ class Parts:
 
 
 def open_parts(args: argparse.Namespace, held: ExitStack) -> Parts:
-    """The made-up parts with `--made-up`; otherwise the real ones: the build-up sim's moments, the memory server's lookups, and Snowflake,
-    each connection kept open in `held` for the whole run."""
+    """The made-up parts with `--made-up`; otherwise the real ones: the build-up sim's moments,
+    the memory server's lookups, and Snowflake, each connection kept open in `held` for the
+    whole run."""
     if args.made_up:
         return Parts(made_up_moments(), FakeRunner(), NoAttemptLog())
     load_dotenv(REPO_ROOT / ".env")
-    moments = saved_moments(args.sim, args.database)
-    # Every moment comes from the one build-up sim, so any moment's playbook names every candle
-    # pattern the memory server's lookups accept.
-    patterns = list(moments[0].situation.playbook) if moments else []
-    memory = held.enter_context(Connection(local_url(), patterns))
     snowflake = connect("sim", database=args.database)
     held.callback(snowflake.close)
+    build_up = BuildUpSim(snowflake, args.sim)
+    # The memory server's lookups accept every candle pattern the build-up sim's playbook names.
+    memory = held.enter_context(Connection(local_url(), list(build_up.playbook)))
+    moments = build_up.saved_moments(memory.lookups_at)
     return Parts(
         moments, SelectionRunner(memory.lookups_at), SnowflakeAttemptLog(snowflake)
     )
@@ -116,7 +116,7 @@ def main(
                 parts.log,
             )
         page = report(run)
-    except NotBuilt as missing:
+    except (NotBuilt, NoSavedMoments) as missing:
         print(f"The benchmark cannot run: {missing}.")
         return 2
     args.report.write_text(page, encoding="utf-8")
