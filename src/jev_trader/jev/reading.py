@@ -150,10 +150,11 @@ MEMORIES_RELEVANT = "memories_relevant"
 
 @dataclass(frozen=True)
 class MemorySections:
-    """The agent with memory's two sections of a full evaluation's background: the track
-    record, then the past episodes the LLM selected (spec appendix 4, section 8).
+    """The agent with memory's two sections of a full evaluation's or position review's
+    background: the track record, then the past episodes the LLM selected (spec appendix 4,
+    sections 7 and 8).
 
-    `step` is the step the full evaluation runs at, for how long ago each episode was.
+    `step` is the step the evaluation or review runs at, for how long ago each episode was.
     """
 
     step: int
@@ -417,6 +418,9 @@ class Reading:
             self.add_request(*held),
         ]
         memory_layouts = [self._background(*views, m) for m in _layout_memories()]
+        memory_layouts += [
+            self._position_background(*held, m) for m in _layout_memories()
+        ]
         fingerprinted = json.dumps(
             {
                 "wording": self.wording,
@@ -469,15 +473,23 @@ class Reading:
             }
             for n, order in enumerate(orders, start=1)
         }
-        if memory is not None and memory.episodes:
-            questions[MEMORIES_RELEVANT] = {
-                "type": "noul",
-                "instructions": self.wording["memories_relevant_question"],
-            }
+        questions.update(self._memories_relevant(memory))
         return JevRequest(
             background=self._background(asset, account, playbook, memory),
             questions=questions,
         )
+
+    def _memories_relevant(self, memory: MemorySections | None) -> dict[str, dict]:
+        """The recorded-only question whether the past episodes shown fit: asked only when at
+        least one is shown."""
+        if memory is None or not memory.episodes:
+            return {}
+        return {
+            MEMORIES_RELEVANT: {
+                "type": "noul",
+                "instructions": self.wording["memories_relevant_question"],
+            }
+        }
 
     def size_request(
         self,
@@ -531,12 +543,14 @@ class Reading:
         position: PositionView,
         orders: list[list[str]],
         add_allowed: bool = True,
+        memory: MemorySections | None = None,
     ) -> JevRequest:
-        """Request 1 of a position review: hold, close, reduce or add, asked once per order, and
-        whether the reason for opening it still holds (recorded only).
+        """Request 1 of a position review: hold, close, reduce or add, asked once per order,
+        whether the reason for opening it still holds, and, when at least one past episode is
+        shown, whether they fit (both recorded only).
 
         `orders` lists the option names in the order each copy sends them. Without memory the
-        background is the position screen's.
+        background is the position screen's; with it, the memory sections follow the asset.
         """
         w = self.wording
         options = self.action_options(asset, account, position, add_allowed)
@@ -553,8 +567,11 @@ class Reading:
             "type": "noul",
             "instructions": w["thesis_intact_question"],
         }
+        questions.update(self._memories_relevant(memory))
         return JevRequest(
-            background=self._position_background(asset, account, playbook, position),
+            background=self._position_background(
+                asset, account, playbook, position, memory
+            ),
             questions=questions,
         )
 
@@ -598,6 +615,7 @@ class Reading:
         account: AccountView,
         playbook: Mapping[str, tuple[str, str]],
         position: PositionView,
+        memory: MemorySections | None = None,
     ) -> JevRequest:
         """Request 2 after a reduce: how much, asked smallest first and largest first."""
         w = self.wording
@@ -610,7 +628,7 @@ class Reading:
                 left=dollars((1 - share) * position.worth),
             )
         return self._decided_request(
-            asset, account, playbook, position, "reduce", options
+            asset, account, playbook, position, "reduce", options, memory
         )
 
     def add_request(
@@ -619,6 +637,7 @@ class Reading:
         account: AccountView,
         playbook: Mapping[str, tuple[str, str]],
         position: PositionView,
+        memory: MemorySections | None = None,
     ) -> JevRequest:
         """Request 2 after an add: how much more, in the five sizes of a new trade."""
         w = self.wording
@@ -638,7 +657,9 @@ class Reading:
             loss = position.risk_used(asset.price) + actual * stop_share
             text += w["add_loss"].format(loss=dollars(loss))
             options[size_option_name(share)] = text
-        return self._decided_request(asset, account, playbook, position, "add", options)
+        return self._decided_request(
+            asset, account, playbook, position, "add", options, memory
+        )
 
     def since(self, journal: list[dict]) -> tuple[str, ...]:
         """A position's "since then", from its journal: one entry a bar, runs of the same merged.
@@ -679,11 +700,14 @@ class Reading:
         position: PositionView,
         decided: str,
         options: dict[str, str],
+        memory: MemorySections | None = None,
     ) -> JevRequest:
         """Request 2: the background ending with what was decided ("reduce" or "add"), and how
         much, asked smallest first and largest first."""
         w = self.wording
-        background = self._position_background(asset, account, playbook, position)
+        background = self._position_background(
+            asset, account, playbook, position, memory
+        )
         background += f"\n\n{w['decided_heading']}\n{w['decided_' + decided]}"
         question = {"type": "choice", "instructions": w[f"{decided}_question"]}
         return JevRequest(
@@ -934,17 +958,21 @@ class Reading:
         account: AccountView,
         playbook: Mapping[str, tuple[str, str]],
         position: PositionView,
+        memory: MemorySections | None = None,
     ) -> str:
-        """A position screen's background, which is also a position review's without memory."""
+        """A position screen's background, which is also a position review's without memory.
+        With memory, the track record and the past episodes follow the asset."""
         w = self.wording
         others = tuple(p for p in account.positions if p.asset != asset.asset_id)
+        named = asset.patterns + position.patterns_at_entry + _patterns_named_in(memory)
         sections = [
             self.opening,
             self._account(account),
             self._open_positions(others, w["other_positions_heading"]),
             self._position(asset, position),
             self._asset(asset, held=True),
-            self._pattern_notes(asset.patterns + position.patterns_at_entry, playbook),
+            *self._memory(asset, memory),
+            self._pattern_notes(named, playbook),
         ]
         return "\n\n".join(s for s in sections if s)
 

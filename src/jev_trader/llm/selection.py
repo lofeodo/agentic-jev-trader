@@ -1,8 +1,10 @@
-"""The selection step: the LLM picks which past episodes Jev reads in a full evaluation (spec
-appendix 5, sections 4 to 8; appendix 10, section 2).
+"""The selection step: the LLM picks which past episodes Jev reads in a full evaluation or a
+position review (spec appendix 5, sections 4 to 8; appendix 10, section 2).
 
 Code runs the first search and hands its one-line summaries to a `Selector`, with the moment
-being looked at (`Situation`). The selector may look further through memory's lookups
+being looked at (`Situation`; in a position review it also carries the position's standing,
+which makes the selection the LLM's second job). Both jobs share everything but the job's
+standing instructions, its first message and its two job-specific tool descriptions. The selector may look further through memory's lookups
 (`MemoryLookups`, for one moment: the sim, the step, the asset and the job are filled in by
 code) and returns a `Selection`: the chosen episodes' IDs, most useful first, and a one-line
 note, with what the decision record stores about how they were chosen.
@@ -13,7 +15,7 @@ reply asked again), and round again until the LLM answers with `select_episodes`
 tool never counts and is never taken away. At 6 lookups or 60 seconds (timed by a `WallClock`,
 so tests can run on a fake one) the three lookup tools are switched off and a fixed message asks
 for the answer. A reply code cannot use is a **failed reply** and gets a fixed re-ask; the third
-in one evaluation raises `LlmFailed`, as does a call to the provider still failing after its
+in one full evaluation or position review raises `LlmFailed`, as does a call to the provider still failing after its
 retries. Either stops the sim.
 
 The LLM sees episodes by short labels (E1, E2, ...) numbered in the order they first appear in
@@ -75,7 +77,13 @@ from jev_trader.memory.bridge import (
 )
 from jev_trader.memory.episodes import Episode
 from jev_trader.memory.lookups import MOST_READ, Episodes, Found, SearchResult
-from jev_trader.memory.search import FULL_EVALUATION, RESULTS, Filters
+from jev_trader.memory.search import (
+    FULL_EVALUATION,
+    POSITION_REVIEW,
+    RESULTS,
+    Filters,
+    Job,
+)
 from jev_trader.memory.track_record import TrackRecord
 
 log = logging.getLogger(__name__)
@@ -99,7 +107,9 @@ class SelectionLimits:
     most_selected: int = MOST_READ
     most_lookups: int = 6  # not counting the first search; the answer never counts
     seconds: float = 60.0
-    failed_replies_to_stop: int = 3  # the third in one evaluation stops the sim
+    failed_replies_to_stop: int = (
+        3  # the third in one evaluation or review stops the sim
+    )
     note_length: int = 200
 
 
@@ -119,10 +129,20 @@ class MemoryLookups(Protocol):
 
 
 @dataclass(frozen=True)
+class ReviewedPosition:
+    """The open position a position review selects for: its standing (as
+    `jev_trader.jev.reading.PositionView.standing` gives it) and whether this is a stock's
+    end-of-session review."""
+
+    standing: dict
+    end_of_session: bool = False
+
+
+@dataclass(frozen=True)
 class Situation:
     """The moment the LLM selects for: the asset looked at (masked) and its class, the step,
     the situation text Jev reads, the candle patterns it names, and the playbook (each
-    pattern's lean and shape)."""
+    pattern's lean and shape). In a position review, also the open position."""
 
     asset: str
     asset_class: str
@@ -130,6 +150,11 @@ class Situation:
     text: str
     patterns: tuple[str, ...]
     playbook: dict[str, tuple[str, str]]
+    position: ReviewedPosition | None = None
+
+    @property
+    def job(self) -> Job:
+        return FULL_EVALUATION if self.position is None else POSITION_REVIEW
 
 
 @dataclass(frozen=True)
@@ -238,7 +263,10 @@ def standing_part(
 ) -> tuple[str, str, list[dict]]:
     """What every full evaluation's exchange opens with, the same for one prompt version: the
     version, the standing instructions, and the four tools as the first call offers them
-    (`patterns`: every candle pattern name in the playbook). Stored once per version."""
+    (`patterns`: every candle pattern name in the playbook). Stored once per version.
+
+    EMPTY SLOT (#178): only the first job's part is stored; the second job's standing
+    instructions and tools join it when its words move into `prompts/`."""
     wording = wording_within(limits)
     offered = [*definitions(FULL_EVALUATION, patterns), wording.answer_tool()]
     return wording.version, wording.system_prompt(), [_tool(d) for d in offered]
@@ -308,7 +336,8 @@ class _NotAllowed(Exception):
 
 
 class _Evaluation:
-    """One full evaluation's selection: its messages, labels, lookups and slips."""
+    """One full evaluation's or position review's selection: its messages, labels, lookups and
+    slips."""
 
     def __init__(
         self, selector: LlmSelector, situation: Situation, lookups: MemoryLookups
@@ -318,7 +347,7 @@ class _Evaluation:
         self.wording = selector.wording
         self.reader = render.Reader(asset=situation.asset, now=situation.step)
         self.definitions = {
-            d.name: d for d in definitions(FULL_EVALUATION, list(situation.playbook))
+            d.name: d for d in definitions(situation.job, list(situation.playbook))
         }
         self.shown: dict[str, Shown] = {}  # by label, in the order first shown
         self.labels: dict[str, str] = {}  # stored ID to label
@@ -345,7 +374,7 @@ class _Evaluation:
         graph.add_conditional_edges("call", self._after_call)
         graph.add_edge("handle", "call")
         self.messages = [
-            SystemMessage(self.wording.system_prompt()),
+            SystemMessage(self.wording.system_prompt(self.situation.job)),
             HumanMessage(self._first_message(first_search)),
         ]
         graph.compile().invoke({"turns": 0}, {"recursion_limit": GRAPH_STEPS})
@@ -421,8 +450,9 @@ class _Evaluation:
             FAILED_REPLY_EVENT, number=len(self.failed), why=reply.failed_because
         )
         if len(self.failed) >= self.limits.failed_replies_to_stop:
+            job = self.situation.job.replace("_", " ")
             raise LlmFailed(
-                f"failed reply number {len(self.failed)} in one full evaluation "
+                f"failed reply number {len(self.failed)} in one {job} "
                 f"({self.situation.asset}, step {self.situation.step}): "
                 f"{reply.failed_because}"
             )
@@ -566,8 +596,19 @@ class _Evaluation:
             *s.patterns,
             *(p for f in first_search.episodes for p in f.episode.patterns),
         ]
-        return self.wording.first_message(
-            s.asset, s.asset_class, s.text, summaries, self._pattern_notes(named)
+        notes = self._pattern_notes(named)
+        if s.position is None:
+            return self.wording.first_message(
+                s.asset, s.asset_class, s.text, summaries, notes
+            )
+        return self.wording.review_first_message(
+            s.asset,
+            s.asset_class,
+            s.text,
+            s.position.standing,
+            s.position.end_of_session,
+            summaries,
+            notes,
         )
 
     def _summaries(self, found: list[Found], from_first_search: bool) -> list[str]:

@@ -47,9 +47,10 @@ The choices about the pick and the action themselves are in `jev_trader.jev.full
 and `jev_trader.jev.position_review`.
 
 The agent with memory (`AgentWithMemory`, at the end) takes the same steps; before a full
-evaluation's request 1 it runs memory's first search and the LLM's selection
-(`jev_trader.llm.selection`), and the background gains the track record and the episodes
-selected. Its choices the spec leaves to the build:
+evaluation's or a position review's request 1 it runs memory's first search and the LLM's
+selection (`jev_trader.llm.selection`), and the background gains the track record and the
+episodes selected. A position review searches past position reviews of the same direction and
+hands the LLM the position's standing too. Its choices the spec leaves to the build:
 
 - Memory "holds none yet" when code's first search finds nothing; the LLM is then not asked.
 - The track record is read for each candle pattern of the last 4 bars, newest first (the
@@ -94,10 +95,16 @@ from jev_trader.jev.reading import (
     Reading,
     size_option_name,
 )
-from jev_trader.llm.selection import MemoryLookups, Selection, Selector, Situation
+from jev_trader.llm.selection import (
+    MemoryLookups,
+    ReviewedPosition,
+    Selection,
+    Selector,
+    Situation,
+)
 from jev_trader.memory.bridge import LookupContext
 from jev_trader.memory.outcomes import Outcomes, is_last_bar_of_day
-from jev_trader.memory.search import DIRECTIONS
+from jev_trader.memory.search import DIRECTIONS, POSITION_REVIEW
 from jev_trader.risk import RiskLimit
 from jev_trader.sim import records
 from jev_trader.sim.market import Market, Snapshot
@@ -174,7 +181,9 @@ class AgentWithoutMemory:
         snapshots = self._snapshots_at(step)
         for asset in sorted(bars):
             looked_at = (
-                _PositionAtStep if asset in broker.positions else self._decision_at_step
+                self._position_at_step
+                if asset in broker.positions
+                else self._decision_at_step
             )
             looked_at(
                 self, step, broker, asset, bars[asset], snapshots[asset], rows
@@ -185,6 +194,11 @@ class AgentWithoutMemory:
     def _decision_at_step(self) -> type["_DecisionAtStep"]:
         """How an asset with no position is looked at."""
         return _DecisionAtStep
+
+    @property
+    def _position_at_step(self) -> type["_PositionAtStep"]:
+        """How an asset with an open position is looked at."""
+        return _PositionAtStep
 
     def after_step(
         self, step: int, broker: Broker, bars: dict[str, Bar]
@@ -483,6 +497,15 @@ class _DecisionAtStep(_AssetAtStep):
 class _PositionAtStep(_AssetAtStep):
     """An open position: the position screen, then the position review."""
 
+    # The position review's memory sections, and how the LLM chose its past reviews: both
+    # None without memory.
+    memory: MemorySections | None = None
+    selection: Selection | None = None
+
+    def _recall(self, position: PositionView) -> MemorySections | None:
+        """What memory adds to the position review's background: nothing, without memory."""
+        return None
+
     def run(self) -> None:
         self.position = self.broker.positions[self.asset]
         self.record = self.agent.position_record(self.position)
@@ -534,6 +557,7 @@ class _PositionAtStep(_AssetAtStep):
     ) -> tuple[Review, str]:
         """Ask the action, then how much if it is a reduce or an add, and place the order."""
         playbook = self.agent.playbook
+        self.memory = self._recall(position)
         add_allowed = (
             self.broker.add_blocked_by(self.asset, self.snapshot.bars_left) is None
         )
@@ -541,18 +565,29 @@ class _PositionAtStep(_AssetAtStep):
             self.reading.action_options(self.view, account, position, add_allowed)
         )
         request = self.reading.action_request(
-            self.view, account, playbook, position, self._shuffled(names), add_allowed
+            self.view,
+            account,
+            playbook,
+            position,
+            self._shuffled(names),
+            add_allowed,
+            self.memory,
         )
         reply = self._ask(request, "action")
         copies = [q for q in request.questions if q.startswith("action_")]
         answers = {q: reply.choice(q, names) for q in copies}
         thesis_intact = reply.noul("thesis_intact")
+        recorded = {"thesis_intact": thesis_intact}
+        fit = None
+        if MEMORIES_RELEVANT in request.questions:
+            fit = recorded[MEMORIES_RELEVANT] = reply.noul(MEMORIES_RELEVANT)
         review = Review(
             standing=position.standing(self.view.price),
             end_of_session=position.end_of_session,
-            answers={**answers, "thesis_intact": thesis_intact},
+            answers={**answers, **recorded},
             action=read_action(average_copies(list(answers.values()))),
             thesis_intact=thesis_intact,
+            memories_relevant=fit,
         )
         if review.action == CLOSE:
             self.broker.close(self.asset, self.step)
@@ -565,7 +600,7 @@ class _PositionAtStep(_AssetAtStep):
 
     def _reduce(self, account: AccountView, position: PositionView, review: Review):
         request = self.reading.reduce_request(
-            self.view, account, self.agent.playbook, position
+            self.view, account, self.agent.playbook, position, self.memory
         )
         reply = self._ask(request, "reduce")
         names = [reduce_option_name(share) for share in REDUCE_SHARES]
@@ -584,7 +619,7 @@ class _PositionAtStep(_AssetAtStep):
 
     def _add(self, account: AccountView, position: PositionView, review: Review):
         request = self.reading.add_request(
-            self.view, account, self.agent.playbook, position
+            self.view, account, self.agent.playbook, position, self.memory
         )
         reply = self._ask(request, "add")
         review.size_chosen, copies = self._chosen_size(reply, "add", account)
@@ -612,19 +647,18 @@ class _PositionAtStep(_AssetAtStep):
     ) -> None:
         if action == ACTION_NOTHING:
             self._journal(HOLD)
-        self._store(
-            records.position_decision_row(
-                self.agent.sim_id,
-                self.agent.dataset,
-                self.step,
-                self.asset,
-                self.position.position_id,
-                skipped_because,
-                screen,
-                review,
-                action,
-            )
+        row = records.position_decision_row(
+            self.agent.sim_id,
+            self.agent.dataset,
+            self.step,
+            self.asset,
+            self.position.position_id,
+            skipped_because,
+            screen,
+            review,
+            action,
         )
+        self._store({**row, **records.selection_columns(self.selection)})
 
 
 # The agent with memory
@@ -632,8 +666,8 @@ class _PositionAtStep(_AssetAtStep):
 
 class AgentWithMemory(AgentWithoutMemory):
     """The agent with memory (spec appendix 5): the same steps, but before a full evaluation's
-    request 1 the LLM selects which past episodes Jev reads, and the background gains the track
-    record and those episodes. An open position is looked at as without memory.
+    or a position review's request 1 the LLM selects which past episodes Jev reads, and the
+    background gains the track record and those episodes.
 
     `lookups_at` gives memory's lookups for one moment; `selector` is the LLM's selection step.
     """
@@ -653,18 +687,23 @@ class AgentWithMemory(AgentWithoutMemory):
     def _decision_at_step(self) -> type[_DecisionAtStep]:
         return _DecisionWithMemory
 
+    @property
+    def _position_at_step(self) -> type[_PositionAtStep]:
+        return _PositionWithMemory
 
-class _DecisionWithMemory(_DecisionAtStep):
-    """An asset with no position, in the agent with memory."""
+
+class _Recalls(_AssetAtStep):
+    """What both kinds of looking share in the agent with memory: code's first search, then the
+    LLM's selection, and the track record for each candle pattern of the last 4 bars and each
+    direction. Memory holding nothing yet asks no LLM."""
 
     agent: AgentWithMemory
+    selection: Selection | None
 
-    def _recall(self) -> MemorySections:
-        """Code's first search, then the LLM's selection, and the track record for each candle
-        pattern of the last 4 bars and each direction. Memory holding nothing yet asks no LLM."""
-        lookups = self.agent.lookups_at(
-            LookupContext(self.agent.sim_id, self.step, self.asset)
-        )
+    def _recall_at(
+        self, context: LookupContext, position: ReviewedPosition | None = None
+    ) -> MemorySections:
+        lookups = self.agent.lookups_at(context)
         track_records = tuple(
             lookups.track_record(pattern, direction)
             for pattern in self.snapshot.recent_patterns
@@ -681,6 +720,7 @@ class _DecisionWithMemory(_DecisionAtStep):
                 text=self.snapshot.situation_text,
                 patterns=self.snapshot.patterns,
                 playbook=self.agent.playbook,
+                position=position,
             ),
             lookups,
             first_search,
@@ -710,3 +750,41 @@ class _DecisionWithMemory(_DecisionAtStep):
             events.append(
                 records.event_row(sim_id, step, event.kind, number, event.details)
             )
+
+
+class _DecisionWithMemory(_Recalls, _DecisionAtStep):
+    """An asset with no position, in the agent with memory: the LLM's first job."""
+
+    def _recall(self) -> MemorySections:
+        return self._recall_at(LookupContext(self.agent.sim_id, self.step, self.asset))
+
+
+class _PositionWithMemory(_Recalls, _PositionAtStep):
+    """An open position, in the agent with memory: the LLM's second job selects past position
+    reviews of the same direction, told the position's standing as well."""
+
+    def _recall(self, position: PositionView) -> MemorySections:
+        context = LookupContext(
+            self.agent.sim_id,
+            self.step,
+            self.asset,
+            job=POSITION_REVIEW,
+            position_direction=str(position.direction),
+        )
+        return self._recall_at(
+            context,
+            ReviewedPosition(
+                standing=position.standing(self.view.price),
+                end_of_session=position.end_of_session,
+            ),
+        )
+
+    def _store_decision(self, *args, **kwargs) -> None:
+        super()._store_decision(*args, **kwargs)
+        self._store_fresh_memory()
+
+    def _store_fresh_memory(self) -> None:
+        """EMPTY SLOT, for the ticket "Position review with memory: fresh memory beside the
+        entry memory" (#181): store the review's fresh memory (the track record lines and
+        episodes it read) beside the entry memory the position was opened on, for the decision
+        trail. Nothing is stored yet."""
