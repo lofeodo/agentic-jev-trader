@@ -5,8 +5,6 @@ The service-failure paths run on hand-written fake answers: their scenarios are 
 `test_service_failures.py`, and are in `COVERING` too.
 """
 
-import pytest
-
 from tests.recorded import test_scenarios, test_service_failures
 from tests.recorded.paths import PATHS
 
@@ -29,7 +27,6 @@ def test_every_scenario_has_its_own_name():
     assert len(set(names)) == len(names)
 
 
-@pytest.mark.dormant
 def test_every_path_has_a_scenario():
     covered = {s.path for s in COVERING}
 
