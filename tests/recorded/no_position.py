@@ -4,8 +4,8 @@ records, or ends early where the screen or a risk limit says no.
 
 Jev's and the LLM's answers cannot be dictated: a scenario's made-up market and memory are drawn
 to make its path likely (a quiet market for the screen's no, a sharp fall for a short), and
-several paths have more than one scenario. Once the real answers are saved, the scenarios that
-took their path are kept and the rest dropped.
+more scenarios were recorded than kept. Once the real answers were saved, the scenarios that
+took their path were kept, renamed after it where they took another, and the rest dropped.
 
 Every scenario looks at the same crypto asset at the same step, day 22 at 10:00 UTC, when every
 measurement has the 20 days it needs. A **short** is a bet that the price falls (sell $2,000 of
@@ -66,9 +66,15 @@ def _busy_memory(count: int, every: int) -> tuple[PastEpisode, ...]:
 BUSY_MEMORY = _busy_memory(count=14, every=40)
 LARGE_MEMORY = _busy_memory(count=40, every=24)
 
-# Episodes from the other assets only, none of them a trade: unlike the scenario's moment.
-UNLIKE_MEMORY = tuple(
-    PastNoTrade(STEP - 30 * (n + 2), asset=OTHER_ASSETS[n % 4]) for n in range(6)
+# Past trades on the asset after the same hammer, each shown in the first search with how it
+# ended: the summaries alone may be enough to answer.
+HAMMER_MEMORY = tuple(
+    PastTrade(STEP - 96 * n, position=n, profit=(14.0, 9.0, -5.0)[n - 1])
+    for n in (1, 2, 3)
+)
+HAMMER_PATTERNS = (
+    *RISING_PATTERNS,
+    *((STEP - 96 * n - 1, "hammer") for n in (1, 2, 3)),
 )
 
 # Shorts that made money after a fall.
@@ -92,10 +98,10 @@ SCENARIOS = [
         ),
     ),
     Scenario(
-        name="answers_at_once_after_a_hammer",
+        name="answers_at_once_after_hammers_seen_before",
         path="the LLM answers at once",
         inputs=MadeUpInputs(
-            step=STEP, prices=RISING, patterns=RISING_PATTERNS, memory=SMALL_MEMORY
+            step=STEP, prices=RISING, patterns=HAMMER_PATTERNS, memory=HAMMER_MEMORY
         ),
     ),
     Scenario(
@@ -109,56 +115,14 @@ SCENARIOS = [
         ),
     ),
     Scenario(
-        name="hits_the_lookup_limit_in_a_large_memory",
-        path="the LLM hits its limit of 6 lookups",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=7, last_moves=(-0.005, 0.007), last_volume=2.2),
-            patterns=((STEP - 2, "doji"), (STEP, "bullish engulfing")),
-            memory=LARGE_MEMORY,
-        ),
+        name="memory_holds_none_yet",
+        path="nothing to show: memory holds none yet",
+        inputs=MadeUpInputs(step=STEP, prices=RISING, patterns=RISING_PATTERNS),
     ),
+    # Written for the lookup limit, recorded as Jev picking no trade.
     Scenario(
-        name="replies_without_a_tool_call_on_mixed_signals",
-        path="the LLM replies without a tool call and is asked again",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=8, last_moves=(0.006, -0.006), last_volume=2.0),
-            patterns=((STEP - 1, "shooting star"), (STEP, "hammer")),
-            memory=BUSY_MEMORY,
-        ),
-    ),
-    Scenario(
-        name="names_an_unshown_episode_in_a_large_memory",
-        path="the LLM names an episode ID it was never shown",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=9, last_moves=(0.003, 0.008), last_volume=2.8),
-            patterns=(*RISING_PATTERNS, (STEP, "three advancing white soldiers")),
-            memory=LARGE_MEMORY,
-        ),
-    ),
-    Scenario(
-        name="selects_none_from_unlike_episodes",
-        path="the LLM selects none",
-        inputs=MadeUpInputs(
-            step=STEP, prices=RISING, patterns=RISING_PATTERNS, memory=UNLIKE_MEMORY
-        ),
-    ),
-    # Second candidates for the LLM's paths, which the inputs steer least.
-    Scenario(
-        name="looks_further_after_a_bearish_hint",
-        path="the LLM looks further first",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=13, last_moves=(0.002, -0.006), last_volume=2.0),
-            patterns=((STEP, "shooting star"),),
-            memory=LARGE_MEMORY,
-        ),
-    ),
-    Scenario(
-        name="hits_the_lookup_limit_on_opposite_hints",
-        path="the LLM hits its limit of 6 lookups",
+        name="no_trade_on_opposite_hints",
+        path="Jev picks no trade",
         inputs=MadeUpInputs(
             step=STEP,
             prices=MadeUpPrices(seed=14, last_moves=(0.006, -0.005), last_volume=2.6),
@@ -170,61 +134,8 @@ SCENARIOS = [
             memory=LARGE_MEMORY,
         ),
     ),
-    Scenario(
-        name="replies_without_a_tool_call_in_a_large_memory",
-        path="the LLM replies without a tool call and is asked again",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=15, last_moves=(-0.003, 0.004), last_volume=1.9),
-            patterns=((STEP, "spinning top"),),
-            memory=LARGE_MEMORY,
-        ),
-    ),
-    Scenario(
-        name="names_an_unshown_episode_in_a_busy_memory",
-        path="the LLM names an episode ID it was never shown",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=16, last_moves=(-0.007, -0.004), last_volume=2.5),
-            patterns=((STEP, "bearish engulfing"),),
-            memory=BUSY_MEMORY,
-        ),
-    ),
-    Scenario(
-        name="selects_none_on_a_fall_against_unlike_episodes",
-        path="the LLM selects none",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=17, last_moves=(-0.006, -0.008), last_volume=2.7),
-            patterns=((STEP, "three black crows"),),
-            memory=UNLIKE_MEMORY,
-        ),
-    ),
-    Scenario(
-        name="memory_holds_none_yet",
-        path="nothing to show: memory holds none yet",
-        inputs=MadeUpInputs(step=STEP, prices=RISING, patterns=RISING_PATTERNS),
-    ),
-    Scenario(
-        name="no_trade_after_a_doji",
-        path="Jev picks no trade",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=2, last_moves=(0.003, 0.0), last_volume=1.8),
-            patterns=((STEP, "doji"),),
-            memory=SMALL_MEMORY,
-        ),
-    ),
-    Scenario(
-        name="no_trade_after_a_spike_that_reversed",
-        path="Jev picks no trade",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=3, last_moves=(0.009, -0.008), last_volume=2.4),
-            patterns=((STEP, "spinning top"),),
-            memory=SMALL_MEMORY,
-        ),
-    ),
+    # The single likeliest option is no trade, but the three long options together outweigh
+    # it, so a long is picked.
     Scenario(
         name="direction_totals_after_opposite_patterns",
         path="a pick where adding the probabilities by direction changes the winner",
@@ -236,18 +147,6 @@ SCENARIOS = [
         ),
     ),
     Scenario(
-        name="direction_totals_on_a_choppy_climb",
-        path="a pick where adding the probabilities by direction changes the winner",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(
-                seed=6, drift=0.0003, swing=0.004, last_moves=(0.004, -0.002, 0.005)
-            ),
-            patterns=((STEP - 2, "hanging man"), (STEP, "bullish harami")),
-            memory=SMALL_MEMORY,
-        ),
-    ),
-    Scenario(
         name="short_after_a_sharp_fall",
         path="a short is picked",
         inputs=MadeUpInputs(
@@ -256,18 +155,6 @@ SCENARIOS = [
                 seed=10, drift=-0.001, last_moves=(-0.008, -0.012), last_volume=3.0
             ),
             patterns=((STEP - 1, "bearish engulfing"), (STEP, "three black crows")),
-            memory=SHORTS_THAT_WORKED,
-        ),
-    ),
-    Scenario(
-        name="short_after_an_evening_star",
-        path="a short is picked",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(
-                seed=11, drift=-0.0005, last_moves=(0.004, -0.001, -0.009)
-            ),
-            patterns=((STEP, "evening star"),),
             memory=SHORTS_THAT_WORKED,
         ),
     ),

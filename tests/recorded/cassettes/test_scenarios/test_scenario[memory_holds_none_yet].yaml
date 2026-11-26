@@ -1,0 +1,395 @@
+interactions:
+- request:
+    body: '{"state":"# The task\nThis is a trading account in a replay of market history.
+      It trades stocks and crypto in 15-minute steps. At every step each asset is
+      looked at once and a decision is made about it.\nThe goal is the highest account
+      value at the end of the run. Nothing else is measured.\n\n# How trading works
+      here\n- A long gains when the price rises. A short gains when the price falls.\n-
+      An order decided at this step is carried out at the opening price of the asset''s
+      next bar.\n- Every position has a stop price, fixed when it is opened. Code
+      closes the position if the price reaches it. A stock can open the next morning
+      beyond its stop price, and then it loses more than planned.\n- An open position
+      is not reconsidered at every step. At each step a quick question asks whether
+      it is worth a review. A review decides whether to hold it, close it, reduce
+      it, or add to it. Between reviews it is held, and only code can close it. A
+      stock position is always reviewed at the last step of its session from which
+      an order is still carried out the same day: after that step it is held overnight.\n-
+      Trading costs: each stock order costs $1; each crypto order costs 0.1% of its
+      value; every order is carried out at a price 0.05% worse. A short held at the
+      end of a day pays a borrow fee (0.25% a year on a stock, 5% a year on crypto).
+      A loan pays interest of 5% a year on what is owed at the end of a day.\n- Code
+      enforces the risk limits, whatever is decided: no position may lose more than
+      1% of account value at its stop price; no single position may be larger than
+      2 times account value, and all positions together at most 2 times; after a loss
+      of 5% in one day no position is opened or added to until the next day; and if
+      account value falls below 25% of what the account holds, code closes every position
+      (a forced close).\n- A decision does not need to hold back in order to stay
+      inside a limit. Code does that.\n\n# The account now\nAccount value: $10,000.\nCash:
+      $10,000. Loan: none.\nOpen positions: none.\nIt may hold up to $20,000 in positions
+      (2 times account value), so $20,000 more.\n\n# Open positions\nNone.\n\n# The
+      asset: ASSET_01 (crypto)\nThe account holds no position in it.\nLast price:
+      $95.82. Typical move in one bar: $0.32.\nCrypto, European hours (bar 40 of 96).
+      Patterns in the last 4 bars: hammer (1 bar ago). Latest hourly bar: none. Latest
+      daily bar: none. Last 8 bars: seven up, one down; this bar is a large up bar
+      closing near its high. Short-term trend up (3.4 typical moves above the 20-bar
+      average). Long-term trend down (0.4 below the 20-day average). Volume high (2.6
+      times normal). Price is 3.6 above the day''s average price, 0.7 below the day''s
+      high, 6.8 above the day''s low, and 3.9 above the previous day''s high. Typical
+      move: 0.3% of price.\n\n# Candle patterns named above\nhammer: bullish. A small
+      body with a long lower wick and little or no upper wick, sitting below or near
+      the previous bar''s low.","model":"jev-latest","questions":{"screen":{"type":"noul","instructions":"Would
+      a selective day trader act on ASSET_01 now, long or short? Only a decisive move
+      on volume well above normal, or a clean trend turning back after a shallow pullback,
+      counts. Drifting mid-range, choppy small bars and average volume do not. Most
+      assets at most steps do not qualify."}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3315'
+      content-type:
+      - application/json
+      host:
+      - api.typesafe.ai
+      user-agent:
+      - typesafe-sdk/0.7.5
+      x-typesafe-runtime:
+      - python/3.12.16 (win32; AMD64)
+      x-typesafe-sdk:
+      - typesafe-sdk/0.7.5
+    method: POST
+    uri: https://api.typesafe.ai/v1/systemone
+  response:
+    body:
+      string: '{"model":"jev-1.14.0","answers":{"screen":{"type":"noul","noul":0.64}},"usage":{"input_tokens":1109,"output_tokens":20}}'
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60abc367e0cb40a-YYZ
+      connection:
+      - keep-alive
+      content-length:
+      - '120'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 17:50:23 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      x-typesafe-request-id:
+      - req_01a218fade1d7759946a13b8cfd7324b
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"state":"# The task\nThis is a trading account in a replay of market history.
+      It trades stocks and crypto in 15-minute steps. At every step each asset is
+      looked at once and a decision is made about it.\nThe goal is the highest account
+      value at the end of the run. Nothing else is measured.\n\n# How trading works
+      here\n- A long gains when the price rises. A short gains when the price falls.\n-
+      An order decided at this step is carried out at the opening price of the asset''s
+      next bar.\n- Every position has a stop price, fixed when it is opened. Code
+      closes the position if the price reaches it. A stock can open the next morning
+      beyond its stop price, and then it loses more than planned.\n- An open position
+      is not reconsidered at every step. At each step a quick question asks whether
+      it is worth a review. A review decides whether to hold it, close it, reduce
+      it, or add to it. Between reviews it is held, and only code can close it. A
+      stock position is always reviewed at the last step of its session from which
+      an order is still carried out the same day: after that step it is held overnight.\n-
+      Trading costs: each stock order costs $1; each crypto order costs 0.1% of its
+      value; every order is carried out at a price 0.05% worse. A short held at the
+      end of a day pays a borrow fee (0.25% a year on a stock, 5% a year on crypto).
+      A loan pays interest of 5% a year on what is owed at the end of a day.\n- Code
+      enforces the risk limits, whatever is decided: no position may lose more than
+      1% of account value at its stop price; no single position may be larger than
+      2 times account value, and all positions together at most 2 times; after a loss
+      of 5% in one day no position is opened or added to until the next day; and if
+      account value falls below 25% of what the account holds, code closes every position
+      (a forced close).\n- A decision does not need to hold back in order to stay
+      inside a limit. Code does that.\n\n# The account now\nAccount value: $10,000.\nCash:
+      $10,000. Loan: none.\nOpen positions: none.\nIt may hold up to $20,000 in positions
+      (2 times account value), so $20,000 more.\n\n# Open positions\nNone.\n\n# The
+      asset: ASSET_01 (crypto)\nThe account holds no position in it.\nLast price:
+      $95.82. Typical move in one bar: $0.32.\nCrypto, European hours (bar 40 of 96).
+      Patterns in the last 4 bars: hammer (1 bar ago). Latest hourly bar: none. Latest
+      daily bar: none. Last 8 bars: seven up, one down; this bar is a large up bar
+      closing near its high. Short-term trend up (3.4 typical moves above the 20-bar
+      average). Long-term trend down (0.4 below the 20-day average). Volume high (2.6
+      times normal). Price is 3.6 above the day''s average price, 0.7 below the day''s
+      high, 6.8 above the day''s low, and 3.9 above the previous day''s high. Typical
+      move: 0.3% of price.\n\n# Track record: the account''s own closed trades on
+      the candle patterns of the last 4 bars\nHammer, long, crypto: 0 closed trades,
+      too few to show totals.\nHammer, short, crypto: 0 closed trades, too few to
+      show totals.\nEach line is the narrowest group that fits the current situation
+      and has at least 10 closed trades. A win is a trade that closed with a profit
+      after trading costs.\n\n# Past episodes\nNone yet: the account has no finished
+      earlier decision to show.\n\n# Candle patterns named above\nhammer: bullish.
+      A small body with a long lower wick and little or no upper wick, sitting below
+      or near the previous bar''s low.","model":"jev-latest","questions":{"pick_1":{"type":"choice","instructions":"Which
+      of these should the account do with ASSET_01 at this step?","criteria":{"short_tight_stop":"Short,
+      tight stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.14, 0.3% above. Largest size code
+      allows with it: $20,000.","short_wide_stop":"Short, wide stop price: sell borrowed
+      units at the next bar''s open, about $95.82. Code buys them back if the price
+      rises to $96.78, 1.0% above. Largest size code allows with it: $9,992.","no_trade":"No
+      trade: open no position in this asset at this step.","long_medium_stop":"Long,
+      medium stop price: buy at the next bar''s open, about $95.82. Code sells if
+      the price falls to $95.18, 0.7% below. Largest size code allows with it: $14,987.","short_medium_stop":"Short,
+      medium stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.46, 0.7% above. Largest size code
+      allows with it: $14,987.","long_wide_stop":"Long, wide stop price: buy at the
+      next bar''s open, about $95.82. Code sells if the price falls to $94.86, 1.0%
+      below. Largest size code allows with it: $9,992.","long_tight_stop":"Long, tight
+      stop price: buy at the next bar''s open, about $95.82. Code sells if the price
+      falls to $95.50, 0.3% below. Largest size code allows with it: $20,000."}},"pick_2":{"type":"choice","instructions":"Which
+      of these should the account do with ASSET_01 at this step?","criteria":{"short_wide_stop":"Short,
+      wide stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.78, 1.0% above. Largest size code
+      allows with it: $9,992.","no_trade":"No trade: open no position in this asset
+      at this step.","short_tight_stop":"Short, tight stop price: sell borrowed units
+      at the next bar''s open, about $95.82. Code buys them back if the price rises
+      to $96.14, 0.3% above. Largest size code allows with it: $20,000.","long_wide_stop":"Long,
+      wide stop price: buy at the next bar''s open, about $95.82. Code sells if the
+      price falls to $94.86, 1.0% below. Largest size code allows with it: $9,992.","long_medium_stop":"Long,
+      medium stop price: buy at the next bar''s open, about $95.82. Code sells if
+      the price falls to $95.18, 0.7% below. Largest size code allows with it: $14,987.","long_tight_stop":"Long,
+      tight stop price: buy at the next bar''s open, about $95.82. Code sells if the
+      price falls to $95.50, 0.3% below. Largest size code allows with it: $20,000.","short_medium_stop":"Short,
+      medium stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.46, 0.7% above. Largest size code
+      allows with it: $14,987."}},"pick_3":{"type":"choice","instructions":"Which
+      of these should the account do with ASSET_01 at this step?","criteria":{"long_tight_stop":"Long,
+      tight stop price: buy at the next bar''s open, about $95.82. Code sells if the
+      price falls to $95.50, 0.3% below. Largest size code allows with it: $20,000.","short_medium_stop":"Short,
+      medium stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.46, 0.7% above. Largest size code
+      allows with it: $14,987.","short_wide_stop":"Short, wide stop price: sell borrowed
+      units at the next bar''s open, about $95.82. Code buys them back if the price
+      rises to $96.78, 1.0% above. Largest size code allows with it: $9,992.","long_wide_stop":"Long,
+      wide stop price: buy at the next bar''s open, about $95.82. Code sells if the
+      price falls to $94.86, 1.0% below. Largest size code allows with it: $9,992.","short_tight_stop":"Short,
+      tight stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.14, 0.3% above. Largest size code
+      allows with it: $20,000.","long_medium_stop":"Long, medium stop price: buy at
+      the next bar''s open, about $95.82. Code sells if the price falls to $95.18,
+      0.7% below. Largest size code allows with it: $14,987.","no_trade":"No trade:
+      open no position in this asset at this step."}},"pick_4":{"type":"choice","instructions":"Which
+      of these should the account do with ASSET_01 at this step?","criteria":{"long_wide_stop":"Long,
+      wide stop price: buy at the next bar''s open, about $95.82. Code sells if the
+      price falls to $94.86, 1.0% below. Largest size code allows with it: $9,992.","long_tight_stop":"Long,
+      tight stop price: buy at the next bar''s open, about $95.82. Code sells if the
+      price falls to $95.50, 0.3% below. Largest size code allows with it: $20,000.","short_wide_stop":"Short,
+      wide stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.78, 1.0% above. Largest size code
+      allows with it: $9,992.","long_medium_stop":"Long, medium stop price: buy at
+      the next bar''s open, about $95.82. Code sells if the price falls to $95.18,
+      0.7% below. Largest size code allows with it: $14,987.","short_medium_stop":"Short,
+      medium stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.46, 0.7% above. Largest size code
+      allows with it: $14,987.","short_tight_stop":"Short, tight stop price: sell
+      borrowed units at the next bar''s open, about $95.82. Code buys them back if
+      the price rises to $96.14, 0.3% above. Largest size code allows with it: $20,000.","no_trade":"No
+      trade: open no position in this asset at this step."}},"pick_5":{"type":"choice","instructions":"Which
+      of these should the account do with ASSET_01 at this step?","criteria":{"long_tight_stop":"Long,
+      tight stop price: buy at the next bar''s open, about $95.82. Code sells if the
+      price falls to $95.50, 0.3% below. Largest size code allows with it: $20,000.","short_wide_stop":"Short,
+      wide stop price: sell borrowed units at the next bar''s open, about $95.82.
+      Code buys them back if the price rises to $96.78, 1.0% above. Largest size code
+      allows with it: $9,992.","no_trade":"No trade: open no position in this asset
+      at this step.","long_medium_stop":"Long, medium stop price: buy at the next
+      bar''s open, about $95.82. Code sells if the price falls to $95.18, 0.7% below.
+      Largest size code allows with it: $14,987.","short_tight_stop":"Short, tight
+      stop price: sell borrowed units at the next bar''s open, about $95.82. Code
+      buys them back if the price rises to $96.14, 0.3% above. Largest size code allows
+      with it: $20,000.","short_medium_stop":"Short, medium stop price: sell borrowed
+      units at the next bar''s open, about $95.82. Code buys them back if the price
+      rises to $96.46, 0.7% above. Largest size code allows with it: $14,987.","long_wide_stop":"Long,
+      wide stop price: buy at the next bar''s open, about $95.82. Code sells if the
+      price falls to $94.86, 1.0% below. Largest size code allows with it: $9,992."}}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '10263'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=bbMUw9xX0U4E4hwvN_zo164N.0QYjy5vE5vx4Q5g7tw-1795715423.7543952-1.0.1.1-Ira4p8SbWO5Ok1Mm6vG20glzpRh2X7XR5m4y1sl3.xyPsR3ztQbjoIE9NncF8ng4D.ghw.S6mM6oN4ExoE4py8SgqEeAvCIphkRumEhJylJsvJKlmbq9zLMWIsZjFesn
+      host:
+      - api.typesafe.ai
+      user-agent:
+      - typesafe-sdk/0.7.5
+      x-typesafe-runtime:
+      - python/3.12.16 (win32; AMD64)
+      x-typesafe-sdk:
+      - typesafe-sdk/0.7.5
+    method: POST
+    uri: https://api.typesafe.ai/v1/systemone
+  response:
+    body:
+      string: '{"model":"jev-1.14.0","answers":{"pick_1":{"type":"choice","choice":"no_trade","confidence":0.24,"probabilities":{"short_tight_stop":0.02,"short_wide_stop":0.01,"no_trade":0.35,"long_medium_stop":0.18,"short_medium_stop":0.02,"long_wide_stop":0.21,"long_tight_stop":0.21}},"pick_2":{"type":"choice","choice":"long_tight_stop","confidence":0.24,"probabilities":{"short_wide_stop":0.02,"no_trade":0.29,"short_tight_stop":0.02,"long_wide_stop":0.13,"long_medium_stop":0.17,"long_tight_stop":0.35,"short_medium_stop":0.02}},"pick_3":{"type":"choice","choice":"no_trade","confidence":0.16,"probabilities":{"long_tight_stop":0.22,"short_medium_stop":0.03,"short_wide_stop":0.02,"long_wide_stop":0.18,"short_tight_stop":0.04,"long_medium_stop":0.23,"no_trade":0.28}},"pick_4":{"type":"choice","choice":"no_trade","confidence":0.22,"probabilities":{"long_wide_stop":0.07,"long_tight_stop":0.32,"short_wide_stop":0.03,"long_medium_stop":0.18,"short_medium_stop":0.02,"short_tight_stop":0.05,"no_trade":0.33}},"pick_5":{"type":"choice","choice":"no_trade","confidence":0.16,"probabilities":{"long_tight_stop":0.26,"short_wide_stop":0.02,"no_trade":0.28,"long_medium_stop":0.22,"short_tight_stop":0.04,"short_medium_stop":0.04,"long_wide_stop":0.14}}},"usage":{"input_tokens":3643,"output_tokens":420}}'
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60abc374eebb40a-YYZ
+      connection:
+      - keep-alive
+      content-length:
+      - '1291'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 17:50:23 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      x-typesafe-request-id:
+      - req_01a218fadea87629ab5af23ad3d504ee
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"state":"# The task\nThis is a trading account in a replay of market history.
+      It trades stocks and crypto in 15-minute steps. At every step each asset is
+      looked at once and a decision is made about it.\nThe goal is the highest account
+      value at the end of the run. Nothing else is measured.\n\n# How trading works
+      here\n- A long gains when the price rises. A short gains when the price falls.\n-
+      An order decided at this step is carried out at the opening price of the asset''s
+      next bar.\n- Every position has a stop price, fixed when it is opened. Code
+      closes the position if the price reaches it. A stock can open the next morning
+      beyond its stop price, and then it loses more than planned.\n- An open position
+      is not reconsidered at every step. At each step a quick question asks whether
+      it is worth a review. A review decides whether to hold it, close it, reduce
+      it, or add to it. Between reviews it is held, and only code can close it. A
+      stock position is always reviewed at the last step of its session from which
+      an order is still carried out the same day: after that step it is held overnight.\n-
+      Trading costs: each stock order costs $1; each crypto order costs 0.1% of its
+      value; every order is carried out at a price 0.05% worse. A short held at the
+      end of a day pays a borrow fee (0.25% a year on a stock, 5% a year on crypto).
+      A loan pays interest of 5% a year on what is owed at the end of a day.\n- Code
+      enforces the risk limits, whatever is decided: no position may lose more than
+      1% of account value at its stop price; no single position may be larger than
+      2 times account value, and all positions together at most 2 times; after a loss
+      of 5% in one day no position is opened or added to until the next day; and if
+      account value falls below 25% of what the account holds, code closes every position
+      (a forced close).\n- A decision does not need to hold back in order to stay
+      inside a limit. Code does that.\n\n# The account now\nAccount value: $10,000.\nCash:
+      $10,000. Loan: none.\nOpen positions: none.\nIt may hold up to $20,000 in positions
+      (2 times account value), so $20,000 more.\n\n# Open positions\nNone.\n\n# The
+      asset: ASSET_01 (crypto)\nThe account holds no position in it.\nLast price:
+      $95.82. Typical move in one bar: $0.32.\nCrypto, European hours (bar 40 of 96).
+      Patterns in the last 4 bars: hammer (1 bar ago). Latest hourly bar: none. Latest
+      daily bar: none. Last 8 bars: seven up, one down; this bar is a large up bar
+      closing near its high. Short-term trend up (3.4 typical moves above the 20-bar
+      average). Long-term trend down (0.4 below the 20-day average). Volume high (2.6
+      times normal). Price is 3.6 above the day''s average price, 0.7 below the day''s
+      high, 6.8 above the day''s low, and 3.9 above the previous day''s high. Typical
+      move: 0.3% of price.\n\n# Track record: the account''s own closed trades on
+      the candle patterns of the last 4 bars\nHammer, long, crypto: 0 closed trades,
+      too few to show totals.\nHammer, short, crypto: 0 closed trades, too few to
+      show totals.\nEach line is the narrowest group that fits the current situation
+      and has at least 10 closed trades. A win is a trade that closed with a profit
+      after trading costs.\n\n# Past episodes\nNone yet: the account has no finished
+      earlier decision to show.\n\n# Candle patterns named above\nhammer: bullish.
+      A small body with a long lower wick and little or no upper wick, sitting below
+      or near the previous bar''s low.\n\n# The trade picked\nLong, tight stop price:
+      buy at the next bar''s open, about $95.82. Code sells if the price falls to
+      $95.50, 0.3% below.","model":"jev-latest","questions":{"size_small_first":{"type":"choice","instructions":"How
+      much money should go into the trade picked?","criteria":{"size_20_percent":"The
+      smallest size: $2,000, 20% of account value. Paid from cash, nothing borrowed.
+      Loses about $7 if the stop price is reached.","size_40_percent":"The second
+      smallest size: $4,000, 40% of account value. Paid from cash, nothing borrowed.
+      Loses about $13 if the stop price is reached.","size_80_percent":"The middle
+      size: $8,000, 80% of account value. Paid from cash, nothing borrowed. Loses
+      about $27 if the stop price is reached.","size_120_percent":"The second largest
+      size: $12,000, 120% of account value. $2,000 of it borrowed. Loses about $40
+      if the stop price is reached.","size_200_percent":"The largest size: $20,000,
+      200% of account value. $10,000 of it borrowed. Loses about $67 if the stop price
+      is reached."}},"size_large_first":{"type":"choice","instructions":"How much
+      money should go into the trade picked?","criteria":{"size_200_percent":"The
+      largest size: $20,000, 200% of account value. $10,000 of it borrowed. Loses
+      about $67 if the stop price is reached.","size_120_percent":"The second largest
+      size: $12,000, 120% of account value. $2,000 of it borrowed. Loses about $40
+      if the stop price is reached.","size_80_percent":"The middle size: $8,000, 80%
+      of account value. Paid from cash, nothing borrowed. Loses about $27 if the stop
+      price is reached.","size_40_percent":"The second smallest size: $4,000, 40%
+      of account value. Paid from cash, nothing borrowed. Loses about $13 if the stop
+      price is reached.","size_20_percent":"The smallest size: $2,000, 20% of account
+      value. Paid from cash, nothing borrowed. Loses about $7 if the stop price is
+      reached."}},"rating":{"type":"score","instructions":"How strong is the case
+      for the trade picked?","criteria":["Very weak: no better than a coin flip.","Weak:
+      slightly better than a coin flip.","Moderate: a reasonable case with clear doubts.","Strong:
+      most of what is known points the same way.","Very strong: nearly everything
+      known points the same way."]}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '5654'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=bbMUw9xX0U4E4hwvN_zo164N.0QYjy5vE5vx4Q5g7tw-1795715423.7543952-1.0.1.1-Ira4p8SbWO5Ok1Mm6vG20glzpRh2X7XR5m4y1sl3.xyPsR3ztQbjoIE9NncF8ng4D.ghw.S6mM6oN4ExoE4py8SgqEeAvCIphkRumEhJylJsvJKlmbq9zLMWIsZjFesn
+      host:
+      - api.typesafe.ai
+      user-agent:
+      - typesafe-sdk/0.7.5
+      x-typesafe-runtime:
+      - python/3.12.16 (win32; AMD64)
+      x-typesafe-sdk:
+      - typesafe-sdk/0.7.5
+    method: POST
+    uri: https://api.typesafe.ai/v1/systemone
+  response:
+    body:
+      string: '{"model":"jev-1.14.0","answers":{"size_small_first":{"type":"choice","choice":"size_200_percent","confidence":0.3,"probabilities":{"size_20_percent":0.31,"size_40_percent":0.09,"size_80_percent":0.11,"size_120_percent":0.05,"size_200_percent":0.44}},"size_large_first":{"type":"choice","choice":"size_200_percent","confidence":0.25,"probabilities":{"size_200_percent":0.4,"size_120_percent":0.11,"size_80_percent":0.15,"size_40_percent":0.12,"size_20_percent":0.22}},"rating":{"type":"score","score":2.17,"confidence":0.46,"legend":{"0":"Very
+        weak: no better than a coin flip.","1":"Weak: slightly better than a coin
+        flip.","2":"Moderate: a reasonable case with clear doubts.","3":"Strong: most
+        of what is known points the same way.","4":"Very strong: nearly everything
+        known points the same way."},"probabilities":{"0":0.05,"1":0.14,"2":0.45,"3":0.31,"4":0.05}}},"usage":{"input_tokens":1919,"output_tokens":173}}'
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60abc37ef99b40a-YYZ
+      connection:
+      - keep-alive
+      content-length:
+      - '914'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 17:50:24 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      x-typesafe-request-id:
+      - req_01a218fadf097c35872a9fd165f2e8ee
+    status:
+      code: 200
+      message: OK
+version: 1

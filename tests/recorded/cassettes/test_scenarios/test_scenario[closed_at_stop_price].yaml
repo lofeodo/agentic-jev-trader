@@ -1,0 +1,91 @@
+interactions:
+- request:
+    body: '{"state":"# The task\nThis is a trading account in a replay of market history.
+      It trades stocks and crypto in 15-minute steps. At every step each asset is
+      looked at once and a decision is made about it.\nThe goal is the highest account
+      value at the end of the run. Nothing else is measured.\n\n# How trading works
+      here\n- A long gains when the price rises. A short gains when the price falls.\n-
+      An order decided at this step is carried out at the opening price of the asset''s
+      next bar.\n- Every position has a stop price, fixed when it is opened. Code
+      closes the position if the price reaches it. A stock can open the next morning
+      beyond its stop price, and then it loses more than planned.\n- An open position
+      is not reconsidered at every step. At each step a quick question asks whether
+      it is worth a review. A review decides whether to hold it, close it, reduce
+      it, or add to it. Between reviews it is held, and only code can close it. A
+      stock position is always reviewed at the last step of its session from which
+      an order is still carried out the same day: after that step it is held overnight.\n-
+      Trading costs: each stock order costs $1; each crypto order costs 0.1% of its
+      value; every order is carried out at a price 0.05% worse. A short held at the
+      end of a day pays a borrow fee (0.25% a year on a stock, 5% a year on crypto).
+      A loan pays interest of 5% a year on what is owed at the end of a day.\n- Code
+      enforces the risk limits, whatever is decided: no position may lose more than
+      1% of account value at its stop price; no single position may be larger than
+      2 times account value, and all positions together at most 2 times; after a loss
+      of 5% in one day no position is opened or added to until the next day; and if
+      account value falls below 25% of what the account holds, code closes every position
+      (a forced close).\n- A decision does not need to hold back in order to stay
+      inside a limit. Code does that.\n\n# The account now\nAccount value: $9,974.\nCash:
+      $9,974. Loan: none.\nOpen positions: none.\nIt may hold up to $19,948 in positions
+      (2 times account value), so $19,948 more.\n\n# Open positions\nNone.\n\n# The
+      asset: ASSET_01 (crypto)\nThe account holds no position in it.\nLast price:
+      $86.95. Typical move in one bar: $0.37.\nCrypto, European hours (bar 40 of 96).
+      Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar:
+      none. Last 8 bars: five up, three down; this bar is a large down bar closing
+      near its low. Short-term trend down (4.6 typical moves below the 20-bar average).
+      Long-term trend down (2.0 below the 20-day average). Volume low (0.8 times normal).
+      Price is 5.1 below the day''s average price, 7.0 below the day''s high, 0.4
+      above the day''s low, and 11.8 below the previous day''s high. Typical move:
+      0.4% of price.","model":"jev-latest","questions":{"screen":{"type":"noul","instructions":"Would
+      a selective day trader act on ASSET_01 now, long or short? Only a decisive move
+      on volume well above normal, or a clean trend turning back after a shallow pullback,
+      counts. Drifting mid-range, choppy small bars and average volume do not. Most
+      assets at most steps do not qualify."}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3141'
+      content-type:
+      - application/json
+      host:
+      - api.typesafe.ai
+      user-agent:
+      - typesafe-sdk/0.7.5
+      x-typesafe-runtime:
+      - python/3.12.16 (win32; AMD64)
+      x-typesafe-sdk:
+      - typesafe-sdk/0.7.5
+    method: POST
+    uri: https://api.typesafe.ai/v1/systemone
+  response:
+    body:
+      string: '{"model":"jev-1.14.0","answers":{"screen":{"type":"noul","noul":0.12}},"usage":{"input_tokens":1066,"output_tokens":20}}'
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60abcf4edf636cb-YYZ
+      connection:
+      - keep-alive
+      content-length:
+      - '120'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 17:50:54 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      x-typesafe-request-id:
+      - req_01a218fb55247d959c29c9db29b3b939
+    status:
+      code: 200
+      message: OK
+version: 1
