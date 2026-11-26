@@ -98,3 +98,86 @@ A third default cannot be closed: Snowflake's own application role `SNOWFLAKE.PU
 holds the all-models role, and even `ACCOUNTADMIN` may not revoke it. So the builder can
 use other models too, and `check` warns about it; the per-model grant is in place but
 cannot be shown to work on its own on this account.
+
+## The kind cluster
+
+The same code can also run in a local kind cluster (a small Kubernetes cluster inside Docker,
+which runs and restarts programs). Its pieces sit beside the Snowflake setup, apart from it:
+
+- `kind-cluster.yaml` is the cluster's own settings: `kind create cluster --config
+  infra/kind-cluster.yaml` makes the cluster `jev-trader`, which opens two ports to this
+  computer only (127.0.0.1): the web app at http://127.0.0.1:8080 and the API at
+  http://127.0.0.1:8081. The memory server is reached from inside the cluster only.
+- `terraform/kubernetes/` is Terraform's Kubernetes part, a root of its own with its own
+  state, kept outside the repo like the Snowflake part's (`-backend-config=path=...`). One
+  apply puts the memory server, the API and the web app in the namespace `jev-trader` (a
+  named compartment of the cluster that permissions can be limited to), each
+  from the images tagged `image_tag`, and waits until each answers its health address. It also
+  makes what the jobs need: one secret (a value the cluster stores and hands only to the
+  programs named to receive it) per Snowflake login (`snowflake-api`, `snowflake-memory`,
+  `snowflake-sim`, `snowflake-builder`, each holding the account, the passphrase and that
+  login's key only), `models` (the Jev and LLM keys, for sims) and `twelve-data` (for builds),
+  and the API's permission (a Role) to create, read and delete Jobs (and the ConfigMaps, small
+  stored files, that carry a build's settings) in that namespace only. Each service reads its own login's secret only.
+  The values come in as environment variables named `TF_VAR_<variable>` (the names in
+  `terraform/kubernetes/variables.tf`) plus the keys folder (`snowflake_keys_dir`), and are
+  sent to the cluster without Terraform keeping a copy (write-only attributes), so its state
+  file never holds them. After changing a secret's value, raise
+  `secrets_revision` by one, or Terraform does not send it. The ZAI key (the benchmark, on this
+  computer only) and the LangSmith key (optional tracing) do not enter the cluster. `deploy.py`
+  runs this part with the real values from `.env`, the images of the current commit and the
+  keys folder, keeping the state as `kubernetes.tfstate` in `SNOWFLAKE_LOCAL_DIR` (`apply` puts
+  real keys into the cluster):
+
+  ```
+  conda run -n agentic-jev-trader python infra/deploy.py plan
+  conda run -n agentic-jev-trader python infra/deploy.py apply -auto-approve
+  ```
+
+- `images.py` builds the two images (an image is a packed copy of a program with everything
+  it needs to run; recipes `Dockerfile` and `web/Dockerfile`), tags both with the git commit
+  and copies them into kind straight from this computer, with no image registry (an online
+  store of images the cluster would otherwise download from). It needs Docker running, the
+  cluster created (`kind create cluster --config infra/kind-cluster.yaml`) and every change
+  committed, since the tag names the commit:
+
+  ```
+  conda run -n agentic-jev-trader python infra/images.py build
+  ```
+
+  The Python image holds the code, `config/`, `prompts/`, `datasets/` and the pinned
+  dependencies, never `.env`, a key or saved tables; each piece is started by its own command
+  (`python -m jev_trader.memory serve`, `... api serve`, `... sim resume <id>`,
+  `... dataset build <file>`). The web image serves the built web app on port 80 and hands its
+  `/api/...` requests to the API at `API_URL` (`http://api:8000`, the cluster's API service,
+  which must exist when the web app starts). In the cluster both servers run with
+  `--in-cluster`: they listen on every address of their container, the API answers any caller
+  on the cluster's private network (not only this computer), and both log in to Snowflake on
+  first use rather than at start, so they report healthy even with dummy logins.
+- `wait_healthy.py` waits until the memory server, the API and the web app each answer their
+  health address, and names any that never did (the deployment check's wait; the docstring
+  has the command to run it by hand against your own cluster).
+
+The API in the cluster starts each sim or dataset build as a Kubernetes Job (a one-off run
+inside the cluster, `JOB_LAUNCHER=kubernetes`), from its own image, running the same command
+as on this computer. A sim's Job is named `sim-<id>-<6 random characters>` (a fresh one each time the sim
+starts or resumes) and reads the `snowflake-sim` and `models` secrets; a build's Job is
+`dataset-<id>-<database>` (such as `dataset-3-trading-agent`) and reads `snowflake-builder` and `twelve-data`, with its settings file in the
+ConfigMap of the same name. Neither gets a way to reach the cluster itself. A Job that ended
+is kept, so its output stays readable (Stop removes the Job and its output with it):
+
+```
+kubectl logs job/sim-12-a1b2c3 -n jev-trader
+```
+
+An API run on this computer with `JOB_LAUNCHER=kubernetes` in `.env` starts Jobs in the same
+cluster (the entry `kind-jev-trader` in this computer's cluster settings, `~/.kube/config`),
+from the image of the checkout's commit.
+
+CI's `deployment-check` job does all of this in a throwaway kind cluster on every pull request,
+with dummy secrets (placeholders, no real key): it builds and loads both images, applies
+Terraform's Kubernetes part, runs `wait_healthy.py` from a pod (one running container in the
+cluster) inside the cluster, then has the API's launcher start a sim's Job and checks the Job
+ran. The Job fails at its Snowflake login, as expected, because the dummy key is not a key:
+its output says `Unable to load PEM file` (PEM is the text format a private key is saved in),
+before any network call. When a step fails, the job prints the pods' logs.
