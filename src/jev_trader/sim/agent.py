@@ -764,10 +764,9 @@ class _PositionWithMemory(_Recalls, _PositionAtStep):
     """An open position, in the agent with memory: the LLM's second job selects past position
     reviews of the same direction, told the position's standing as well.
 
-    The review's fresh memory is stored on the review's own records, in the same columns and
-    tables as a full evaluation's: how the LLM selected on its decision row, the exchange in
-    `SIM.LLM_EXCHANGES`, and the track record lines and episodes Jev read in its requests. The
-    entry memory stays on the full evaluation that opened the position, never written again."""
+    The review's fresh memory is stored on the review's own records, by the same steps and in
+    the same columns as a full evaluation's, never over the entry memory: that stays on the
+    full evaluation that opened the position."""
 
     def _recall(self, position: PositionView) -> MemorySections:
         context = LookupContext(
