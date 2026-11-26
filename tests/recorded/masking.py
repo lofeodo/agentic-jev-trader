@@ -23,8 +23,7 @@ have kept out:
 `findings_in` reads anything sent, a request body or its parsed JSON, every key, text and price
 in it. What LangSmith is sent is read run by run (`langsmith_runs`): everything in each run but
 LangSmith's own bookkeeping (run IDs, when a run and each of its events happened, the SDK's
-version), which is
-not market history.
+version), which is not market history.
 """
 
 import json
