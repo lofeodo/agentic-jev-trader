@@ -4,10 +4,11 @@ position review (spec appendix 5, sections 4 to 8; appendix 10, section 2).
 Code runs the first search and hands its one-line summaries to a `Selector`, with the moment
 being looked at (`Situation`; in a position review it also carries the position's standing,
 which makes the selection the LLM's second job). Both jobs share everything but the job's
-standing instructions, its first message and its two job-specific tool descriptions. The selector may look further through memory's lookups
-(`MemoryLookups`, for one moment: the sim, the step, the asset and the job are filled in by
-code) and returns a `Selection`: the chosen episodes' IDs, most useful first, and a one-line
-note, with what the decision record stores about how they were chosen.
+standing instructions, its first message and its two job-specific tool descriptions. The
+selector may look further through memory's lookups (`MemoryLookups`, for one moment: the sim,
+the step, the asset and the job are filled in by code) and returns a `Selection`: the chosen
+episodes' IDs, most useful first, and a one-line note, with what the decision record stores
+about how they were chosen.
 
 The real selector, `LlmSelector`, is a small LangGraph graph of our own: a call to the LLM
 (through `LlmClient`, one call at a time), then its reply handled (lookups run or refused, or the
@@ -15,8 +16,8 @@ reply asked again), and round again until the LLM answers with `select_episodes`
 tool never counts and is never taken away. At 6 lookups or 60 seconds (timed by a `WallClock`,
 so tests can run on a fake one) the three lookup tools are switched off and a fixed message asks
 for the answer. A reply code cannot use is a **failed reply** and gets a fixed re-ask; the third
-in one full evaluation or position review raises `LlmFailed`, as does a call to the provider still failing after its
-retries. Either stops the sim.
+in one full evaluation or position review raises `LlmFailed`, as does a call to the provider
+still failing after its retries. Either stops the sim.
 
 The LLM sees episodes by short labels (E1, E2, ...) numbered in the order they first appear in
 the evaluation; code maps them back to stored decision IDs. Every message after the standing
@@ -107,9 +108,7 @@ class SelectionLimits:
     most_selected: int = MOST_READ
     most_lookups: int = 6  # not counting the first search; the answer never counts
     seconds: float = 60.0
-    failed_replies_to_stop: int = (
-        3  # the third in one evaluation or review stops the sim
-    )
+    failed_replies_to_stop: int = 3  # the third in one evaluation stops the sim
     note_length: int = 200
 
 

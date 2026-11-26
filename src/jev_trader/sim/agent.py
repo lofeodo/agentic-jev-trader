@@ -55,7 +55,8 @@ hands the LLM the position's standing too. Its choices the spec leaves to the bu
 - Memory "holds none yet" when code's first search finds nothing; the LLM is then not asked.
 - The track record is read for each candle pattern of the last 4 bars, newest first (the
   latest hourly and daily bars' patterns left out, as the spec's "last 4 bars" says), and
-  each direction.
+  each direction. A position review reads it the same way, for the patterns of its own
+  moment, not those at entry.
 """
 
 import copy
@@ -779,8 +780,14 @@ class _PositionWithMemory(_Recalls, _PositionAtStep):
             ),
         )
 
-    def _store_decision(self, *args, **kwargs) -> None:
-        super()._store_decision(*args, **kwargs)
+    def _store_decision(
+        self,
+        skipped_because: str | None,
+        screen: JevReply | None = None,
+        review: Review | None = None,
+        action: str = ACTION_NOTHING,
+    ) -> None:
+        super()._store_decision(skipped_because, screen, review, action)
         self._store_fresh_memory()
 
     def _store_fresh_memory(self) -> None:

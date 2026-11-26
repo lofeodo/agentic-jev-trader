@@ -41,7 +41,9 @@ ANSWER_TOOL = "select_episodes"
 ANY = "any"  # a filter left unset
 
 # EMPTY SLOT (#178): a stand-in for the second job's words, enough to run, outside the prompt
-# version. Its real words go into `prompts/llm_selection.toml` under `[position_review]`.
+# version. Its real words go into `prompts/llm_selection.toml` under `[position_review]`, with
+# the review lines' own column headings (the stand-in reuses the full evaluation's) and the
+# standing filter words (merged under the prompt file's in `filters_text`).
 REVIEW_STAND_IN = {
     "system_prompt": (
         "Stand-in instructions for a position review. Select up to {most_selected} past "
