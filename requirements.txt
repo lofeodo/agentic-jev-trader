@@ -44,6 +44,8 @@ kubernetes==37.0.3
 pytest==9.2.0
 pytest-recording==0.14.1
 vcrpy==9.4.2
+# The recorded-answer tests' expected results, kept as files beside the scenarios
+syrupy==7.0.3
 
 # Reading .env (tests and the commands)
 python-dotenv==1.2.4

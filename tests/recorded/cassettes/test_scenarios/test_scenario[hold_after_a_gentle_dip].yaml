@@ -1,0 +1,1066 @@
+interactions:
+- request:
+    body: '{"state":"# The task\nThis is a trading account in a replay of market history.
+      It trades stocks and crypto in 15-minute steps. At every step each asset is
+      looked at once and a decision is made about it.\nThe goal is the highest account
+      value at the end of the run. Nothing else is measured.\n\n# How trading works
+      here\n- A long gains when the price rises. A short gains when the price falls.\n-
+      An order decided at this step is carried out at the opening price of the asset''s
+      next bar.\n- Every position has a stop price, fixed when it is opened. Code
+      closes the position if the price reaches it. A stock can open the next morning
+      beyond its stop price, and then it loses more than planned.\n- An open position
+      is not reconsidered at every step. At each step a quick question asks whether
+      it is worth a review. A review decides whether to hold it, close it, reduce
+      it, or add to it. Between reviews it is held, and only code can close it. A
+      stock position is always reviewed at the last step of its session from which
+      an order is still carried out the same day: after that step it is held overnight.\n-
+      Trading costs: each stock order costs $1; each crypto order costs 0.1% of its
+      value; every order is carried out at a price 0.05% worse. A short held at the
+      end of a day pays a borrow fee (0.25% a year on a stock, 5% a year on crypto).
+      A loan pays interest of 5% a year on what is owed at the end of a day.\n- Code
+      enforces the risk limits, whatever is decided: no position may lose more than
+      1% of account value at its stop price; no single position may be larger than
+      2 times account value, and all positions together at most 2 times; after a loss
+      of 5% in one day no position is opened or added to until the next day; and if
+      account value falls below 25% of what the account holds, code closes every position
+      (a forced close).\n- A decision does not need to hold back in order to stay
+      inside a limit. Code does that.\n\n# The account now\nAccount value: $9,977.\nCash:
+      $7,998. Loan: none.\nOpen positions: 1, worth $1,979.\nIt may hold up to $19,953
+      in positions (2 times account value), so $17,975 more.\n\n# Other open positions\nNone.\n\n#
+      The position: ASSET_01 (crypto)\nLong, $2,000, opened 3 bars ago at an entry
+      price of $93.09.\nStop price: $88.86, fixed. Code sells there. It is 3.5% below
+      the last price.\nNow: the position is worth $1,979. Closing it now would leave
+      -$26 (-1.3%) after trading costs. At best it was -$4, at worst -$26.\nSituation
+      when it was opened: Crypto, American hours (bar 90 of 96). Patterns in the last
+      4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars:
+      four up, four down; this bar is a medium down bar closing mid-range. Short-term
+      trend up (0.9 typical moves above the 20-bar average). Long-term trend down
+      (2.1 below the 20-day average). Volume average (1.1 times normal). Price is
+      1.2 above the day''s average price, 1.1 below the day''s high, 4.1 above the
+      day''s low, and 0.2 below the previous day''s high. Typical move: 0.3% of price.\nSince
+      then: bars 0 to 2 hold.\n\n# The asset now: ASSET_01 (crypto)\nLast price: $92.09.
+      Typical move in one bar: $0.34.\nCrypto, American hours (bar 94 of 96). Patterns
+      in the last 4 bars: hammer (this bar). Latest hourly bar: none. Latest daily
+      bar: none. Last 8 bars: three up, five down; this bar is a medium down bar closing
+      near its low. Short-term trend down (2.4 typical moves below the 20-bar average).
+      Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times
+      normal). Price is 1.7 below the day''s average price, 3.7 below the day''s high,
+      0.8 above the day''s low, and 3.0 below the previous day''s high. Typical move:
+      0.4% of price.\n\n# Candle patterns named above\nhammer: bullish. A small body
+      with a long lower wick and little or no upper wick, sitting below or near the
+      previous bar''s low.","model":"jev-latest","questions":{"position_screen":{"type":"noul","instructions":"Does
+      the position in ASSET_01 call for action now? Only a hard move against it on
+      volume well above normal, the price near its stop price, a strong bar back against
+      it after it had gone its way, or a good gain that has stopped moving counts.
+      Drifting its way, choppy small bars and average volume do not. Most positions
+      at most steps need no action."}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '4267'
+      content-type:
+      - application/json
+      host:
+      - api.typesafe.ai
+      user-agent:
+      - typesafe-sdk/0.7.5
+      x-typesafe-runtime:
+      - python/3.12.16 (win32; AMD64)
+      x-typesafe-sdk:
+      - typesafe-sdk/0.7.5
+    method: POST
+    uri: https://api.typesafe.ai/v1/systemone
+  response:
+    body:
+      string: '{"model":"jev-1.14.0","answers":{"position_screen":{"type":"noul","noul":0.5}},"usage":{"input_tokens":1411,"output_tokens":21}}'
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60acf9f6918cf1c-YYZ
+      connection:
+      - keep-alive
+      content-length:
+      - '128'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 18:03:38 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      x-typesafe-request-id:
+      - req_01a21906ffb9783ca01d89f1109b9c6b
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"max_tokens":128000,"messages":[{"role":"user","content":"# Current situation\nAsset:
+      ASSET_01 (crypto)\nCrypto, American hours (bar 94 of 96). Patterns in the last
+      4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none.
+      Last 8 bars: three up, five down; this bar is a medium down bar closing near
+      its low. Short-term trend down (2.4 typical moves below the 20-bar average).
+      Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times
+      normal). Price is 1.7 below the day''s average price, 3.7 below the day''s high,
+      0.8 above the day''s low, and 3.0 below the previous day''s high. Typical move:
+      0.4% of price.\n\n# The position now\nLong, $2,000, open 3 bars, -$26 (-1.3%),
+      stop price 3.5% away. At best it has been -$4, at worst -$26.\n\n# The 5 past
+      episodes most like this moment, all reviews of a long, closest first\nID | how
+      long ago | asset | part of the day, long-term trend, volume | candle patterns
+      | the position then | what was decided | what happened next\nE1 | 4 days ago
+      | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars,
+      -$4 (-0.4%), stop price 0.5% away | close | price went +0.1% after 1 bar, +0.4%
+      after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later:
+      -$4 (-0.4%)\nE2 | 2 days ago | same asset, crypto | Asian hours | no pattern
+      | long, $1,000, open 2 bars, +$9 (+0.9%), stop price 0.5% away | add $1,000
+      | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the
+      day; closed at its stop price 5 bars later: -$4 (-0.4%)\nE3 | 1 day ago | same
+      asset, crypto | European hours, long-term trend down, volume average | no pattern
+      | long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away | hold | price
+      went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed
+      at its stop price 5 bars later: -$4 (-0.4%)\nE4 | 5 days ago | same asset, crypto
+      | Asian hours | no pattern | long, $1,000, open 2 bars, +$6 (+0.6%), stop price
+      0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by
+      the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)\nE5 |
+      3 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open
+      2 bars, +$25 (+2.5%), stop price 0.5% away | reduce by half (that part: +$13)
+      | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the
+      day; closed at its stop price 5 bars later: -$4 (-0.4%)\n\n# Candle patterns
+      named above\nhammer: bullish. A small body with a long lower wick and little
+      or no upper wick, sitting below or near the previous bar''s low."}],"model":"claude-haiku-5-5","cache_control":{"type":"ephemeral"},"output_config":{"effort":"low"},"system":"You
+      work inside a trading agent that replays market history in 15-minute steps and
+      trades stocks and crypto. The agent''s goal is the highest account value at
+      the end of the run.\n\n# Your job\nThe agent holds an open position in one asset:
+      a long (a bet that the price rises) or a short (a bet that it falls). It is
+      about to review that position and decide: hold it, close it, reduce it (close
+      part of it), or add to it (put more money into it). A separate decision model
+      makes that decision. Before it does, it reads a few of the agent''s own past
+      episodes. Your one job is to choose which ones.\n\nA past episode here is the
+      record of one earlier review of an open position: the situation at the time,
+      how the position stood then (how long it had been open, its profit or loss so
+      far, how far away its stop price was), what the decision model decided, where
+      the price went next, and how the trade ended.\n\nA position is not reviewed
+      at every step. Every 15 minutes the decision model answers a quick question
+      about it, is it worth a review now, and a review runs only on a yes. A stock
+      position is also always reviewed at the last step of its session from which
+      an order is still carried out the same day, because after that step it is held
+      overnight. Between reviews the position is held, and code closes it if the price
+      reaches its stop price.\n\nYou do not decide what is done with the position.
+      Nothing you write reaches the decision model. For each episode you select it
+      reads a record written by code, plus the track record (the totals over the agent''s
+      closed trades), which code always adds whatever you select.\n\n# What you are
+      given\n- The current situation of the asset.\n- How the position stands now.\n-
+      The past reviews most like this moment, all of positions in the same direction,
+      one line each, closest first.\n- A note on each candle pattern named: which
+      way it hints (bullish: a rise; bearish: a fall; neutral: neither) and its shape.\n\n#
+      What you can do\nEvery reply you give must be a tool call.\nAnswer at once by
+      calling select_episodes, or look further first with up to 6 lookups:\n- search_episodes:
+      search again, narrowed by asset, candle pattern, what was decided, or whether
+      the position was in profit or at a loss at the time.\n- read_episodes: read
+      up to 5 episodes in full.\n- read_track_record: read the totals for one candle
+      pattern and direction.\nSpend a lookup only when its result could change your
+      choice. select_episodes is not a lookup: you can call it at any time, including
+      after your lookups are used up.\n\n# How to choose\nSelect up to 5 episodes
+      that will most help the decision model judge the position now. Fewer is fine.
+      So is none, if nothing fits.\nChoose by how closely an episode matches the present
+      moment: the situation of the asset, and how the position stood. Do not choose
+      by what was decided then or by how it turned out.\nCode enforces the risk limits
+      (the caps on how much a trade can lose) after the decision is made, so do not
+      choose episodes in order to steer the decision toward caution.\n\n# Your answer\nFinish
+      by calling select_episodes with the IDs you chose and a one-line note on why.
+      The note is kept for the developer. The decision model never sees it.","tools":[{"name":"search_episodes","description":"Search
+      the agent''s past position reviews again for the ones most like the present
+      moment, narrowed by the filters you set. Only reviews of positions in the same
+      direction as the current one are searched. Returns up to 10 one-line summaries,
+      closest first, in the same layout as the first list. An episode you have already
+      been shown keeps its ID. The search always starts from the current situation:
+      you cannot type search words, and you cannot ask for only episodes that turned
+      out well or only those that turned out badly. Counts as one lookup.","input_schema":{"type":"object","properties":{"asset":{"type":"string","enum":["any","same_asset","same_asset_class"],"description":"Which
+      assets to search. \"any\": every asset (the default). \"same_asset\": only the
+      asset in the current situation. \"same_asset_class\": only stocks if it is a
+      stock, only crypto if it is crypto."},"pattern":{"type":"string","enum":["any","advance
+      block","bearish abandoned baby","bearish belt-hold","bearish breakaway","bearish
+      closing marubozu","bearish counterattack","bearish doji star","bearish engulfing","bearish
+      harami","bearish harami cross","bearish hikkake","bearish kicking","bearish
+      kicking - bull/bear determined by the longer marubozu","bearish long line candle","bearish
+      marubozu","bearish modified hikkake","bearish rising/falling three methods","bearish
+      separating lines","bearish tasuki gap","bearish three inside up/down","bearish
+      three outside up/down","bearish three-line strike","bearish tristar","bearish
+      up/down-gap side-by-side white lines","bearish upside/downside gap three methods","bullish
+      abandoned baby","bullish belt-hold","bullish breakaway","bullish closing marubozu","bullish
+      counterattack","bullish doji star","bullish engulfing","bullish harami","bullish
+      harami cross","bullish hikkake","bullish kicking","bullish kicking - bull/bear
+      determined by the longer marubozu","bullish long line candle","bullish marubozu","bullish
+      modified hikkake","bullish rising/falling three methods","bullish separating
+      lines","bullish tasuki gap","bullish three inside up/down","bullish three outside
+      up/down","bullish three-line strike","bullish tristar","bullish up/down-gap
+      side-by-side white lines","bullish upside/downside gap three methods","concealing
+      baby swallow","dark cloud cover","doji","dragonfly doji","evening doji star","evening
+      star","gravestone doji","hammer","hanging man","high-wave candle","homing pigeon","identical
+      three crows","in-neck","inverted hammer","ladder bottom","long legged doji","mat
+      hold","matching low","morning doji star","morning star","on-neck","piercing","rickshaw
+      man","shooting star","short line candle","spinning top","stalled pattern","stick
+      sandwich","takuri (dragonfly doji with very long lower shadow)","three advancing
+      white soldiers","three black crows","three stars in the south","thrusting","two
+      crows","unique 3 river","upside gap two crows"],"description":"Keep only episodes
+      where this candle pattern was named on the 15-minute bars. \"any\": no narrowing
+      (the default), or a candle pattern name, such as \"spinning top\" or \"doji\"."},"decided":{"type":"string","enum":["any","hold","close","reduce","add"],"description":"Keep
+      only reviews with this decision. \"any\": no narrowing (the default). \"hold\":
+      the position was kept as it was. \"close\": the whole position was closed. \"reduce\":
+      part of the position was closed. \"add\": more money was put into the position."},"standing":{"type":"string","enum":["any","in_profit","at_a_loss"],"description":"Keep
+      only reviews where the position stood this way at the time of the review. This
+      is about that moment, not about how the trade ended. \"any\": no narrowing (the
+      default). \"in_profit\": closing it then would have left a profit after trading
+      costs. \"at_a_loss\": closing it then would have left a loss after trading costs."}},"required":[]}},{"name":"read_episodes","description":"Read
+      past position reviews in full: the situation as it was described at the time,
+      how the position stood, what was decided, where the price went next, how the
+      whole trade was handled bar by bar, and how it ended. The decision model reads
+      the same record for each episode you select. Counts as one lookup, however many
+      episodes you ask for.","input_schema":{"type":"object","properties":{"episode_ids":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":5,"description":"A
+      list of 1 to 5 IDs you have been shown, such as [\"E1\", \"E4\"]."}},"required":["episode_ids"]}},{"name":"read_track_record","description":"Read
+      the totals over the agent''s closed trades for one candle pattern and one direction,
+      in the current asset''s class (stocks or crypto): how many trades, how many
+      wins, the average win and the average loss. The decision model is always given
+      the track record, whatever you select. Counts as one lookup.","input_schema":{"type":"object","properties":{"pattern":{"type":"string","enum":["advance
+      block","bearish abandoned baby","bearish belt-hold","bearish breakaway","bearish
+      closing marubozu","bearish counterattack","bearish doji star","bearish engulfing","bearish
+      harami","bearish harami cross","bearish hikkake","bearish kicking","bearish
+      kicking - bull/bear determined by the longer marubozu","bearish long line candle","bearish
+      marubozu","bearish modified hikkake","bearish rising/falling three methods","bearish
+      separating lines","bearish tasuki gap","bearish three inside up/down","bearish
+      three outside up/down","bearish three-line strike","bearish tristar","bearish
+      up/down-gap side-by-side white lines","bearish upside/downside gap three methods","bullish
+      abandoned baby","bullish belt-hold","bullish breakaway","bullish closing marubozu","bullish
+      counterattack","bullish doji star","bullish engulfing","bullish harami","bullish
+      harami cross","bullish hikkake","bullish kicking","bullish kicking - bull/bear
+      determined by the longer marubozu","bullish long line candle","bullish marubozu","bullish
+      modified hikkake","bullish rising/falling three methods","bullish separating
+      lines","bullish tasuki gap","bullish three inside up/down","bullish three outside
+      up/down","bullish three-line strike","bullish tristar","bullish up/down-gap
+      side-by-side white lines","bullish upside/downside gap three methods","concealing
+      baby swallow","dark cloud cover","doji","dragonfly doji","evening doji star","evening
+      star","gravestone doji","hammer","hanging man","high-wave candle","homing pigeon","identical
+      three crows","in-neck","inverted hammer","ladder bottom","long legged doji","mat
+      hold","matching low","morning doji star","morning star","on-neck","piercing","rickshaw
+      man","shooting star","short line candle","spinning top","stalled pattern","stick
+      sandwich","takuri (dragonfly doji with very long lower shadow)","three advancing
+      white soldiers","three black crows","three stars in the south","thrusting","two
+      crows","unique 3 river","upside gap two crows"],"description":"A candle pattern
+      name, such as \"bullish engulfing\"."},"direction":{"type":"string","enum":["long","short"],"description":"Which
+      trades to total. \"long\": trades that bet on a rise. \"short\": trades that
+      bet on a fall."}},"required":["pattern","direction"]}},{"name":"select_episodes","description":"Give
+      your final answer. Call this once, when you are done. It is not a lookup and
+      is always available.","input_schema":{"type":"object","properties":{"episode_ids":{"type":"array","items":{"type":"string"},"maxItems":5,"description":"A
+      list of 0 to 5 IDs you have been shown, most useful first. An empty list means
+      none."},"note":{"type":"string","description":"One line, at most 200 characters,
+      on why you chose them."}},"required":["episode_ids","note"]}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '13636'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - langchain-anthropic/1.7.12
+      x-stainless-arch:
+      - other:amd64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Windows
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - raw
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.16
+      x-stainless-timeout:
+      - NOT_GIVEN
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"model":"claude-haiku-5-5","id":"msg_011ChRypFAXYN24GNEPNt3kn","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQSqQcKEAgUGAI4AUIIdGhpbmtpbmcSDJbu0/eafJ9+wwm0NhoMKUxHBb/YEE4hrJ6LIjD3AToj7jhUa6nfVzRxnUsuLYVXN9DTdLzW0KZOQCWLBf5UfoPbMk9ACL+eoIh7ty0qxgYzeUBxSJdBETnW5so1aCoibedyz0J8yc4oVTNAGJ0/S/H46Hl1AQTl4LFY4vP2i0qn0fyE395acGbEr+M7EdPipNRuik5xFryv/wmKz0JRQOrdtssSr0UiBWkaYCvqQsfbxgCoxVF/6i6ptMHQuJSX6RJv2aFzVY4Q4GWklH9xZUxdXbhfpn8V7Jgpi8fwoj302ieF/2xzripVEoS1HaJq/Wf5mcCyEbXYKqfXaDG7v1siIglblW5L6Vmxd90z7oPFAimkmEKk720XqLMhS1jN3jldodhHKH7DHt46glex6a1VthErc9BDUCZPo3IwcmQPjp8I+5UvZfJZeEloXGZ5V5CzTya5C/Qvk9gZykT5WHSFeQJ7850f8GbQ51m3TimsQRwFSTYgRGZ7h5RrGUF7tWmXpzSVmx50COu8SyyJoQ2lNZzHyalIIXX1ebQekUJafmRarD4QIE/Eo+BIeBm+gBiUC5VqQmxw/0I13SFtMjuwbHb537Yvekfp4+7zrHL3um9JpWiCU4kO/gyn3eupfySgbfWNoQdgig+6t7CxJVB/DaqiTRRpA40EKITZzNtZ3TPkW8bZb5BgLQU9oEQanqCBKKucvB3jLr/D9sRrpLVvGASYJnPZuV3IsUGYemnkB+szZKlZ8rNmwkPmTVGTmCx8qfMB02kMWsGIP1QZtZ4PpiMkjFVwhh8wAAbUoHwzzP+FRVV4TVBW5rWOR7MwZIC+fpSawBl0PKt9k0iewR1Uh/Vv6lWghINyWp+wOd5KR/bIJsPoTFTLWy4eXQ4tob5quzK2YIa/eNvYOL5ynWd6LfSRgvsM79tA1XjvLpZ9p+QV5b/EWUxSi9Ozv/uzMS3b57iU/mkctZPkGGTG/++AvSRQ7Me8UD0hRbJzinTtpYAmukN5GY6uyuLGvf24OLjQW2+YpIs2XvbIGJQG2llyFI58rq4wqQZ2xBHDExYEGVgYRXC3hTJzb+KgZHVXWxEvbwtcDwOG/3bRhRdc050jg8pNxbF16ersnxojK1pokEqFfWs7AMTIkWlug+IPEgvh+ubelad0f2PjZoWk4tsANMA1zpHo1fNxssgBZDLUIWxYK/7c5M8owQaFQ4qHBL2L+6u/GAE="},{"type":"tool_use","id":"toolu_011qPCmDe1WdyJCZSD9erYfV","name":"search_episodes","input":{"asset":"same_asset","pattern":"hammer"},"caller":{"type":"direct"}}],"container":null,"stop_reason":"tool_use","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":4,"cache_creation_input_tokens":5286,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":5286,"ephemeral_1h_input_tokens":0},"output_tokens":204,"output_tokens_details":{"thinking_tokens":125},"service_tier":"standard","inference_geo":"global","speed":"standard"},"diagnostics":null}'
+    headers:
+      accept-encoding:
+      - gzip, identity
+      anthropic-ratelimit-input-tokens-limit:
+      - '10000000'
+      anthropic-ratelimit-input-tokens-remaining:
+      - '9997000'
+      anthropic-ratelimit-input-tokens-reset:
+      - '2026-11-26T18:03:39Z'
+      anthropic-ratelimit-output-tokens-limit:
+      - '2000000'
+      anthropic-ratelimit-output-tokens-remaining:
+      - '2000000'
+      anthropic-ratelimit-output-tokens-reset:
+      - '2026-11-26T18:03:40Z'
+      anthropic-ratelimit-requests-limit:
+      - '13000'
+      anthropic-ratelimit-requests-remaining:
+      - '12999'
+      anthropic-ratelimit-requests-reset:
+      - '2026-11-26T18:03:39Z'
+      anthropic-ratelimit-tokens-limit:
+      - '12000000'
+      anthropic-ratelimit-tokens-remaining:
+      - '11997000'
+      anthropic-ratelimit-tokens-reset:
+      - '2026-11-26T18:03:39Z'
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60acfa0ca27e09b-YUL
+      connection:
+      - keep-alive
+      content-length:
+      - '1993'
+      content-security-policy:
+      - default-src 'none'; frame-ancestors 'none'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 18:03:40 GMT
+      request-id:
+      - req_011ChRypEjj7PpPjArwdiXhB
+      server:
+      - cloudflare
+      server-timing:
+      - x-originResponse;dur=1389
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      traceresponse:
+      - 00-0491550095b0c1fcf73aca1ac726a1e2-507d672df2cb3ad0-01
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-robots-tag:
+      - none
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"max_tokens":128000,"messages":[{"role":"user","content":"# Current situation\nAsset:
+      ASSET_01 (crypto)\nCrypto, American hours (bar 94 of 96). Patterns in the last
+      4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none.
+      Last 8 bars: three up, five down; this bar is a medium down bar closing near
+      its low. Short-term trend down (2.4 typical moves below the 20-bar average).
+      Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times
+      normal). Price is 1.7 below the day''s average price, 3.7 below the day''s high,
+      0.8 above the day''s low, and 3.0 below the previous day''s high. Typical move:
+      0.4% of price.\n\n# The position now\nLong, $2,000, open 3 bars, -$26 (-1.3%),
+      stop price 3.5% away. At best it has been -$4, at worst -$26.\n\n# The 5 past
+      episodes most like this moment, all reviews of a long, closest first\nID | how
+      long ago | asset | part of the day, long-term trend, volume | candle patterns
+      | the position then | what was decided | what happened next\nE1 | 4 days ago
+      | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars,
+      -$4 (-0.4%), stop price 0.5% away | close | price went +0.1% after 1 bar, +0.4%
+      after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later:
+      -$4 (-0.4%)\nE2 | 2 days ago | same asset, crypto | Asian hours | no pattern
+      | long, $1,000, open 2 bars, +$9 (+0.9%), stop price 0.5% away | add $1,000
+      | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the
+      day; closed at its stop price 5 bars later: -$4 (-0.4%)\nE3 | 1 day ago | same
+      asset, crypto | European hours, long-term trend down, volume average | no pattern
+      | long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away | hold | price
+      went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed
+      at its stop price 5 bars later: -$4 (-0.4%)\nE4 | 5 days ago | same asset, crypto
+      | Asian hours | no pattern | long, $1,000, open 2 bars, +$6 (+0.6%), stop price
+      0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by
+      the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)\nE5 |
+      3 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open
+      2 bars, +$25 (+2.5%), stop price 0.5% away | reduce by half (that part: +$13)
+      | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the
+      day; closed at its stop price 5 bars later: -$4 (-0.4%)\n\n# Candle patterns
+      named above\nhammer: bullish. A small body with a long lower wick and little
+      or no upper wick, sitting below or near the previous bar''s low."},{"role":"assistant","content":[{"signature":"CAQSqQcKEAgUGAI4AUIIdGhpbmtpbmcSDJbu0/eafJ9+wwm0NhoMKUxHBb/YEE4hrJ6LIjD3AToj7jhUa6nfVzRxnUsuLYVXN9DTdLzW0KZOQCWLBf5UfoPbMk9ACL+eoIh7ty0qxgYzeUBxSJdBETnW5so1aCoibedyz0J8yc4oVTNAGJ0/S/H46Hl1AQTl4LFY4vP2i0qn0fyE395acGbEr+M7EdPipNRuik5xFryv/wmKz0JRQOrdtssSr0UiBWkaYCvqQsfbxgCoxVF/6i6ptMHQuJSX6RJv2aFzVY4Q4GWklH9xZUxdXbhfpn8V7Jgpi8fwoj302ieF/2xzripVEoS1HaJq/Wf5mcCyEbXYKqfXaDG7v1siIglblW5L6Vmxd90z7oPFAimkmEKk720XqLMhS1jN3jldodhHKH7DHt46glex6a1VthErc9BDUCZPo3IwcmQPjp8I+5UvZfJZeEloXGZ5V5CzTya5C/Qvk9gZykT5WHSFeQJ7850f8GbQ51m3TimsQRwFSTYgRGZ7h5RrGUF7tWmXpzSVmx50COu8SyyJoQ2lNZzHyalIIXX1ebQekUJafmRarD4QIE/Eo+BIeBm+gBiUC5VqQmxw/0I13SFtMjuwbHb537Yvekfp4+7zrHL3um9JpWiCU4kO/gyn3eupfySgbfWNoQdgig+6t7CxJVB/DaqiTRRpA40EKITZzNtZ3TPkW8bZb5BgLQU9oEQanqCBKKucvB3jLr/D9sRrpLVvGASYJnPZuV3IsUGYemnkB+szZKlZ8rNmwkPmTVGTmCx8qfMB02kMWsGIP1QZtZ4PpiMkjFVwhh8wAAbUoHwzzP+FRVV4TVBW5rWOR7MwZIC+fpSawBl0PKt9k0iewR1Uh/Vv6lWghINyWp+wOd5KR/bIJsPoTFTLWy4eXQ4tob5quzK2YIa/eNvYOL5ynWd6LfSRgvsM79tA1XjvLpZ9p+QV5b/EWUxSi9Ozv/uzMS3b57iU/mkctZPkGGTG/++AvSRQ7Me8UD0hRbJzinTtpYAmukN5GY6uyuLGvf24OLjQW2+YpIs2XvbIGJQG2llyFI58rq4wqQZ2xBHDExYEGVgYRXC3hTJzb+KgZHVXWxEvbwtcDwOG/3bRhRdc050jg8pNxbF16ersnxojK1pokEqFfWs7AMTIkWlug+IPEgvh+ubelad0f2PjZoWk4tsANMA1zpHo1fNxssgBZDLUIWxYK/7c5M8owQaFQ4qHBL2L+6u/GAE=","thinking":"","type":"thinking"},{"type":"tool_use","name":"search_episodes","input":{"asset":"same_asset","pattern":"hammer"},"id":"toolu_011qPCmDe1WdyJCZSD9erYfV","caller":{"type":"direct"}}]},{"role":"user","content":[{"type":"tool_result","content":"No
+      past episodes match (same asset, hammer, any decision).","tool_use_id":"toolu_011qPCmDe1WdyJCZSD9erYfV","is_error":false}]}],"model":"claude-haiku-5-5","cache_control":{"type":"ephemeral"},"output_config":{"effort":"low"},"system":"You
+      work inside a trading agent that replays market history in 15-minute steps and
+      trades stocks and crypto. The agent''s goal is the highest account value at
+      the end of the run.\n\n# Your job\nThe agent holds an open position in one asset:
+      a long (a bet that the price rises) or a short (a bet that it falls). It is
+      about to review that position and decide: hold it, close it, reduce it (close
+      part of it), or add to it (put more money into it). A separate decision model
+      makes that decision. Before it does, it reads a few of the agent''s own past
+      episodes. Your one job is to choose which ones.\n\nA past episode here is the
+      record of one earlier review of an open position: the situation at the time,
+      how the position stood then (how long it had been open, its profit or loss so
+      far, how far away its stop price was), what the decision model decided, where
+      the price went next, and how the trade ended.\n\nA position is not reviewed
+      at every step. Every 15 minutes the decision model answers a quick question
+      about it, is it worth a review now, and a review runs only on a yes. A stock
+      position is also always reviewed at the last step of its session from which
+      an order is still carried out the same day, because after that step it is held
+      overnight. Between reviews the position is held, and code closes it if the price
+      reaches its stop price.\n\nYou do not decide what is done with the position.
+      Nothing you write reaches the decision model. For each episode you select it
+      reads a record written by code, plus the track record (the totals over the agent''s
+      closed trades), which code always adds whatever you select.\n\n# What you are
+      given\n- The current situation of the asset.\n- How the position stands now.\n-
+      The past reviews most like this moment, all of positions in the same direction,
+      one line each, closest first.\n- A note on each candle pattern named: which
+      way it hints (bullish: a rise; bearish: a fall; neutral: neither) and its shape.\n\n#
+      What you can do\nEvery reply you give must be a tool call.\nAnswer at once by
+      calling select_episodes, or look further first with up to 6 lookups:\n- search_episodes:
+      search again, narrowed by asset, candle pattern, what was decided, or whether
+      the position was in profit or at a loss at the time.\n- read_episodes: read
+      up to 5 episodes in full.\n- read_track_record: read the totals for one candle
+      pattern and direction.\nSpend a lookup only when its result could change your
+      choice. select_episodes is not a lookup: you can call it at any time, including
+      after your lookups are used up.\n\n# How to choose\nSelect up to 5 episodes
+      that will most help the decision model judge the position now. Fewer is fine.
+      So is none, if nothing fits.\nChoose by how closely an episode matches the present
+      moment: the situation of the asset, and how the position stood. Do not choose
+      by what was decided then or by how it turned out.\nCode enforces the risk limits
+      (the caps on how much a trade can lose) after the decision is made, so do not
+      choose episodes in order to steer the decision toward caution.\n\n# Your answer\nFinish
+      by calling select_episodes with the IDs you chose and a one-line note on why.
+      The note is kept for the developer. The decision model never sees it.","tools":[{"name":"search_episodes","description":"Search
+      the agent''s past position reviews again for the ones most like the present
+      moment, narrowed by the filters you set. Only reviews of positions in the same
+      direction as the current one are searched. Returns up to 10 one-line summaries,
+      closest first, in the same layout as the first list. An episode you have already
+      been shown keeps its ID. The search always starts from the current situation:
+      you cannot type search words, and you cannot ask for only episodes that turned
+      out well or only those that turned out badly. Counts as one lookup.","input_schema":{"type":"object","properties":{"asset":{"type":"string","enum":["any","same_asset","same_asset_class"],"description":"Which
+      assets to search. \"any\": every asset (the default). \"same_asset\": only the
+      asset in the current situation. \"same_asset_class\": only stocks if it is a
+      stock, only crypto if it is crypto."},"pattern":{"type":"string","enum":["any","advance
+      block","bearish abandoned baby","bearish belt-hold","bearish breakaway","bearish
+      closing marubozu","bearish counterattack","bearish doji star","bearish engulfing","bearish
+      harami","bearish harami cross","bearish hikkake","bearish kicking","bearish
+      kicking - bull/bear determined by the longer marubozu","bearish long line candle","bearish
+      marubozu","bearish modified hikkake","bearish rising/falling three methods","bearish
+      separating lines","bearish tasuki gap","bearish three inside up/down","bearish
+      three outside up/down","bearish three-line strike","bearish tristar","bearish
+      up/down-gap side-by-side white lines","bearish upside/downside gap three methods","bullish
+      abandoned baby","bullish belt-hold","bullish breakaway","bullish closing marubozu","bullish
+      counterattack","bullish doji star","bullish engulfing","bullish harami","bullish
+      harami cross","bullish hikkake","bullish kicking","bullish kicking - bull/bear
+      determined by the longer marubozu","bullish long line candle","bullish marubozu","bullish
+      modified hikkake","bullish rising/falling three methods","bullish separating
+      lines","bullish tasuki gap","bullish three inside up/down","bullish three outside
+      up/down","bullish three-line strike","bullish tristar","bullish up/down-gap
+      side-by-side white lines","bullish upside/downside gap three methods","concealing
+      baby swallow","dark cloud cover","doji","dragonfly doji","evening doji star","evening
+      star","gravestone doji","hammer","hanging man","high-wave candle","homing pigeon","identical
+      three crows","in-neck","inverted hammer","ladder bottom","long legged doji","mat
+      hold","matching low","morning doji star","morning star","on-neck","piercing","rickshaw
+      man","shooting star","short line candle","spinning top","stalled pattern","stick
+      sandwich","takuri (dragonfly doji with very long lower shadow)","three advancing
+      white soldiers","three black crows","three stars in the south","thrusting","two
+      crows","unique 3 river","upside gap two crows"],"description":"Keep only episodes
+      where this candle pattern was named on the 15-minute bars. \"any\": no narrowing
+      (the default), or a candle pattern name, such as \"spinning top\" or \"doji\"."},"decided":{"type":"string","enum":["any","hold","close","reduce","add"],"description":"Keep
+      only reviews with this decision. \"any\": no narrowing (the default). \"hold\":
+      the position was kept as it was. \"close\": the whole position was closed. \"reduce\":
+      part of the position was closed. \"add\": more money was put into the position."},"standing":{"type":"string","enum":["any","in_profit","at_a_loss"],"description":"Keep
+      only reviews where the position stood this way at the time of the review. This
+      is about that moment, not about how the trade ended. \"any\": no narrowing (the
+      default). \"in_profit\": closing it then would have left a profit after trading
+      costs. \"at_a_loss\": closing it then would have left a loss after trading costs."}},"required":[]}},{"name":"read_episodes","description":"Read
+      past position reviews in full: the situation as it was described at the time,
+      how the position stood, what was decided, where the price went next, how the
+      whole trade was handled bar by bar, and how it ended. The decision model reads
+      the same record for each episode you select. Counts as one lookup, however many
+      episodes you ask for.","input_schema":{"type":"object","properties":{"episode_ids":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":5,"description":"A
+      list of 1 to 5 IDs you have been shown, such as [\"E1\", \"E4\"]."}},"required":["episode_ids"]}},{"name":"read_track_record","description":"Read
+      the totals over the agent''s closed trades for one candle pattern and one direction,
+      in the current asset''s class (stocks or crypto): how many trades, how many
+      wins, the average win and the average loss. The decision model is always given
+      the track record, whatever you select. Counts as one lookup.","input_schema":{"type":"object","properties":{"pattern":{"type":"string","enum":["advance
+      block","bearish abandoned baby","bearish belt-hold","bearish breakaway","bearish
+      closing marubozu","bearish counterattack","bearish doji star","bearish engulfing","bearish
+      harami","bearish harami cross","bearish hikkake","bearish kicking","bearish
+      kicking - bull/bear determined by the longer marubozu","bearish long line candle","bearish
+      marubozu","bearish modified hikkake","bearish rising/falling three methods","bearish
+      separating lines","bearish tasuki gap","bearish three inside up/down","bearish
+      three outside up/down","bearish three-line strike","bearish tristar","bearish
+      up/down-gap side-by-side white lines","bearish upside/downside gap three methods","bullish
+      abandoned baby","bullish belt-hold","bullish breakaway","bullish closing marubozu","bullish
+      counterattack","bullish doji star","bullish engulfing","bullish harami","bullish
+      harami cross","bullish hikkake","bullish kicking","bullish kicking - bull/bear
+      determined by the longer marubozu","bullish long line candle","bullish marubozu","bullish
+      modified hikkake","bullish rising/falling three methods","bullish separating
+      lines","bullish tasuki gap","bullish three inside up/down","bullish three outside
+      up/down","bullish three-line strike","bullish tristar","bullish up/down-gap
+      side-by-side white lines","bullish upside/downside gap three methods","concealing
+      baby swallow","dark cloud cover","doji","dragonfly doji","evening doji star","evening
+      star","gravestone doji","hammer","hanging man","high-wave candle","homing pigeon","identical
+      three crows","in-neck","inverted hammer","ladder bottom","long legged doji","mat
+      hold","matching low","morning doji star","morning star","on-neck","piercing","rickshaw
+      man","shooting star","short line candle","spinning top","stalled pattern","stick
+      sandwich","takuri (dragonfly doji with very long lower shadow)","three advancing
+      white soldiers","three black crows","three stars in the south","thrusting","two
+      crows","unique 3 river","upside gap two crows"],"description":"A candle pattern
+      name, such as \"bullish engulfing\"."},"direction":{"type":"string","enum":["long","short"],"description":"Which
+      trades to total. \"long\": trades that bet on a rise. \"short\": trades that
+      bet on a fall."}},"required":["pattern","direction"]}},{"name":"select_episodes","description":"Give
+      your final answer. Call this once, when you are done. It is not a lookup and
+      is always available.","input_schema":{"type":"object","properties":{"episode_ids":{"type":"array","items":{"type":"string"},"maxItems":5,"description":"A
+      list of 0 to 5 IDs you have been shown, most useful first. An empty list means
+      none."},"note":{"type":"string","description":"One line, at most 200 characters,
+      on why you chose them."}},"required":["episode_ids","note"]}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '15324'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - langchain-anthropic/1.7.12
+      x-stainless-arch:
+      - other:amd64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Windows
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - raw
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.16
+      x-stainless-timeout:
+      - NOT_GIVEN
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"model":"claude-haiku-5-5","id":"msg_011ChRypM2VnvU49iiuZ7TeG","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01MFPd6Ykw85aDgutVbYa3xw","name":"search_episodes","input":{"asset":"same_asset_class","standing":"at_a_loss"},"caller":{"type":"direct"}}],"container":null,"stop_reason":"tool_use","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":230,"cache_read_input_tokens":5286,"cache_creation":{"ephemeral_5m_input_tokens":230,"ephemeral_1h_input_tokens":0},"output_tokens":82,"output_tokens_details":{"thinking_tokens":0},"service_tier":"standard","inference_geo":"global","speed":"standard"},"diagnostics":null}'
+    headers:
+      accept-encoding:
+      - gzip, identity
+      anthropic-ratelimit-input-tokens-limit:
+      - '10000000'
+      anthropic-ratelimit-input-tokens-remaining:
+      - '10000000'
+      anthropic-ratelimit-input-tokens-reset:
+      - '2026-11-26T18:03:40Z'
+      anthropic-ratelimit-output-tokens-limit:
+      - '2000000'
+      anthropic-ratelimit-output-tokens-remaining:
+      - '2000000'
+      anthropic-ratelimit-output-tokens-reset:
+      - '2026-11-26T18:03:41Z'
+      anthropic-ratelimit-requests-limit:
+      - '13000'
+      anthropic-ratelimit-requests-remaining:
+      - '12999'
+      anthropic-ratelimit-requests-reset:
+      - '2026-11-26T18:03:40Z'
+      anthropic-ratelimit-tokens-limit:
+      - '12000000'
+      anthropic-ratelimit-tokens-remaining:
+      - '12000000'
+      anthropic-ratelimit-tokens-reset:
+      - '2026-11-26T18:03:40Z'
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60acfa9eb7ee09b-YUL
+      connection:
+      - keep-alive
+      content-length:
+      - '692'
+      content-security-policy:
+      - default-src 'none'; frame-ancestors 'none'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 18:03:41 GMT
+      request-id:
+      - req_011ChRypLuZfGv6jot9Sxx88
+      server:
+      - cloudflare
+      server-timing:
+      - x-originResponse;dur=658
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      traceresponse:
+      - 00-50ce3712c3e964ae708dfc59dc34e96c-fd53b735d8003059-01
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-robots-tag:
+      - none
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"max_tokens":128000,"messages":[{"role":"user","content":"# Current situation\nAsset:
+      ASSET_01 (crypto)\nCrypto, American hours (bar 94 of 96). Patterns in the last
+      4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none.
+      Last 8 bars: three up, five down; this bar is a medium down bar closing near
+      its low. Short-term trend down (2.4 typical moves below the 20-bar average).
+      Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times
+      normal). Price is 1.7 below the day''s average price, 3.7 below the day''s high,
+      0.8 above the day''s low, and 3.0 below the previous day''s high. Typical move:
+      0.4% of price.\n\n# The position now\nLong, $2,000, open 3 bars, -$26 (-1.3%),
+      stop price 3.5% away. At best it has been -$4, at worst -$26.\n\n# The 5 past
+      episodes most like this moment, all reviews of a long, closest first\nID | how
+      long ago | asset | part of the day, long-term trend, volume | candle patterns
+      | the position then | what was decided | what happened next\nE1 | 4 days ago
+      | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars,
+      -$4 (-0.4%), stop price 0.5% away | close | price went +0.1% after 1 bar, +0.4%
+      after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later:
+      -$4 (-0.4%)\nE2 | 2 days ago | same asset, crypto | Asian hours | no pattern
+      | long, $1,000, open 2 bars, +$9 (+0.9%), stop price 0.5% away | add $1,000
+      | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the
+      day; closed at its stop price 5 bars later: -$4 (-0.4%)\nE3 | 1 day ago | same
+      asset, crypto | European hours, long-term trend down, volume average | no pattern
+      | long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away | hold | price
+      went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed
+      at its stop price 5 bars later: -$4 (-0.4%)\nE4 | 5 days ago | same asset, crypto
+      | Asian hours | no pattern | long, $1,000, open 2 bars, +$6 (+0.6%), stop price
+      0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by
+      the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)\nE5 |
+      3 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open
+      2 bars, +$25 (+2.5%), stop price 0.5% away | reduce by half (that part: +$13)
+      | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the
+      day; closed at its stop price 5 bars later: -$4 (-0.4%)\n\n# Candle patterns
+      named above\nhammer: bullish. A small body with a long lower wick and little
+      or no upper wick, sitting below or near the previous bar''s low."},{"role":"assistant","content":[{"signature":"CAQSqQcKEAgUGAI4AUIIdGhpbmtpbmcSDJbu0/eafJ9+wwm0NhoMKUxHBb/YEE4hrJ6LIjD3AToj7jhUa6nfVzRxnUsuLYVXN9DTdLzW0KZOQCWLBf5UfoPbMk9ACL+eoIh7ty0qxgYzeUBxSJdBETnW5so1aCoibedyz0J8yc4oVTNAGJ0/S/H46Hl1AQTl4LFY4vP2i0qn0fyE395acGbEr+M7EdPipNRuik5xFryv/wmKz0JRQOrdtssSr0UiBWkaYCvqQsfbxgCoxVF/6i6ptMHQuJSX6RJv2aFzVY4Q4GWklH9xZUxdXbhfpn8V7Jgpi8fwoj302ieF/2xzripVEoS1HaJq/Wf5mcCyEbXYKqfXaDG7v1siIglblW5L6Vmxd90z7oPFAimkmEKk720XqLMhS1jN3jldodhHKH7DHt46glex6a1VthErc9BDUCZPo3IwcmQPjp8I+5UvZfJZeEloXGZ5V5CzTya5C/Qvk9gZykT5WHSFeQJ7850f8GbQ51m3TimsQRwFSTYgRGZ7h5RrGUF7tWmXpzSVmx50COu8SyyJoQ2lNZzHyalIIXX1ebQekUJafmRarD4QIE/Eo+BIeBm+gBiUC5VqQmxw/0I13SFtMjuwbHb537Yvekfp4+7zrHL3um9JpWiCU4kO/gyn3eupfySgbfWNoQdgig+6t7CxJVB/DaqiTRRpA40EKITZzNtZ3TPkW8bZb5BgLQU9oEQanqCBKKucvB3jLr/D9sRrpLVvGASYJnPZuV3IsUGYemnkB+szZKlZ8rNmwkPmTVGTmCx8qfMB02kMWsGIP1QZtZ4PpiMkjFVwhh8wAAbUoHwzzP+FRVV4TVBW5rWOR7MwZIC+fpSawBl0PKt9k0iewR1Uh/Vv6lWghINyWp+wOd5KR/bIJsPoTFTLWy4eXQ4tob5quzK2YIa/eNvYOL5ynWd6LfSRgvsM79tA1XjvLpZ9p+QV5b/EWUxSi9Ozv/uzMS3b57iU/mkctZPkGGTG/++AvSRQ7Me8UD0hRbJzinTtpYAmukN5GY6uyuLGvf24OLjQW2+YpIs2XvbIGJQG2llyFI58rq4wqQZ2xBHDExYEGVgYRXC3hTJzb+KgZHVXWxEvbwtcDwOG/3bRhRdc050jg8pNxbF16ersnxojK1pokEqFfWs7AMTIkWlug+IPEgvh+ubelad0f2PjZoWk4tsANMA1zpHo1fNxssgBZDLUIWxYK/7c5M8owQaFQ4qHBL2L+6u/GAE=","thinking":"","type":"thinking"},{"type":"tool_use","name":"search_episodes","input":{"asset":"same_asset","pattern":"hammer"},"id":"toolu_011qPCmDe1WdyJCZSD9erYfV","caller":{"type":"direct"}}]},{"role":"user","content":[{"type":"tool_result","content":"No
+      past episodes match (same asset, hammer, any decision).","tool_use_id":"toolu_011qPCmDe1WdyJCZSD9erYfV","is_error":false}]},{"role":"assistant","content":[{"type":"tool_use","name":"search_episodes","input":{"asset":"same_asset_class","standing":"at_a_loss"},"id":"toolu_01MFPd6Ykw85aDgutVbYa3xw","caller":{"type":"direct"}}]},{"role":"user","content":[{"type":"tool_result","content":"2
+      past episodes (same asset class, any pattern, any decision, at a loss), closest
+      first\nID | how long ago | asset | part of the day, long-term trend, volume
+      | candle patterns | the position then | what was decided | what happened next\nE1
+      | 4 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000,
+      open 2 bars, -$4 (-0.4%), stop price 0.5% away | close | price went +0.1% after
+      1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price
+      5 bars later: -$4 (-0.4%)\nE3 | 1 day ago | same asset, crypto | European hours,
+      long-term trend down, volume average | no pattern | long, $1,000, open 2 bars,
+      -$2 (-0.2%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4%
+      after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later:
+      -$4 (-0.4%)","tool_use_id":"toolu_01MFPd6Ykw85aDgutVbYa3xw","is_error":false}]}],"model":"claude-haiku-5-5","cache_control":{"type":"ephemeral"},"output_config":{"effort":"low"},"system":"You
+      work inside a trading agent that replays market history in 15-minute steps and
+      trades stocks and crypto. The agent''s goal is the highest account value at
+      the end of the run.\n\n# Your job\nThe agent holds an open position in one asset:
+      a long (a bet that the price rises) or a short (a bet that it falls). It is
+      about to review that position and decide: hold it, close it, reduce it (close
+      part of it), or add to it (put more money into it). A separate decision model
+      makes that decision. Before it does, it reads a few of the agent''s own past
+      episodes. Your one job is to choose which ones.\n\nA past episode here is the
+      record of one earlier review of an open position: the situation at the time,
+      how the position stood then (how long it had been open, its profit or loss so
+      far, how far away its stop price was), what the decision model decided, where
+      the price went next, and how the trade ended.\n\nA position is not reviewed
+      at every step. Every 15 minutes the decision model answers a quick question
+      about it, is it worth a review now, and a review runs only on a yes. A stock
+      position is also always reviewed at the last step of its session from which
+      an order is still carried out the same day, because after that step it is held
+      overnight. Between reviews the position is held, and code closes it if the price
+      reaches its stop price.\n\nYou do not decide what is done with the position.
+      Nothing you write reaches the decision model. For each episode you select it
+      reads a record written by code, plus the track record (the totals over the agent''s
+      closed trades), which code always adds whatever you select.\n\n# What you are
+      given\n- The current situation of the asset.\n- How the position stands now.\n-
+      The past reviews most like this moment, all of positions in the same direction,
+      one line each, closest first.\n- A note on each candle pattern named: which
+      way it hints (bullish: a rise; bearish: a fall; neutral: neither) and its shape.\n\n#
+      What you can do\nEvery reply you give must be a tool call.\nAnswer at once by
+      calling select_episodes, or look further first with up to 6 lookups:\n- search_episodes:
+      search again, narrowed by asset, candle pattern, what was decided, or whether
+      the position was in profit or at a loss at the time.\n- read_episodes: read
+      up to 5 episodes in full.\n- read_track_record: read the totals for one candle
+      pattern and direction.\nSpend a lookup only when its result could change your
+      choice. select_episodes is not a lookup: you can call it at any time, including
+      after your lookups are used up.\n\n# How to choose\nSelect up to 5 episodes
+      that will most help the decision model judge the position now. Fewer is fine.
+      So is none, if nothing fits.\nChoose by how closely an episode matches the present
+      moment: the situation of the asset, and how the position stood. Do not choose
+      by what was decided then or by how it turned out.\nCode enforces the risk limits
+      (the caps on how much a trade can lose) after the decision is made, so do not
+      choose episodes in order to steer the decision toward caution.\n\n# Your answer\nFinish
+      by calling select_episodes with the IDs you chose and a one-line note on why.
+      The note is kept for the developer. The decision model never sees it.","tools":[{"name":"search_episodes","description":"Search
+      the agent''s past position reviews again for the ones most like the present
+      moment, narrowed by the filters you set. Only reviews of positions in the same
+      direction as the current one are searched. Returns up to 10 one-line summaries,
+      closest first, in the same layout as the first list. An episode you have already
+      been shown keeps its ID. The search always starts from the current situation:
+      you cannot type search words, and you cannot ask for only episodes that turned
+      out well or only those that turned out badly. Counts as one lookup.","input_schema":{"type":"object","properties":{"asset":{"type":"string","enum":["any","same_asset","same_asset_class"],"description":"Which
+      assets to search. \"any\": every asset (the default). \"same_asset\": only the
+      asset in the current situation. \"same_asset_class\": only stocks if it is a
+      stock, only crypto if it is crypto."},"pattern":{"type":"string","enum":["any","advance
+      block","bearish abandoned baby","bearish belt-hold","bearish breakaway","bearish
+      closing marubozu","bearish counterattack","bearish doji star","bearish engulfing","bearish
+      harami","bearish harami cross","bearish hikkake","bearish kicking","bearish
+      kicking - bull/bear determined by the longer marubozu","bearish long line candle","bearish
+      marubozu","bearish modified hikkake","bearish rising/falling three methods","bearish
+      separating lines","bearish tasuki gap","bearish three inside up/down","bearish
+      three outside up/down","bearish three-line strike","bearish tristar","bearish
+      up/down-gap side-by-side white lines","bearish upside/downside gap three methods","bullish
+      abandoned baby","bullish belt-hold","bullish breakaway","bullish closing marubozu","bullish
+      counterattack","bullish doji star","bullish engulfing","bullish harami","bullish
+      harami cross","bullish hikkake","bullish kicking","bullish kicking - bull/bear
+      determined by the longer marubozu","bullish long line candle","bullish marubozu","bullish
+      modified hikkake","bullish rising/falling three methods","bullish separating
+      lines","bullish tasuki gap","bullish three inside up/down","bullish three outside
+      up/down","bullish three-line strike","bullish tristar","bullish up/down-gap
+      side-by-side white lines","bullish upside/downside gap three methods","concealing
+      baby swallow","dark cloud cover","doji","dragonfly doji","evening doji star","evening
+      star","gravestone doji","hammer","hanging man","high-wave candle","homing pigeon","identical
+      three crows","in-neck","inverted hammer","ladder bottom","long legged doji","mat
+      hold","matching low","morning doji star","morning star","on-neck","piercing","rickshaw
+      man","shooting star","short line candle","spinning top","stalled pattern","stick
+      sandwich","takuri (dragonfly doji with very long lower shadow)","three advancing
+      white soldiers","three black crows","three stars in the south","thrusting","two
+      crows","unique 3 river","upside gap two crows"],"description":"Keep only episodes
+      where this candle pattern was named on the 15-minute bars. \"any\": no narrowing
+      (the default), or a candle pattern name, such as \"spinning top\" or \"doji\"."},"decided":{"type":"string","enum":["any","hold","close","reduce","add"],"description":"Keep
+      only reviews with this decision. \"any\": no narrowing (the default). \"hold\":
+      the position was kept as it was. \"close\": the whole position was closed. \"reduce\":
+      part of the position was closed. \"add\": more money was put into the position."},"standing":{"type":"string","enum":["any","in_profit","at_a_loss"],"description":"Keep
+      only reviews where the position stood this way at the time of the review. This
+      is about that moment, not about how the trade ended. \"any\": no narrowing (the
+      default). \"in_profit\": closing it then would have left a profit after trading
+      costs. \"at_a_loss\": closing it then would have left a loss after trading costs."}},"required":[]}},{"name":"read_episodes","description":"Read
+      past position reviews in full: the situation as it was described at the time,
+      how the position stood, what was decided, where the price went next, how the
+      whole trade was handled bar by bar, and how it ended. The decision model reads
+      the same record for each episode you select. Counts as one lookup, however many
+      episodes you ask for.","input_schema":{"type":"object","properties":{"episode_ids":{"type":"array","items":{"type":"string"},"minItems":1,"maxItems":5,"description":"A
+      list of 1 to 5 IDs you have been shown, such as [\"E1\", \"E4\"]."}},"required":["episode_ids"]}},{"name":"read_track_record","description":"Read
+      the totals over the agent''s closed trades for one candle pattern and one direction,
+      in the current asset''s class (stocks or crypto): how many trades, how many
+      wins, the average win and the average loss. The decision model is always given
+      the track record, whatever you select. Counts as one lookup.","input_schema":{"type":"object","properties":{"pattern":{"type":"string","enum":["advance
+      block","bearish abandoned baby","bearish belt-hold","bearish breakaway","bearish
+      closing marubozu","bearish counterattack","bearish doji star","bearish engulfing","bearish
+      harami","bearish harami cross","bearish hikkake","bearish kicking","bearish
+      kicking - bull/bear determined by the longer marubozu","bearish long line candle","bearish
+      marubozu","bearish modified hikkake","bearish rising/falling three methods","bearish
+      separating lines","bearish tasuki gap","bearish three inside up/down","bearish
+      three outside up/down","bearish three-line strike","bearish tristar","bearish
+      up/down-gap side-by-side white lines","bearish upside/downside gap three methods","bullish
+      abandoned baby","bullish belt-hold","bullish breakaway","bullish closing marubozu","bullish
+      counterattack","bullish doji star","bullish engulfing","bullish harami","bullish
+      harami cross","bullish hikkake","bullish kicking","bullish kicking - bull/bear
+      determined by the longer marubozu","bullish long line candle","bullish marubozu","bullish
+      modified hikkake","bullish rising/falling three methods","bullish separating
+      lines","bullish tasuki gap","bullish three inside up/down","bullish three outside
+      up/down","bullish three-line strike","bullish tristar","bullish up/down-gap
+      side-by-side white lines","bullish upside/downside gap three methods","concealing
+      baby swallow","dark cloud cover","doji","dragonfly doji","evening doji star","evening
+      star","gravestone doji","hammer","hanging man","high-wave candle","homing pigeon","identical
+      three crows","in-neck","inverted hammer","ladder bottom","long legged doji","mat
+      hold","matching low","morning doji star","morning star","on-neck","piercing","rickshaw
+      man","shooting star","short line candle","spinning top","stalled pattern","stick
+      sandwich","takuri (dragonfly doji with very long lower shadow)","three advancing
+      white soldiers","three black crows","three stars in the south","thrusting","two
+      crows","unique 3 river","upside gap two crows"],"description":"A candle pattern
+      name, such as \"bullish engulfing\"."},"direction":{"type":"string","enum":["long","short"],"description":"Which
+      trades to total. \"long\": trades that bet on a rise. \"short\": trades that
+      bet on a fall."}},"required":["pattern","direction"]}},{"name":"select_episodes","description":"Give
+      your final answer. Call this once, when you are done. It is not a lookup and
+      is always available.","input_schema":{"type":"object","properties":{"episode_ids":{"type":"array","items":{"type":"string"},"maxItems":5,"description":"A
+      list of 0 to 5 IDs you have been shown, most useful first. An empty list means
+      none."},"note":{"type":"string","description":"One line, at most 200 characters,
+      on why you chose them."}},"required":["episode_ids","note"]}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-length:
+      - '16465'
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - langchain-anthropic/1.7.12
+      x-stainless-arch:
+      - other:amd64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - Windows
+      x-stainless-package-version:
+      - 2.12.0
+      x-stainless-raw-response:
+      - raw
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.16
+      x-stainless-timeout:
+      - NOT_GIVEN
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: '{"model":"claude-haiku-5-5","id":"msg_011ChRypQA1oCscG6XGwUm67","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQStAYKEAgUGAI4AUIIdGhpbmtpbmcSDIbfxOiuICDPVKKYnxoMdzcVWH6K5yyrajJJIjAjQh+Taf0Ic352ZzwB5nr3pM3EVdV0XJwoOu4ldq2UetIhVOJViRaHXnxO23XpWqsq0QWYr0JAF/TvkIEJ2sgoimlaPdUp6jkr42KBHl2n7iCg3xaJhV1rmI/3TwIiA9dhIA63OYYmkmBUBP5uRaw6C4IXxTqjcKtXDqmyLKgs//8THapE7BGv4evTitvaaHwAAT/8me7cr8DBnYwqYy5RhaqLR7PykHkkYbqvdz3nupemroNjZU8TUkRnBb9e5NJUEjvY+7pAMmyoPU1wzvjnS/8eT9MxtNSJk/DAzdN1wX7cVXI8tPFc/o86BgC/siZkVTI2yuSm8oUo1Fbi3mYo5J7NkMYfqOgLPQqmkI3PwiNhHu3rWeQTxG1BumrOaIit0gYDgwky0aOnIUs70290JtvDRwZLlaw+GgSKKJmtbEmgr0UXmmxAg+YCBFT+rQb6Ss2upvkbXLdDqrRrovCB10LG2qeYNoRb1kNRmM9OLox60xbON8YdFaDi/7PlCm+HfXrOikoxjW58JMo9wVwAz7j1xi5AggrXWb5l7JWVJsEjyv/lMMfk/Yi/47A3fS6v4WOrLg4UlFJMIx95kXUuWkLvHTed3CQSc3tiR+UEWFol++noilTbWpGTN4voA6dHRZ/vmupDC3MafuiBceGl2q9NXBkjpQ3NIJqCTnvob9bF6Fw+CSWbKkoFbssKAqobhsLZbCZRL9+x/mn9Sn1JOLGbkgj0sc/fH92oL3yYmwqmLK4Zk0IQ/4nxrmZKN+b3jLujSlVwZqWcj7aRq5tck7dsB6cbPBbs5I7kfG3vAqiYLY8vUv/5ggS0yWfuG/NY/G0VZZxObQN9oN2/nffwUDZFs6njnPqWFyXh7O8d2/YXmaQVEbfw6Xvm7LPQpYhXEq0sT4ajaPDE4RKjfUg9F67af4x7yVjtVyjEegJVPq/BGg9ze7QmeMgOlIRo3SkRKV0ME6bZ074TgMqI/yvzhNJiKvldbbAmbZ0Db7eNbxDI1UQne3R86XdwaWb2906ABjSwGAE="},{"type":"tool_use","id":"toolu_019SPR74Y9xZkvexR19swZvk","name":"select_episodes","input":{"episode_ids":["E3","E1"],"note":"No
+        close matches exist (no hammer episodes for this asset). E3 has a down long-term
+        trend and a loss; E1 is a loss-making long on the same asset. Both are the
+        nearest available."},"caller":{"type":"direct"}}],"container":null,"stop_reason":"tool_use","stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":433,"cache_read_input_tokens":5516,"cache_creation":{"ephemeral_5m_input_tokens":433,"ephemeral_1h_input_tokens":0},"output_tokens":201,"output_tokens_details":{"thinking_tokens":59},"service_tier":"standard","inference_geo":"global","speed":"standard"},"diagnostics":null}'
+    headers:
+      accept-encoding:
+      - gzip, identity
+      anthropic-ratelimit-input-tokens-limit:
+      - '10000000'
+      anthropic-ratelimit-input-tokens-remaining:
+      - '10000000'
+      anthropic-ratelimit-input-tokens-reset:
+      - '2026-11-26T18:03:41Z'
+      anthropic-ratelimit-output-tokens-limit:
+      - '2000000'
+      anthropic-ratelimit-output-tokens-remaining:
+      - '2000000'
+      anthropic-ratelimit-output-tokens-reset:
+      - '2026-11-26T18:03:42Z'
+      anthropic-ratelimit-requests-limit:
+      - '13000'
+      anthropic-ratelimit-requests-remaining:
+      - '12999'
+      anthropic-ratelimit-requests-reset:
+      - '2026-11-26T18:03:41Z'
+      anthropic-ratelimit-tokens-limit:
+      - '12000000'
+      anthropic-ratelimit-tokens-remaining:
+      - '12000000'
+      anthropic-ratelimit-tokens-reset:
+      - '2026-11-26T18:03:41Z'
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60acfae7feee09b-YUL
+      connection:
+      - keep-alive
+      content-length:
+      - '2010'
+      content-security-policy:
+      - default-src 'none'; frame-ancestors 'none'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 18:03:42 GMT
+      request-id:
+      - req_011ChRypQ2Kq64ER6qu2qp85
+      server:
+      - cloudflare
+      server-timing:
+      - x-originResponse;dur=1349
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      traceresponse:
+      - 00-924b02ef260e0af33052fcedcdfa4fc1-2869436fe21871e4-01
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      x-robots-tag:
+      - none
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"state":"# The task\nThis is a trading account in a replay of market history.
+      It trades stocks and crypto in 15-minute steps. At every step each asset is
+      looked at once and a decision is made about it.\nThe goal is the highest account
+      value at the end of the run. Nothing else is measured.\n\n# How trading works
+      here\n- A long gains when the price rises. A short gains when the price falls.\n-
+      An order decided at this step is carried out at the opening price of the asset''s
+      next bar.\n- Every position has a stop price, fixed when it is opened. Code
+      closes the position if the price reaches it. A stock can open the next morning
+      beyond its stop price, and then it loses more than planned.\n- An open position
+      is not reconsidered at every step. At each step a quick question asks whether
+      it is worth a review. A review decides whether to hold it, close it, reduce
+      it, or add to it. Between reviews it is held, and only code can close it. A
+      stock position is always reviewed at the last step of its session from which
+      an order is still carried out the same day: after that step it is held overnight.\n-
+      Trading costs: each stock order costs $1; each crypto order costs 0.1% of its
+      value; every order is carried out at a price 0.05% worse. A short held at the
+      end of a day pays a borrow fee (0.25% a year on a stock, 5% a year on crypto).
+      A loan pays interest of 5% a year on what is owed at the end of a day.\n- Code
+      enforces the risk limits, whatever is decided: no position may lose more than
+      1% of account value at its stop price; no single position may be larger than
+      2 times account value, and all positions together at most 2 times; after a loss
+      of 5% in one day no position is opened or added to until the next day; and if
+      account value falls below 25% of what the account holds, code closes every position
+      (a forced close).\n- A decision does not need to hold back in order to stay
+      inside a limit. Code does that.\n\n# The account now\nAccount value: $9,977.\nCash:
+      $7,998. Loan: none.\nOpen positions: 1, worth $1,979.\nIt may hold up to $19,953
+      in positions (2 times account value), so $17,975 more.\n\n# Other open positions\nNone.\n\n#
+      The position: ASSET_01 (crypto)\nLong, $2,000, opened 3 bars ago at an entry
+      price of $93.09.\nStop price: $88.86, fixed. Code sells there. It is 3.5% below
+      the last price.\nNow: the position is worth $1,979. Closing it now would leave
+      -$26 (-1.3%) after trading costs. At best it was -$4, at worst -$26.\nSituation
+      when it was opened: Crypto, American hours (bar 90 of 96). Patterns in the last
+      4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars:
+      four up, four down; this bar is a medium down bar closing mid-range. Short-term
+      trend up (0.9 typical moves above the 20-bar average). Long-term trend down
+      (2.1 below the 20-day average). Volume average (1.1 times normal). Price is
+      1.2 above the day''s average price, 1.1 below the day''s high, 4.1 above the
+      day''s low, and 0.2 below the previous day''s high. Typical move: 0.3% of price.\nSince
+      then: bars 0 to 2 hold.\n\n# The asset now: ASSET_01 (crypto)\nLast price: $92.09.
+      Typical move in one bar: $0.34.\nCrypto, American hours (bar 94 of 96). Patterns
+      in the last 4 bars: hammer (this bar). Latest hourly bar: none. Latest daily
+      bar: none. Last 8 bars: three up, five down; this bar is a medium down bar closing
+      near its low. Short-term trend down (2.4 typical moves below the 20-bar average).
+      Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times
+      normal). Price is 1.7 below the day''s average price, 3.7 below the day''s high,
+      0.8 above the day''s low, and 3.0 below the previous day''s high. Typical move:
+      0.4% of price.\n\n# Track record: the account''s own closed trades on the candle
+      patterns of the last 4 bars\nHammer, long, crypto: 0 closed trades, too few
+      to show totals.\nHammer, short, crypto: 0 closed trades, too few to show totals.\nEach
+      line is the narrowest group that fits the current situation and has at least
+      10 closed trades. A win is a trade that closed with a profit after trading costs.\n\n#
+      Past episodes: 2 of the account''s own earlier reviews of an open position,
+      at moments like the current one, newest first\nEpisode 1: 1 day ago, same asset,
+      crypto\nSituation then: Crypto, European hours (bar 56 of 96). Patterns in the
+      last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars:
+      five up, three down; this bar is a medium up bar closing mid-range. Short-term
+      trend up (2.6 typical moves above the 20-bar average). Long-term trend down
+      (2.8 below the 20-day average). Volume average (1.0 times normal). Price is
+      1.3 above the day''s average price, 3.6 below the day''s high, 4.6 above the
+      day''s low, and 16.0 below the previous day''s high. Typical move: 0.4% of price.\nThe
+      position then: long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away.
+      At best it had been +$10, at worst -$3.\nDecided: hold.\nAfterwards: price went
+      +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.\nThe whole
+      trade: bar 0 hold (this review); bar 1 stop price reached.\nEnded: closed at
+      its stop price 5 bars later, -$4 (-0.4%).\n\nEpisode 2: 4 days ago, same asset,
+      crypto\nSituation then: Crypto, Asian hours (bar 4 of 96). Patterns in the last
+      4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars:
+      two up, six down; this bar is a medium up bar closing mid-range. Short-term
+      trend down (2.9 typical moves below the 20-bar average). Price is 1.0 below
+      the day''s average price, 2.6 below the day''s high, 0.5 above the day''s low,
+      and 6.6 below the previous day''s high. Typical move: 0.3% of price.\nThe position
+      then: long, $1,000, open 2 bars, -$4 (-0.4%), stop price 0.5% away. At best
+      it had been +$10, at worst -$3.\nDecided: close.\nAfterwards: price went +0.1%
+      after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.\nThe whole trade:
+      bar 0 close (this review); bar 1 stop price reached.\nEnded: closed at its stop
+      price 5 bars later, -$4 (-0.4%).\n\n# Candle patterns named above\nhammer: bullish.
+      A small body with a long lower wick and little or no upper wick, sitting below
+      or near the previous bar''s low.","model":"jev-latest","questions":{"action_1":{"type":"choice","instructions":"What
+      should the account do with the position in ASSET_01 at this step?","criteria":{"reduce":"Reduce:
+      close part of the position and keep the rest. How much is asked next.","close":"Close:
+      sell the whole position at the next bar''s open, for about -$26 after trading
+      costs.","hold":"Hold: keep the position as it is.","add":"Add: put more money
+      into the position, in the same direction and with the same stop price. How much
+      is asked next. Code allows up to $860 more."}},"action_2":{"type":"choice","instructions":"What
+      should the account do with the position in ASSET_01 at this step?","criteria":{"hold":"Hold:
+      keep the position as it is.","close":"Close: sell the whole position at the
+      next bar''s open, for about -$26 after trading costs.","reduce":"Reduce: close
+      part of the position and keep the rest. How much is asked next.","add":"Add:
+      put more money into the position, in the same direction and with the same stop
+      price. How much is asked next. Code allows up to $860 more."}},"action_3":{"type":"choice","instructions":"What
+      should the account do with the position in ASSET_01 at this step?","criteria":{"hold":"Hold:
+      keep the position as it is.","add":"Add: put more money into the position, in
+      the same direction and with the same stop price. How much is asked next. Code
+      allows up to $860 more.","reduce":"Reduce: close part of the position and keep
+      the rest. How much is asked next.","close":"Close: sell the whole position at
+      the next bar''s open, for about -$26 after trading costs."}},"action_4":{"type":"choice","instructions":"What
+      should the account do with the position in ASSET_01 at this step?","criteria":{"close":"Close:
+      sell the whole position at the next bar''s open, for about -$26 after trading
+      costs.","reduce":"Reduce: close part of the position and keep the rest. How
+      much is asked next.","add":"Add: put more money into the position, in the same
+      direction and with the same stop price. How much is asked next. Code allows
+      up to $860 more.","hold":"Hold: keep the position as it is."}},"action_5":{"type":"choice","instructions":"What
+      should the account do with the position in ASSET_01 at this step?","criteria":{"hold":"Hold:
+      keep the position as it is.","add":"Add: put more money into the position, in
+      the same direction and with the same stop price. How much is asked next. Code
+      allows up to $860 more.","reduce":"Reduce: close part of the position and keep
+      the rest. How much is asked next.","close":"Close: sell the whole position at
+      the next bar''s open, for about -$26 after trading costs."}},"thesis_intact":{"type":"noul","instructions":"Does
+      the reason for opening the position, the situation it was opened in, still hold?"},"memories_relevant":{"type":"noul","instructions":"Do
+      the past episodes shown fit the current situation?"}}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '8989'
+      content-type:
+      - application/json
+      host:
+      - api.typesafe.ai
+      user-agent:
+      - typesafe-sdk/0.7.5
+      x-typesafe-runtime:
+      - python/3.12.16 (win32; AMD64)
+      x-typesafe-sdk:
+      - typesafe-sdk/0.7.5
+    method: POST
+    uri: https://api.typesafe.ai/v1/systemone
+  response:
+    body:
+      string: '{"model":"jev-1.14.0","answers":{"action_1":{"type":"choice","choice":"hold","confidence":0.32,"probabilities":{"reduce":0.04,"close":0.37,"hold":0.49,"add":0.1}},"action_2":{"type":"choice","choice":"hold","confidence":0.24,"probabilities":{"hold":0.43,"close":0.42,"reduce":0.05,"add":0.1}},"action_3":{"type":"choice","choice":"close","confidence":0.23,"probabilities":{"hold":0.4,"add":0.09,"reduce":0.09,"close":0.42}},"action_4":{"type":"choice","choice":"hold","confidence":0.29,"probabilities":{"close":0.39,"reduce":0.06,"add":0.08,"hold":0.47}},"action_5":{"type":"choice","choice":"close","confidence":0.24,"probabilities":{"hold":0.4,"add":0.09,"reduce":0.08,"close":0.43}},"thesis_intact":{"type":"noul","noul":0.23},"memories_relevant":{"type":"noul","noul":0.4}},"usage":{"input_tokens":2906,"output_tokens":263}}'
+    headers:
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      cf-ray:
+      - a60acfb7691dcf1c-YYZ
+      connection:
+      - keep-alive
+      content-length:
+      - '828'
+      content-type:
+      - application/json
+      date:
+      - Thu, 26 Nov 2026 18:03:42 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      x-typesafe-request-id:
+      - req_01a219070ec37ba9ab40b2972572828a
+    status:
+      code: 200
+      message: OK
+version: 1

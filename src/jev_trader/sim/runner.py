@@ -310,7 +310,7 @@ def plan_sim(
 
 
 @dataclass
-class _Batch:
+class StepBatch:
     """What the steps since the last write produced, waiting to be stored together."""
 
     steps: int = 0
@@ -458,7 +458,7 @@ def run_sim(
         report(f"Sim {sim_id} starts from a copy of sim {memory_from}'s memory.")
     else:
         store.update(sim_id, **running)
-    batch = _Batch()
+    batch = StepBatch()
     if last_completed is not None and start <= last_step:
         batch.rows["SIM.SIM_EVENTS"].append(
             records.event_row(
@@ -478,7 +478,7 @@ def run_sim(
         )
         for step in steps:
             with tracing.off():  # only a full evaluation opens a trace
-                _run_step(
+                run_step(
                     sim_id,
                     step,
                     previous,
@@ -514,7 +514,7 @@ def run_sim(
                     batch.outcomes_known,
                 )
                 last_completed, steps_stored = step, steps_stored + batch.steps
-                batch = _Batch()
+                batch = StepBatch()
                 report(f"Stored up to step {step} of {last_step}.")
                 if cap_reached:
                     store.update(
@@ -577,7 +577,7 @@ def run_sim(
     return SimResult(sim_id, broker.account_value(), steps_stored)
 
 
-def _run_step(
+def run_step(
     sim_id: int,
     step: int,
     previous: int,
@@ -585,7 +585,7 @@ def _run_step(
     broker: Broker,
     strategy: BuyHold | AgentWithoutMemory,
     bars: dict[str, Bar],
-    batch: _Batch,
+    batch: StepBatch,
 ) -> None:
     """One step, worked out in memory: its records go into `batch`."""
     waiting_before = {o.order_id for o in broker.waiting_orders}
