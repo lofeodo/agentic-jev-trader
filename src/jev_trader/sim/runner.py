@@ -89,7 +89,7 @@ from jev_trader.sim.store import (
     StopReason,
     now,
 )
-from jev_trader.sim.timing import StepTime, StepTimer, average
+from jev_trader.sim.timing import Part, StepTime, StepTimer, average_line
 from jev_trader.sim.tracing import Tracing
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -360,17 +360,14 @@ def run_sim(
     `timer` times each step's calls to the database, Jev, the LLM and memory (`timing.py`).
     """
     timer = timer or StepTimer()
-    store = timer.timed(store, "database")
-    market = timer.timed(market, "database")
+    store = timer.timed(store, Part.DATABASE)
+    market = timer.timed(market, Part.DATABASE)
     if jev is not None:
-        jev = timer.timed(jev, "jev")
+        jev = timer.timed(jev, Part.JEV)
     if selector is not None:
-        selector = timer.timed(selector, "llm")
+        selector = timer.timed(selector, Part.LLM)
     if lookups_at is not None:
-        untimed_lookups_at = lookups_at
-
-        def lookups_at(context: LookupContext) -> MemoryLookups:
-            return timer.timed(untimed_lookups_at(context), "memory")
+        lookups_at = _timed_lookups_at(lookups_at, timer)
 
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
@@ -540,7 +537,7 @@ def run_sim(
             times.append(timer.finish(step))
             report(times[-1].line())
             if cap_reached:
-                report(average(times))
+                report(average_line(times))
                 store.update(
                     sim_id,
                     STATUS=str(SimStatus.STOPPED),
@@ -583,7 +580,7 @@ def run_sim(
         raise
 
     if times:
-        report(average(times))
+        report(average_line(times))
     duplicates = store.duplicate_ids(sim_id)
     if duplicates:
         found = ", ".join(f"{n} in {table}" for table, n in sorted(duplicates.items()))
@@ -601,6 +598,13 @@ def run_sim(
         ENDED_AT=now(),
     )
     return SimResult(sim_id, broker.account_value(), steps_stored)
+
+
+def _timed_lookups_at(
+    lookups_at: Callable[[LookupContext], MemoryLookups], timer: StepTimer
+) -> Callable[[LookupContext], MemoryLookups]:
+    """Memory's lookups for a moment, each call counted toward memory's part."""
+    return lambda context: timer.timed(lookups_at(context), Part.MEMORY)
 
 
 def run_step(
