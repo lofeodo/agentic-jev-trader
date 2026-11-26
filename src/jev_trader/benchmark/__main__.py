@@ -2,6 +2,7 @@
 
     conda run -n agentic-jev-trader python -m jev_trader.benchmark --sim 12
     conda run -n agentic-jev-trader python -m jev_trader.benchmark --sim 12 --model glm-5.3-flash
+    conda run -n agentic-jev-trader python -m jev_trader.benchmark --made-up
 
 Hands each model the 50 moments the build-up sim `--sim` saved, three times each, with nothing
 traded, and writes the plain-words report to `--report` (by default `docs/llm-benchmark.md`, to
@@ -13,7 +14,11 @@ It calls the LLMs, which costs money: run it only with the developer's go-ahead.
 read from `.env`. It reads memory through the memory server, which must be running on the same
 database first, in its own terminal (`python -m jev_trader.memory serve`), and logs in to
 Snowflake as the sim login to write its calls to `SIM.CALLS` (the purpose "benchmark", no sim).
-`--database TRADING_AGENT_TEST` uses the test database. Output is plain ASCII: `conda run` on
+`--database TRADING_AGENT_TEST` uses the test database.
+
+`--made-up` runs on four made-up moments with fake answers instead (`made_up.py`): no Snowflake,
+no memory server, no model, no money, and the report goes to `--report` as usual. Output is
+plain ASCII: `conda run` on
 Windows fails on other characters.
 """
 
@@ -27,10 +32,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from jev_trader.benchmark import NotBuilt
+from jev_trader.benchmark.attempts import AttemptLog, ModelRunner
+from jev_trader.benchmark.made_up import FakeRunner, made_up_moments
 from jev_trader.benchmark.moments import SavedMoment, saved_moments
-from jev_trader.benchmark.records import AttemptLog, SnowflakeAttemptLog
+from jev_trader.benchmark.records import NoAttemptLog, SnowflakeAttemptLog
 from jev_trader.benchmark.report import REPORT_PATH, report
-from jev_trader.benchmark.runner import ModelRunner, SelectionRunner, run_benchmark
+from jev_trader.benchmark.runner import SelectionRunner, run_benchmark
 from jev_trader.benchmark.spending import SpendMeter, load_cap_usd
 from jev_trader.llm.models import load_model_settings
 from jev_trader.llm.settings import LlmSettings
@@ -51,10 +58,14 @@ class Parts:
 
 
 def open_parts(args: argparse.Namespace, held: ExitStack) -> Parts:
-    """The real parts: the build-up sim's moments, the memory server's lookups, and Snowflake,
+    """The made-up parts with `--made-up`; otherwise the real ones: the build-up sim's moments, the memory server's lookups, and Snowflake,
     each connection kept open in `held` for the whole run."""
+    if args.made_up:
+        return Parts(made_up_moments(), FakeRunner(), NoAttemptLog())
     load_dotenv(REPO_ROOT / ".env")
     moments = saved_moments(args.sim, args.database)
+    # Every moment comes from the one build-up sim, so any moment's playbook names every candle
+    # pattern the memory server's lookups accept.
     patterns = list(moments[0].situation.playbook) if moments else []
     memory = held.enter_context(Connection(local_url(), patterns))
     snowflake = connect("sim", database=args.database)
@@ -69,8 +80,14 @@ def parser(models: Sequence[str]) -> argparse.ArgumentParser:
         prog="python -m jev_trader.benchmark",
         description="Hand the LLMs the build-up sim's saved moments and report how they did.",
     )
-    command.add_argument(
-        "--sim", type=int, required=True, help="the build-up sim whose moments are used"
+    source = command.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--sim", type=int, help="the build-up sim whose moments are used"
+    )
+    source.add_argument(
+        "--made-up",
+        action="store_true",
+        help="run on made-up moments with fake answers: free, writes no table",
     )
     command.add_argument(
         "--model", choices=models, help="run this model alone (default: every model)"

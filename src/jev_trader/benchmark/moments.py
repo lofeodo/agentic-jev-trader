@@ -3,7 +3,8 @@
 A saved moment is one point in the build-up sim where the LLM was asked to pick past episodes:
 25 full evaluations and 25 position reviews, 5 of each per asset, drawn at random from the
 build-up year's last 30 days. Each model starts where the sim did: the same situation text and
-the same first search, whose ten episodes it sees as one-line summaries in the wording on `main`.
+the same first search, whose ten episodes it sees as one-line summaries in today's wording
+(not the wording the build-up sim had).
 """
 
 from dataclasses import dataclass
@@ -44,7 +45,7 @@ class SavedMoment:
 
     @property
     def id(self) -> str:
-        """The same for every pass and model: "12-4410-BTC-full_evaluation"."""
+        """The same for every pass and model: "12-4410-ASSET_03-full_evaluation"."""
         return f"{self.sim}-{self.now}-{self.asset}-{self.job}"
 
 

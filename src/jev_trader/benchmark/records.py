@@ -7,24 +7,15 @@
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
 
 from jev_trader.benchmark import NotBuilt
-
-if TYPE_CHECKING:
-    from jev_trader.benchmark.runner import Attempt
+from jev_trader.benchmark.attempts import Attempt
 
 PURPOSE = "benchmark"
 DETAIL_DIR = Path(__file__).resolve().parents[3] / "logs" / "benchmark"
 
 
-class AttemptLog(Protocol):
-    def keep(self, attempt: "Attempt") -> None:
-        """Write the attempt's calls to `SIM.CALLS` and its detail to a file."""
-        ...
-
-
-def call_rows(attempt: "Attempt") -> list[dict]:
+def call_rows(attempt: Attempt) -> list[dict]:
     """The attempt's rows in `SIM.CALLS`: one per call, the purpose "benchmark", no sim."""
     raise NotBuilt("the benchmark's rows in SIM.CALLS")
 
@@ -34,7 +25,15 @@ class SnowflakeAttemptLog:
     `detail_dir`."""
 
     def __init__(self, connection, detail_dir: Path = DETAIL_DIR):
-        self.connection, self.detail_dir = connection, detail_dir
+        self.connection = connection
+        self.detail_dir = detail_dir
 
-    def keep(self, attempt: "Attempt") -> None:
+    def keep(self, attempt: Attempt) -> None:
         raise NotBuilt("keeping a benchmark attempt (SIM.CALLS and its detail file)")
+
+
+class NoAttemptLog:
+    """Keeps nothing: for a run on made-up moments, which writes no table and no file."""
+
+    def keep(self, attempt: Attempt) -> None:
+        pass
