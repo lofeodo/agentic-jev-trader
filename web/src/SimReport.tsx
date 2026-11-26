@@ -19,8 +19,19 @@ import {
   type TradeFilters,
   type TradeLine,
 } from "./api/client";
-import { AssetTag, DirectionWords, ErrorBox, PriceTag, SectionHeading, TrailButton, limitWords, type OpenTrail } from "./pieces";
-import { dayAndTime, dollars, dollarsAndCents, fromApi, signedDollars, units } from "./format";
+import {
+  AssetTag,
+  DirectionWords,
+  ENDINGS,
+  ErrorBox,
+  PriceTag,
+  SectionHeading,
+  TrailButton,
+  limitWords,
+  type OpenTrail,
+  when,
+} from "./pieces";
+import { dollars, dollarsAndCents, signedDollars, units } from "./format";
 
 // A setting (appendix 8, section 8.9), like the 1-second one on the sim page.
 const REPORT_REFRESH_MS = 20_000;
@@ -105,21 +116,11 @@ const FILTERS: { key: keyof TradeFilters & keyof FilterCounts; label: string }[]
   { key: "no_trade", label: "Add full evaluations with no trade" },
 ];
 
-const ENDINGS: Record<string, string> = {
-  jev: "Jev chose to close it",
-  stop_price: "Its stop price was reached",
-  forced_close: "A forced close",
-  sim_ended: "Closed because the sim ended",
-};
-
 const MARKS: Record<string, string> = {
   "daily loss limit reached": "Daily loss limit reached: no new trades that day",
   "loan interest paid": "Loan interest paid",
   "forced close": "Forced close: code closed every position",
 };
-
-const when = (at: string | null, step: number | null) =>
-  at ? dayAndTime(fromApi(at)) : step === null ? "--" : `step ${step}`;
 
 function Trades({ id, inProgress, number, onOpenTrail }: { id: number; inProgress: boolean; number: number; onOpenTrail: OpenTrail }) {
   const [filters, setFilters] = useState<TradeFilters>(NO_FILTERS);

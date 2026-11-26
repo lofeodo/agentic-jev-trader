@@ -1,7 +1,7 @@
 // Small pieces shared by the sim page and its side panel.
 import { useEffect, useRef, type ReactNode } from "react";
 import type { AssetName, DecisionLine, LiveFigures, OrderLine, Price } from "./api/client";
-import { dollars, price } from "./format";
+import { dayAndTime, dollars, fromApi, price } from "./format";
 
 // The real name leads; the masked ID the agent saw follows as a small tag.
 export function AssetTag({ asset }: { asset: AssetName }) {
@@ -216,3 +216,15 @@ export function orderWords(o: OrderLine) {
   const trimmed = o.limited_by && o.amount_chosen !== null ? `; Jev chose ${dollars(o.amount_chosen)}, trimmed by ${limitWords(o.limited_by)}` : "";
   return `${what}: ${side}${value} (${reason}${trimmed})`;
 }
+
+// How a trade ended, in plain words.
+export const ENDINGS: Record<string, string> = {
+  jev: "Jev chose to close it",
+  stop_price: "Its stop price was reached",
+  forced_close: "A forced close",
+  sim_ended: "Closed because the sim ended",
+};
+
+// When something happened: its real time, or its step while the time is unknown.
+export const when = (at: string | null, step: number | null) =>
+  at ? dayAndTime(fromApi(at)) : step === null ? "--" : `step ${step}`;
