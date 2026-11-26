@@ -1135,6 +1135,8 @@ export interface components {
             asset: components["schemas"]["AssetName"];
             /** Decided At */
             decided_at: string | null;
+            /** Decision */
+            decision: string | null;
             /** Kind */
             kind: string;
             /** Limited By */
@@ -1238,6 +1240,8 @@ export interface components {
         PositionThen: {
             asset: components["schemas"]["AssetName"];
             average_price: components["schemas"]["Price"];
+            /** Decision */
+            decision: string | null;
             /** Direction */
             direction: string;
             /** Position */
@@ -1706,6 +1710,8 @@ export interface components {
             asset: components["schemas"]["AssetName"];
             /** Closed Step */
             closed_step: number | null;
+            /** Decision */
+            decision: string | null;
             /** Direction */
             direction: string;
             /** Opened Step */

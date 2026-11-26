@@ -19,7 +19,7 @@ import {
   type TradeFilters,
   type TradeLine,
 } from "./api/client";
-import { AssetTag, DirectionWords, ErrorBox, PriceTag, SectionHeading, TrailButton, type OpenTrail } from "./pieces";
+import { AssetTag, DirectionWords, ErrorBox, PriceTag, SectionHeading, TrailButton, limitWords, type OpenTrail } from "./pieces";
 import { dayAndTime, dollars, dollarsAndCents, fromApi, signedDollars, units } from "./format";
 
 // A setting (appendix 8, section 8.9), like the 1-second one on the sim page.
@@ -117,8 +117,6 @@ const MARKS: Record<string, string> = {
   "loan interest paid": "Loan interest paid",
   "forced close": "Forced close: code closed every position",
 };
-
-const limitWords = (limit: string) => `the ${limit.replaceAll("_", " ")} limit`;
 
 const when = (at: string | null, step: number | null) =>
   at ? dayAndTime(fromApi(at)) : step === null ? "--" : `step ${step}`;

@@ -2216,6 +2216,17 @@
             ],
             "title": "Decided At"
           },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -2288,7 +2299,8 @@
           "step_carried_out",
           "value_usd",
           "amount_chosen",
-          "limited_by"
+          "limited_by",
+          "decision"
         ],
         "title": "OrderLine",
         "type": "object"
@@ -2601,6 +2613,17 @@
           "average_price": {
             "$ref": "#/components/schemas/Price"
           },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
           "direction": {
             "title": "Direction",
             "type": "string"
@@ -2642,7 +2665,8 @@
           "units",
           "average_price",
           "price_then",
-          "value_usd"
+          "value_usd",
+          "decision"
         ],
         "title": "PositionThen",
         "type": "object"
@@ -4151,6 +4175,17 @@
             ],
             "title": "Closed Step"
           },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
           "direction": {
             "title": "Direction",
             "type": "string"
@@ -4169,7 +4204,8 @@
           "asset",
           "direction",
           "opened_step",
-          "closed_step"
+          "closed_step",
+          "decision"
         ],
         "title": "TradeTick",
         "type": "object"

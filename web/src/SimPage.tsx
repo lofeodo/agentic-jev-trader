@@ -199,11 +199,15 @@ export function SimPage({ id }: { id: number }) {
         startingValue={chart.starting_value}
         stepsStartAt={header.steps_start_at}
         windowSteps={chart.window_steps}
-        onPick={setMomentStep}
+        onPick={(step) => {
+          setTrail(null); // the moment opens on top
+          setMomentStep(step);
+        }}
+        onOpenTrail={setTrail}
       />
       <p className="mt-2 font-mono text-[13.5px] tracking-wider text-dim">
         Solid: this sim, hatched beneath / dashed: holding the five assets / faint: other sims over the
-        same days (a second one dash-dotted) / dotted: the starting amount / ticks along the bottom: a trade opened. Point at the
+        same days (a second one dash-dotted) / dotted: the starting amount / ticks along the bottom: a trade opened (click one for how it was decided). Point at the
         chart for that moment; click to open it.
       </p>
 
@@ -229,6 +233,7 @@ export function SimPage({ id }: { id: number }) {
           step={momentStep}
           at={stepTime(header.steps_start_at, momentStep)}
           onClose={() => setMomentStep(null)}
+          onOpenTrail={setTrail}
         />
       )}
       {trail !== null && <DecisionTrailPanel key={trail} simId={id} decision={trail} onClose={() => setTrail(null)} />}
@@ -370,8 +375,8 @@ function Meters({ live }: { live: LiveFigures }) {
 const th = "border-b border-rule py-[.4rem] pr-[2ch] font-mono text-[13.5px] font-light tracking-wider text-dim";
 const td = "py-[.42rem] pr-[2ch] align-top font-mono text-[15px]";
 
-// A position's asset leads to its trade's page; "trail" and a decision's words open how it was
-// decided.
+// A position's asset leads to its trade's page; "trail" (beside a position or an order) and a
+// decision's words open how it was decided.
 function Now({ live, header, onOpenTrail }: { live: LiveFigures; header: SimHeader; onOpenTrail: OpenTrail }) {
   return (
     <div>
@@ -451,6 +456,7 @@ function Now({ live, header, onOpenTrail }: { live: LiveFigures; header: SimHead
               </span>
               <AssetTag asset={o.asset} />
               <span>{orderWords(o)}</span>
+              <TrailButton decision={o.decision} onOpenTrail={onOpenTrail} />
             </li>
           ))}
         </ol>
