@@ -14,7 +14,9 @@ memory follows.
   sentence instead of a tool call; it gets a fixed re-ask, and the third in one full evaluation
   raises `LlmFailed`.
 
-The step stops where it failed: nothing of it is stored, so a resumed sim redoes it.
+The step stops where it failed, before anything of it is stored. That `run_sim` then marks the
+sim stopped with its reason, and that a resumed sim redoes the step, are the sim's own unit tests
+(`tests/unit/sim`). The masking scan (`masking.py`) runs over everything these tests send.
 """
 
 import json
@@ -26,6 +28,7 @@ from jev_trader.jev.client import JevFailed
 from jev_trader.llm.clients import LlmFailed
 from jev_trader.llm.selection import SystemWallClock
 from jev_trader.sim.tracing import Tracing
+from tests.recorded.masking import findings_in
 from tests.recorded.scenarios import Scenario, run_scenario
 from tests.recorded.test_harness import (
     JEV_HOST,
@@ -55,19 +58,21 @@ THREE_SENTENCES = Scenario(
 SCENARIOS = [JEV_KEEPS_FAILING, LLM_KEEPS_FAILING, THREE_SENTENCES]
 
 
-class FakeAnswers(HandWrittenAnswers):
-    """The harness's hand-written answers, except that `failing` (a host) answers every request
-    with HTTP 529, and the LLM answers with a sentence when `sentences` is set."""
+class FailingAnswers(HandWrittenAnswers):
+    """The harness's hand-written answers, except that the host `overloaded` names answers every
+    request with HTTP 529, and the LLM answers with a sentence when `sentences` is set."""
 
     def __init__(self):
         super().__init__()
-        self.failing: str | None = None
+        self.overloaded: str | None = None
         self.sentences = False
 
     def answer(self, request: httpx2.Request) -> httpx2.Response:
         host = request.url.host
-        if host == self.failing:
-            self.sent.append((host, json.loads(request.read())))
+        if host != self.overloaded and not (host == LLM_HOST and self.sentences):
+            return super().answer(request)
+        self.sent.append((host, json.loads(request.read())))
+        if host == self.overloaded:
             # Retry at once: the SDKs read how long to wait from `retry-after`.
             return httpx2.Response(
                 529,
@@ -77,31 +82,20 @@ class FakeAnswers(HandWrittenAnswers):
                     "error": {"type": "overloaded_error", "message": "Overloaded"},
                 },
             )
-        if host == LLM_HOST and self.sentences:
-            self.sent.append((host, json.loads(request.read())))
-            return httpx2.Response(200, json=_sentence())
-        return super().answer(request)
+        sentence = {
+            **self._llm(),
+            "content": [{"type": "text", "text": "Episode E1 looks most like it."}],
+            "stop_reason": "end_turn",
+        }
+        return httpx2.Response(200, json=sentence)
 
-    def to(self, host: str) -> list[dict]:
+    def sent_to(self, host: str) -> list[dict]:
         return [body for to, body in self.sent if to == host]
-
-
-def _sentence() -> dict:
-    return {
-        "id": "msg_hand_written",
-        "type": "message",
-        "role": "assistant",
-        "model": "claude-haiku-5-5",
-        "content": [{"type": "text", "text": "Episode E1 looks most like it."}],
-        "stop_reason": "end_turn",
-        "stop_sequence": None,
-        "usage": {"input_tokens": 1000, "output_tokens": 20},
-    }
 
 
 @pytest.fixture
 def answers(monkeypatch):
-    fake = FakeAnswers()
+    fake = FailingAnswers()
     monkeypatch.setattr(
         httpx2.HTTPTransport,
         "handle_request",
@@ -113,28 +107,30 @@ def answers(monkeypatch):
 
 
 def test_jev_failing_after_its_retries_stops_the_sim(answers):
-    answers.failing = JEV_HOST
+    answers.overloaded = JEV_HOST
 
     with pytest.raises(JevFailed, match="after 3 retries.*529"):
         run_scenario(JEV_KEEPS_FAILING)
 
     # Jev's screen is the first call, tried 4 times; nothing follows it.
-    screens = answers.to(JEV_HOST)
+    screens = answers.sent_to(JEV_HOST)
     assert len(screens) == TRIES
     assert all(body == screens[0] for body in screens)
-    assert answers.to(LLM_HOST) == []
+    assert answers.sent_to(LLM_HOST) == []
+    assert findings_in(answers.sent) == []  # the masking scan
 
 
 def test_the_llm_failing_after_its_retries_stops_the_sim(answers):
-    answers.failing = LLM_HOST
+    answers.overloaded = LLM_HOST
 
     with pytest.raises(LlmFailed, match="after 3 retries.*529") as stopped:
         run_scenario(LLM_KEEPS_FAILING)
 
-    assert len(answers.to(LLM_HOST)) == TRIES
+    assert len(answers.sent_to(LLM_HOST)) == TRIES
     assert stopped.value.call.retries == 3
     # Jev's screen said yes; its pick waits on the LLM's selection and is never asked.
-    assert len(answers.to(JEV_HOST)) == 1
+    assert len(answers.sent_to(JEV_HOST)) == 1
+    assert findings_in(answers.sent) == []  # the masking scan
 
 
 def test_a_third_failed_reply_stops_the_sim(answers):
@@ -143,11 +139,12 @@ def test_a_third_failed_reply_stops_the_sim(answers):
     with pytest.raises(LlmFailed, match="failed reply number 3 .*a sentence"):
         run_scenario(THREE_SENTENCES)
 
-    calls = answers.to(LLM_HOST)
+    calls = answers.sent_to(LLM_HOST)
     assert len(calls) == 3
     # The first two sentences were each asked again: the third call carries both re-asks.
     assert len(calls[2]["messages"]) == len(calls[0]["messages"]) + 4
-    assert len(answers.to(JEV_HOST)) == 1
+    assert len(answers.sent_to(JEV_HOST)) == 1
+    assert findings_in(answers.sent) == []  # the masking scan, re-asks included
 
 
 def test_a_sim_carries_on_when_langsmith_refuses_a_trace(answers):

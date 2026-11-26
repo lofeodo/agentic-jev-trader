@@ -3,9 +3,10 @@ send to the LLM, to Jev and to LangSmith. The scan itself is in `masking.py`.
 
 - The saved requests under `cassettes/` are what the recorded-answer tests send: a saved answer
   is handed back only when the whole request matches.
-- The tests answered by hand (`test_harness.py`, `test_service_failures.py`) send what a
-  scenario with memory sends to Jev and the LLM. Here that scenario runs once more, traced to a
-  stand-in for LangSmith that accepts every run, so what LangSmith would be sent is scanned too.
+- The tests answered by hand send what a scenario with memory sends to Jev and the LLM. Here the
+  harness's scenario runs once more, traced to a stand-in for LangSmith that accepts every run,
+  so what LangSmith would be sent is scanned too. `test_service_failures.py` scans what its
+  failing scenarios send, the LLM's re-asks included.
 - A real ticker, a calendar date and an unscaled price are planted in the asset's situation text,
   which Jev, the LLM and LangSmith all read, to show the scan fails on each.
 """
@@ -15,7 +16,13 @@ import pytest
 
 from jev_trader.sim.tracing import Tracing
 from tests.recorded import made_up
-from tests.recorded.masking import findings, findings_in, langsmith_runs, saved_requests
+from tests.recorded.masking import (
+    Finding,
+    findings,
+    findings_in,
+    langsmith_runs,
+    saved_requests,
+)
 from tests.recorded.scenarios import run_scenario
 from tests.recorded.test_harness import (
     JEV_HOST,
@@ -31,6 +38,7 @@ PLANTED = {
     "a calendar date": "2024-03-15",
     "a date in words": "March 15",
     "a date with slashes": "15/03/2024",
+    "a timestamp": "2024-03-15T14:30:00Z",
     "an unscaled price": "$43,250.17",
 }
 
@@ -65,9 +73,8 @@ def test_the_saved_requests_hold_nothing_masking_keeps_out():
     saved = saved_requests()
 
     assert saved  # the cassettes were found
-    assert {
-        where: findings_in(body) for where, body in saved if findings_in(body)
-    } == {}
+    found = {where: findings_in(body) for where, body in saved}
+    assert {where: f for where, f in found.items() if f} == {}
 
 
 def test_what_a_scenario_sends_holds_nothing_masking_keeps_out(answers):
@@ -95,8 +102,8 @@ def test_the_scan_fails_on_what_is_planted_in_a_request(answers, monkeypatch, pl
     for name, bodies in sent.items():
         found = findings_in(bodies)
         assert found, f"nothing found in what {name} was sent"
-        # Each reason ends in what it found ("calendar date: March 15"): the plant, or a word of it.
-        assert all(reason.split(": ", 1)[1] in planted for reason in found), found
+        # Each finding is the plant, or a word of it.
+        assert all(finding.text in planted for finding in found), found
 
 
 def test_rescaled_prices_and_whole_dollar_amounts_pass():
@@ -106,3 +113,14 @@ def test_rescaled_prices_and_whole_dollar_amounts_pass():
     )
 
     assert findings(text) == []
+
+
+def test_a_price_sent_as_a_number_is_read_by_its_name():
+    sent = {"bars": [{"step": 2056, "close": 43250.17}, {"close": 95.82}]}
+
+    assert findings_in(sent) == [Finding("unscaled price", "close: 43250.17")]
+
+
+def test_a_word_of_a_name_is_found_as_written():
+    assert findings("Chase the move.") == [Finding("real ticker or name", "Chase")]
+    assert findings("Do not chase the move.") == []
