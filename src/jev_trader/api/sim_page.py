@@ -144,6 +144,7 @@ class TradeTick(BaseModel):
     direction: str  # "long" bets on a rise, "short" on a fall
     opened_step: int
     closed_step: int | None  # None while it is open
+    decision: str | None  # the decision that opened it; None for code's own (holding)
 
 
 class Chart(BaseModel):
@@ -235,6 +236,7 @@ def _ticks(sim: Sim, orders: list[dict]) -> list[TradeTick]:
                 direction=direction_of(order),
                 opened_step=order["STEP_CARRIED_OUT"],
                 closed_step=None,
+                decision=order.get("DECISION"),
             )
         elif order["KIND"] == "close" and order["POSITION"] in ticks:
             ticks[order["POSITION"]].closed_step = order["STEP_CARRIED_OUT"]
@@ -294,6 +296,9 @@ class OrderLine(BaseModel):
     value_usd: float | None
     amount_chosen: float | None
     limited_by: str | None
+    # The decision that ordered it; None for code's own (a stop price, a forced close, the sim's
+    # end, holding).
+    decision: str | None
 
 
 class NotableMoment(BaseModel):
@@ -412,6 +417,7 @@ def _order_line(sim: Sim, order: dict) -> OrderLine:
         value_usd=order.get("VALUE"),
         amount_chosen=order.get("AMOUNT_CHOSEN"),
         limited_by=order.get("LIMITED_BY"),
+        decision=order.get("DECISION"),
     )
 
 
@@ -554,6 +560,7 @@ class PositionThen(BaseModel):
     average_price: Price  # what it was bought (or sold short) at, on average
     price_then: Price | None  # the asset's last close at the moment
     value_usd: float | None
+    decision: str | None  # the decision that opened it; None for code's own (holding)
 
 
 class Moment(BaseModel):
@@ -583,6 +590,7 @@ def _positions_then(sim: Sim, orders: list[dict], step: int) -> list[PositionThe
         )
         if order["KIND"] == "entry":
             position["direction"] = direction_of(order)
+            position["decision"] = order.get("DECISION")
         if order["KIND"] in ("entry", "add"):
             position["units"] += order["UNITS"]
             position["bought"] += order["UNITS"]
@@ -604,6 +612,7 @@ def _positions_then(sim: Sim, orders: list[dict], step: int) -> list[PositionThe
                 average_price=price_of(sim, p["asset"], p["paid"] / p["bought"]),
                 price_then=None if close is None else price_of(sim, p["asset"], close),
                 value_usd=None if close is None else p["units"] * close,
+                decision=p.get("decision"),
             )
         )
     return found
