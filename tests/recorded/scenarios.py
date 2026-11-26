@@ -28,7 +28,9 @@ reads.
 An account holding a position begins the step as a resumed sim's does (ADR 0013): the broker's
 own entry opened the position some steps before, the bars since passed through the broker, and
 the account is brought back from its saved state. The agent gets back the position's situation
-at entry and its journal, one hold a bar. The holding sim's five purchases are made the same
+at entry, its journal (one hold a bar) and the entry's episode, still waiting to learn how
+the trade ends. `starting_account` gives that account alone, with no model asked. The holding
+sim's five purchases are made the same
 way, by its own strategy at the made-up calendar's first step.
 
 `run_scenario(scenario, bars_after=n)` then lets `n` more of the asset's bars pass, the last of
@@ -43,7 +45,7 @@ from contextlib import (
     asynccontextmanager,
     closing,
 )
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from mcp import Client, ClientSession
@@ -62,6 +64,7 @@ from jev_trader.llm.selection import LlmSelector, MemoryLookups
 from jev_trader.llm.settings import load_llm_settings
 from jev_trader.memory.bridge import Connection, LookupContext
 from jev_trader.memory.lookups import Episodes, SearchResult
+from jev_trader.memory.outcomes import Outcomes, is_last_bar_of_day
 from jev_trader.memory.server import build_server
 from jev_trader.memory.store import MemoryStore
 from jev_trader.memory.track_record import TrackRecord
@@ -69,7 +72,9 @@ from jev_trader.risk import load_risk_profile
 from jev_trader.sim.agent import AgentWithMemory, AgentWithoutMemory
 from jev_trader.sim.clock import midnights_between
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket, Period, Playbook
+from jev_trader.sim.records import decision_id
 from jev_trader.sim.runner import BuyHold, StepBatch, run_step
+from jev_trader.sim.store import ACTION_ENTRY, KIND_FULL_EVALUATION
 from jev_trader.sim.tracing import Tracing
 from tests.recorded.made_up import (
     ASSET,
@@ -78,6 +83,7 @@ from tests.recorded.made_up import (
     MadeUpMarket,
     MadeUpPrices,
     PastEpisode,
+    Series,
     made_up_memory,
     the_playbook,
 )
@@ -94,12 +100,18 @@ HOLDING_ASSETS = tuple(f"ASSET_0{n}" for n in range(1, 6))
 class MadeUpPosition:
     """A position the account holds on the asset when the step begins.
 
+    A **long** gains when the price rises ($2,000 bought, the price rises 1%, the account is
+    up $20); a **short** gains when it falls (sell $2,000 of borrowed stock, the price falls
+    1%, the account is up $20). The **stop price** is the price at which code closes the trade
+    by itself to cap its loss.
+
     It opened `steps_ago` steps before the scenario's step (the asset must have a bar there),
-    from an entry of `amount` dollars decided at the asset's bar before. Its stop price sits
-    `stop_distance` from the price the entry was decided at, as a share of it (0.02 is 2%):
-    below a long's, above a short's; the broker allows at most 5%. The entry is made with no
-    risk limit, so `amount` may be more than the account holds: $38,000 on $10,000 is mostly
-    borrowed money.
+    from an entry of `amount` dollars decided at the asset's bar before, as the full
+    evaluation's episode of that step. Its stop price sits `stop_distance` from the price the
+    entry was decided at, as a share of it (0.02 is 2%): below a long's, above a short's; the
+    broker allows at most 5%. The entry skips the risk limits (the caps code puts on each
+    trade), so `amount` may be more than they allow: $38,000 bought with a $10,000 account
+    leaves a **loan** of $28,000.
     """
 
     direction: Direction
@@ -158,11 +170,9 @@ class ScenarioResult:
     outcomes_known: dict[str, int] = field(default_factory=dict)
 
     def compared(self) -> dict[str, Any]:
-        return {
-            "memory_lookups": self.memory_lookups,
-            "orders": self.orders,
-            "records": self.records,
-        }
+        compared = asdict(self)
+        del compared["outcomes_known"]
+        return compared
 
 
 class _NotedLookups:
@@ -234,52 +244,95 @@ def _market(
     )
 
 
+def _bar_before(series: Series, step: int) -> int:
+    """The asset's bar step before its bar at `step`."""
+    return series.steps[series.steps.index(step) - 1]
+
+
+@dataclass
+class _Account:
+    """The account as it stands when the scenario's step begins: the broker, the last step it
+    saw (None: it holds nothing, so it saw none), and the episodes still waiting for outcomes
+    (the open position's entry)."""
+
+    broker: Broker
+    previous: int | None = None
+    outcomes: Outcomes = field(default_factory=lambda: Outcomes(SIM))
+
+
 def _account(
     inputs: MadeUpInputs,
     made_up: MadeUpMarket,
     market: InMemoryMarket,
     empty: Broker,
-) -> tuple[Broker, int | None]:
-    """The account as it stands when the scenario's step begins, and the last step it saw
-    (None: it holds nothing, so it is `empty` as given).
+) -> _Account:
+    """The account as it stands when the scenario's step begins: `empty` as given when it holds
+    nothing.
 
     What it holds is bought by the broker's own orders, with no risk limit; the bars since pass
-    through it, with each night's charges. It is then brought back from its saved state with
-    `empty`'s settings, as a resumed sim's is (ADR 0013), so the step's records hold only the
-    step's own."""
+    through it, with each night's charges, and the position's entry episode learns its
+    outcomes as they come (the order carried out, the prices). The broker is then brought back
+    from its saved state with `empty`'s settings, as a resumed sim's is (ADR 0013), so the
+    step's records hold only the step's own."""
     if inputs.position is None and not inputs.holding_sim:
-        return empty, None
+        return _Account(empty)
     setting_up = Broker(
         cash=empty.cash,
         asset_classes=empty.asset_classes,
         costs=empty.costs,
         stop_settings=empty.stop_settings,
     )
-    steps = made_up.series(ASSET).steps
+    series = made_up.series(ASSET)
     if inputs.holding_sim:
-        decided = steps[0]
+        decided = series.steps[0]
     else:
-        decided = steps[steps.index(inputs.step - inputs.position.steps_ago) - 1]
+        decided = _bar_before(series, inputs.step - inputs.position.steps_ago)
+    outcomes = Outcomes(SIM)
     previous = decided
     for step, bars in sorted(market.bars(DATASET, decided, inputs.step - 1).items()):
+        told = len(setting_up.fills), len(setting_up.closed_trades)
         for midnight in midnights_between(previous, step):
             setting_up.charge_overnight(midnight)
         for asset in sorted(bars):
             setting_up.on_bar(asset, bars[asset])
+        last_of_day = is_last_bar_of_day(step, series.bars_left(step))
         if step == decided:
             _buy(inputs, setting_up, step, bars)
+            if not inputs.holding_sim:
+                outcomes.watch(_entry(step), bars[ASSET].close, last_of_day)
+        if not inputs.holding_sim:
+            outcomes.on_step(
+                step,
+                {ASSET: bars[ASSET].close},
+                {ASSET} if last_of_day else set(),
+                setting_up.fills[told[0] :],
+                [],
+                setting_up.closed_trades[told[1] :],
+            )
         previous = step
     held = set(empty.asset_classes) if inputs.holding_sim else {ASSET}
     if gone := held - set(setting_up.positions):
         raise ValueError(f"{sorted(gone)} closed before step {inputs.step}")
-    account = Broker.from_state(
+    broker = Broker.from_state(
         setting_up.state(),
         empty.asset_classes,
         empty.costs,
         empty.stop_settings,
         empty.risk,
     )
-    return account, previous
+    return _Account(broker, previous, outcomes)
+
+
+def _entry(step: int) -> dict:
+    """The full evaluation that opened the position, as the episodes waiting for outcomes
+    read it."""
+    return {
+        "ID": decision_id(SIM, step, ASSET),
+        "KIND": KIND_FULL_EVALUATION,
+        "ACTION": ACTION_ENTRY,
+        "ASSET": ASSET,
+        "STEP": step,
+    }
 
 
 def _buy(inputs: MadeUpInputs, broker: Broker, step: int, bars: dict[str, Bar]) -> None:
@@ -303,15 +356,16 @@ def _buy(inputs: MadeUpInputs, broker: Broker, step: int, bars: dict[str, Bar]) 
 
 
 def _held_since(
-    agent: AgentWithoutMemory, made_up: MadeUpMarket, broker: Broker, step: int
+    agent: AgentWithoutMemory, made_up: MadeUpMarket, account: _Account, step: int
 ) -> None:
-    """Give the agent back the open position's situation at entry and its journal, as a resumed
-    sim's agent gets them: one hold for each bar it was looked at, from bar 0, the bar it
-    opened in, to the bar before this step."""
-    position = broker.positions[ASSET]
-    steps = made_up.series(ASSET).steps
-    at_entry = made_up.snapshot(ASSET, steps[steps.index(position.step_opened) - 1])
-    looked_at = [s for s in steps if position.step_opened <= s < step]
+    """Give the agent back what a resumed sim's agent gets (`AgentWithoutMemory.state`): the
+    open position's situation at entry, its journal (one hold for each bar it was looked at,
+    from bar 0, the bar it opened in, to the bar before this step), and its entry episode
+    still waiting for outcomes."""
+    position = account.broker.positions[ASSET]
+    series = made_up.series(ASSET)
+    at_entry = made_up.snapshot(ASSET, _bar_before(series, position.step_opened))
+    looked_at = [s for s in series.steps if position.step_opened <= s < step]
     agent.restore(
         {
             "entries": {},
@@ -324,7 +378,7 @@ def _held_since(
                     ],
                 }
             },
-            "outcomes": {},
+            "outcomes": account.outcomes.state(),
         }
     )
 
@@ -391,6 +445,38 @@ def _without_run_to_run_columns(rows: list[dict]) -> list[dict]:
     ]
 
 
+def _set_up(
+    inputs: MadeUpInputs, bars_after: int = 0
+) -> tuple[MadeUpMarket, InMemoryMarket, _Account]:
+    """The made-up bars, the dataset (its last step the sim's), and the account as the step
+    begins."""
+    if inputs.holding_sim and (inputs.position is not None or not inputs.sim_ends_here):
+        raise ValueError("the holding sim holds its five assets to the sim's last step")
+    step = inputs.step
+    assets = HOLDING_ASSETS if inputs.holding_sim else (ASSET,)
+    made_up = MadeUpMarket(
+        inputs.asset_class, step, inputs.prices, {ASSET: inputs.patterns}, bars_after
+    )
+    if bars_after:
+        last_step = made_up.series(ASSET).steps[-1]
+    else:
+        last_step = step if inputs.sim_ends_here else step + 1
+    market = _market(inputs, made_up, assets, last_step)
+    empty = Broker(
+        cash=inputs.cash,
+        asset_classes={asset: inputs.asset_class for asset in assets},
+        costs=load_trading_costs(),
+        stop_settings=load_stop_price_settings(),
+        risk=None if inputs.holding_sim else load_risk_profile(),
+    )
+    return made_up, market, _account(inputs, made_up, market, empty)
+
+
+def starting_account(scenario: Scenario) -> Broker:
+    """The account as the scenario's step begins, before the step's bar: no model is asked."""
+    return _set_up(scenario.inputs)[2].broker
+
+
 def run_scenario(scenario: Scenario, bars_after: int = 0) -> ScenarioResult:
     """Run the scenario's one step through the agent's whole decision path.
 
@@ -402,42 +488,31 @@ def run_scenario(scenario: Scenario, bars_after: int = 0) -> ScenarioResult:
     if bars_after and (inputs.sim_ends_here or inputs.holding_sim):
         raise ValueError("bars after the step need the agent, in a sim that carries on")
     step = inputs.step
-    assets = HOLDING_ASSETS if inputs.holding_sim else (ASSET,)
-    made_up = MadeUpMarket(
-        inputs.asset_class, step, inputs.prices, {ASSET: inputs.patterns}, bars_after
-    )
-    later = made_up.series(ASSET).steps[-bars_after:] if bars_after else []
-    if later:
-        last_step = later[-1]
-    else:
-        last_step = step if inputs.sim_ends_here else step + 1
-    market = _market(inputs, made_up, assets, last_step)
-    empty = Broker(
-        cash=inputs.cash,
-        asset_classes={asset: inputs.asset_class for asset in assets},
-        costs=load_trading_costs(),
-        stop_settings=load_stop_price_settings(),
-        risk=None if inputs.holding_sim else load_risk_profile(),
-    )
-    broker, previous = _account(inputs, made_up, market, empty)
+    made_up, market, account = _set_up(inputs, bars_after)
+    series = made_up.series(ASSET)
+    later = series.steps[-bars_after:] if bars_after else []
+    last_step = market.dataset(DATASET).last_step
     # Holding nothing, the step before is the step itself: no midnight passes, so no night is
     # charged.
-    previous = step if previous is None else previous
+    previous = step if account.previous is None else account.previous
+    broker = account.broker
     asked: list[tuple] = []
     batch = StepBatch()
     with ExitStack() as held:
         if inputs.holding_sim:
-            strategy = BuyHold(made_up.series(ASSET).steps[0], inputs.cash)
+            strategy = BuyHold(series.steps[0], inputs.cash)
         else:
             strategy = _agent(inputs, made_up, market, last_step, held, asked)
             if inputs.position is not None:
-                _held_since(strategy, made_up, broker, step)
-        bars = {asset: made_up.series(asset).bar(step) for asset in assets}
+                _held_since(strategy, made_up, account, step)
+        bars = {
+            asset: made_up.series(asset).bar(step) for asset in broker.asset_classes
+        }
         run_step(SIM, step, previous, last_step, broker, strategy, bars, batch)
         previous = step
+        outcomes_only = _OutcomesOnly(strategy)
         for after in later:
-            bar = {ASSET: made_up.series(ASSET).bar(after)}
-            outcomes_only = _OutcomesOnly(strategy)
+            bar = {ASSET: series.bar(after)}
             run_step(SIM, after, previous, last_step, broker, outcomes_only, bar, batch)
             previous = after
     tables = batch.tables()

@@ -18,13 +18,19 @@ is up $20). A **stop price** is the price at which code closes a trade by itself
 loss. A **forced close** is code closing every position when the account's value falls below a
 quarter of what it holds. A **review** decides to hold, close, reduce (sell part) or add (buy
 more).
+
+Every position fits the risk limits a real entry is held to (at most $100 lost at its stop
+price, at most twice the account in one position), but one: the forced close. With a stop
+price on every position, a real account reaches a forced close only when prices jump past
+many stops at once; one asset at one step cannot show that, so its scenario holds $38,000 on a
+$10,000 account, beyond the limits, and a 3% fall brings the close on.
 """
 
 from jev_trader.broker import AssetClass, Direction
+from jev_trader.sim.clock import STEPS_PER_DAY as DAY
 from tests.recorded.made_up import MadeUpPrices, PastNoTrade, PastReview, PastTrade
 from tests.recorded.scenarios import MadeUpInputs, MadeUpPosition, Scenario
 
-DAY = 96
 # Day 22: every measurement has the 20 days it needs.
 DAY_22 = 21 * DAY
 STEP = DAY_22 + 40  # 10:00 UTC
@@ -107,7 +113,7 @@ OPEN_POSITION_SCENARIOS = [
             ),
             patterns=((STEP, "shooting star"),),
             memory=PAST_REVIEWS,
-            position=_long(amount=4_000.0, steps_ago=12),
+            position=_long(amount=3_000.0, steps_ago=12),
         ),
     ),
     Scenario(

@@ -184,16 +184,16 @@ def made_up_series(
         opened = bars[-1].close if bars else FIRST_PRICE
         volume = prices.last_volume if n == len(steps) else 1.0
         bars.append(_drawn_bar(step, opened, move, draw, prices.swing, volume))
-    later, wanted = (
-        random.Random(f"{prices.seed}-{asset}-after"),
-        len(bars) + bars_after,
-    )
+    draw_after = random.Random(f"{prices.seed}-{asset}-after")
+    wanted = len(bars) + bars_after
     step = last_step
     while len(bars) < wanted:
         step += 1
         if trades_at(asset_class, step):
-            move = prices.drift + later.gauss(0, prices.swing)
-            bars.append(_drawn_bar(step, bars[-1].close, move, later, prices.swing))
+            move = prices.drift + draw_after.gauss(0, prices.swing)
+            bars.append(
+                _drawn_bar(step, bars[-1].close, move, draw_after, prices.swing)
+            )
             steps.append(step)
     days = (steps[-1] - 1) // STEPS_PER_DAY + 1
     sessions = {
@@ -346,6 +346,16 @@ class _GeneratedMemory(MadeUpMemory):
                     }
                 )
 
+    def review(self, asset: str, step: int, position: int, **kwargs) -> str:
+        """The memory tests' review, with how much a reduce sold (half) and an add put in
+        ($1,000), which an episode of a reduce or an add tells."""
+        review = super().review(asset, step, position, **kwargs)
+        (row,) = [r for r in self.store.decisions_table if r["ID"] == review]
+        action = row["ACTION"]
+        row["REDUCE_SHARE"] = 0.5 if action == "reduce" else None
+        row["SIZE_AFTER_TRIMMING"] = 1000.0 if action == "add" else None
+        return review
+
 
 def made_up_memory(
     market: MadeUpMarket, now: int, past: Sequence[PastEpisode]
@@ -372,7 +382,7 @@ def made_up_memory(
                     closing_reason=episode.closing_reason,
                 )
             case PastReview():
-                review = memory.review(
+                memory.review(
                     episode.asset,
                     episode.step,
                     episode.position,
@@ -380,8 +390,5 @@ def made_up_memory(
                     action=episode.action,
                     profit=episode.profit,
                 )
-                (row,) = [r for r in memory.store.decisions_table if r["ID"] == review]
-                row["REDUCE_SHARE"] = 0.5 if episode.action == "reduce" else None
-                row["SIZE_AFTER_TRIMMING"] = 1000.0 if episode.action == "add" else None
     memory.snapshot(ASSET, now)
     return memory.store

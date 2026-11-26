@@ -15,13 +15,19 @@ from pathlib import Path
 
 import pytest
 
+from jev_trader.broker import ClosingReason
 from jev_trader.memory.outcomes import OutcomeKind, searchable
 from jev_trader.sim.clock import STEPS_PER_DAY
 from jev_trader.sim.records import decision_id
 from jev_trader.sim.store import KIND_POSITION_REVIEW
 from tests.recorded.made_up import ASSET, SIM, made_up_series
 from tests.recorded.open_position_scenarios import HOLD, OPEN_POSITION_SCENARIOS
-from tests.recorded.scenarios import Scenario, run_scenario
+from tests.recorded.scenarios import (
+    HOLDING_ASSETS,
+    Scenario,
+    run_scenario,
+    starting_account,
+)
 
 SCENARIOS: list[Scenario] = [*OPEN_POSITION_SCENARIOS]
 
@@ -72,9 +78,6 @@ def test_a_position_reviews_outcomes(request, vcr_cassette_dir):
         if row["DECISION"] == review_id
     }
     end_of_day = (step // STEPS_PER_DAY + 1) * STEPS_PER_DAY
-    assert learned[OutcomeKind.PRICE_AFTER_1_BAR]["KNOWN_FROM"] == step + 1
-    assert learned[OutcomeKind.PRICE_AT_END_OF_DAY]["KNOWN_FROM"] == end_of_day
-    assert learned[OutcomeKind.PRICE_AFTER_4_BARS]["KNOWN_FROM"] == step + 4
     prices = HOLD.inputs.prices
     series = made_up_series(ASSET, HOLD.inputs.asset_class, step, prices, BARS_AFTER)
     closes = {s: series.bar(s).close for s in series.steps if s >= step}
@@ -83,6 +86,7 @@ def test_a_position_reviews_outcomes(request, vcr_cassette_dir):
         (OutcomeKind.PRICE_AT_END_OF_DAY, end_of_day),
         (OutcomeKind.PRICE_AFTER_4_BARS, step + 4),
     ):
+        assert learned[kind]["KNOWN_FROM"] == after
         assert learned[kind]["VALUE"]["price"] == closes[after]
         assert learned[kind]["VALUE"]["change"] == pytest.approx(
             closes[after] / closes[step] - 1
@@ -93,8 +97,61 @@ def test_a_position_reviews_outcomes(request, vcr_cassette_dir):
     assert closed["VALUE"]["closing_reason"] == "sim_ended"
     assert closed["VALUE"]["step_closed"] == last_step
     assert closed["VALUE"]["closed_at_this_review"] is False
-    # Searchable from the step its last outcome became known, never before.
-    known = {**review, "OUTCOMES_KNOWN_FROM": result.outcomes_known[review_id]}
-    assert known["OUTCOMES_KNOWN_FROM"] == last_step
+    # Searchable from the step its last outcome, how the trade ended, became known; never before.
+    assert result.outcomes_known[review_id] == last_step
+    known = {**review, "OUTCOMES_KNOWN_FROM": last_step}
     assert not searchable(known, last_step - 1)
     assert searchable(known, last_step)
+
+
+# What each scenario's account holds as its step begins needs no model, so it is checked here
+# while the answers are not saved yet.
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [s for s in SCENARIOS if s.inputs.position is not None],
+    ids=lambda s: s.name,
+)
+def test_the_position_is_open_as_the_step_begins(scenario):
+    account = starting_account(scenario)
+
+    assert account.positions[ASSET].direction is scenario.inputs.position.direction
+    assert account.risk is not None
+
+
+def test_the_holding_sim_holds_its_five_assets():
+    account = starting_account(_named("holding-sim-sells-five"))
+
+    assert sorted(account.positions) == list(HOLDING_ASSETS)
+
+
+def test_the_stop_price_is_reached_at_the_step():
+    scenario = _named("closed-at-stop-price")
+    account = starting_account(scenario)
+
+    account.on_bar(ASSET, _bar_at_step(scenario))
+
+    assert ASSET not in account.positions
+    assert account.closed_trades[-1].closing_reason == ClosingReason.STOP_PRICE
+
+
+def test_the_forced_close_comes_due_at_the_step():
+    scenario = _named("forced-close")
+    account = starting_account(scenario)
+
+    account.on_bar(ASSET, _bar_at_step(scenario))
+
+    assert ASSET in account.positions  # its stop price is not reached
+    assert account.check_account(scenario.inputs.step) != []
+
+
+def _named(name: str) -> Scenario:
+    (scenario,) = [s for s in SCENARIOS if s.name == name]
+    return scenario
+
+
+def _bar_at_step(scenario: Scenario):
+    inputs = scenario.inputs
+    series = made_up_series(ASSET, inputs.asset_class, inputs.step, inputs.prices)
+    return series.bar(inputs.step)

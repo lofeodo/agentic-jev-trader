@@ -213,6 +213,36 @@
         }),
       ]),
       'MEMORY.OUTCOMES': list([
+        dict({
+          'DECISION': '1-2089-ASSET_01',
+          'FIRST_WRITTEN_BY': 1,
+          'ID': '1-2089-ASSET_01-price_at_end_of_day',
+          'KIND': 'price_at_end_of_day',
+          'KNOWN_FROM': 2100,
+          'SIM': 1,
+          'VALUE': dict({
+            'change': 0.0011277804124785185,
+            'price': 103.8606,
+          }),
+        }),
+        dict({
+          'DECISION': '1-2089-ASSET_01',
+          'FIRST_WRITTEN_BY': 1,
+          'ID': '1-2089-ASSET_01-position_closed',
+          'KIND': 'position_closed',
+          'KNOWN_FROM': 2100,
+          'SIM': 1,
+          'VALUE': dict({
+            'amount_entered': 2000.0000000000002,
+            'bars_after': 11,
+            'best': 10.289273104879385,
+            'closing_reason': 'sim_ended',
+            'profit': -1.745694108401267,
+            'step_closed': 2100,
+            'trading_costs': 4.00012771655412,
+            'worst': -4.343737118597346,
+          }),
+        }),
       ]),
       'SIM.ACCOUNT_STEPS': list([
         dict({
