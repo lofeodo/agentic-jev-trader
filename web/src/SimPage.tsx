@@ -25,10 +25,13 @@ import {
   Pair,
   PriceTag,
   SectionHeading,
+  TrailButton,
+  type OpenTrail,
   decisionWords,
   orderWords,
   statusWords,
 } from "./pieces";
+import { DecisionTrailPanel } from "./DecisionTrailPanel";
 import { MomentPanel } from "./MomentPanel";
 import { SimChart } from "./SimChart";
 import { SimReport } from "./SimReport";
@@ -69,6 +72,7 @@ export function SimPage({ id }: { id: number }) {
   const [live, setLive] = useState<LiveFigures | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [momentStep, setMomentStep] = useState<number | null>(null);
+  const [trail, setTrail] = useState<string | null>(null); // the decision whose trail is open
   const [reloads, setReloads] = useState(0); // goes up after Stop or Resume: the sim is read again
   const linesRef = useRef<ChartLine[]>([]);
 
@@ -195,18 +199,22 @@ export function SimPage({ id }: { id: number }) {
         startingValue={chart.starting_value}
         stepsStartAt={header.steps_start_at}
         windowSteps={chart.window_steps}
-        onPick={setMomentStep}
+        onPick={(step) => {
+          setTrail(null); // the moment opens on top
+          setMomentStep(step);
+        }}
+        onOpenTrail={setTrail}
       />
       <p className="mt-2 font-mono text-[13.5px] tracking-wider text-dim">
         Solid: this sim, hatched beneath / dashed: holding the five assets / faint: other sims over the
-        same days (a second one dash-dotted) / dotted: the starting amount / ticks along the bottom: a trade opened. Point at the
+        same days (a second one dash-dotted) / dotted: the starting amount / ticks along the bottom: a trade opened (click one for how it was decided). Point at the
         chart for that moment; click to open it.
       </p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
         <div>
           {running && <Meters live={live} />}
-          {running && <Now live={live} header={header} />}
+          {running && <Now live={live} header={header} onOpenTrail={setTrail} />}
           {!running && (
             <p className="font-mono text-[13.5px] tracking-wider text-dim">
               The meters and open positions show while a sim runs.
@@ -217,7 +225,7 @@ export function SimPage({ id }: { id: number }) {
         <NotableMoments live={live} />
       </div>
 
-      <SimReport id={id} header={header} inProgress={running} firstNumber={running ? 2 : 1} />
+      <SimReport id={id} header={header} inProgress={running} firstNumber={running ? 2 : 1} onOpenTrail={setTrail} />
 
       {momentStep !== null && header.steps_start_at && (
         <MomentPanel
@@ -225,8 +233,10 @@ export function SimPage({ id }: { id: number }) {
           step={momentStep}
           at={stepTime(header.steps_start_at, momentStep)}
           onClose={() => setMomentStep(null)}
+          onOpenTrail={setTrail}
         />
       )}
+      {trail !== null && <DecisionTrailPanel key={trail} simId={id} decision={trail} onClose={() => setTrail(null)} />}
     </section>
   );
 }
@@ -365,7 +375,9 @@ function Meters({ live }: { live: LiveFigures }) {
 const th = "border-b border-rule py-[.4rem] pr-[2ch] font-mono text-[13.5px] font-light tracking-wider text-dim";
 const td = "py-[.42rem] pr-[2ch] align-top font-mono text-[15px]";
 
-function Now({ live, header }: { live: LiveFigures; header: SimHeader }) {
+// A position's asset leads to its trade's page; "trail" (beside a position or an order) and a
+// decision's words open how it was decided.
+function Now({ live, header, onOpenTrail }: { live: LiveFigures; header: SimHeader; onOpenTrail: OpenTrail }) {
   return (
     <div>
       <SectionHeading number={1} title="Now" says="What the sim holds, and its latest orders" />
@@ -389,10 +401,13 @@ function Now({ live, header }: { live: LiveFigures; header: SimHeader }) {
               {live.open_positions.map((p) => (
                 <tr key={p.position} className="hover:bg-amber hover:text-screen [&:hover_*]:text-screen">
                   <td className={td}>
-                    <AssetTag asset={p.asset} />
+                    <a href={`#/sims/${header.id}/trades/${p.position}`} className="underline">
+                      <AssetTag asset={p.asset} />
+                    </a>
                     <div className="text-[12.5px] text-dim">
                       opened {p.opened_at ? dayAndTime(fromApi(p.opened_at)) : `step ${p.opened_step}`}
                     </div>
+                    <TrailButton decision={p.decision} onOpenTrail={onOpenTrail} />
                   </td>
                   <td className={td}>{p.direction}</td>
                   <td className={`${td} text-right`}>{units(p.units)}</td>
@@ -421,7 +436,9 @@ function Now({ live, header }: { live: LiveFigures; header: SimHeader }) {
             <li key={`${d.step}-${d.asset.masked_id}`} className="flex flex-wrap gap-x-[2ch] py-[.2rem]">
               <span className="w-[22ch] text-dim">{d.at ? dayAndTime(fromApi(d.at)) : `step ${d.step}`}</span>
               <AssetTag asset={d.asset} />
-              <span>{decisionWords(d)}</span>
+              <button type="button" onClick={() => onOpenTrail(d.decision)} className="cursor-pointer text-left hover:text-amber">
+                {decisionWords(d)}
+              </button>
             </li>
           ))}
         </ol>
@@ -439,6 +456,7 @@ function Now({ live, header }: { live: LiveFigures; header: SimHeader }) {
               </span>
               <AssetTag asset={o.asset} />
               <span>{orderWords(o)}</span>
+              <TrailButton decision={o.decision} onOpenTrail={onOpenTrail} />
             </li>
           ))}
         </ol>

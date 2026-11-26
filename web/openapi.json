@@ -190,6 +190,37 @@
         "title": "Chart",
         "type": "object"
       },
+      "ChartBar": {
+        "description": "One 15-minute bar's close, around the trade.",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "close": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "at",
+          "close"
+        ],
+        "title": "ChartBar",
+        "type": "object"
+      },
       "ChartLine": {
         "properties": {
           "label": {
@@ -219,6 +250,61 @@
           "points"
         ],
         "title": "ChartLine",
+        "type": "object"
+      },
+      "ChartMark": {
+        "description": "A mark on the chart: entry, stop price, close, or a position screen or review ticked.",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Price"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "at",
+          "kind",
+          "price",
+          "decision"
+        ],
+        "title": "ChartMark",
         "type": "object"
       },
       "ChartPoint": {
@@ -721,6 +807,10 @@
             ],
             "title": "At"
           },
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -757,6 +847,7 @@
           }
         },
         "required": [
+          "decision",
           "step",
           "at",
           "asset",
@@ -767,6 +858,115 @@
           "action"
         ],
         "title": "DecisionLine",
+        "type": "object"
+      },
+      "DecisionTrail": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetName"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "end_of_session": {
+            "title": "End Of Session",
+            "type": "boolean"
+          },
+          "key": {
+            "items": {
+              "$ref": "#/components/schemas/TrailKey"
+            },
+            "title": "Key",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "screen",
+              "full_evaluation",
+              "position_screen",
+              "position_review"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeOrder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/TrailStop"
+            },
+            "title": "Stops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decision",
+          "kind",
+          "end_of_session",
+          "step",
+          "at",
+          "asset",
+          "position",
+          "stops",
+          "order",
+          "key"
+        ],
+        "title": "DecisionTrail",
+        "type": "object"
+      },
+      "EpisodeRead": {
+        "description": "A past episode Jev read, as it was written for it.",
+        "properties": {
+          "episode": {
+            "title": "Episode",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episode",
+          "text"
+        ],
+        "title": "EpisodeRead",
         "type": "object"
       },
       "Fallback": {
@@ -1394,6 +1594,43 @@
         "title": "Measurements",
         "type": "object"
       },
+      "MemoryRead": {
+        "description": "What Jev read from memory for one decision.",
+        "properties": {
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "episodes": {
+            "items": {
+              "$ref": "#/components/schemas/EpisodeRead"
+            },
+            "title": "Episodes",
+            "type": "array"
+          },
+          "scorecard_lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scorecard Lines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decision",
+          "scorecard_lines",
+          "episodes"
+        ],
+        "title": "MemoryRead",
+        "type": "object"
+      },
       "Meters": {
         "description": "The three thin meters, the spending one aside (its figures are the key figures).",
         "properties": {
@@ -1738,6 +1975,43 @@
         "title": "NewPoint",
         "type": "object"
       },
+      "NightlyCharge": {
+        "description": "A charge the trade paid for being held overnight, such as a short's borrow fee.",
+        "properties": {
+          "amount_usd": {
+            "title": "Amount Usd",
+            "type": "number"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "at",
+          "kind",
+          "amount_usd"
+        ],
+        "title": "NightlyCharge",
+        "type": "object"
+      },
       "NotableMoment": {
         "properties": {
           "at": {
@@ -1797,6 +2071,17 @@
           },
           "asset": {
             "$ref": "#/components/schemas/AssetName"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
           },
           "direction": {
             "title": "Direction",
@@ -1896,7 +2181,8 @@
           "opened_step",
           "opened_at",
           "amount_chosen",
-          "limited_by"
+          "limited_by",
+          "decision"
         ],
         "title": "OpenPosition",
         "type": "object"
@@ -1929,6 +2215,17 @@
               }
             ],
             "title": "Decided At"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
           },
           "kind": {
             "title": "Kind",
@@ -2002,7 +2299,8 @@
           "step_carried_out",
           "value_usd",
           "amount_chosen",
-          "limited_by"
+          "limited_by",
+          "decision"
         ],
         "title": "OrderLine",
         "type": "object"
@@ -2199,6 +2497,114 @@
         "title": "Playbook",
         "type": "object"
       },
+      "PositionStep": {
+        "description": "A step the open position was looked at: a review, or the position screen saying no\n(nothing more asked: the position was held, guarded by its stop price).",
+        "properties": {
+          "amount_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Usd"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "end_of_session": {
+            "title": "End Of Session",
+            "type": "boolean"
+          },
+          "fresh_memory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "review",
+              "screen said no"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "probabilities": {
+            "items": {
+              "$ref": "#/components/schemas/Probability"
+            },
+            "title": "Probabilities",
+            "type": "array"
+          },
+          "screen_answer": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screen Answer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step",
+          "at",
+          "kind",
+          "end_of_session",
+          "decision",
+          "screen_answer",
+          "answer",
+          "amount_usd",
+          "probabilities",
+          "fresh_memory"
+        ],
+        "title": "PositionStep",
+        "type": "object"
+      },
       "PositionThen": {
         "properties": {
           "asset": {
@@ -2206,6 +2612,17 @@
           },
           "average_price": {
             "$ref": "#/components/schemas/Price"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
           },
           "direction": {
             "title": "Direction",
@@ -2248,7 +2665,8 @@
           "units",
           "average_price",
           "price_then",
-          "value_usd"
+          "value_usd",
+          "decision"
         ],
         "title": "PositionThen",
         "type": "object"
@@ -2348,6 +2766,25 @@
           "says"
         ],
         "title": "PriceWinner",
+        "type": "object"
+      },
+      "Probability": {
+        "description": "One of Jev's answers and how likely it rated it, 0 to 1.",
+        "properties": {
+          "option": {
+            "title": "Option",
+            "type": "string"
+          },
+          "probability": {
+            "title": "Probability",
+            "type": "number"
+          }
+        },
+        "required": [
+          "option",
+          "probability"
+        ],
+        "title": "Probability",
         "type": "object"
       },
       "QualityCheck": {
@@ -3610,6 +4047,117 @@
         "title": "TradeLine",
         "type": "object"
       },
+      "TradeOrder": {
+        "description": "An order a decision placed (on the Trade page, the one that opened the trade): its size\nbefore and after the risk limits, and what it cost.",
+        "properties": {
+          "amount_chosen_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Chosen Usd"
+          },
+          "amount_placed_usd": {
+            "title": "Amount Placed Usd",
+            "type": "number"
+          },
+          "commission_or_fee_usd": {
+            "title": "Commission Or Fee Usd",
+            "type": "number"
+          },
+          "limited_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limited By"
+          },
+          "slippage_usd": {
+            "title": "Slippage Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "amount_chosen_usd",
+          "amount_placed_usd",
+          "limited_by",
+          "slippage_usd",
+          "commission_or_fee_usd"
+        ],
+        "title": "TradeOrder",
+        "type": "object"
+      },
+      "TradePage": {
+        "properties": {
+          "bars": {
+            "items": {
+              "$ref": "#/components/schemas/ChartBar"
+            },
+            "title": "Bars",
+            "type": "array"
+          },
+          "entry_memory": {
+            "$ref": "#/components/schemas/MemoryRead"
+          },
+          "marks": {
+            "items": {
+              "$ref": "#/components/schemas/ChartMark"
+            },
+            "title": "Marks",
+            "type": "array"
+          },
+          "nightly_charges": {
+            "items": {
+              "$ref": "#/components/schemas/NightlyCharge"
+            },
+            "title": "Nightly Charges",
+            "type": "array"
+          },
+          "order": {
+            "$ref": "#/components/schemas/TradeOrder"
+          },
+          "position_steps": {
+            "items": {
+              "$ref": "#/components/schemas/PositionStep"
+            },
+            "title": "Position Steps",
+            "type": "array"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Price"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trade": {
+            "$ref": "#/components/schemas/TradeLine"
+          }
+        },
+        "required": [
+          "trade",
+          "stop_price",
+          "bars",
+          "marks",
+          "order",
+          "position_steps",
+          "nightly_charges",
+          "entry_memory"
+        ],
+        "title": "TradePage",
+        "type": "object"
+      },
       "TradeTick": {
         "description": "One trade: a tick on the chart where it opened.",
         "properties": {
@@ -3626,6 +4174,17 @@
               }
             ],
             "title": "Closed Step"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
           },
           "direction": {
             "title": "Direction",
@@ -3645,7 +4204,8 @@
           "asset",
           "direction",
           "opened_step",
-          "closed_step"
+          "closed_step",
+          "decision"
         ],
         "title": "TradeTick",
         "type": "object"
@@ -3691,6 +4251,94 @@
           "marks"
         ],
         "title": "TradesTable",
+        "type": "object"
+      },
+      "TrailKey": {
+        "description": "Turns a masked ID and its rescaled prices back into real ones.",
+        "properties": {
+          "masked_id": {
+            "title": "Masked Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price_scale": {
+            "title": "Price Scale",
+            "type": "number"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "masked_id",
+          "name",
+          "ticker",
+          "price_scale"
+        ],
+        "title": "TrailKey",
+        "type": "object"
+      },
+      "TrailMessage": {
+        "description": "One message that passed, word for word as stored.",
+        "properties": {
+          "marks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Marks",
+            "type": "array"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "sender": {
+            "title": "Sender",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sender",
+          "role",
+          "text",
+          "marks"
+        ],
+        "title": "TrailMessage",
+        "type": "object"
+      },
+      "TrailStop": {
+        "description": "One box of the strip, and the messages behind it.",
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/TrailMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "outcome",
+          "messages"
+        ],
+        "title": "TrailStop",
         "type": "object"
       },
       "ValidationError": {
@@ -4308,6 +4956,55 @@
         "summary": "Sim Chart"
       }
     },
+    "/sims/{sim_id}/decisions/{decision}/trail": {
+      "get": {
+        "description": "Every stage of one decision, every message word for word as stored (masked IDs and\nrescaled prices), with the key that turns them back into real ones.",
+        "operationId": "decisionTrail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision",
+            "required": true,
+            "schema": {
+              "title": "Decision",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionTrail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Decision Trail"
+      }
+    },
     "/sims/{sim_id}/live": {
       "get": {
         "description": "The quick figures, asked for every second while the sim is in progress.\n\n`after_step`: the last step the page has chart points for; only later ones are sent.",
@@ -4734,6 +5431,55 @@
           }
         },
         "summary": "Sim Trades"
+      }
+    },
+    "/sims/{sim_id}/trades/{trade}": {
+      "get": {
+        "description": "The Trade page: one trade, its chart, order, position reviews, nightly charges and\nmemory. `trade`: the position number, as the trades table's lines give it.",
+        "operationId": "simTrade",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sim_id",
+            "required": true,
+            "schema": {
+              "title": "Sim Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "trade",
+            "required": true,
+            "schema": {
+              "title": "Trade",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sim Trade"
       }
     },
     "/spending": {

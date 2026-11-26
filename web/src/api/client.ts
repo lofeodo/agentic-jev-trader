@@ -19,6 +19,8 @@ export type TradesTable = Schemas["TradesTable"];
 export type TradeLine = Schemas["TradeLine"];
 export type DayMark = Schemas["DayMark"];
 export type FilterCounts = Schemas["FilterCounts"];
+export type TradePage = Schemas["TradePage"];
+export type DecisionTrail = Schemas["DecisionTrail"];
 export type Measurements = Schemas["Measurements"];
 export type MeasurementGroup = Schemas["MeasurementGroup"];
 export type Figure = Schemas["Figure"];
@@ -87,6 +89,11 @@ export function fetchTrades(id: number, filters: TradeFilters, page: number, pag
   for (const [name, on] of Object.entries(filters)) if (on) ask.set(name, "true");
   return read<TradesTable>(`/sims/${id}/trades?${ask}`);
 }
+
+// `trade`: the position number, as a trades table line gives it.
+export const fetchTrade = (id: number, trade: number) => read<TradePage>(`/sims/${id}/trades/${trade}`);
+export const fetchTrail = (id: number, decision: string) =>
+  read<DecisionTrail>(`/sims/${id}/decisions/${encodeURIComponent(decision)}/trail`);
 
 export const fetchMeasurements = (id: number) => read<Measurements>(`/sims/${id}/measurements`);
 
