@@ -5,8 +5,8 @@ and hands every attempt to the report. What each part does is tested with the sl
 
 import pytest
 
-from jev_trader.benchmark import NotBuilt, report, runner, spending
 from jev_trader.benchmark import __main__ as command
+from jev_trader.benchmark import spending
 from jev_trader.benchmark.attempts import Attempt, Outcome
 from jev_trader.benchmark.made_up import made_up_moments
 
@@ -116,21 +116,8 @@ def test_the_meter_stops_the_run_and_the_report_still_gets_what_ran(
     assert steps.seen[-1] == ("report", 0)
 
 
-def test_made_up_moments_reach_the_report_with_no_outside_part(capsys, tmp_path):
+def test_made_up_moments_run_with_no_outside_part(capsys, tmp_path):
     report_file = tmp_path / "report.md"
-    assert command.main(["--made-up", "--report", str(report_file)]) == 2
-    assert (
-        "not built yet: the benchmark's plain-words report" in capsys.readouterr().out
-    )
-    assert not report_file.exists()
-
-
-@pytest.mark.parametrize(
-    "stub",
-    [
-        lambda: report.report(runner.BenchmarkRun(())),
-    ],
-)
-def test_each_stub_says_it_is_not_built(stub):
-    with pytest.raises(NotBuilt, match="not built yet"):
-        stub()
+    assert command.main(["--made-up", "--report", str(report_file)]) == 0
+    assert "Report written" in capsys.readouterr().out
+    assert report_file.exists()
