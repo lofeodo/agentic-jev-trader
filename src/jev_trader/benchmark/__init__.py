@@ -16,10 +16,3 @@ only spends LLM money. The parts, in the order the command uses them:
 - `made_up`: made-up moments and fake answers, for running the command for free (`--made-up`);
 - `__main__`: the command, `python -m jev_trader.benchmark`.
 """
-
-
-class NotBuilt(NotImplementedError):
-    """A part of the benchmark that is only a frame so far: its ticket builds it."""
-
-    def __init__(self, what: str):
-        super().__init__(f"not built yet: {what}")

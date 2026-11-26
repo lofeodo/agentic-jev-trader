@@ -6,8 +6,9 @@
 
 Hands each model the 50 moments the build-up sim `--sim` saved, three times each, with nothing
 traded, and writes the plain-words report to `--report` (by default `docs/llm-benchmark.md`, to
-commit). `--model` runs that one model alone, for re-running a changed model on the same moments
-(about 20 cents); without it both models in `config/llm.toml` run. It stops itself at
+commit; with `--model`, `docs/llm-benchmark-<model>.md`, so the two-model page stays).
+`--model` runs that one model alone, for re-running a changed model on the same moments (about
+20 cents); without it both models in `config/llm.toml` run. It stops itself at
 `benchmark_cap_usd` in `config/spending.toml` ($1.50).
 
 It calls the LLMs, which costs money: run it only with the developer's go-ahead. Their keys are
@@ -31,7 +32,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from jev_trader.benchmark import NotBuilt
 from jev_trader.benchmark.attempts import AttemptLog, ModelRunner
 from jev_trader.benchmark.made_up import FakeRunner, made_up_moments
 from jev_trader.benchmark.moments import BuildUpSim, NoSavedMoments, SavedMoment
@@ -75,6 +75,14 @@ def open_parts(args: argparse.Namespace, held: ExitStack) -> Parts:
     )
 
 
+def report_path_for(model: str | None) -> Path:
+    """The committed report for both models; a one-model re-run gets its own page, so the
+    two-model page (with the overlap between the models) is not overwritten."""
+    if model is None:
+        return REPORT_PATH
+    return REPORT_PATH.with_name(f"{REPORT_PATH.stem}-{model}{REPORT_PATH.suffix}")
+
+
 def parser(models: Sequence[str]) -> argparse.ArgumentParser:
     command = argparse.ArgumentParser(
         prog="python -m jev_trader.benchmark",
@@ -93,7 +101,12 @@ def parser(models: Sequence[str]) -> argparse.ArgumentParser:
         "--model", choices=models, help="run this model alone (default: every model)"
     )
     command.add_argument("--database", default=DATABASE)
-    command.add_argument("--report", type=Path, default=REPORT_PATH)
+    command.add_argument(
+        "--report",
+        type=Path,
+        help="where the report goes (default: docs/llm-benchmark.md, or "
+        "docs/llm-benchmark-<model>.md with --model)",
+    )
     return command
 
 
@@ -117,13 +130,15 @@ def main(
                 parts.log,
             )
         page = report(run)
-    except (NotBuilt, NoSavedMoments) as missing:
+    except NoSavedMoments as missing:
         print(f"The benchmark cannot run: {missing}.")
         return 2
-    args.report.write_text(page, encoding="utf-8")
+    report_path = args.report or report_path_for(args.model)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(page, encoding="utf-8")
     if run.stopped:
         print(f"Stopped early: {run.stopped}")
-    print(f"{len(run.attempts)} attempts. Report written to {args.report}")
+    print(f"{len(run.attempts)} attempts. Report written to {report_path}")
     return 0
 
 
