@@ -111,6 +111,8 @@ def test_a_sim_s_header_has_its_name_status_days_and_settings(sims, api):
 
 def test_an_unknown_sim_is_not_found(api):
     assert api.get("/sims/99").status_code == 404
+    assert api.get("/sims/99/trades/1").status_code == 404
+    assert api.get("/sims/99/decisions/99-140-ASSET_01/trail").status_code == 404
 
 
 def account(sims, sim_id, step, value, **columns):
@@ -138,6 +140,7 @@ def fill(sims, sim_id, position, kind, side, step, units, price, asset="ASSET_01
             "SIM": sim_id,
             "POSITION": position,
             "INSTRUMENT": f"{asset}_SPOT",
+            "DECISION": f"{sim_id}-{step - 1}-{asset}",
             "KIND": kind,
             "REASON": "jev",
             "SIDE": side,
@@ -188,6 +191,7 @@ def test_the_chart_draws_the_sim_holding_and_the_sim_over_the_same_days(sims, ap
             "direction": "long",
             "opened_step": 98,
             "closed_step": 120,
+            "decision": f"{sim}-97-ASSET_01",  # opens its decision trail
         },
         {
             "position": 2,
@@ -195,6 +199,7 @@ def test_the_chart_draws_the_sim_holding_and_the_sim_over_the_same_days(sims, ap
             "direction": "short",
             "opened_step": 130,
             "closed_step": None,
+            "decision": f"{sim}-129-ASSET_02",
         },
     ]
 
@@ -304,6 +309,7 @@ def test_the_live_figures_carry_the_open_positions_in_real_prices(sims, api):
         "opened_at": "2025-03-02T00:30:00",
         "amount_chosen": 2_000.0,
         "limited_by": "trade_risk",
+        "decision": f"{sim}-97-ASSET_01",  # opens its decision trail
     }
 
 
@@ -318,6 +324,8 @@ def test_the_live_figures_carry_the_latest_orders_and_notable_moments(sims, api)
         ("entry", "Apple"),
     ]
     assert live["latest_orders"][0]["decided_at"] == "2025-03-02T09:30:00"
+    # Each order opens the trail of the decision that ordered it.
+    assert live["latest_orders"][2]["decision"] == f"{sim}-97-ASSET_01"
     assert live["notable_moments"] == [
         {
             "step": 139,
@@ -361,6 +369,7 @@ def test_the_live_figures_carry_the_latest_decisions_newest_first(sims, api):
         (139, "Apple"),
     ]
     assert latest[0] == {
+        "decision": f"{sim}-140-ASSET_01",
         "step": 140,
         "at": "2025-03-02T11:00:00",
         "asset": {"name": "Apple", "masked_id": "ASSET_01"},
@@ -420,6 +429,7 @@ def test_a_moment_shows_the_account_and_the_positions_it_held_then(sims, api):
     assert apple["units"] == 5.0
     assert apple["price_then"] == {"real": 200.0, "rescaled": 100.0}
     assert apple["value_usd"] == 1_000.0
+    assert apple["decision"] == f"{sim}-97-ASSET_01"  # opens its decision trail
 
 
 def test_a_moment_lists_the_trades_opened_or_closed_around_then(sims, api):
@@ -429,9 +439,9 @@ def test_a_moment_lists_the_trades_opened_or_closed_around_then(sims, api):
 
     # 4 steps either side of step 129: the Bitcoin short opened at 130; it closed at 135.
     assert moment["window_steps"] == 4
-    assert [(t["kind"], t["step_carried_out"]) for t in moment["nearby"]] == [
-        ("entry", 130)
-    ]
+    assert [
+        (t["kind"], t["step_carried_out"], t["decision"]) for t in moment["nearby"]
+    ] == [("entry", 130, f"{sim}-129-ASSET_02")]
 
 
 def test_a_moment_before_the_sim_starts_is_its_first_step(sims, api):

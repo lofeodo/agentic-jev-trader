@@ -144,6 +144,7 @@ class TradeTick(BaseModel):
     direction: str  # "long" bets on a rise, "short" on a fall
     opened_step: int
     closed_step: int | None  # None while it is open
+    decision: str | None  # the decision that opened it; None for code's own (holding)
 
 
 class Chart(BaseModel):
@@ -235,6 +236,7 @@ def _ticks(sim: Sim, orders: list[dict]) -> list[TradeTick]:
                 direction=direction_of(order),
                 opened_step=order["STEP_CARRIED_OUT"],
                 closed_step=None,
+                decision=order.get("DECISION"),
             )
         elif order["KIND"] == "close" and order["POSITION"] in ticks:
             ticks[order["POSITION"]].closed_step = order["STEP_CARRIED_OUT"]
@@ -277,6 +279,7 @@ class OpenPosition(BaseModel):
     opened_at: datetime | None
     amount_chosen: float | None  # what Jev chose to put in, before the risk limits
     limited_by: str | None  # the risk limit that made it smaller
+    decision: str | None  # the decision that opened it; None for code's own (holding)
 
 
 class OrderLine(BaseModel):
@@ -293,6 +296,9 @@ class OrderLine(BaseModel):
     value_usd: float | None
     amount_chosen: float | None
     limited_by: str | None
+    # The decision that ordered it; None for code's own (a stop price, a forced close, the sim's
+    # end, holding).
+    decision: str | None
 
 
 class NotableMoment(BaseModel):
@@ -317,6 +323,7 @@ class Meters(BaseModel):
 class DecisionLine(BaseModel):
     """One asset looked at, at one step, and what came of it."""
 
+    decision: str  # opens its decision trail
     step: int
     at: datetime | None
     asset: AssetName
@@ -371,7 +378,9 @@ def real_units(sim: Sim, masked_id: str, units: float) -> float:
     return units * key["PRICE_SCALE"] if key else units
 
 
-def _open_position(sim: Sim, held: dict, last_prices: dict) -> OpenPosition:
+def _open_position(
+    sim: Sim, held: dict, last_prices: dict, decisions: dict[int, str | None]
+) -> OpenPosition:
     asset = held["asset"]
     last = last_prices.get(asset)
     sign = 1 if held["direction"] == "long" else -1
@@ -391,6 +400,7 @@ def _open_position(sim: Sim, held: dict, last_prices: dict) -> OpenPosition:
         opened_at=sim.at(held["step_opened"]),
         amount_chosen=held.get("amount_chosen"),
         limited_by=held.get("limited_by"),
+        decision=decisions.get(held["position_id"]),
     )
 
 
@@ -407,6 +417,7 @@ def _order_line(sim: Sim, order: dict) -> OrderLine:
         value_usd=order.get("VALUE"),
         amount_chosen=order.get("AMOUNT_CHOSEN"),
         limited_by=order.get("LIMITED_BY"),
+        decision=order.get("DECISION"),
     )
 
 
@@ -466,6 +477,9 @@ def live(
     newest = sorted(orders, key=lambda o: (o["STEP_DECIDED"], o["ID"]), reverse=True)[
         :LATEST_ORDERS
     ]
+    opened_by = {
+        o["POSITION"]: o.get("DECISION") for o in orders if o["KIND"] == "entry"
+    }
     lines = [line_sim for line_sim, _, _ in _lines_drawn(all_sims, row)]
     days_done, days_total = days_of(row)
     return LiveFigures(
@@ -494,13 +508,14 @@ def live(
             else value * exposure_multiple,
         ),
         open_positions=[
-            _open_position(sim, held, state.get("last_prices", {}))
+            _open_position(sim, held, state.get("last_prices", {}), opened_by)
             for held in state.get("positions", [])
         ],
         latest_orders=[_order_line(sim, o) for o in newest],
         ticks=_ticks(sim, orders),
         latest_decisions=[
             DecisionLine(
+                decision=d["ID"],
                 step=d["STEP"],
                 at=sim.at(d["STEP"]),
                 asset=sim.asset(d["ASSET"]),
@@ -545,6 +560,7 @@ class PositionThen(BaseModel):
     average_price: Price  # what it was bought (or sold short) at, on average
     price_then: Price | None  # the asset's last close at the moment
     value_usd: float | None
+    decision: str | None  # the decision that opened it; None for code's own (holding)
 
 
 class Moment(BaseModel):
@@ -574,6 +590,7 @@ def _positions_then(sim: Sim, orders: list[dict], step: int) -> list[PositionThe
         )
         if order["KIND"] == "entry":
             position["direction"] = direction_of(order)
+            position["decision"] = order.get("DECISION")
         if order["KIND"] in ("entry", "add"):
             position["units"] += order["UNITS"]
             position["bought"] += order["UNITS"]
@@ -595,6 +612,7 @@ def _positions_then(sim: Sim, orders: list[dict], step: int) -> list[PositionThe
                 average_price=price_of(sim, p["asset"], p["paid"] / p["bought"]),
                 price_then=None if close is None else price_of(sim, p["asset"], close),
                 value_usd=None if close is None else p["units"] * close,
+                decision=p.get("decision"),
             )
         )
     return found

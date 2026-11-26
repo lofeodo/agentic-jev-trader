@@ -1,7 +1,7 @@
 // Small pieces shared by the sim page and its side panel.
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { AssetName, DecisionLine, LiveFigures, OrderLine, Price } from "./api/client";
-import { dollars, price } from "./format";
+import { dayAndTime, dollars, fromApi, price } from "./format";
 
 // The real name leads; the masked ID the agent saw follows as a small tag.
 export function AssetTag({ asset }: { asset: AssetName }) {
@@ -22,6 +22,70 @@ export function PriceTag({ price: p }: { price: Price }) {
       {p.real === null ? "--" : price(p.real)}{" "}
       <span className="text-[12.5px] text-dim">[{rescaled(p.rescaled)}]</span>
     </span>
+  );
+}
+
+// A side panel over the right of the page: its title bar, its Close button, and Escape to close.
+// A panel opened from another (a decision trail from a moment) lies on top; Escape closes only it.
+export function SidePanel({ title, wide, onClose, children }: { title: string; wide?: boolean; onClose: () => void; children: ReactNode }) {
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const open = document.querySelectorAll("[data-side-panel]");
+      if (e.key === "Escape" && open[open.length - 1] === panel.current) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <aside
+      ref={panel}
+      data-side-panel
+      aria-label={title}
+      className={`fixed top-0 right-0 bottom-0 z-30 ${wide ? "w-[min(1000px,100vw)]" : "w-[min(480px,100vw)]"} overflow-y-auto border-l-[1.5px] border-rule bg-screen`}
+    >
+      <div className="flex items-center justify-between bg-amber px-[2ch] py-1 font-mono text-[13.5px] tracking-widest text-screen">
+        <span>{title}</span>
+        <button type="button" onClick={onClose} className="cursor-pointer font-mono tracking-widest uppercase" aria-label={`Close ${title.toLowerCase()}`}>
+          Close [Esc]
+        </button>
+      </div>
+      <div className="px-[2ch] py-4">{children}</div>
+    </aside>
+  );
+}
+
+// Opens the decision trail of the decision it is given.
+export type OpenTrail = (decision: string) => void;
+
+// Opens the decision trail of a trade, an open position or a decision; nothing for code's own
+// trades (holding), which no decision opened.
+export function TrailButton({ decision, onOpenTrail }: { decision: string | null; onOpenTrail: OpenTrail }) {
+  if (decision === null) return null;
+  return (
+    <div>
+      <button type="button" onClick={() => onOpenTrail(decision)} className="cursor-pointer text-[12.5px] text-dim underline">
+        trail
+      </button>
+    </div>
+  );
+}
+
+// A risk limit in words: "trade_risk" is "the trade risk limit".
+export const limitWords = (limit: string) => `the ${limit.replaceAll("_", " ")} limit`;
+
+// Named figures, one a row: the name on the left, the figure on the right.
+export function FigureRows({ rows, space = "mb-3" }: { rows: [string, string][]; space?: string }) {
+  return (
+    <dl className={`${space} grid grid-cols-[1fr_auto] gap-x-[2ch] gap-y-1 font-mono text-[15px]`}>
+      {rows.map(([name, figure]) => (
+        <div key={name} className="contents">
+          <dt className="text-dim">{name}</dt>
+          <dd className="text-right text-pale">{figure}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -146,9 +210,21 @@ export function orderWords(o: OrderLine) {
   const reason = REASONS[o.reason] ?? o.reason;
   const what = o.kind === "entry" ? "opened" : o.kind === "add" ? "added to" : o.kind === "reduce" ? "made smaller" : "closed";
   if (o.status === "waiting") return `${what}: waiting for the next bar (${reason})`;
-  if (o.status === "cancelled") return `${what}: cancelled${o.limited_by ? ` by the ${o.limited_by.replace("_", " ")} limit` : ""}`;
+  if (o.status === "cancelled") return `${what}: cancelled${o.limited_by ? ` by ${limitWords(o.limited_by)}` : ""}`;
   const side = o.side === "buy" ? "bought" : "sold";
   const value = o.value_usd === null ? "" : ` ${dollars(o.value_usd)}`;
-  const trimmed = o.limited_by && o.amount_chosen !== null ? `; Jev chose ${dollars(o.amount_chosen)}, trimmed by the ${o.limited_by.replace("_", " ")} limit` : "";
+  const trimmed = o.limited_by && o.amount_chosen !== null ? `; Jev chose ${dollars(o.amount_chosen)}, trimmed by ${limitWords(o.limited_by)}` : "";
   return `${what}: ${side}${value} (${reason}${trimmed})`;
 }
+
+// How a trade ended, in plain words.
+export const ENDINGS: Record<string, string> = {
+  jev: "Jev chose to close it",
+  stop_price: "Its stop price was reached",
+  forced_close: "A forced close",
+  sim_ended: "Closed because the sim ended",
+};
+
+// When something happened: its real time, or its step while the time is unknown.
+export const when = (at: string | null, step: number | null) =>
+  at ? dayAndTime(fromApi(at)) : step === null ? "--" : `step ${step}`;

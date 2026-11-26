@@ -15,6 +15,7 @@ import { SimPage } from "./SimPage";
 import { SimsScreen } from "./SimsScreen";
 import { SpendingScreen } from "./SpendingScreen";
 import { type Screen, TopBar } from "./TopBar";
+import { TradePage } from "./TradePage";
 
 const REFRESH_MS = 20_000;
 
@@ -23,16 +24,18 @@ const inProgress = (sim: SimLine) =>
   sim.status === "created" || (sim.status === "running" && !sim.not_responding);
 
 // `id`: the sim or dataset the page shows, as its screen says; null on a list; "new" on the
-// New trading sim form.
-type Page = { screen: Screen; id: number | "new" | null };
+// New trading sim form. `trade`: on a sim, the trade whose page is shown (its position number).
+type Page = { screen: Screen; id: number | "new" | null; trade?: number };
 
-// The address after `#`: `#/sims/12` is sim 12's page, `#/sims/new` the New trading sim form,
-// `#/datasets/3` dataset 3's, `#/comparison`, `#/datasets`, `#/playbook` and `#/spending` their
-// screens; anything else is the list of sims.
+// The address after `#`: `#/sims/12` is sim 12's page, `#/sims/12/trades/3` the page of its
+// trade 3, `#/sims/new` the New trading sim form, `#/datasets/3` dataset 3's, `#/comparison`,
+// `#/datasets`, `#/playbook` and `#/spending` their screens; anything else is the list of sims.
 function pageInAddress(): Page {
   const hash = window.location.hash;
   const sim = /^#\/sims\/(\d+)$/.exec(hash);
   if (sim) return { screen: "sims", id: Number(sim[1]) };
+  const trade = /^#\/sims\/(\d+)\/trades\/(\d+)$/.exec(hash);
+  if (trade) return { screen: "sims", id: Number(trade[1]), trade: Number(trade[2]) };
   if (hash === "#/sims/new") return { screen: "sims", id: "new" };
   const dataset = /^#\/datasets\/(\d+)$/.exec(hash);
   if (dataset) return { screen: "datasets", id: Number(dataset[1]) };
@@ -46,7 +49,7 @@ function pageInAddress(): Page {
 export function App() {
   const [page, setPage] = useState<Page>(pageInAddress);
   const [spending, setSpending] = useState<SpendingTotal | null>(null);
-  const { screen, id } = page;
+  const { screen, id, trade } = page;
 
   useEffect(() => {
     const onMove = () => {
@@ -80,7 +83,15 @@ export function App() {
       {screen === "playbook" && <PlaybookScreen />}
       {screen === "spending" && <SpendingScreen />}
       {screen === "sims" &&
-        (id === null ? <SimsListPage /> : id === "new" ? <NewSimScreen /> : <SimPage key={id} id={id} />)}
+        (id === null ? (
+          <SimsListPage />
+        ) : id === "new" ? (
+          <NewSimScreen />
+        ) : trade !== undefined ? (
+          <TradePage key={`${id}-${trade}`} simId={id} trade={trade} />
+        ) : (
+          <SimPage key={id} id={id} />
+        ))}
     </main>
   );
 }

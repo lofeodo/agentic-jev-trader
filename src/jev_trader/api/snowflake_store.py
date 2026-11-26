@@ -64,6 +64,25 @@ _SIM_COLUMNS = (
 )
 
 
+# A decision's columns stored as JSON (VARIANT), which the connector hands over as text.
+_DECISION_JSON = (
+    "CANDIDATE_TRADES",
+    "ANSWERS",
+    "STANDING",
+    "SELECTED",
+    "EPISODES_SHOWN",
+    "LOOKUPS",
+)
+
+
+def _read_json(row: dict, columns: tuple[str, ...]) -> dict:
+    """The row with each of `columns` it holds read from JSON text."""
+    for name in columns:
+        if isinstance(row.get(name), str):
+            row[name] = json.loads(row[name])
+    return row
+
+
 def _array(value) -> list[str]:
     """A Snowflake array as a sorted list, NULLs dropped (the connector hands it over as
     JSON)."""
@@ -165,7 +184,7 @@ class SnowflakeApiStore:
 
     def latest_decisions(self, sim_id, limit):
         return self._rows(
-            "SELECT STEP, ASSET, KIND, TIER, SCREEN_ANSWER, SKIPPED_BECAUSE, ACTION "
+            "SELECT ID, STEP, ASSET, KIND, TIER, SCREEN_ANSWER, SKIPPED_BECAUSE, ACTION "
             f"FROM MEMORY.DECISIONS WHERE {OWN_ROWS} "
             "ORDER BY STEP DESC, ASSET LIMIT ?",
             (sim_id, limit),
@@ -227,6 +246,58 @@ class SnowflakeApiStore:
             "WHERE SIM = ?",
             (sim_id,),
         )
+
+    def decision(self, sim_id, decision_id):
+        rows = self._rows(
+            f"SELECT * FROM MEMORY.DECISIONS WHERE {OWN_ROWS} AND ID = ?",
+            (sim_id, decision_id),
+        )
+        return _read_json(rows[0], _DECISION_JSON) if rows else None
+
+    def position_decisions(self, sim_id, position):
+        rows = self._rows(
+            f"SELECT * EXCLUDE (CANDIDATE_TRADES) FROM MEMORY.DECISIONS "
+            f"WHERE {OWN_ROWS} AND POSITION = ? ORDER BY STEP",
+            (sim_id, position),
+        )
+        return [_read_json(row, _DECISION_JSON) for row in rows]
+
+    def jev_requests(self, sim_id, decision_ids):
+        if not decision_ids:
+            return []
+        marks = ", ".join("?" for _ in decision_ids)
+        rows = self._rows(
+            "SELECT R.*, J.OPENING FROM SIM.JEV_REQUESTS R "
+            "LEFT JOIN SIM.JEV_READINGS J ON J.READING_VERSION = R.READING_VERSION "
+            f"WHERE R.SIM = ? AND R.DECISION IN ({marks}) ORDER BY R.ID",
+            [sim_id, *decision_ids],
+        )
+        return [_read_json(row, ("QUESTIONS",)) for row in rows]
+
+    def llm_exchange(self, sim_id, decision_id):
+        rows = self._rows(
+            "SELECT E.*, P.SYSTEM_PROMPT AS SYSTEM_PROMPTS, P.TOOLS "
+            "FROM SIM.LLM_EXCHANGES E "
+            "LEFT JOIN SIM.LLM_PROMPTS P ON P.PROMPT_VERSION = E.PROMPT_VERSION "
+            "WHERE E.SIM = ? AND E.DECISION = ?",
+            (sim_id, decision_id),
+        )
+        if not rows:
+            return None
+        row = _read_json(
+            rows[0], ("MESSAGES", "FAILED_REPLIES", "SLIPS", "SYSTEM_PROMPTS", "TOOLS")
+        )
+        row["SYSTEM_PROMPTS"] = row["SYSTEM_PROMPTS"] or {}
+        row["TOOLS"] = row["TOOLS"] or {}
+        return row
+
+    def closes(self, dataset, asset, first_step, last_step):
+        rows = self._run(
+            "SELECT STEP, CLOSE FROM RAW.BARS WHERE DATASET = ? AND ASSET = ? "
+            "AND BAR_SIZE = '15m' AND STEP BETWEEN ? AND ? ORDER BY STEP",
+            (dataset, asset, first_step, last_step),
+        )
+        return {int(step): float(close) for step, close in rows}
 
     def comparison_figures(self, sim_ids):
         found = {

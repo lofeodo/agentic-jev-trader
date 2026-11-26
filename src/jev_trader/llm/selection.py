@@ -297,7 +297,15 @@ class LlmSelector:
     def select(
         self, situation: Situation, lookups: MemoryLookups, first_search: SearchResult
     ) -> Selection:
-        return _Evaluation(self, situation, lookups).run(first_search)
+        evaluation = _Evaluation(self, situation, lookups)
+        try:
+            return evaluation.run(first_search)
+        except LlmFailed as failed:
+            # What the evaluation made before it failed, for whoever records it.
+            failed.calls = (*evaluation.calls, *failed.calls)
+            failed.failed_replies = tuple(evaluation.failed)
+            failed.exchange = tuple(messages_to_dict(evaluation.messages[1:]))
+            raise
 
 
 # One evaluation's tool loop
@@ -446,7 +454,7 @@ class _Evaluation:
         return reply
 
     def _failed_reply(self, reply: _Reply) -> None:
-        self.failed.append(_word_for_word(reply.message))
+        self.failed.append(word_for_word(reply.message))
         self._event(
             FAILED_REPLY_EVENT, number=len(self.failed), why=reply.failed_because
         )
@@ -707,7 +715,7 @@ def _read_answer(args: dict) -> _Answer | None:
     return _Answer(labels, note)
 
 
-def _word_for_word(message: AIMessage) -> str:
+def word_for_word(message: AIMessage) -> str:
     """A reply as received, its text and any tool calls, for the record."""
     calls = [
         {"name": c["name"], "args": c["args"]}
