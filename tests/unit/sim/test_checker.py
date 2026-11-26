@@ -31,6 +31,7 @@ SETTINGS = SpendingSettings(
     jev_tokens_per_request=3000,
     jev_requests_per_full_evaluation=2,
     llm_dollars_per_tier_2=0.0022,
+    benchmark_cap_usd=1.5,
 )
 JEV_REQUEST = 3000 * load_jev_settings().dollars_per_million_tokens_read / 1e6
 
