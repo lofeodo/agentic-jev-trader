@@ -8,8 +8,9 @@ calm market for a screen that says no, a sharp fall for a close, a fast rise for
 so on. Which path a scenario really took shows only once its answers are recorded; one that took
 another is renamed to the path it took, and another is written for the path left uncovered.
 
-Two need no saved answer, since code alone acts: the sim's last step at a stock's last bar of
-the session (where nothing is asked of a position), and the holding sim. At the stop price,
+Two need no saved answers, since code alone acts, so their saved expected results let them run
+now: the sim's last step at a stock's last bar of the session (where nothing is asked of a
+position), and the holding sim. At the stop price,
 code closes the position before the agent looks; the asset, now with no position, then goes
 through the screen as usual.
 
@@ -27,13 +28,17 @@ $10,000 account, beyond the limits, and a 3% fall brings the close on.
 """
 
 from jev_trader.broker import AssetClass, Direction
-from jev_trader.sim.clock import STEPS_PER_DAY as DAY
-from tests.recorded.made_up import MadeUpPrices, PastNoTrade, PastReview, PastTrade
+from tests.recorded.made_up import (
+    DAY,
+    STEP,
+    MadeUpPrices,
+    PastNoTrade,
+    PastReview,
+    PastTrade,
+)
 from tests.recorded.scenarios import MadeUpInputs, MadeUpPosition, Scenario
 
-# Day 22: every measurement has the 20 days it needs.
-DAY_22 = 21 * DAY
-STEP = DAY_22 + 40  # 10:00 UTC
+DAY_22 = 21 * DAY  # the first step of day 22, as `STEP`'s
 # A stock's session runs 14:30 to 21:00 UTC: its second-to-last bar ends at step 83 of the day
 # (20:45), its last at step 84 (21:00).
 STOCK_SECOND_TO_LAST, STOCK_LAST = DAY_22 + 83, DAY_22 + 84
@@ -68,7 +73,7 @@ def _long(amount=2_000.0, steps_ago=4, stop_distance=0.03) -> MadeUpPosition:
 
 
 HOLD = Scenario(
-    name="review-ends-in-hold",
+    name="review_ends_in_hold",
     path="a position review ending in hold",
     inputs=MadeUpInputs(
         step=BEFORE_MIDNIGHT,
@@ -78,9 +83,9 @@ HOLD = Scenario(
     ),
 )
 
-OPEN_POSITION_SCENARIOS = [
+SCENARIOS = [
     Scenario(
-        name="position-screen-says-no",
+        name="position_screen_says_no",
         path="a position screen that says no",
         inputs=MadeUpInputs(
             step=STEP,
@@ -91,7 +96,7 @@ OPEN_POSITION_SCENARIOS = [
     ),
     HOLD,
     Scenario(
-        name="review-ends-in-close",
+        name="review_ends_in_close",
         path="a position review ending in close",
         inputs=MadeUpInputs(
             step=STEP,
@@ -104,7 +109,7 @@ OPEN_POSITION_SCENARIOS = [
         ),
     ),
     Scenario(
-        name="review-ends-in-reduce",
+        name="review_ends_in_reduce",
         path="a position review ending in reduce",
         inputs=MadeUpInputs(
             step=STEP,
@@ -117,7 +122,7 @@ OPEN_POSITION_SCENARIOS = [
         ),
     ),
     Scenario(
-        name="review-ends-in-add",
+        name="review_ends_in_add",
         path="a position review ending in add",
         inputs=MadeUpInputs(
             step=STEP,
@@ -133,7 +138,7 @@ OPEN_POSITION_SCENARIOS = [
         ),
     ),
     Scenario(
-        name="end-of-session-review",
+        name="end_of_session_review",
         path="an end-of-session review",
         inputs=MadeUpInputs(
             step=STOCK_SECOND_TO_LAST,
@@ -144,7 +149,7 @@ OPEN_POSITION_SCENARIOS = [
         ),
     ),
     Scenario(
-        name="review-llm-selects-none",
+        name="review_llm_selects_none",
         path="a review where the LLM selects none",
         inputs=MadeUpInputs(
             step=STEP,
@@ -158,7 +163,7 @@ OPEN_POSITION_SCENARIOS = [
         ),
     ),
     Scenario(
-        name="review-without-memory",
+        name="review_without_memory",
         path="a review in the agent without memory",
         inputs=MadeUpInputs(
             step=STEP,
@@ -168,7 +173,7 @@ OPEN_POSITION_SCENARIOS = [
         ),
     ),
     Scenario(
-        name="closed-at-stop-price",
+        name="closed_at_stop_price",
         path="a position closed at its stop price",
         inputs=MadeUpInputs(
             step=STEP,
@@ -178,7 +183,7 @@ OPEN_POSITION_SCENARIOS = [
         ),
     ),
     Scenario(
-        name="forced-close",
+        name="forced_close",
         path="a forced close",
         inputs=MadeUpInputs(
             step=STEP,
@@ -190,7 +195,7 @@ OPEN_POSITION_SCENARIOS = [
         ),
     ),
     Scenario(
-        name="sim-ends-everything-sold",
+        name="sim_ends_everything_sold",
         path="everything is sold at the sim's last step",
         # A stock at its session's last bar: nothing is asked, then the sim's end sells it.
         inputs=MadeUpInputs(
@@ -200,10 +205,9 @@ OPEN_POSITION_SCENARIOS = [
             position=_long(steps_ago=10),
             sim_ends_here=True,
         ),
-        asks_a_model=False,
     ),
     Scenario(
-        name="holding-sim-sells-five",
+        name="holding_sim_sells_five",
         path="the holding sim sells the five assets at its last step",
         inputs=MadeUpInputs(
             step=STEP,
@@ -211,6 +215,5 @@ OPEN_POSITION_SCENARIOS = [
             holding_sim=True,
             sim_ends_here=True,
         ),
-        asks_a_model=False,
     ),
 ]

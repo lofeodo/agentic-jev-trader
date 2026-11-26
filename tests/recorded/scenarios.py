@@ -132,6 +132,9 @@ class MadeUpInputs:
     instead of the agent: no model, and the five assets of `HOLDING_ASSETS` bought at the
     made-up calendar's first step. `playbook` is every candle pattern's lean and shape: the
     dataset build's own unless a scenario says otherwise.
+    `start_of_day_value` is what the account was worth at the last midnight UTC, which the
+    daily loss limit compares with (None: the cash, so nothing has been lost today; with a
+    position held, its value at the last midnight its bars passed).
     """
 
     step: int
@@ -141,6 +144,7 @@ class MadeUpInputs:
     memory: tuple[PastEpisode, ...] = ()
     with_memory: bool = True
     cash: float = 10_000.0
+    start_of_day_value: float | None = None
     position: MadeUpPosition | None = None
     sim_ends_here: bool = False
     holding_sim: bool = False
@@ -150,13 +154,11 @@ class MadeUpInputs:
 @dataclass(frozen=True)
 class Scenario:
     """One asset at one step: its name (the test's ID and its saved files' name), the path
-    through the agent it covers (word for word from `paths.PATHS`), and its made-up inputs.
-    `asks_a_model` False: code alone acts, so it needs no saved answers."""
+    through the agent it covers (word for word from `paths.PATHS`), and its made-up inputs."""
 
     name: str
     path: str
     inputs: MadeUpInputs
-    asks_a_model: bool = True
 
 
 @dataclass(frozen=True)
@@ -320,6 +322,8 @@ def _account(
         empty.stop_settings,
         empty.risk,
     )
+    if inputs.start_of_day_value is not None:
+        broker.start_of_day_value = inputs.start_of_day_value
     return _Account(broker, previous, outcomes)
 
 
@@ -409,6 +413,7 @@ def _agent(
     last_step: int,
     held: ExitStack,
     asked: list[tuple],
+    tracing: Tracing,
 ) -> AgentWithoutMemory:
     """The agent, with or without memory, on the real Jev client and LLM selection, with memory
     reached through the real memory server and each lookup noted in `asked`."""
@@ -425,7 +430,7 @@ def _agent(
         RANDOM_SEED,
     )
     if not inputs.with_memory:
-        return AgentWithoutMemory(*arguments, tracing=Tracing())
+        return AgentWithoutMemory(*arguments, tracing=tracing)
     store = made_up_memory(made_up, inputs.step, inputs.memory)
     # The address goes unused: the session reaches the server in-process.
     memory = held.enter_context(
@@ -435,7 +440,7 @@ def _agent(
         *arguments,
         lookups_at=_noted(memory, asked),
         selector=LlmSelector(load_llm_settings()),
-        tracing=Tracing(),
+        tracing=tracing,
     )
 
 
@@ -468,6 +473,7 @@ def _set_up(
         costs=load_trading_costs(),
         stop_settings=load_stop_price_settings(),
         risk=None if inputs.holding_sim else load_risk_profile(),
+        start_of_day_value=inputs.start_of_day_value,
     )
     return made_up, market, _account(inputs, made_up, market, empty)
 
@@ -477,13 +483,17 @@ def starting_account(scenario: Scenario) -> Broker:
     return _set_up(scenario.inputs)[2].broker
 
 
-def run_scenario(scenario: Scenario, bars_after: int = 0) -> ScenarioResult:
+def run_scenario(
+    scenario: Scenario, bars_after: int = 0, tracing: Tracing | None = None
+) -> ScenarioResult:
     """Run the scenario's one step through the agent's whole decision path.
 
     Jev and the LLM are the real clients: their requests are answered from the test's saved
     files, and a request with no saved answer fails the test. Then `bars_after` more of the
-    asset's bars pass with no model asked, the last of them the sim's last step.
+    asset's bars pass with no model asked, the last of them the sim's last step. `tracing`
+    sends the step's full evaluation to LangSmith, as a sim does; by default nothing is sent.
     """
+    tracing = tracing or Tracing()
     inputs = scenario.inputs
     if bars_after and (inputs.sim_ends_here or inputs.holding_sim):
         raise ValueError("bars after the step need the agent, in a sim that carries on")
@@ -502,13 +512,15 @@ def run_scenario(scenario: Scenario, bars_after: int = 0) -> ScenarioResult:
         if inputs.holding_sim:
             strategy = BuyHold(series.steps[0], inputs.cash)
         else:
-            strategy = _agent(inputs, made_up, market, last_step, held, asked)
+            strategy = _agent(inputs, made_up, market, last_step, held, asked, tracing)
             if inputs.position is not None:
                 _held_since(strategy, made_up, account, step)
         bars = {
             asset: made_up.series(asset).bar(step) for asset in broker.asset_classes
         }
-        run_step(SIM, step, previous, last_step, broker, strategy, bars, batch)
+        # As in a sim: tracing is off around the step, and only a full evaluation opens a trace.
+        with tracing.off():
+            run_step(SIM, step, previous, last_step, broker, strategy, bars, batch)
         previous = step
         outcomes_only = _OutcomesOnly(strategy)
         for after in later:

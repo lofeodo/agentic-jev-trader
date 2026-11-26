@@ -7,8 +7,13 @@ Rewrite the expected results after a deliberate change, then read the difference
     conda run -n agentic-jev-trader python -m pytest tests/recorded --block-network --snapshot-update
 
 The frame is in `scenarios.py`, the made-up data in `made_up.py`, and the paths each scenario
-may name in `paths.py`. A scenario that asks a model is skipped, with its reason, until its
-answers are saved (`cassettes/test_scenarios/`): the slice's closing ticket records them.
+may name in `paths.py`. The scenarios for an asset with no position are in `no_position.py`,
+those with an open position and at the sim's last step in `open_position.py`.
+
+A scenario with neither saved answers (its cassette) nor a saved expected result is skipped,
+saying so, until its answers are recorded (the slice's closing ticket). One that asks no model
+anything, such as a trade blocked by the daily loss limit, needs no saved answers: its expected
+result alone lets it run.
 """
 
 from pathlib import Path
@@ -20,8 +25,8 @@ from jev_trader.memory.outcomes import OutcomeKind, searchable
 from jev_trader.sim.clock import STEPS_PER_DAY
 from jev_trader.sim.records import decision_id
 from jev_trader.sim.store import KIND_POSITION_REVIEW
+from tests.recorded import no_position, open_position
 from tests.recorded.made_up import ASSET, SIM, made_up_series
-from tests.recorded.open_position_scenarios import HOLD, OPEN_POSITION_SCENARIOS
 from tests.recorded.scenarios import (
     HOLDING_ASSETS,
     Scenario,
@@ -29,42 +34,55 @@ from tests.recorded.scenarios import (
     starting_account,
 )
 
-SCENARIOS: list[Scenario] = [*OPEN_POSITION_SCENARIOS]
+SCENARIOS: list[Scenario] = [*no_position.SCENARIOS, *open_position.SCENARIOS]
+EXPECTED_RESULTS = Path(__file__).parent / "__snapshots__" / "test_scenarios.ambr"
 
 
-def skip_without_saved_answers(request, cassette: Path) -> None:
-    """Skip, saying why, a test whose answers are not saved yet, unless it is recording them."""
-    recording = request.config.getoption("--record-mode") not in (None, "none")
-    if not recording and not cassette.exists():
+def _has_expected_result(test_name: str) -> bool:
+    # Read from syrupy's own file: each expected result starts with a `# name: <test>` line.
+    return (
+        EXPECTED_RESULTS.exists()
+        and f"# name: {test_name}\n" in EXPECTED_RESULTS.read_text(encoding="utf-8")
+    )
+
+
+@pytest.fixture
+def waiting_for_answers(request, record_mode, vcr_cassette_dir, default_cassette_name):
+    """Skip the scenario while it has neither saved answers nor a saved expected result, unless
+    answers are being recorded or expected results rewritten."""
+    answers = Path(vcr_cassette_dir, f"{default_cassette_name}.yaml")
+    if (
+        record_mode == "none"
+        and not request.config.getoption("--snapshot-update")
+        and not answers.exists()
+        and not _has_expected_result(request.node.name)
+    ):
         pytest.skip(
-            f"no saved answers yet ({cassette.name}): "
-            "the slice's closing ticket records them"
+            "no saved answers yet: they are recorded in the slice's closing ticket"
         )
 
 
 @pytest.mark.vcr
+@pytest.mark.usefixtures("waiting_for_answers")
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
-def test_scenario(scenario, snapshot, request, vcr_cassette_dir, default_cassette_name):
-    if scenario.asks_a_model:
-        cassette = Path(vcr_cassette_dir) / f"{default_cassette_name}.yaml"
-        skip_without_saved_answers(request, cassette)
-
+def test_scenario(scenario, snapshot):
     assert run_scenario(scenario).compared() == snapshot
 
 
 # The hold scenario's step is two bars before midnight. Six bars after it: the price after 1
 # bar, the day's end after 2, the price after 4, and the sim's end after 6 closes the trade.
+HOLD = open_position.HOLD
 HOLD_CASSETTE = f"test_scenario[{HOLD.name}].yaml"
 BARS_AFTER = 6
 
 
 @pytest.mark.vcr
 @pytest.mark.default_cassette(HOLD_CASSETTE)
-def test_a_position_reviews_outcomes(request, vcr_cassette_dir):
+def test_a_position_reviews_outcomes(record_mode, vcr_cassette_dir):
     """Where the price went after 1 bar, 4 bars and by the end of the day, and how the trade
     ended; the review is searchable only once all of them are known. It replays the hold
     scenario's saved answers, then lets the bars pass with no model asked."""
-    skip_without_saved_answers(request, Path(vcr_cassette_dir) / HOLD_CASSETTE)
+    _skip_without(record_mode, Path(vcr_cassette_dir) / HOLD_CASSETTE)
     step = HOLD.inputs.step
 
     result = run_scenario(HOLD, bars_after=BARS_AFTER)
@@ -110,7 +128,7 @@ def test_a_position_reviews_outcomes(request, vcr_cassette_dir):
 
 @pytest.mark.parametrize(
     "scenario",
-    [s for s in SCENARIOS if s.inputs.position is not None],
+    [s for s in open_position.SCENARIOS if s.inputs.position is not None],
     ids=lambda s: s.name,
 )
 def test_the_position_is_open_as_the_step_begins(scenario):
@@ -121,13 +139,13 @@ def test_the_position_is_open_as_the_step_begins(scenario):
 
 
 def test_the_holding_sim_holds_its_five_assets():
-    account = starting_account(_named("holding-sim-sells-five"))
+    account = starting_account(_named("holding_sim_sells_five"))
 
     assert sorted(account.positions) == list(HOLDING_ASSETS)
 
 
 def test_the_stop_price_is_reached_at_the_step():
-    scenario = _named("closed-at-stop-price")
+    scenario = _named("closed_at_stop_price")
     account = starting_account(scenario)
 
     account.on_bar(ASSET, _bar_at_step(scenario))
@@ -137,7 +155,7 @@ def test_the_stop_price_is_reached_at_the_step():
 
 
 def test_the_forced_close_comes_due_at_the_step():
-    scenario = _named("forced-close")
+    scenario = _named("forced_close")
     account = starting_account(scenario)
 
     account.on_bar(ASSET, _bar_at_step(scenario))
@@ -155,3 +173,13 @@ def _bar_at_step(scenario: Scenario):
     inputs = scenario.inputs
     series = made_up_series(ASSET, inputs.asset_class, inputs.step, inputs.prices)
     return series.bar(inputs.step)
+
+
+def _skip_without(record_mode: str, cassette: Path) -> None:
+    """Skip, saying why, a test whose answers are not saved yet, unless they are being
+    recorded."""
+    if record_mode == "none" and not cassette.exists():
+        pytest.skip(
+            f"no saved answers yet ({cassette.name}): "
+            "they are recorded in the slice's closing ticket"
+        )

@@ -54,6 +54,8 @@ from jev_trader.sim.market import Playbook, Snapshot
 from tests.unit.memory.conftest import MadeUpMemory
 
 SIM, DATASET, ASSET = 1, 1, "ASSET_01"
+DAY = 96  # a day's 15-minute steps
+STEP = 21 * DAY + 40  # day 22 at 10:00 UTC: every measurement has the 20 days it needs
 FIRST_DAY = date(2000, 1, 3)
 MIDNIGHT = datetime.combine(FIRST_DAY, time(), tzinfo=UTC)
 STOCK_OPENS, STOCK_CLOSES = time(14, 30), time(21, 0)

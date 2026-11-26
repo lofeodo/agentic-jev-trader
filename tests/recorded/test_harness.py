@@ -16,32 +16,23 @@ from jev_trader.memory.search import RESULTS
 from jev_trader.sim.records import decision_id
 from tests.recorded.made_up import (
     ASSET,
+    DAY,
     SIM,
+    STEP,
     MadeUpPrices,
-    PastNoTrade,
-    PastTrade,
     made_up_series,
 )
+from tests.recorded.no_position import RISING, RISING_PATTERNS, SMALL_MEMORY
 from tests.recorded.scenarios import MadeUpInputs, Scenario, run_scenario
 from tests.unit.sim.test_agent_without_memory import RATING, choice_answer
 
-DAY = 96
-STEP = 21 * DAY + 40  # day 22: every measurement has the 20 days it needs
 JEV_HOST, LLM_HOST = "api.typesafe.ai", "api.anthropic.com"
-PAST = (
-    PastNoTrade(STEP - 300),
-    PastTrade(STEP - 200, position=1, profit=-6.0, closing_reason="stop_price"),
-    PastNoTrade(STEP - 100),
-    PastNoTrade(STEP - 50, asset="ASSET_02"),
-)
+PAST = SMALL_MEMORY
 SCENARIO = Scenario(
     name="harness",
     path="the LLM answers at once",
     inputs=MadeUpInputs(
-        step=STEP,
-        prices=MadeUpPrices(seed=4, last_moves=(0.004, 0.006), last_volume=2.5),
-        patterns=((STEP - 1, "hammer"),),
-        memory=PAST,
+        step=STEP, prices=RISING, patterns=RISING_PATTERNS, memory=PAST
     ),
 )
 
