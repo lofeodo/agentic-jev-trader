@@ -894,7 +894,9 @@
           },
           "kind": {
             "enum": [
+              "screen",
               "full_evaluation",
+              "position_screen",
               "position_review"
             ],
             "title": "Kind",

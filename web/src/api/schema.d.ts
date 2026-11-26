@@ -749,7 +749,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "full_evaluation" | "position_review";
+            kind: "screen" | "full_evaluation" | "position_screen" | "position_review";
             order: components["schemas"]["TradeOrder"] | null;
             /** Position */
             position: number | null;
