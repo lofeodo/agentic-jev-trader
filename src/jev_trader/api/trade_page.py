@@ -112,7 +112,7 @@ class PositionStep(BaseModel):
     # The position screen's answer, 0 to 1; None at end of session.
     screen_answer: float | None
     answer: str | None  # a review's: hold, close, reduce or add
-    amount_usd: float | None  # how much to reduce or add
+    amount_usd: float | None  # the value of the order an add or reduce carried out
     probabilities: list[Probability]  # a review's: Jev's probability for each answer
     fresh_memory: MemoryRead | None  # a review's own memory, for its own moment
 
@@ -261,13 +261,13 @@ def average_answers(answers: dict | None) -> list[Probability]:
 
 
 def _review_amount(review: dict, orders: list[dict]) -> float | None:
-    """How much a review added (after the limits), or the value of what it reduced."""
-    if review["ACTION"] == ACTION_ADD:
-        return review.get("SIZE_AFTER_TRIMMING")
-    if review["ACTION"] == ACTION_REDUCE:
-        for order in carried_out(orders):
-            if order.get("DECISION") == review["ID"]:
-                return order["VALUE"]
+    """The value of the order a review carried out: what it added (after the limits) or
+    reduced. None when it carried none out (it held or closed, or its order was cancelled)."""
+    if review["ACTION"] not in (ACTION_ADD, ACTION_REDUCE):
+        return None
+    for order in carried_out(orders):
+        if order.get("DECISION") == review["ID"]:
+            return order["VALUE"]
     return None
 
 

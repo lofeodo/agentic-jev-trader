@@ -45,8 +45,6 @@ from jev_trader.llm.selection import SelectionLimits, wording_within
 from jev_trader.sim.store import InMemorySimStore
 from tests.unit.api.conftest import StandInBuilds, StandInLauncher
 
-pytestmark = pytest.mark.dormant
-
 NOW = datetime(2026, 11, 23, 12, 0)
 MEMORY_SIM = (
     50  # the sim that wrote the past episodes this sim's memory was copied from

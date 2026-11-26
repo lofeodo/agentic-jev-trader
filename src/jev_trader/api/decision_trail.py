@@ -45,7 +45,7 @@ from jev_trader.api.store import ApiStore
 from jev_trader.api.trade_page import TradeOrder, order_placed
 from jev_trader.jev.full_evaluation import NO_TRADE
 from jev_trader.jev.position_review import HOLD
-from jev_trader.llm.selection import LimitHit, word_for_word
+from jev_trader.llm.selection import READ, LimitHit, word_for_word
 from jev_trader.llm.wording import ANSWER_TOOL
 from jev_trader.sim.store import (
     ACTION_ENTRY,
@@ -174,10 +174,12 @@ def _reply_text(message: AIMessage) -> str:
 
 
 def _named_unshown(message: AIMessage, shown: set[str]) -> bool:
+    """Whether a reply named an episode ID never shown: in its answer, or in a read lookup
+    (which the selection refuses)."""
     return any(
         label not in shown
         for c in message.tool_calls
-        if c["name"] == ANSWER_TOOL
+        if c["name"] in (ANSWER_TOOL, READ)
         for label in c["args"].get("episode_ids") or []
     )
 
@@ -277,14 +279,19 @@ def _memory_stop(decision: dict, exchange: dict | None) -> TrailStop:
     )
 
 
+def _limit_name(limit: str) -> str:
+    """A limit's stored name as the screens say it: `trade_risk` reads "trade risk"."""
+    return limit.replace("_", " ")
+
+
 def _limits_stop(decision: dict, order: TradeOrder | None) -> TrailStop:
     limit = order.limited_by if order else decision.get("LIMITED_BY")
     if limit is None:
         outcome = "not trimmed"
     elif order is None or not order.amount_placed_usd:
-        outcome = f"trimmed to nothing by the {limit} limit"
+        outcome = f"trimmed to nothing by the {_limit_name(limit)} limit"
     else:
-        outcome = f"trimmed to ${order.amount_placed_usd:,.0f} by the {limit} limit"
+        outcome = f"trimmed to ${order.amount_placed_usd:,.0f} by the {_limit_name(limit)} limit"
     return TrailStop(name="limits", outcome=outcome, messages=[])
 
 
