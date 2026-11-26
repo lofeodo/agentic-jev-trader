@@ -90,9 +90,10 @@ from tests.recorded.made_up import (
 )
 
 RANDOM_SEED = 0
-# Columns that differ from run to run however the answers are handed back: when a call was
-# made and how long it took. They are left out of what is compared.
-VARIES_RUN_TO_RUN = frozenset({"CALLED_AT", "LATENCY_SECONDS"})
+# Columns, and keys inside a column, that differ from run to run however the answers are handed
+# back: when a call was made and how long a call or a lookup took. They are left out of what is
+# compared.
+VARIES_RUN_TO_RUN = frozenset({"CALLED_AT", "LATENCY_SECONDS", "latency_seconds"})
 # LangChain gives each LLM reply an ID of its own making, a new one each run, and the exchange
 # stores it word for word: it is compared as this stand-in. The provider's own ID, in the
 # reply's metadata, is the saved answer's and stays.
@@ -451,18 +452,20 @@ def _agent(
 
 
 def _without_run_to_run_columns(rows: list[dict]) -> list[dict]:
-    return [
-        {k: _without_run_ids(v) for k, v in row.items() if k not in VARIES_RUN_TO_RUN}
-        for row in rows
-    ]
+    return [_without_run_to_run_values(row) for row in rows]
 
 
-def _without_run_ids(value: Any) -> Any:
-    """`value` with each of LangChain's run IDs, however deep, replaced by the stand-in."""
+def _without_run_to_run_values(value: Any) -> Any:
+    """`value` without the keys that vary run to run, and with each of LangChain's run IDs
+    replaced by the stand-in, however deep."""
     if isinstance(value, dict):
-        return {k: _without_run_ids(v) for k, v in value.items()}
+        return {
+            k: _without_run_to_run_values(v)
+            for k, v in value.items()
+            if k not in VARIES_RUN_TO_RUN
+        }
     if isinstance(value, list | tuple):
-        return type(value)(_without_run_ids(v) for v in value)
+        return type(value)(_without_run_to_run_values(v) for v in value)
     if isinstance(value, str) and LANGCHAIN_RUN_ID.match(value):
         return RUN_ID_STAND_IN
     return value

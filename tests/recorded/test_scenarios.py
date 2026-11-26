@@ -94,8 +94,8 @@ def test_a_position_reviews_outcomes():
     assert searchable(known, last_step)
 
 
-# What each scenario's account holds as its step begins needs no model, so it is checked here
-# while the answers are not saved yet.
+# What each scenario's account holds as its step begins needs no model: it is checked here on its
+# own, so a wrong set-up shows apart from the agent's answers.
 
 
 @pytest.mark.parametrize(

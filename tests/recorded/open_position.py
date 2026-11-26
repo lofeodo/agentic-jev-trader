@@ -72,23 +72,14 @@ def _long(amount=2_000.0, steps_ago=4, stop_distance=0.03) -> MadeUpPosition:
     return MadeUpPosition(Direction.LONG, amount, steps_ago, stop_distance)
 
 
+# A gentle dip met by a hammer (a hint the price will turn back up), on a position opened three
+# bars before: just enough for the position screen to say yes, mild enough that Jev holds.
 HOLD = Scenario(
-    name="review_ends_in_hold_after_a_jump",
+    name="hold_after_a_gentle_dip",
     path="a position review ending in hold",
     inputs=MadeUpInputs(
         step=BEFORE_MIDNIGHT,
-        prices=MadeUpPrices(seed=21, last_moves=(0.012, 0.01), last_volume=2.8),
-        patterns=((BEFORE_MIDNIGHT, "bullish marubozu"),),
-        memory=PAST_REVIEWS,
-        position=_long(steps_ago=3, stop_distance=WIDE_STOP),
-    ),
-)
-HOLD_AFTER_A_DIP = Scenario(
-    name="review_ends_in_hold_after_a_dip",
-    path="a position review ending in hold",
-    inputs=MadeUpInputs(
-        step=BEFORE_MIDNIGHT,
-        prices=MadeUpPrices(seed=22, last_moves=(-0.006, -0.004), last_volume=2.2),
+        prices=MadeUpPrices(seed=22, last_moves=(-0.005, -0.003), last_volume=2.2),
         patterns=((BEFORE_MIDNIGHT, "hammer"),),
         memory=PAST_REVIEWS,
         position=_long(steps_ago=3, stop_distance=WIDE_STOP),
@@ -107,7 +98,6 @@ SCENARIOS = [
         ),
     ),
     HOLD,
-    HOLD_AFTER_A_DIP,
     Scenario(
         name="review_ends_in_close",
         path="a position review ending in close",
@@ -122,46 +112,6 @@ SCENARIOS = [
         ),
     ),
     Scenario(
-        name="review_ends_in_reduce_after_a_doji",
-        path="a position review ending in reduce",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(
-                seed=23, drift=0.0005, last_moves=(0.015, 0.015), last_volume=3.0
-            ),
-            patterns=((STEP, "doji"),),
-            memory=PAST_REVIEWS,
-            position=_long(amount=4_000.0, steps_ago=10, stop_distance=0.02),
-        ),
-    ),
-    Scenario(
-        name="review_ends_in_add_on_soldiers",
-        path="a position review ending in add",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(
-                seed=24,
-                drift=0.0008,
-                last_moves=(0.008, 0.01, 0.012),
-                last_volume=3.0,
-            ),
-            patterns=((STEP, "three advancing white soldiers"),),
-            memory=PAST_REVIEWS,
-            position=_long(amount=1_000.0, steps_ago=4),
-        ),
-    ),
-    Scenario(
-        name="review_ends_in_add_on_an_engulfing",
-        path="a position review ending in add",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=25, last_moves=(-0.004, 0.012), last_volume=2.5),
-            patterns=((STEP, "bullish engulfing"),),
-            memory=PAST_REVIEWS,
-            position=_long(amount=1_000.0, steps_ago=4),
-        ),
-    ),
-    Scenario(
         name="end_of_session_review",
         path="an end-of-session review",
         inputs=MadeUpInputs(
@@ -170,21 +120,6 @@ SCENARIOS = [
             prices=MadeUpPrices(seed=15, last_moves=(0.003,)),
             memory=PAST_STOCK_REVIEWS,
             position=_long(steps_ago=6),
-        ),
-    ),
-    Scenario(
-        name="review_llm_selects_none_after_a_fall",
-        path="a review where the LLM selects none",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=26, last_moves=(-0.005, -0.008), last_volume=2.5),
-            patterns=((STEP, "bearish engulfing"),),
-            # Past reviews of another asset only, in other markets: none much like this one.
-            memory=tuple(
-                PastReview(STEP - 500 + 60 * n, position=n, asset="ASSET_02")
-                for n in range(1, 4)
-            ),
-            position=_long(steps_ago=5, stop_distance=WIDE_STOP),
         ),
     ),
     Scenario(

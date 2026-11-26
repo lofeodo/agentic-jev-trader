@@ -1230,7 +1230,6 @@
                 'direction': 'long',
                 'pattern': 'piercing',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'read_track_record',
             }),
@@ -2035,7 +2034,6 @@
                 'asset': 'same_asset_class',
                 'standing': 'in_profit',
               }),
-              'latency_seconds': 0.015999999988707714,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -2697,7 +2695,6 @@
                 'asset': 'same_asset',
                 'standing': 'at_a_loss',
               }),
-              'latency_seconds': 0.01600000000325963,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -3664,6 +3661,830 @@
     }),
   })
 # ---
+# name: test_scenario[hold_after_a_gentle_dip]
+  dict({
+    'memory_lookups': list([
+      tuple(
+        'track_record',
+        'hammer',
+        'long',
+      ),
+      tuple(
+        'track_record',
+        'hammer',
+        'short',
+      ),
+      tuple(
+        'search',
+        dict({
+        }),
+      ),
+      tuple(
+        'search',
+        dict({
+          'asset': 'same_asset',
+          'pattern': 'hammer',
+        }),
+      ),
+      tuple(
+        'search',
+        dict({
+          'asset': 'same_asset_class',
+          'standing': 'at_a_loss',
+        }),
+      ),
+      tuple(
+        'read',
+        list([
+          '1-1976-ASSET_01',
+          '1-1636-ASSET_01',
+        ]),
+      ),
+    ]),
+    'orders': list([
+    ]),
+    'records': dict({
+      'MEMORY.DECISIONS': list([
+        dict({
+          'ACTION': 'nothing',
+          'ANSWERS': dict({
+            'action_1': dict({
+              'add': 0.1,
+              'close': 0.37,
+              'hold': 0.49,
+              'reduce': 0.04,
+            }),
+            'action_2': dict({
+              'add': 0.1,
+              'close': 0.42,
+              'hold': 0.43,
+              'reduce': 0.05,
+            }),
+            'action_3': dict({
+              'add': 0.09,
+              'close': 0.42,
+              'hold': 0.4,
+              'reduce': 0.09,
+            }),
+            'action_4': dict({
+              'add': 0.08,
+              'close': 0.39,
+              'hold': 0.47,
+              'reduce': 0.06,
+            }),
+            'action_5': dict({
+              'add': 0.09,
+              'close': 0.43,
+              'hold': 0.4,
+              'reduce': 0.08,
+            }),
+            'memories_relevant': 0.4,
+            'thesis_intact': 0.23,
+          }),
+          'ASSET': 'ASSET_01',
+          'CANDIDATE_TRADES': None,
+          'DATASET': 1,
+          'END_OF_SESSION': False,
+          'EPISODES_SHOWN': list([
+            dict({
+              'episode_id': '1-1636-ASSET_01',
+              'from_first_search': True,
+              'label': 'E1',
+              'merged_rank': 1,
+              'opened': False,
+              'text_rank': 3,
+              'vector_rank': 1,
+            }),
+            dict({
+              'episode_id': '1-1836-ASSET_01',
+              'from_first_search': True,
+              'label': 'E2',
+              'merged_rank': 2,
+              'opened': False,
+              'text_rank': 1,
+              'vector_rank': 5,
+            }),
+            dict({
+              'episode_id': '1-1976-ASSET_01',
+              'from_first_search': True,
+              'label': 'E3',
+              'merged_rank': 3,
+              'opened': False,
+              'text_rank': 2,
+              'vector_rank': 4,
+            }),
+            dict({
+              'episode_id': '1-1556-ASSET_01',
+              'from_first_search': True,
+              'label': 'E4',
+              'merged_rank': 4,
+              'opened': False,
+              'text_rank': 5,
+              'vector_rank': 2,
+            }),
+            dict({
+              'episode_id': '1-1756-ASSET_01',
+              'from_first_search': True,
+              'label': 'E5',
+              'merged_rank': 5,
+              'opened': False,
+              'text_rank': 4,
+              'vector_rank': 3,
+            }),
+          ]),
+          'FIRST_WRITTEN_BY': 1,
+          'ID': '1-2110-ASSET_01',
+          'JEV_VERSION': 'jev-1.14.0',
+          'KIND': 'position_review',
+          'LIMITED_BY': None,
+          'LIMIT_HIT': None,
+          'LLM_MODEL': 'claude-haiku-5-5',
+          'LLM_NOTE': 'No close matches exist (no hammer episodes for this asset). E3 has a down long-term trend and a loss; E1 is a loss-making long on the same asset. Both are the nearest available.',
+          'LOOKUPS': list([
+            dict({
+              'episode_ids': tuple(
+              ),
+              'inputs': dict({
+                'asset': 'same_asset',
+                'pattern': 'hammer',
+              }),
+              'refused': None,
+              'tool': 'search_episodes',
+            }),
+            dict({
+              'episode_ids': tuple(
+                '1-1636-ASSET_01',
+                '1-1976-ASSET_01',
+              ),
+              'inputs': dict({
+                'asset': 'same_asset_class',
+                'standing': 'at_a_loss',
+              }),
+              'refused': None,
+              'tool': 'search_episodes',
+            }),
+          ]),
+          'MEMORIES_RELEVANT': 0.4,
+          'OUTCOMES_KNOWN_FROM': None,
+          'PICK': 'hold',
+          'POSITION': 2,
+          'PROMPT_VERSION': 'd89f938ddeb7',
+          'RATING': None,
+          'REDUCE_SHARE': None,
+          'SCREEN_ANSWER': 0.5,
+          'SELECTED': list([
+            '1-1976-ASSET_01',
+            '1-1636-ASSET_01',
+          ]),
+          'SIM': 1,
+          'SIZE_AFTER_TRIMMING': None,
+          'SIZE_CHOSEN': None,
+          'SKIPPED_BECAUSE': None,
+          'STANDING': dict({
+            'bars_open': 3,
+            'best': -3.9547540380165813,
+            'direction': 'long',
+            'percent': -1.3188285876579189,
+            'profit': -26.376571753158377,
+            'put_in': 2000.0,
+            'stop_distance': 0.0351487551346827,
+            'worst': -26.376571753158377,
+          }),
+          'STEP': 2110,
+          'THESIS_INTACT': 0.23,
+          'TIER': 2,
+        }),
+      ]),
+      'MEMORY.OUTCOMES': list([
+        dict({
+          'DECISION': '1-2106-ASSET_01',
+          'FIRST_WRITTEN_BY': 1,
+          'ID': '1-2106-ASSET_01-price_after_4_bars',
+          'KIND': 'price_after_4_bars',
+          'KNOWN_FROM': 2110,
+          'SIM': 1,
+          'VALUE': dict({
+            'change': -0.010210190199722136,
+            'price': 92.0943,
+          }),
+        }),
+      ]),
+      'SIM.ACCOUNT_STEPS': list([
+        dict({
+          'ACCOUNT_VALUE': 9976.590324438337,
+          'CASH': 7998.0,
+          'DAILY_LOSS_REACHED': False,
+          'EXPOSURE': 1978.5903244383367,
+          'ID': '1-2110',
+          'LOAN': 0.0,
+          'SIM': 1,
+          'START_OF_DAY_VALUE': 10000.0,
+          'STEP': 2110,
+        }),
+      ]),
+      'SIM.CALLS': list([
+        dict({
+          'ASSET': 'ASSET_01',
+          'CACHED_TOKENS': None,
+          'COST_USD': 5.9262e-05,
+          'DECISION': '1-2110-ASSET_01',
+          'ERROR': None,
+          'ID': '1-2110-ASSET_01-position_screen',
+          'MODEL': 'jev-1.14.0',
+          'PURPOSE': 'position_screen',
+          'RETRIES': 0,
+          'SERVICE': 'jev',
+          'SIM': 1,
+          'STEP': 2110,
+          'THINKING_TOKENS': None,
+          'TOKENS_IN': 1411,
+          'TOKENS_OUT': 21,
+        }),
+        dict({
+          'ASSET': 'ASSET_01',
+          'CACHED_TOKENS': 0,
+          'COST_USD': 0.000631,
+          'DECISION': '1-2110-ASSET_01',
+          'ERROR': None,
+          'ID': '1-2110-ASSET_01-select-1',
+          'MODEL': 'claude-haiku-5-5',
+          'PURPOSE': 'select',
+          'RETRIES': 0,
+          'SERVICE': 'anthropic',
+          'SIM': 1,
+          'STEP': 2110,
+          'THINKING_TOKENS': 125,
+          'TOKENS_IN': 5290,
+          'TOKENS_OUT': 204,
+        }),
+        dict({
+          'ASSET': 'ASSET_01',
+          'CACHED_TOKENS': 5286,
+          'COST_USD': 0.00011706000000000001,
+          'DECISION': '1-2110-ASSET_01',
+          'ERROR': None,
+          'ID': '1-2110-ASSET_01-select-2',
+          'MODEL': 'claude-haiku-5-5',
+          'PURPOSE': 'select',
+          'RETRIES': 0,
+          'SERVICE': 'anthropic',
+          'SIM': 1,
+          'STEP': 2110,
+          'THINKING_TOKENS': 0,
+          'TOKENS_IN': 5518,
+          'TOKENS_OUT': 82,
+        }),
+        dict({
+          'ASSET': 'ASSET_01',
+          'CACHED_TOKENS': 5516,
+          'COST_USD': 0.00019915999999999998,
+          'DECISION': '1-2110-ASSET_01',
+          'ERROR': None,
+          'ID': '1-2110-ASSET_01-select-3',
+          'MODEL': 'claude-haiku-5-5',
+          'PURPOSE': 'select',
+          'RETRIES': 0,
+          'SERVICE': 'anthropic',
+          'SIM': 1,
+          'STEP': 2110,
+          'THINKING_TOKENS': 59,
+          'TOKENS_IN': 5951,
+          'TOKENS_OUT': 201,
+        }),
+        dict({
+          'ASSET': 'ASSET_01',
+          'CACHED_TOKENS': None,
+          'COST_USD': 0.000122052,
+          'DECISION': '1-2110-ASSET_01',
+          'ERROR': None,
+          'ID': '1-2110-ASSET_01-action',
+          'MODEL': 'jev-1.14.0',
+          'PURPOSE': 'action',
+          'RETRIES': 0,
+          'SERVICE': 'jev',
+          'SIM': 1,
+          'STEP': 2110,
+          'THINKING_TOKENS': None,
+          'TOKENS_IN': 2906,
+          'TOKENS_OUT': 263,
+        }),
+      ]),
+      'SIM.CHARGES': list([
+      ]),
+      'SIM.JEV_REQUESTS': list([
+        dict({
+          'ANSWER': '{"model":"jev-1.14.0","answers":{"position_screen":{"type":"noul","noul":0.5}},"usage":{"input_tokens":1411,"output_tokens":21}}',
+          'ASSET': 'ASSET_01',
+          'BACKGROUND_AFTER_OPENING': '''
+            # The account now
+            Account value: $9,977.
+            Cash: $7,998. Loan: none.
+            Open positions: 1, worth $1,979.
+            It may hold up to $19,953 in positions (2 times account value), so $17,975 more.
+            
+            # Other open positions
+            None.
+            
+            # The position: ASSET_01 (crypto)
+            Long, $2,000, opened 3 bars ago at an entry price of $93.09.
+            Stop price: $88.86, fixed. Code sells there. It is 3.5% below the last price.
+            Now: the position is worth $1,979. Closing it now would leave -$26 (-1.3%) after trading costs. At best it was -$4, at worst -$26.
+            Situation when it was opened: Crypto, American hours (bar 90 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a medium down bar closing mid-range. Short-term trend up (0.9 typical moves above the 20-bar average). Long-term trend down (2.1 below the 20-day average). Volume average (1.1 times normal). Price is 1.2 above the day's average price, 1.1 below the day's high, 4.1 above the day's low, and 0.2 below the previous day's high. Typical move: 0.3% of price.
+            Since then: bars 0 to 2 hold.
+            
+            # The asset now: ASSET_01 (crypto)
+            Last price: $92.09. Typical move in one bar: $0.34.
+            Crypto, American hours (bar 94 of 96). Patterns in the last 4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a medium down bar closing near its low. Short-term trend down (2.4 typical moves below the 20-bar average). Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times normal). Price is 1.7 below the day's average price, 3.7 below the day's high, 0.8 above the day's low, and 3.0 below the previous day's high. Typical move: 0.4% of price.
+            
+            # Candle patterns named above
+            hammer: bullish. A small body with a long lower wick and little or no upper wick, sitting below or near the previous bar's low.
+          ''',
+          'DECISION': '1-2110-ASSET_01',
+          'ID': '1-2110-ASSET_01-position_screen',
+          'JEV_VERSION': 'jev-1.14.0',
+          'PURPOSE': 'position_screen',
+          'QUESTIONS': dict({
+            'position_screen': dict({
+              'instructions': 'Does the position in ASSET_01 call for action now? Only a hard move against it on volume well above normal, the price near its stop price, a strong bar back against it after it had gone its way, or a good gain that has stopped moving counts. Drifting its way, choppy small bars and average volume do not. Most positions at most steps need no action.',
+              'type': 'noul',
+            }),
+          }),
+          'READING_VERSION': '897d78bcb9f6',
+          'SIM': 1,
+          'STEP': 2110,
+        }),
+        dict({
+          'ANSWER': '{"model":"jev-1.14.0","answers":{"action_1":{"type":"choice","choice":"hold","confidence":0.32,"probabilities":{"reduce":0.04,"close":0.37,"hold":0.49,"add":0.1}},"action_2":{"type":"choice","choice":"hold","confidence":0.24,"probabilities":{"hold":0.43,"close":0.42,"reduce":0.05,"add":0.1}},"action_3":{"type":"choice","choice":"close","confidence":0.23,"probabilities":{"hold":0.4,"add":0.09,"reduce":0.09,"close":0.42}},"action_4":{"type":"choice","choice":"hold","confidence":0.29,"probabilities":{"close":0.39,"reduce":0.06,"add":0.08,"hold":0.47}},"action_5":{"type":"choice","choice":"close","confidence":0.24,"probabilities":{"hold":0.4,"add":0.09,"reduce":0.08,"close":0.43}},"thesis_intact":{"type":"noul","noul":0.23},"memories_relevant":{"type":"noul","noul":0.4}},"usage":{"input_tokens":2906,"output_tokens":263}}',
+          'ASSET': 'ASSET_01',
+          'BACKGROUND_AFTER_OPENING': '''
+            # The account now
+            Account value: $9,977.
+            Cash: $7,998. Loan: none.
+            Open positions: 1, worth $1,979.
+            It may hold up to $19,953 in positions (2 times account value), so $17,975 more.
+            
+            # Other open positions
+            None.
+            
+            # The position: ASSET_01 (crypto)
+            Long, $2,000, opened 3 bars ago at an entry price of $93.09.
+            Stop price: $88.86, fixed. Code sells there. It is 3.5% below the last price.
+            Now: the position is worth $1,979. Closing it now would leave -$26 (-1.3%) after trading costs. At best it was -$4, at worst -$26.
+            Situation when it was opened: Crypto, American hours (bar 90 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a medium down bar closing mid-range. Short-term trend up (0.9 typical moves above the 20-bar average). Long-term trend down (2.1 below the 20-day average). Volume average (1.1 times normal). Price is 1.2 above the day's average price, 1.1 below the day's high, 4.1 above the day's low, and 0.2 below the previous day's high. Typical move: 0.3% of price.
+            Since then: bars 0 to 2 hold.
+            
+            # The asset now: ASSET_01 (crypto)
+            Last price: $92.09. Typical move in one bar: $0.34.
+            Crypto, American hours (bar 94 of 96). Patterns in the last 4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a medium down bar closing near its low. Short-term trend down (2.4 typical moves below the 20-bar average). Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times normal). Price is 1.7 below the day's average price, 3.7 below the day's high, 0.8 above the day's low, and 3.0 below the previous day's high. Typical move: 0.4% of price.
+            
+            # Track record: the account's own closed trades on the candle patterns of the last 4 bars
+            Hammer, long, crypto: 0 closed trades, too few to show totals.
+            Hammer, short, crypto: 0 closed trades, too few to show totals.
+            Each line is the narrowest group that fits the current situation and has at least 10 closed trades. A win is a trade that closed with a profit after trading costs.
+            
+            # Past episodes: 2 of the account's own earlier reviews of an open position, at moments like the current one, newest first
+            Episode 1: 1 day ago, same asset, crypto
+            Situation then: Crypto, European hours (bar 56 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: five up, three down; this bar is a medium up bar closing mid-range. Short-term trend up (2.6 typical moves above the 20-bar average). Long-term trend down (2.8 below the 20-day average). Volume average (1.0 times normal). Price is 1.3 above the day's average price, 3.6 below the day's high, 4.6 above the day's low, and 16.0 below the previous day's high. Typical move: 0.4% of price.
+            The position then: long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away. At best it had been +$10, at worst -$3.
+            Decided: hold.
+            Afterwards: price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.
+            The whole trade: bar 0 hold (this review); bar 1 stop price reached.
+            Ended: closed at its stop price 5 bars later, -$4 (-0.4%).
+            
+            Episode 2: 4 days ago, same asset, crypto
+            Situation then: Crypto, Asian hours (bar 4 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: two up, six down; this bar is a medium up bar closing mid-range. Short-term trend down (2.9 typical moves below the 20-bar average). Price is 1.0 below the day's average price, 2.6 below the day's high, 0.5 above the day's low, and 6.6 below the previous day's high. Typical move: 0.3% of price.
+            The position then: long, $1,000, open 2 bars, -$4 (-0.4%), stop price 0.5% away. At best it had been +$10, at worst -$3.
+            Decided: close.
+            Afterwards: price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.
+            The whole trade: bar 0 close (this review); bar 1 stop price reached.
+            Ended: closed at its stop price 5 bars later, -$4 (-0.4%).
+            
+            # Candle patterns named above
+            hammer: bullish. A small body with a long lower wick and little or no upper wick, sitting below or near the previous bar's low.
+          ''',
+          'DECISION': '1-2110-ASSET_01',
+          'ID': '1-2110-ASSET_01-action',
+          'JEV_VERSION': 'jev-1.14.0',
+          'PURPOSE': 'action',
+          'QUESTIONS': dict({
+            'action_1': dict({
+              'criteria': dict({
+                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $860 more.',
+                'close': "Close: sell the whole position at the next bar's open, for about -$26 after trading costs.",
+                'hold': 'Hold: keep the position as it is.',
+                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
+              }),
+              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
+              'type': 'choice',
+            }),
+            'action_2': dict({
+              'criteria': dict({
+                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $860 more.',
+                'close': "Close: sell the whole position at the next bar's open, for about -$26 after trading costs.",
+                'hold': 'Hold: keep the position as it is.',
+                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
+              }),
+              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
+              'type': 'choice',
+            }),
+            'action_3': dict({
+              'criteria': dict({
+                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $860 more.',
+                'close': "Close: sell the whole position at the next bar's open, for about -$26 after trading costs.",
+                'hold': 'Hold: keep the position as it is.',
+                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
+              }),
+              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
+              'type': 'choice',
+            }),
+            'action_4': dict({
+              'criteria': dict({
+                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $860 more.',
+                'close': "Close: sell the whole position at the next bar's open, for about -$26 after trading costs.",
+                'hold': 'Hold: keep the position as it is.',
+                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
+              }),
+              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
+              'type': 'choice',
+            }),
+            'action_5': dict({
+              'criteria': dict({
+                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $860 more.',
+                'close': "Close: sell the whole position at the next bar's open, for about -$26 after trading costs.",
+                'hold': 'Hold: keep the position as it is.',
+                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
+              }),
+              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
+              'type': 'choice',
+            }),
+            'memories_relevant': dict({
+              'instructions': 'Do the past episodes shown fit the current situation?',
+              'type': 'noul',
+            }),
+            'thesis_intact': dict({
+              'instructions': 'Does the reason for opening the position, the situation it was opened in, still hold?',
+              'type': 'noul',
+            }),
+          }),
+          'READING_VERSION': '897d78bcb9f6',
+          'SIM': 1,
+          'STEP': 2110,
+        }),
+      ]),
+      'SIM.LLM_EXCHANGES': list([
+        dict({
+          'ASSET': 'ASSET_01',
+          'DECISION': '1-2110-ASSET_01',
+          'FAILED_REPLIES': list([
+          ]),
+          'ID': '1-2110-ASSET_01',
+          'MESSAGES': list([
+            dict({
+              'data': dict({
+                'additional_kwargs': dict({
+                }),
+                'content': '''
+                  # Current situation
+                  Asset: ASSET_01 (crypto)
+                  Crypto, American hours (bar 94 of 96). Patterns in the last 4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a medium down bar closing near its low. Short-term trend down (2.4 typical moves below the 20-bar average). Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times normal). Price is 1.7 below the day's average price, 3.7 below the day's high, 0.8 above the day's low, and 3.0 below the previous day's high. Typical move: 0.4% of price.
+                  
+                  # The position now
+                  Long, $2,000, open 3 bars, -$26 (-1.3%), stop price 3.5% away. At best it has been -$4, at worst -$26.
+                  
+                  # The 5 past episodes most like this moment, all reviews of a long, closest first
+                  ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | the position then | what was decided | what happened next
+                  E1 | 4 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, -$4 (-0.4%), stop price 0.5% away | close | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
+                  E2 | 2 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, +$9 (+0.9%), stop price 0.5% away | add $1,000 | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
+                  E3 | 1 day ago | same asset, crypto | European hours, long-term trend down, volume average | no pattern | long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
+                  E4 | 5 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, +$6 (+0.6%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
+                  E5 | 3 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, +$25 (+2.5%), stop price 0.5% away | reduce by half (that part: +$13) | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
+                  
+                  # Candle patterns named above
+                  hammer: bullish. A small body with a long lower wick and little or no upper wick, sitting below or near the previous bar's low.
+                ''',
+                'id': None,
+                'name': None,
+                'response_metadata': dict({
+                }),
+                'type': 'human',
+              }),
+              'type': 'human',
+            }),
+            dict({
+              'data': dict({
+                'additional_kwargs': dict({
+                }),
+                'content': list([
+                  dict({
+                    'signature': 'CAQSqQcKEAgUGAI4AUIIdGhpbmtpbmcSDJbu0/eafJ9+wwm0NhoMKUxHBb/YEE4hrJ6LIjD3AToj7jhUa6nfVzRxnUsuLYVXN9DTdLzW0KZOQCWLBf5UfoPbMk9ACL+eoIh7ty0qxgYzeUBxSJdBETnW5so1aCoibedyz0J8yc4oVTNAGJ0/S/H46Hl1AQTl4LFY4vP2i0qn0fyE395acGbEr+M7EdPipNRuik5xFryv/wmKz0JRQOrdtssSr0UiBWkaYCvqQsfbxgCoxVF/6i6ptMHQuJSX6RJv2aFzVY4Q4GWklH9xZUxdXbhfpn8V7Jgpi8fwoj302ieF/2xzripVEoS1HaJq/Wf5mcCyEbXYKqfXaDG7v1siIglblW5L6Vmxd90z7oPFAimkmEKk720XqLMhS1jN3jldodhHKH7DHt46glex6a1VthErc9BDUCZPo3IwcmQPjp8I+5UvZfJZeEloXGZ5V5CzTya5C/Qvk9gZykT5WHSFeQJ7850f8GbQ51m3TimsQRwFSTYgRGZ7h5RrGUF7tWmXpzSVmx50COu8SyyJoQ2lNZzHyalIIXX1ebQekUJafmRarD4QIE/Eo+BIeBm+gBiUC5VqQmxw/0I13SFtMjuwbHb537Yvekfp4+7zrHL3um9JpWiCU4kO/gyn3eupfySgbfWNoQdgig+6t7CxJVB/DaqiTRRpA40EKITZzNtZ3TPkW8bZb5BgLQU9oEQanqCBKKucvB3jLr/D9sRrpLVvGASYJnPZuV3IsUGYemnkB+szZKlZ8rNmwkPmTVGTmCx8qfMB02kMWsGIP1QZtZ4PpiMkjFVwhh8wAAbUoHwzzP+FRVV4TVBW5rWOR7MwZIC+fpSawBl0PKt9k0iewR1Uh/Vv6lWghINyWp+wOd5KR/bIJsPoTFTLWy4eXQ4tob5quzK2YIa/eNvYOL5ynWd6LfSRgvsM79tA1XjvLpZ9p+QV5b/EWUxSi9Ozv/uzMS3b57iU/mkctZPkGGTG/++AvSRQ7Me8UD0hRbJzinTtpYAmukN5GY6uyuLGvf24OLjQW2+YpIs2XvbIGJQG2llyFI58rq4wqQZ2xBHDExYEGVgYRXC3hTJzb+KgZHVXWxEvbwtcDwOG/3bRhRdc050jg8pNxbF16ersnxojK1pokEqFfWs7AMTIkWlug+IPEgvh+ubelad0f2PjZoWk4tsANMA1zpHo1fNxssgBZDLUIWxYK/7c5M8owQaFQ4qHBL2L+6u/GAE=',
+                    'thinking': '',
+                    'type': 'thinking',
+                  }),
+                  dict({
+                    'caller': dict({
+                      'type': 'direct',
+                    }),
+                    'id': 'toolu_011qPCmDe1WdyJCZSD9erYfV',
+                    'input': dict({
+                      'asset': 'same_asset',
+                      'pattern': 'hammer',
+                    }),
+                    'name': 'search_episodes',
+                    'toolset_name': None,
+                    'type': 'tool_use',
+                  }),
+                ]),
+                'id': 'lc_run--(new each run)',
+                'invalid_tool_calls': list([
+                ]),
+                'name': None,
+                'response_metadata': dict({
+                  'container': None,
+                  'diagnostics': None,
+                  'finish_reason': 'tool_use',
+                  'finish_state': 'complete',
+                  'id': 'msg_011ChRypFAXYN24GNEPNt3kn',
+                  'model': 'claude-haiku-5-5',
+                  'model_name': 'claude-haiku-5-5',
+                  'model_provider': 'anthropic',
+                  'normalized_finish_reason': 'tool_call',
+                  'stop_details': None,
+                  'stop_reason': 'tool_use',
+                  'stop_sequence': None,
+                  'usage': dict({
+                    'cache_creation': dict({
+                      'ephemeral_1h_input_tokens': 0,
+                      'ephemeral_5m_input_tokens': 5286,
+                    }),
+                    'cache_creation_input_tokens': 5286,
+                    'cache_read_input_tokens': 0,
+                    'inference_geo': 'global',
+                    'input_tokens': 4,
+                    'output_tokens': 204,
+                    'output_tokens_details': dict({
+                      'thinking_tokens': 125,
+                    }),
+                    'server_tool_use': None,
+                    'service_tier': 'standard',
+                    'speed': 'standard',
+                  }),
+                }),
+                'tool_calls': list([
+                  dict({
+                    'args': dict({
+                      'asset': 'same_asset',
+                      'pattern': 'hammer',
+                    }),
+                    'id': 'toolu_011qPCmDe1WdyJCZSD9erYfV',
+                    'name': 'search_episodes',
+                    'type': 'tool_call',
+                  }),
+                ]),
+                'type': 'ai',
+                'usage_metadata': dict({
+                  'input_token_details': dict({
+                    'cache_creation': 0,
+                    'cache_read': 0,
+                    'ephemeral_1h_input_tokens': 0,
+                    'ephemeral_5m_input_tokens': 5286,
+                  }),
+                  'input_tokens': 5290,
+                  'output_token_details': dict({
+                    'reasoning': 125,
+                  }),
+                  'output_tokens': 204,
+                  'total_tokens': 5494,
+                }),
+              }),
+              'type': 'ai',
+            }),
+            dict({
+              'data': dict({
+                'additional_kwargs': dict({
+                }),
+                'artifact': None,
+                'content': 'No past episodes match (same asset, hammer, any decision).',
+                'id': None,
+                'name': None,
+                'response_metadata': dict({
+                }),
+                'status': 'success',
+                'tool_call_id': 'toolu_011qPCmDe1WdyJCZSD9erYfV',
+                'type': 'tool',
+              }),
+              'type': 'tool',
+            }),
+            dict({
+              'data': dict({
+                'additional_kwargs': dict({
+                }),
+                'content': list([
+                  dict({
+                    'caller': dict({
+                      'type': 'direct',
+                    }),
+                    'id': 'toolu_01MFPd6Ykw85aDgutVbYa3xw',
+                    'input': dict({
+                      'asset': 'same_asset_class',
+                      'standing': 'at_a_loss',
+                    }),
+                    'name': 'search_episodes',
+                    'toolset_name': None,
+                    'type': 'tool_use',
+                  }),
+                ]),
+                'id': 'lc_run--(new each run)',
+                'invalid_tool_calls': list([
+                ]),
+                'name': None,
+                'response_metadata': dict({
+                  'container': None,
+                  'diagnostics': None,
+                  'finish_reason': 'tool_use',
+                  'finish_state': 'complete',
+                  'id': 'msg_011ChRypM2VnvU49iiuZ7TeG',
+                  'model': 'claude-haiku-5-5',
+                  'model_name': 'claude-haiku-5-5',
+                  'model_provider': 'anthropic',
+                  'normalized_finish_reason': 'tool_call',
+                  'stop_details': None,
+                  'stop_reason': 'tool_use',
+                  'stop_sequence': None,
+                  'usage': dict({
+                    'cache_creation': dict({
+                      'ephemeral_1h_input_tokens': 0,
+                      'ephemeral_5m_input_tokens': 230,
+                    }),
+                    'cache_creation_input_tokens': 230,
+                    'cache_read_input_tokens': 5286,
+                    'inference_geo': 'global',
+                    'input_tokens': 2,
+                    'output_tokens': 82,
+                    'output_tokens_details': dict({
+                      'thinking_tokens': 0,
+                    }),
+                    'server_tool_use': None,
+                    'service_tier': 'standard',
+                    'speed': 'standard',
+                  }),
+                }),
+                'tool_calls': list([
+                  dict({
+                    'args': dict({
+                      'asset': 'same_asset_class',
+                      'standing': 'at_a_loss',
+                    }),
+                    'id': 'toolu_01MFPd6Ykw85aDgutVbYa3xw',
+                    'name': 'search_episodes',
+                    'type': 'tool_call',
+                  }),
+                ]),
+                'type': 'ai',
+                'usage_metadata': dict({
+                  'input_token_details': dict({
+                    'cache_creation': 0,
+                    'cache_read': 5286,
+                    'ephemeral_1h_input_tokens': 0,
+                    'ephemeral_5m_input_tokens': 230,
+                  }),
+                  'input_tokens': 5518,
+                  'output_token_details': dict({
+                    'reasoning': 0,
+                  }),
+                  'output_tokens': 82,
+                  'total_tokens': 5600,
+                }),
+              }),
+              'type': 'ai',
+            }),
+            dict({
+              'data': dict({
+                'additional_kwargs': dict({
+                }),
+                'artifact': None,
+                'content': '''
+                  2 past episodes (same asset class, any pattern, any decision, at a loss), closest first
+                  ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | the position then | what was decided | what happened next
+                  E1 | 4 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, -$4 (-0.4%), stop price 0.5% away | close | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
+                  E3 | 1 day ago | same asset, crypto | European hours, long-term trend down, volume average | no pattern | long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
+                ''',
+                'id': None,
+                'name': None,
+                'response_metadata': dict({
+                }),
+                'status': 'success',
+                'tool_call_id': 'toolu_01MFPd6Ykw85aDgutVbYa3xw',
+                'type': 'tool',
+              }),
+              'type': 'tool',
+            }),
+            dict({
+              'data': dict({
+                'additional_kwargs': dict({
+                }),
+                'content': list([
+                  dict({
+                    'signature': 'CAQStAYKEAgUGAI4AUIIdGhpbmtpbmcSDIbfxOiuICDPVKKYnxoMdzcVWH6K5yyrajJJIjAjQh+Taf0Ic352ZzwB5nr3pM3EVdV0XJwoOu4ldq2UetIhVOJViRaHXnxO23XpWqsq0QWYr0JAF/TvkIEJ2sgoimlaPdUp6jkr42KBHl2n7iCg3xaJhV1rmI/3TwIiA9dhIA63OYYmkmBUBP5uRaw6C4IXxTqjcKtXDqmyLKgs//8THapE7BGv4evTitvaaHwAAT/8me7cr8DBnYwqYy5RhaqLR7PykHkkYbqvdz3nupemroNjZU8TUkRnBb9e5NJUEjvY+7pAMmyoPU1wzvjnS/8eT9MxtNSJk/DAzdN1wX7cVXI8tPFc/o86BgC/siZkVTI2yuSm8oUo1Fbi3mYo5J7NkMYfqOgLPQqmkI3PwiNhHu3rWeQTxG1BumrOaIit0gYDgwky0aOnIUs70290JtvDRwZLlaw+GgSKKJmtbEmgr0UXmmxAg+YCBFT+rQb6Ss2upvkbXLdDqrRrovCB10LG2qeYNoRb1kNRmM9OLox60xbON8YdFaDi/7PlCm+HfXrOikoxjW58JMo9wVwAz7j1xi5AggrXWb5l7JWVJsEjyv/lMMfk/Yi/47A3fS6v4WOrLg4UlFJMIx95kXUuWkLvHTed3CQSc3tiR+UEWFol++noilTbWpGTN4voA6dHRZ/vmupDC3MafuiBceGl2q9NXBkjpQ3NIJqCTnvob9bF6Fw+CSWbKkoFbssKAqobhsLZbCZRL9+x/mn9Sn1JOLGbkgj0sc/fH92oL3yYmwqmLK4Zk0IQ/4nxrmZKN+b3jLujSlVwZqWcj7aRq5tck7dsB6cbPBbs5I7kfG3vAqiYLY8vUv/5ggS0yWfuG/NY/G0VZZxObQN9oN2/nffwUDZFs6njnPqWFyXh7O8d2/YXmaQVEbfw6Xvm7LPQpYhXEq0sT4ajaPDE4RKjfUg9F67af4x7yVjtVyjEegJVPq/BGg9ze7QmeMgOlIRo3SkRKV0ME6bZ074TgMqI/yvzhNJiKvldbbAmbZ0Db7eNbxDI1UQne3R86XdwaWb2906ABjSwGAE=',
+                    'thinking': '',
+                    'type': 'thinking',
+                  }),
+                  dict({
+                    'caller': dict({
+                      'type': 'direct',
+                    }),
+                    'id': 'toolu_019SPR74Y9xZkvexR19swZvk',
+                    'input': dict({
+                      'episode_ids': list([
+                        'E3',
+                        'E1',
+                      ]),
+                      'note': 'No close matches exist (no hammer episodes for this asset). E3 has a down long-term trend and a loss; E1 is a loss-making long on the same asset. Both are the nearest available.',
+                    }),
+                    'name': 'select_episodes',
+                    'toolset_name': None,
+                    'type': 'tool_use',
+                  }),
+                ]),
+                'id': 'lc_run--(new each run)',
+                'invalid_tool_calls': list([
+                ]),
+                'name': None,
+                'response_metadata': dict({
+                  'container': None,
+                  'diagnostics': None,
+                  'finish_reason': 'tool_use',
+                  'finish_state': 'complete',
+                  'id': 'msg_011ChRypQA1oCscG6XGwUm67',
+                  'model': 'claude-haiku-5-5',
+                  'model_name': 'claude-haiku-5-5',
+                  'model_provider': 'anthropic',
+                  'normalized_finish_reason': 'tool_call',
+                  'stop_details': None,
+                  'stop_reason': 'tool_use',
+                  'stop_sequence': None,
+                  'usage': dict({
+                    'cache_creation': dict({
+                      'ephemeral_1h_input_tokens': 0,
+                      'ephemeral_5m_input_tokens': 433,
+                    }),
+                    'cache_creation_input_tokens': 433,
+                    'cache_read_input_tokens': 5516,
+                    'inference_geo': 'global',
+                    'input_tokens': 2,
+                    'output_tokens': 201,
+                    'output_tokens_details': dict({
+                      'thinking_tokens': 59,
+                    }),
+                    'server_tool_use': None,
+                    'service_tier': 'standard',
+                    'speed': 'standard',
+                  }),
+                }),
+                'tool_calls': list([
+                  dict({
+                    'args': dict({
+                      'episode_ids': list([
+                        'E3',
+                        'E1',
+                      ]),
+                      'note': 'No close matches exist (no hammer episodes for this asset). E3 has a down long-term trend and a loss; E1 is a loss-making long on the same asset. Both are the nearest available.',
+                    }),
+                    'id': 'toolu_019SPR74Y9xZkvexR19swZvk',
+                    'name': 'select_episodes',
+                    'type': 'tool_call',
+                  }),
+                ]),
+                'type': 'ai',
+                'usage_metadata': dict({
+                  'input_token_details': dict({
+                    'cache_creation': 0,
+                    'cache_read': 5516,
+                    'ephemeral_1h_input_tokens': 0,
+                    'ephemeral_5m_input_tokens': 433,
+                  }),
+                  'input_tokens': 5951,
+                  'output_token_details': dict({
+                    'reasoning': 59,
+                  }),
+                  'output_tokens': 201,
+                  'total_tokens': 6152,
+                }),
+              }),
+              'type': 'ai',
+            }),
+          ]),
+          'PROMPT_VERSION': 'd89f938ddeb7',
+          'SIM': 1,
+          'SLIPS': list([
+          ]),
+          'STEP': 2110,
+        }),
+      ]),
+      'SIM.SIM_EVENTS': list([
+      ]),
+    }),
+  })
+# ---
 # name: test_scenario[holding_sim_sells_five]
   dict({
     'memory_lookups': list([
@@ -4115,7 +4936,6 @@
                 'asset': 'same_asset_class',
                 'pattern': 'bullish engulfing',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -4125,7 +4945,6 @@
               'inputs': dict({
                 'pattern': 'hammer',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -4136,7 +4955,6 @@
                 'direction': 'long',
                 'pattern': 'bullish engulfing',
               }),
-              'latency_seconds': 0.014999999999417923,
               'refused': None,
               'tool': 'read_track_record',
             }),
@@ -5761,7 +6579,6 @@
                 'asset': 'same_asset_class',
                 'pattern': 'hanging man',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -5772,7 +6589,6 @@
                 'asset': 'same_asset_class',
                 'pattern': 'morning star',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -6561,266 +7377,6 @@
     }),
   })
 # ---
-# name: test_scenario[review_ends_in_add_on_an_engulfing]
-  dict({
-    'memory_lookups': list([
-    ]),
-    'orders': list([
-    ]),
-    'records': dict({
-      'MEMORY.DECISIONS': list([
-        dict({
-          'ACTION': 'nothing',
-          'ANSWERS': None,
-          'ASSET': 'ASSET_01',
-          'CANDIDATE_TRADES': None,
-          'DATASET': 1,
-          'END_OF_SESSION': None,
-          'EPISODES_SHOWN': None,
-          'FIRST_WRITTEN_BY': 1,
-          'ID': '1-2056-ASSET_01',
-          'JEV_VERSION': 'jev-1.14.0',
-          'KIND': 'position_screen',
-          'LIMITED_BY': None,
-          'LIMIT_HIT': None,
-          'LLM_MODEL': None,
-          'LLM_NOTE': None,
-          'LOOKUPS': None,
-          'MEMORIES_RELEVANT': None,
-          'OUTCOMES_KNOWN_FROM': None,
-          'PICK': None,
-          'POSITION': 2,
-          'PROMPT_VERSION': None,
-          'RATING': None,
-          'REDUCE_SHARE': None,
-          'SCREEN_ANSWER': 0.21,
-          'SELECTED': None,
-          'SIM': 1,
-          'SIZE_AFTER_TRIMMING': None,
-          'SIZE_CHOSEN': None,
-          'SKIPPED_BECAUSE': None,
-          'STANDING': None,
-          'STEP': 2056,
-          'THESIS_INTACT': None,
-          'TIER': 1,
-        }),
-      ]),
-      'MEMORY.OUTCOMES': list([
-      ]),
-      'SIM.ACCOUNT_STEPS': list([
-        dict({
-          'ACCOUNT_VALUE': 10001.632662437934,
-          'CASH': 8999.0,
-          'DAILY_LOSS_REACHED': False,
-          'EXPOSURE': 1002.6326624379343,
-          'ID': '1-2056',
-          'LOAN': 0.0,
-          'SIM': 1,
-          'START_OF_DAY_VALUE': 10000.0,
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.CALLS': list([
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': None,
-          'COST_USD': 5.9304e-05,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-position_screen',
-          'MODEL': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'RETRIES': 0,
-          'SERVICE': 'jev',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': None,
-          'TOKENS_IN': 1412,
-          'TOKENS_OUT': 21,
-        }),
-      ]),
-      'SIM.CHARGES': list([
-      ]),
-      'SIM.JEV_REQUESTS': list([
-        dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"position_screen":{"type":"noul","noul":0.21}},"usage":{"input_tokens":1412,"output_tokens":21}}',
-          'ASSET': 'ASSET_01',
-          'BACKGROUND_AFTER_OPENING': '''
-            # The account now
-            Account value: $10,002.
-            Cash: $8,999. Loan: none.
-            Open positions: 1, worth $1,003.
-            It may hold up to $20,003 in positions (2 times account value), so $19,001 more.
-            
-            # Other open positions
-            None.
-            
-            # The position: ASSET_01 (crypto)
-            Long, $1,000, opened 4 bars ago at an entry price of $106.28.
-            Stop price: $103.04, fixed. Code sells there. It is 3.3% below the last price.
-            Now: the position is worth $1,003. Closing it now would leave +$0 (+0.0%) after trading costs. At best it was +$0, at worst -$12.
-            Situation when it was opened: Crypto, European hours (bar 35 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: two up, six down; this bar is a small up bar closing at its high. Short-term trend up (1.1 typical moves above the 20-bar average). Long-term trend down (0.9 below the 20-day average). Volume high (1.1 times normal). Price is 1.7 above the day's average price, 0.1 below the day's high, 4.4 above the day's low, and 2.9 below the previous day's high. Typical move: 0.3% of price.
-            Since then: bars 0 to 3 hold.
-            
-            # The asset now: ASSET_01 (crypto)
-            Last price: $106.56. Typical move in one bar: $0.39.
-            Crypto, European hours (bar 40 of 96). Patterns in the last 4 bars: bullish engulfing (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a large up bar closing near its high. Short-term trend up (1.6 typical moves above the 20-bar average). Long-term trend down (0.8 below the 20-day average). Volume high (2.1 times normal). Price is 2.2 above the day's average price, 0.2 below the day's high, 4.5 above the day's low, and 1.5 below the previous day's high. Typical move: 0.4% of price.
-            
-            # Candle patterns named above
-            bullish engulfing: bullish. A down bar, then an up bar whose body covers the first bar's body.
-          ''',
-          'DECISION': '1-2056-ASSET_01',
-          'ID': '1-2056-ASSET_01-position_screen',
-          'JEV_VERSION': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'QUESTIONS': dict({
-            'position_screen': dict({
-              'instructions': 'Does the position in ASSET_01 call for action now? Only a hard move against it on volume well above normal, the price near its stop price, a strong bar back against it after it had gone its way, or a good gain that has stopped moving counts. Drifting its way, choppy small bars and average volume do not. Most positions at most steps need no action.',
-              'type': 'noul',
-            }),
-          }),
-          'READING_VERSION': '897d78bcb9f6',
-          'SIM': 1,
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.LLM_EXCHANGES': list([
-      ]),
-      'SIM.SIM_EVENTS': list([
-      ]),
-    }),
-  })
-# ---
-# name: test_scenario[review_ends_in_add_on_soldiers]
-  dict({
-    'memory_lookups': list([
-    ]),
-    'orders': list([
-    ]),
-    'records': dict({
-      'MEMORY.DECISIONS': list([
-        dict({
-          'ACTION': 'nothing',
-          'ANSWERS': None,
-          'ASSET': 'ASSET_01',
-          'CANDIDATE_TRADES': None,
-          'DATASET': 1,
-          'END_OF_SESSION': None,
-          'EPISODES_SHOWN': None,
-          'FIRST_WRITTEN_BY': 1,
-          'ID': '1-2056-ASSET_01',
-          'JEV_VERSION': 'jev-1.14.0',
-          'KIND': 'position_screen',
-          'LIMITED_BY': None,
-          'LIMIT_HIT': None,
-          'LLM_MODEL': None,
-          'LLM_NOTE': None,
-          'LOOKUPS': None,
-          'MEMORIES_RELEVANT': None,
-          'OUTCOMES_KNOWN_FROM': None,
-          'PICK': None,
-          'POSITION': 2,
-          'PROMPT_VERSION': None,
-          'RATING': None,
-          'REDUCE_SHARE': None,
-          'SCREEN_ANSWER': 0.2,
-          'SELECTED': None,
-          'SIM': 1,
-          'SIZE_AFTER_TRIMMING': None,
-          'SIZE_CHOSEN': None,
-          'SKIPPED_BECAUSE': None,
-          'STANDING': None,
-          'STEP': 2056,
-          'THESIS_INTACT': None,
-          'TIER': 1,
-        }),
-      ]),
-      'MEMORY.OUTCOMES': list([
-      ]),
-      'SIM.ACCOUNT_STEPS': list([
-        dict({
-          'ACCOUNT_VALUE': 10031.70056640796,
-          'CASH': 8999.0,
-          'DAILY_LOSS_REACHED': False,
-          'EXPOSURE': 1032.7005664079602,
-          'ID': '1-2056',
-          'LOAN': 0.0,
-          'SIM': 1,
-          'START_OF_DAY_VALUE': 10000.0,
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.CALLS': list([
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': None,
-          'COST_USD': 6.052200000000001e-05,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-position_screen',
-          'MODEL': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'RETRIES': 0,
-          'SERVICE': 'jev',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': None,
-          'TOKENS_IN': 1441,
-          'TOKENS_OUT': 21,
-        }),
-      ]),
-      'SIM.CHARGES': list([
-      ]),
-      'SIM.JEV_REQUESTS': list([
-        dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"position_screen":{"type":"noul","noul":0.2}},"usage":{"input_tokens":1441,"output_tokens":21}}',
-          'ASSET': 'ASSET_01',
-          'BACKGROUND_AFTER_OPENING': '''
-            # The account now
-            Account value: $10,032.
-            Cash: $8,999. Loan: none.
-            Open positions: 1, worth $1,033.
-            It may hold up to $20,063 in positions (2 times account value), so $19,031 more.
-            
-            # Other open positions
-            None.
-            
-            # The position: ASSET_01 (crypto)
-            Long, $1,000, opened 4 bars ago at an entry price of $446.87.
-            Stop price: $433.24, fixed. Code sells there. It is 6.1% below the last price.
-            Now: the position is worth $1,033. Closing it now would leave +$30 (+3.0%) after trading costs. At best it was +$30, at worst -$2.
-            Situation when it was opened: Crypto, European hours (bar 35 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: six up, two down; this bar is a small down bar closing near its high. Short-term trend up (2.9 typical moves above the 20-bar average). Long-term trend up (9.2 above the 20-day average). Volume average (1.1 times normal). Price is 4.4 above the day's average price, 0.2 below the day's high, 8.3 above the day's low, and 4.3 above the previous day's high. Typical move: 0.3% of price.
-            Since then: bars 0 to 3 hold.
-            
-            # The asset now: ASSET_01 (crypto)
-            Last price: $461.48. Typical move in one bar: $2.28.
-            Crypto, European hours (bar 40 of 96). Patterns in the last 4 bars: three advancing white soldiers (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: seven up, one down; this bar is a large up bar closing near its high. Short-term trend up (6.8 typical moves above the 20-bar average). Long-term trend up (9.9 above the 20-day average). Volume high (3.0 times normal). Price is 8.0 above the day's average price, 0.2 below the day's high, 11.3 above the day's low, and 9.0 above the previous day's high. Typical move: 0.5% of price.
-            
-            # Candle patterns named above
-            three advancing white soldiers: bullish. Three up bars in a row, none of them short, each closing higher, each opening inside or near the last bar's body, each with little or no upper wick, and none far shorter than the one before.
-          ''',
-          'DECISION': '1-2056-ASSET_01',
-          'ID': '1-2056-ASSET_01-position_screen',
-          'JEV_VERSION': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'QUESTIONS': dict({
-            'position_screen': dict({
-              'instructions': 'Does the position in ASSET_01 call for action now? Only a hard move against it on volume well above normal, the price near its stop price, a strong bar back against it after it had gone its way, or a good gain that has stopped moving counts. Drifting its way, choppy small bars and average volume do not. Most positions at most steps need no action.',
-              'type': 'noul',
-            }),
-          }),
-          'READING_VERSION': '897d78bcb9f6',
-          'SIM': 1,
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.LLM_EXCHANGES': list([
-      ]),
-      'SIM.SIM_EVENTS': list([
-      ]),
-    }),
-  })
-# ---
 # name: test_scenario[review_ends_in_close]
   dict({
     'memory_lookups': list([
@@ -7003,7 +7559,6 @@
                 'asset': 'same_asset_class',
                 'standing': 'at_a_loss',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -7014,7 +7569,6 @@
                 'asset': 'same_asset_class',
                 'pattern': 'bearish engulfing',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -7589,1952 +8143,6 @@
                   }),
                   'output_tokens': 266,
                   'total_tokens': 6328,
-                }),
-              }),
-              'type': 'ai',
-            }),
-          ]),
-          'PROMPT_VERSION': 'd89f938ddeb7',
-          'SIM': 1,
-          'SLIPS': list([
-            'a note over 200 characters cut',
-          ]),
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.SIM_EVENTS': list([
-      ]),
-    }),
-  })
-# ---
-# name: test_scenario[review_ends_in_hold_after_a_dip]
-  dict({
-    'memory_lookups': list([
-      tuple(
-        'track_record',
-        'hammer',
-        'long',
-      ),
-      tuple(
-        'track_record',
-        'hammer',
-        'short',
-      ),
-      tuple(
-        'search',
-        dict({
-        }),
-      ),
-      tuple(
-        'search',
-        dict({
-          'asset': 'same_asset_class',
-          'standing': 'at_a_loss',
-        }),
-      ),
-      tuple(
-        'read',
-        list([
-          '1-1976-ASSET_01',
-          '1-1636-ASSET_01',
-        ]),
-      ),
-    ]),
-    'orders': list([
-      dict({
-        'AMOUNT_AFTER_TRIMMING': None,
-        'AMOUNT_CHOSEN': None,
-        'COMMISSION_OR_TRADING_FEE': None,
-        'DECISION': '1-2110-ASSET_01',
-        'ID': '1-2110-ASSET_01-3',
-        'INSTRUMENT': 'ASSET_01_SPOT',
-        'KIND': 'close',
-        'LIMITED_BY': None,
-        'POSITION': 2,
-        'PRICE': None,
-        'PRICE_BEFORE_SLIPPAGE': None,
-        'REASON': 'jev',
-        'SIDE': None,
-        'SIM': 1,
-        'SLIPPAGE_COST': None,
-        'STATUS': 'waiting',
-        'STEP_CARRIED_OUT': None,
-        'STEP_DECIDED': 2110,
-        'UNITS': None,
-        'VALUE': None,
-      }),
-    ]),
-    'records': dict({
-      'MEMORY.DECISIONS': list([
-        dict({
-          'ACTION': 'close',
-          'ANSWERS': dict({
-            'action_1': dict({
-              'add': 0.08,
-              'close': 0.45,
-              'hold': 0.43,
-              'reduce': 0.04,
-            }),
-            'action_2': dict({
-              'add': 0.08,
-              'close': 0.51,
-              'hold': 0.35,
-              'reduce': 0.06,
-            }),
-            'action_3': dict({
-              'add': 0.08,
-              'close': 0.47,
-              'hold': 0.35,
-              'reduce': 0.1,
-            }),
-            'action_4': dict({
-              'add': 0.08,
-              'close': 0.44,
-              'hold': 0.43,
-              'reduce': 0.05,
-            }),
-            'action_5': dict({
-              'add': 0.08,
-              'close': 0.47,
-              'hold': 0.34,
-              'reduce': 0.11,
-            }),
-            'memories_relevant': 0.39,
-            'thesis_intact': 0.2,
-          }),
-          'ASSET': 'ASSET_01',
-          'CANDIDATE_TRADES': None,
-          'DATASET': 1,
-          'END_OF_SESSION': False,
-          'EPISODES_SHOWN': list([
-            dict({
-              'episode_id': '1-1636-ASSET_01',
-              'from_first_search': True,
-              'label': 'E1',
-              'merged_rank': 1,
-              'opened': False,
-              'text_rank': 2,
-              'vector_rank': 1,
-            }),
-            dict({
-              'episode_id': '1-1756-ASSET_01',
-              'from_first_search': True,
-              'label': 'E2',
-              'merged_rank': 2,
-              'opened': False,
-              'text_rank': 3,
-              'vector_rank': 2,
-            }),
-            dict({
-              'episode_id': '1-1976-ASSET_01',
-              'from_first_search': True,
-              'label': 'E3',
-              'merged_rank': 3,
-              'opened': False,
-              'text_rank': 1,
-              'vector_rank': 5,
-            }),
-            dict({
-              'episode_id': '1-1556-ASSET_01',
-              'from_first_search': True,
-              'label': 'E4',
-              'merged_rank': 4,
-              'opened': False,
-              'text_rank': 4,
-              'vector_rank': 3,
-            }),
-            dict({
-              'episode_id': '1-1836-ASSET_01',
-              'from_first_search': True,
-              'label': 'E5',
-              'merged_rank': 5,
-              'opened': False,
-              'text_rank': 5,
-              'vector_rank': 4,
-            }),
-          ]),
-          'FIRST_WRITTEN_BY': 1,
-          'ID': '1-2110-ASSET_01',
-          'JEV_VERSION': 'jev-1.14.0',
-          'KIND': 'position_review',
-          'LIMITED_BY': None,
-          'LIMIT_HIT': None,
-          'LLM_MODEL': 'claude-haiku-5-5',
-          'LLM_NOTE': 'Only two same-class episodes at a loss exist; E3 (down long-term trend, losing long) and E1 (losing long, close) are the nearest available. Other candidates differ in session and stop distance.',
-          'LOOKUPS': list([
-            dict({
-              'episode_ids': tuple(
-                '1-1636-ASSET_01',
-                '1-1976-ASSET_01',
-              ),
-              'inputs': dict({
-                'asset': 'same_asset_class',
-                'standing': 'at_a_loss',
-              }),
-              'latency_seconds': 0.0,
-              'refused': None,
-              'tool': 'search_episodes',
-            }),
-          ]),
-          'MEMORIES_RELEVANT': 0.39,
-          'OUTCOMES_KNOWN_FROM': None,
-          'PICK': 'close',
-          'POSITION': 2,
-          'PROMPT_VERSION': 'd89f938ddeb7',
-          'RATING': None,
-          'REDUCE_SHARE': None,
-          'SCREEN_ANSWER': 0.56,
-          'SELECTED': list([
-            '1-1976-ASSET_01',
-            '1-1636-ASSET_01',
-          ]),
-          'SIM': 1,
-          'SIZE_AFTER_TRIMMING': None,
-          'SIZE_CHOSEN': None,
-          'SKIPPED_BECAUSE': None,
-          'STANDING': dict({
-            'bars_open': 3,
-            'best': -3.9547540380165813,
-            'direction': 'long',
-            'percent': -1.5170467236012033,
-            'profit': -30.340934472024063,
-            'put_in': 2000.0,
-            'stop_distance': 0.03320875426370505,
-            'worst': -30.340934472024063,
-          }),
-          'STEP': 2110,
-          'THESIS_INTACT': 0.2,
-          'TIER': 2,
-        }),
-      ]),
-      'MEMORY.OUTCOMES': list([
-        dict({
-          'DECISION': '1-2106-ASSET_01',
-          'FIRST_WRITTEN_BY': 1,
-          'ID': '1-2106-ASSET_01-price_after_4_bars',
-          'KIND': 'price_after_4_bars',
-          'KNOWN_FROM': 2110,
-          'SIM': 1,
-          'VALUE': dict({
-            'change': -0.012196340882783874,
-            'price': 91.9095,
-          }),
-        }),
-      ]),
-      'SIM.ACCOUNT_STEPS': list([
-        dict({
-          'ACCOUNT_VALUE': 9972.620008230317,
-          'CASH': 7998.0,
-          'DAILY_LOSS_REACHED': False,
-          'EXPOSURE': 1974.6200082303171,
-          'ID': '1-2110',
-          'LOAN': 0.0,
-          'SIM': 1,
-          'START_OF_DAY_VALUE': 10000.0,
-          'STEP': 2110,
-        }),
-      ]),
-      'SIM.CALLS': list([
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': None,
-          'COST_USD': 5.9262e-05,
-          'DECISION': '1-2110-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2110-ASSET_01-position_screen',
-          'MODEL': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'RETRIES': 0,
-          'SERVICE': 'jev',
-          'SIM': 1,
-          'STEP': 2110,
-          'THINKING_TOKENS': None,
-          'TOKENS_IN': 1411,
-          'TOKENS_OUT': 21,
-        }),
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': 0,
-          'COST_USD': 0.0006505,
-          'DECISION': '1-2110-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2110-ASSET_01-select-1',
-          'MODEL': 'claude-haiku-5-5',
-          'PURPOSE': 'select',
-          'RETRIES': 0,
-          'SERVICE': 'anthropic',
-          'SIM': 1,
-          'STEP': 2110,
-          'THINKING_TOKENS': 160,
-          'TOKENS_IN': 5290,
-          'TOKENS_OUT': 243,
-        }),
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': 5286,
-          'COST_USD': 0.00021266,
-          'DECISION': '1-2110-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2110-ASSET_01-select-2',
-          'MODEL': 'claude-haiku-5-5',
-          'PURPOSE': 'select',
-          'RETRIES': 0,
-          'SERVICE': 'anthropic',
-          'SIM': 1,
-          'STEP': 2110,
-          'THINKING_TOKENS': 54,
-          'TOKENS_IN': 5884,
-          'TOKENS_OUT': 200,
-        }),
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': None,
-          'COST_USD': 0.00012247200000000002,
-          'DECISION': '1-2110-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2110-ASSET_01-action',
-          'MODEL': 'jev-1.14.0',
-          'PURPOSE': 'action',
-          'RETRIES': 0,
-          'SERVICE': 'jev',
-          'SIM': 1,
-          'STEP': 2110,
-          'THINKING_TOKENS': None,
-          'TOKENS_IN': 2916,
-          'TOKENS_OUT': 263,
-        }),
-      ]),
-      'SIM.CHARGES': list([
-      ]),
-      'SIM.JEV_REQUESTS': list([
-        dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"position_screen":{"type":"noul","noul":0.56}},"usage":{"input_tokens":1411,"output_tokens":21}}',
-          'ASSET': 'ASSET_01',
-          'BACKGROUND_AFTER_OPENING': '''
-            # The account now
-            Account value: $9,973.
-            Cash: $7,998. Loan: none.
-            Open positions: 1, worth $1,975.
-            It may hold up to $19,945 in positions (2 times account value), so $17,971 more.
-            
-            # Other open positions
-            None.
-            
-            # The position: ASSET_01 (crypto)
-            Long, $2,000, opened 3 bars ago at an entry price of $93.09.
-            Stop price: $88.86, fixed. Code sells there. It is 3.3% below the last price.
-            Now: the position is worth $1,975. Closing it now would leave -$30 (-1.5%) after trading costs. At best it was -$4, at worst -$30.
-            Situation when it was opened: Crypto, American hours (bar 90 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a medium down bar closing mid-range. Short-term trend up (0.9 typical moves above the 20-bar average). Long-term trend down (2.1 below the 20-day average). Volume average (1.1 times normal). Price is 1.2 above the day's average price, 1.1 below the day's high, 4.1 above the day's low, and 0.2 below the previous day's high. Typical move: 0.3% of price.
-            Since then: bars 0 to 2 hold.
-            
-            # The asset now: ASSET_01 (crypto)
-            Last price: $91.91. Typical move in one bar: $0.35.
-            Crypto, American hours (bar 94 of 96). Patterns in the last 4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a medium down bar closing near its low. Short-term trend down (2.8 typical moves below the 20-bar average). Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times normal). Price is 2.2 below the day's average price, 4.1 below the day's high, 0.3 above the day's low, and 3.4 below the previous day's high. Typical move: 0.4% of price.
-            
-            # Candle patterns named above
-            hammer: bullish. A small body with a long lower wick and little or no upper wick, sitting below or near the previous bar's low.
-          ''',
-          'DECISION': '1-2110-ASSET_01',
-          'ID': '1-2110-ASSET_01-position_screen',
-          'JEV_VERSION': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'QUESTIONS': dict({
-            'position_screen': dict({
-              'instructions': 'Does the position in ASSET_01 call for action now? Only a hard move against it on volume well above normal, the price near its stop price, a strong bar back against it after it had gone its way, or a good gain that has stopped moving counts. Drifting its way, choppy small bars and average volume do not. Most positions at most steps need no action.',
-              'type': 'noul',
-            }),
-          }),
-          'READING_VERSION': '897d78bcb9f6',
-          'SIM': 1,
-          'STEP': 2110,
-        }),
-        dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"action_1":{"type":"choice","choice":"close","confidence":0.27,"probabilities":{"reduce":0.04,"close":0.45,"hold":0.43,"add":0.08}},"action_2":{"type":"choice","choice":"close","confidence":0.35,"probabilities":{"hold":0.35,"close":0.51,"reduce":0.06,"add":0.08}},"action_3":{"type":"choice","choice":"close","confidence":0.29,"probabilities":{"hold":0.35,"add":0.08,"reduce":0.1,"close":0.47}},"action_4":{"type":"choice","choice":"close","confidence":0.25,"probabilities":{"close":0.44,"reduce":0.05,"add":0.08,"hold":0.43}},"action_5":{"type":"choice","choice":"close","confidence":0.29,"probabilities":{"hold":0.34,"add":0.08,"reduce":0.11,"close":0.47}},"thesis_intact":{"type":"noul","noul":0.2},"memories_relevant":{"type":"noul","noul":0.39}},"usage":{"input_tokens":2916,"output_tokens":263}}',
-          'ASSET': 'ASSET_01',
-          'BACKGROUND_AFTER_OPENING': '''
-            # The account now
-            Account value: $9,973.
-            Cash: $7,998. Loan: none.
-            Open positions: 1, worth $1,975.
-            It may hold up to $19,945 in positions (2 times account value), so $17,971 more.
-            
-            # Other open positions
-            None.
-            
-            # The position: ASSET_01 (crypto)
-            Long, $2,000, opened 3 bars ago at an entry price of $93.09.
-            Stop price: $88.86, fixed. Code sells there. It is 3.3% below the last price.
-            Now: the position is worth $1,975. Closing it now would leave -$30 (-1.5%) after trading costs. At best it was -$4, at worst -$30.
-            Situation when it was opened: Crypto, American hours (bar 90 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a medium down bar closing mid-range. Short-term trend up (0.9 typical moves above the 20-bar average). Long-term trend down (2.1 below the 20-day average). Volume average (1.1 times normal). Price is 1.2 above the day's average price, 1.1 below the day's high, 4.1 above the day's low, and 0.2 below the previous day's high. Typical move: 0.3% of price.
-            Since then: bars 0 to 2 hold.
-            
-            # The asset now: ASSET_01 (crypto)
-            Last price: $91.91. Typical move in one bar: $0.35.
-            Crypto, American hours (bar 94 of 96). Patterns in the last 4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a medium down bar closing near its low. Short-term trend down (2.8 typical moves below the 20-bar average). Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times normal). Price is 2.2 below the day's average price, 4.1 below the day's high, 0.3 above the day's low, and 3.4 below the previous day's high. Typical move: 0.4% of price.
-            
-            # Track record: the account's own closed trades on the candle patterns of the last 4 bars
-            Hammer, long, crypto: 0 closed trades, too few to show totals.
-            Hammer, short, crypto: 0 closed trades, too few to show totals.
-            Each line is the narrowest group that fits the current situation and has at least 10 closed trades. A win is a trade that closed with a profit after trading costs.
-            
-            # Past episodes: 2 of the account's own earlier reviews of an open position, at moments like the current one, newest first
-            Episode 1: 1 day ago, same asset, crypto
-            Situation then: Crypto, European hours (bar 56 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: five up, three down; this bar is a medium up bar closing mid-range. Short-term trend up (2.6 typical moves above the 20-bar average). Long-term trend down (2.8 below the 20-day average). Volume average (1.0 times normal). Price is 1.3 above the day's average price, 3.6 below the day's high, 4.6 above the day's low, and 16.0 below the previous day's high. Typical move: 0.4% of price.
-            The position then: long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away. At best it had been +$10, at worst -$3.
-            Decided: hold.
-            Afterwards: price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.
-            The whole trade: bar 0 hold (this review); bar 1 stop price reached.
-            Ended: closed at its stop price 5 bars later, -$4 (-0.4%).
-            
-            Episode 2: 4 days ago, same asset, crypto
-            Situation then: Crypto, Asian hours (bar 4 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: two up, six down; this bar is a medium up bar closing mid-range. Short-term trend down (2.9 typical moves below the 20-bar average). Price is 1.0 below the day's average price, 2.6 below the day's high, 0.5 above the day's low, and 6.6 below the previous day's high. Typical move: 0.3% of price.
-            The position then: long, $1,000, open 2 bars, -$4 (-0.4%), stop price 0.5% away. At best it had been +$10, at worst -$3.
-            Decided: close.
-            Afterwards: price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.
-            The whole trade: bar 0 close (this review); bar 1 stop price reached.
-            Ended: closed at its stop price 5 bars later, -$4 (-0.4%).
-            
-            # Candle patterns named above
-            hammer: bullish. A small body with a long lower wick and little or no upper wick, sitting below or near the previous bar's low.
-          ''',
-          'DECISION': '1-2110-ASSET_01',
-          'ID': '1-2110-ASSET_01-action',
-          'JEV_VERSION': 'jev-1.14.0',
-          'PURPOSE': 'action',
-          'QUESTIONS': dict({
-            'action_1': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $1,028 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$30 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'action_2': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $1,028 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$30 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'action_3': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $1,028 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$30 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'action_4': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $1,028 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$30 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'action_5': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $1,028 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$30 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'memories_relevant': dict({
-              'instructions': 'Do the past episodes shown fit the current situation?',
-              'type': 'noul',
-            }),
-            'thesis_intact': dict({
-              'instructions': 'Does the reason for opening the position, the situation it was opened in, still hold?',
-              'type': 'noul',
-            }),
-          }),
-          'READING_VERSION': '897d78bcb9f6',
-          'SIM': 1,
-          'STEP': 2110,
-        }),
-      ]),
-      'SIM.LLM_EXCHANGES': list([
-        dict({
-          'ASSET': 'ASSET_01',
-          'DECISION': '1-2110-ASSET_01',
-          'FAILED_REPLIES': list([
-          ]),
-          'ID': '1-2110-ASSET_01',
-          'MESSAGES': list([
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'content': '''
-                  # Current situation
-                  Asset: ASSET_01 (crypto)
-                  Crypto, American hours (bar 94 of 96). Patterns in the last 4 bars: hammer (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a medium down bar closing near its low. Short-term trend down (2.8 typical moves below the 20-bar average). Long-term trend down (2.5 below the 20-day average). Volume high (2.4 times normal). Price is 2.2 below the day's average price, 4.1 below the day's high, 0.3 above the day's low, and 3.4 below the previous day's high. Typical move: 0.4% of price.
-                  
-                  # The position now
-                  Long, $2,000, open 3 bars, -$30 (-1.5%), stop price 3.3% away. At best it has been -$4, at worst -$30.
-                  
-                  # The 5 past episodes most like this moment, all reviews of a long, closest first
-                  ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | the position then | what was decided | what happened next
-                  E1 | 4 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, -$4 (-0.4%), stop price 0.5% away | close | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  E2 | 3 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, +$25 (+2.5%), stop price 0.5% away | reduce by half (that part: +$13) | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  E3 | 1 day ago | same asset, crypto | European hours, long-term trend down, volume average | no pattern | long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  E4 | 5 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, +$6 (+0.6%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  E5 | 2 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, +$9 (+0.9%), stop price 0.5% away | add $1,000 | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  
-                  # Candle patterns named above
-                  hammer: bullish. A small body with a long lower wick and little or no upper wick, sitting below or near the previous bar's low.
-                ''',
-                'id': None,
-                'name': None,
-                'response_metadata': dict({
-                }),
-                'type': 'human',
-              }),
-              'type': 'human',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'content': list([
-                  dict({
-                    'signature': 'CAQSnwgKEAgUGAI4AUIIdGhpbmtpbmcSDGg+KYu3KwNjLJP7RxoMqYenrn8LAlIURkNyIjAQv708VNQxQp4r+PFq8VX/qJxa40PH+laxXR6HPiKz6xs9j9mU385ocU+wB9V02U4qvAcwvw36l3J0hILZUeoQlQR7pJdzOwr67Rhvp8iA3SqLEy64Ew1Odgixcptt81OdldK1bCTP8dd9nOm/u/4UA3XQ+BjxuAn5PvSY32vwnVA6bH+vRrn9UZCXI+8U3GflQbJk5d7rKX9+aza4CIjijgdQqb4uvRgoI3+P4mmAaTIWiAQFYVNzaKr5iuA+VmoVsD0iJAv5hpzisWBagXhajhc9QYdk2AQNafOKntYUi3clyRk2ND5Ba5A70XnyEqQlCJ+/CeEeG9ab0X9Aig+4JUnGWHZ3L8joLQyUhceWGLIoj71yXDqVMmdjoXcDLdO8V+PE8IPnNG4OofFNxH9HsEtzL7PWDmKDqxjd00pnDESjwcWoaRzI2jFUlht1kX/0wbOgpS9BD1TLsb855enJhPKSX3yeuugdXzUBB4HIPmqLJCI+Hg2s5NnoUXXvokrNyDLgh9V/WD9v+HgeDpDkb2H6MYGk+udMyg7r9IyQ8KLzraKtaS91oAlWcymaDDFMb8m8YQIp5dIjMksjYp7ZteH/ojIw1/EG4Va/FNFlbIZvUB9yLDYgxE0+MkkW9pls14IxtkQhf459GdMKbW0AxdO7TKKgDnkZYzBmh69CSxhe3OQKJ1D/nzkPg2KS2kRevB3Odjv/+s7jmHeJKbkl3Z/Wre136vKyeZ+UIfYf2t2Ccf3v1aW3jb0SqdsfUFk6zu61cG+t2RcnyAtUxeERFYVLSforyIA5KvoTQwyrh5vUipEZh8in2oHjFO2JPpCJCmEzXCjHvgJgn9LE0bn5NAjd0Vy5TugMcTLtV4hm+nhaYyoYFqpRCLCbhgBUDEh0jeGmLzurpW2KY0VGyblAXGIXxAOPmBxOqrj+ZXgedTqetSu1589zp4bA/ZAEUUZgF+dcOlKCyPatKGYhdA/4iMuAW4CHZHbyuPX6h9sFXK9PqGU48T6yr63IMdjvaVQahnJwk6nOnnMAEl0FKwW8wvORSYa/fptilhDEKGnKtNDFpPIs4AcDzQnKtkK/8x5p1DdJtwFFFLqAt8NHb9u2SLgwC1Y2S8NBGwtYqjnou7QSaIAWSq25K4qDx/Axvrw8+VJzqGjkhZbT81SwzAJhFDliONUeq+ogMy9zrrdfpEKw1n0+tQTD9Bseix1bTeA1l6QUAP+cPT1La9y5t9ArR07tYj9vCdW6/CkkcjSeYlWY4kaC2cSgucmdCeCjl7Xo+MYkMu11/m8NQlt7r7RDbTFXCMcxTdCj2be5jpvBANXngG7GVYYH4LbM7q/xWRgB',
-                    'thinking': '',
-                    'type': 'thinking',
-                  }),
-                  dict({
-                    'caller': dict({
-                      'type': 'direct',
-                    }),
-                    'id': 'toolu_017SKHW3sxYtt5WWjUrpz8jB',
-                    'input': dict({
-                      'asset': 'same_asset_class',
-                      'standing': 'at_a_loss',
-                    }),
-                    'name': 'search_episodes',
-                    'toolset_name': None,
-                    'type': 'tool_use',
-                  }),
-                ]),
-                'id': 'lc_run--(new each run)',
-                'invalid_tool_calls': list([
-                ]),
-                'name': None,
-                'response_metadata': dict({
-                  'container': None,
-                  'diagnostics': None,
-                  'finish_reason': 'tool_use',
-                  'finish_state': 'complete',
-                  'id': 'msg_011ChRyDk4827SDh1bV5AcbU',
-                  'model': 'claude-haiku-5-5',
-                  'model_name': 'claude-haiku-5-5',
-                  'model_provider': 'anthropic',
-                  'normalized_finish_reason': 'tool_call',
-                  'stop_details': None,
-                  'stop_reason': 'tool_use',
-                  'stop_sequence': None,
-                  'usage': dict({
-                    'cache_creation': dict({
-                      'ephemeral_1h_input_tokens': 0,
-                      'ephemeral_5m_input_tokens': 5286,
-                    }),
-                    'cache_creation_input_tokens': 5286,
-                    'cache_read_input_tokens': 0,
-                    'inference_geo': 'global',
-                    'input_tokens': 4,
-                    'output_tokens': 243,
-                    'output_tokens_details': dict({
-                      'thinking_tokens': 160,
-                    }),
-                    'server_tool_use': None,
-                    'service_tier': 'standard',
-                    'speed': 'standard',
-                  }),
-                }),
-                'tool_calls': list([
-                  dict({
-                    'args': dict({
-                      'asset': 'same_asset_class',
-                      'standing': 'at_a_loss',
-                    }),
-                    'id': 'toolu_017SKHW3sxYtt5WWjUrpz8jB',
-                    'name': 'search_episodes',
-                    'type': 'tool_call',
-                  }),
-                ]),
-                'type': 'ai',
-                'usage_metadata': dict({
-                  'input_token_details': dict({
-                    'cache_creation': 0,
-                    'cache_read': 0,
-                    'ephemeral_1h_input_tokens': 0,
-                    'ephemeral_5m_input_tokens': 5286,
-                  }),
-                  'input_tokens': 5290,
-                  'output_token_details': dict({
-                    'reasoning': 160,
-                  }),
-                  'output_tokens': 243,
-                  'total_tokens': 5533,
-                }),
-              }),
-              'type': 'ai',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'artifact': None,
-                'content': '''
-                  2 past episodes (same asset class, any pattern, any decision, at a loss), closest first
-                  ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | the position then | what was decided | what happened next
-                  E1 | 4 days ago | same asset, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, -$4 (-0.4%), stop price 0.5% away | close | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  E3 | 1 day ago | same asset, crypto | European hours, long-term trend down, volume average | no pattern | long, $1,000, open 2 bars, -$2 (-0.2%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                ''',
-                'id': None,
-                'name': None,
-                'response_metadata': dict({
-                }),
-                'status': 'success',
-                'tool_call_id': 'toolu_017SKHW3sxYtt5WWjUrpz8jB',
-                'type': 'tool',
-              }),
-              'type': 'tool',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'content': list([
-                  dict({
-                    'signature': 'CAQSlgYKEAgUGAI4AUIIdGhpbmtpbmcSDDtW4/VnEqI1fcyMthoMfyLz2xCsrgsCwAxDIjCtqLtw3c3T7pj0aEHzGMAvK+8BTNw1QHSCTkI7aUmDYKuOMs+q6wnzwf0+PeI7AxEqswWkZ+A9FcU7r3D2Tku8kH24jlbWiMuO2Tp1OLXkG/4eNABsi8SP5lzvsouAjLlvW06XmN3YSoSzchn3iCTvbbMTucaz5Xh/MisjzJzMYlpo7sXOlYJC53AS7GNqp5eA1U7aYnvLWuYikZWEKGArCHFbGrm/jjRjq5gYFhH8xApk0eflo4O+U9XVsVMVbuJy3vd9Nw7a1o9Dy0vblq5OuGgxuG/BxDwIxZVL8aMwGdrhR+htaQ5KK5ZgeiF/EVm765RdcoF1ASMi2DajmfZ1Y6Kswu0kBRSDzY76bHIJiZommI2Uy+ZJ+ATyikbcg+75QqOaQDwGQzH9EqjELU48/Lo6B+CWFq0E7bCj9IQq3T+f5aWC7dNgUskQB4Z97HelDc/RaQ//QGq9ByfL0oI2FhvoYcZTWaXt/oC/gLvfLRuzVy2E9tPWHTffkjVINIJ+IU/bMXDANbiOEGStOzxYrZNawaF2BRMMep9Ja/9Tc2tbmYsb/Te7ka/EQGVEuda3qjcERoazZAAe877Y9W2l063w85wH4PeeCkt+7+EGL+YeyufHK6iInDMneJkiO2QG7MPdeiWg44vU0FIb4uaSFxDMqxmkDLLhSB791LTweRU7xRZotuU+9vtXcP21I1QEPQ19JhMjKtJBtX17lcN6V3YqA69br7aS4Zoif0To0+ZcQq42jTjsoRH+9Ex0C/U1aRXF2xBi2/2zAZdhII3cjfFGbQ2mEU1+A1GsbHgs/K2PhFoLWCO5JhUJtkanHtAYugtSTDIIl1Dy4TkhwCFSyiej4E6u0WzI0LI4BxawwX9QmfczeOgUZeg/AVpCr/9GwQkMq1rZ+euv8/g4N1QMctKXynYRviKExrY9yVt30nrZzgje7RveHRZ1cxcHiUIv5hFcoaRz+QCwudoCRovcXU6FSC7yGAE=',
-                    'thinking': '',
-                    'type': 'thinking',
-                  }),
-                  dict({
-                    'caller': dict({
-                      'type': 'direct',
-                    }),
-                    'id': 'toolu_01N7xuA8PAhzz1G3iT2RWAjs',
-                    'input': dict({
-                      'episode_ids': list([
-                        'E3',
-                        'E1',
-                      ]),
-                      'note': 'Only two same-class episodes at a loss exist; E3 (down long-term trend, losing long) and E1 (losing long, close) are the nearest available. Other candidates differ in session and stop distance.',
-                    }),
-                    'name': 'select_episodes',
-                    'toolset_name': None,
-                    'type': 'tool_use',
-                  }),
-                ]),
-                'id': 'lc_run--(new each run)',
-                'invalid_tool_calls': list([
-                ]),
-                'name': None,
-                'response_metadata': dict({
-                  'container': None,
-                  'diagnostics': None,
-                  'finish_reason': 'tool_use',
-                  'finish_state': 'complete',
-                  'id': 'msg_011ChRyDrPN546gLN43tbWVf',
-                  'model': 'claude-haiku-5-5',
-                  'model_name': 'claude-haiku-5-5',
-                  'model_provider': 'anthropic',
-                  'normalized_finish_reason': 'tool_call',
-                  'stop_details': None,
-                  'stop_reason': 'tool_use',
-                  'stop_sequence': None,
-                  'usage': dict({
-                    'cache_creation': dict({
-                      'ephemeral_1h_input_tokens': 0,
-                      'ephemeral_5m_input_tokens': 596,
-                    }),
-                    'cache_creation_input_tokens': 596,
-                    'cache_read_input_tokens': 5286,
-                    'inference_geo': 'global',
-                    'input_tokens': 2,
-                    'output_tokens': 200,
-                    'output_tokens_details': dict({
-                      'thinking_tokens': 54,
-                    }),
-                    'server_tool_use': None,
-                    'service_tier': 'standard',
-                    'speed': 'standard',
-                  }),
-                }),
-                'tool_calls': list([
-                  dict({
-                    'args': dict({
-                      'episode_ids': list([
-                        'E3',
-                        'E1',
-                      ]),
-                      'note': 'Only two same-class episodes at a loss exist; E3 (down long-term trend, losing long) and E1 (losing long, close) are the nearest available. Other candidates differ in session and stop distance.',
-                    }),
-                    'id': 'toolu_01N7xuA8PAhzz1G3iT2RWAjs',
-                    'name': 'select_episodes',
-                    'type': 'tool_call',
-                  }),
-                ]),
-                'type': 'ai',
-                'usage_metadata': dict({
-                  'input_token_details': dict({
-                    'cache_creation': 0,
-                    'cache_read': 5286,
-                    'ephemeral_1h_input_tokens': 0,
-                    'ephemeral_5m_input_tokens': 596,
-                  }),
-                  'input_tokens': 5884,
-                  'output_token_details': dict({
-                    'reasoning': 54,
-                  }),
-                  'output_tokens': 200,
-                  'total_tokens': 6084,
-                }),
-              }),
-              'type': 'ai',
-            }),
-          ]),
-          'PROMPT_VERSION': 'd89f938ddeb7',
-          'SIM': 1,
-          'SLIPS': list([
-          ]),
-          'STEP': 2110,
-        }),
-      ]),
-      'SIM.SIM_EVENTS': list([
-      ]),
-    }),
-  })
-# ---
-# name: test_scenario[review_ends_in_hold_after_a_jump]
-  dict({
-    'memory_lookups': list([
-    ]),
-    'orders': list([
-    ]),
-    'records': dict({
-      'MEMORY.DECISIONS': list([
-        dict({
-          'ACTION': 'nothing',
-          'ANSWERS': None,
-          'ASSET': 'ASSET_01',
-          'CANDIDATE_TRADES': None,
-          'DATASET': 1,
-          'END_OF_SESSION': None,
-          'EPISODES_SHOWN': None,
-          'FIRST_WRITTEN_BY': 1,
-          'ID': '1-2110-ASSET_01',
-          'JEV_VERSION': 'jev-1.14.0',
-          'KIND': 'position_screen',
-          'LIMITED_BY': None,
-          'LIMIT_HIT': None,
-          'LLM_MODEL': None,
-          'LLM_NOTE': None,
-          'LOOKUPS': None,
-          'MEMORIES_RELEVANT': None,
-          'OUTCOMES_KNOWN_FROM': None,
-          'PICK': None,
-          'POSITION': 2,
-          'PROMPT_VERSION': None,
-          'RATING': None,
-          'REDUCE_SHARE': None,
-          'SCREEN_ANSWER': 0.2,
-          'SELECTED': None,
-          'SIM': 1,
-          'SIZE_AFTER_TRIMMING': None,
-          'SIZE_CHOSEN': None,
-          'SKIPPED_BECAUSE': None,
-          'STANDING': None,
-          'STEP': 2110,
-          'THESIS_INTACT': None,
-          'TIER': 1,
-        }),
-      ]),
-      'MEMORY.OUTCOMES': list([
-        dict({
-          'DECISION': '1-2106-ASSET_01',
-          'FIRST_WRITTEN_BY': 1,
-          'ID': '1-2106-ASSET_01-price_after_4_bars',
-          'KIND': 'price_after_4_bars',
-          'KNOWN_FROM': 2110,
-          'SIM': 1,
-          'VALUE': dict({
-            'change': 0.020370171444423546,
-            'price': 97.8385,
-          }),
-        }),
-      ]),
-      'SIM.ACCOUNT_STEPS': list([
-        dict({
-          'ACCOUNT_VALUE': 10037.720482647524,
-          'CASH': 7998.0,
-          'DAILY_LOSS_REACHED': False,
-          'EXPOSURE': 2039.7204826475236,
-          'ID': '1-2110',
-          'LOAN': 0.0,
-          'SIM': 1,
-          'START_OF_DAY_VALUE': 10000.0,
-          'STEP': 2110,
-        }),
-      ]),
-      'SIM.CALLS': list([
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': None,
-          'COST_USD': 5.9178e-05,
-          'DECISION': '1-2110-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2110-ASSET_01-position_screen',
-          'MODEL': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'RETRIES': 0,
-          'SERVICE': 'jev',
-          'SIM': 1,
-          'STEP': 2110,
-          'THINKING_TOKENS': None,
-          'TOKENS_IN': 1409,
-          'TOKENS_OUT': 21,
-        }),
-      ]),
-      'SIM.CHARGES': list([
-      ]),
-      'SIM.JEV_REQUESTS': list([
-        dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"position_screen":{"type":"noul","noul":0.2}},"usage":{"input_tokens":1409,"output_tokens":21}}',
-          'ASSET': 'ASSET_01',
-          'BACKGROUND_AFTER_OPENING': '''
-            # The account now
-            Account value: $10,038.
-            Cash: $7,998. Loan: none.
-            Open positions: 1, worth $2,040.
-            It may hold up to $20,075 in positions (2 times account value), so $18,036 more.
-            
-            # Other open positions
-            None.
-            
-            # The position: ASSET_01 (crypto)
-            Long, $2,000, opened 3 bars ago at an entry price of $95.93.
-            Stop price: $91.57, fixed. Code sells there. It is 6.4% below the last price.
-            Now: the position is worth $2,040. Closing it now would leave +$35 (+1.7%) after trading costs. At best it was +$35, at worst -$9.
-            Situation when it was opened: Crypto, American hours (bar 90 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: five up, three down; this bar is a small up bar closing near its high. Short-term trend down (0.4 typical moves below the 20-bar average). Long-term trend up (0.7 above the 20-day average). Volume average (1.0 times normal). Price is 2.7 below the day's average price, 7.4 below the day's high, 1.6 above the day's low, and 6.4 below the previous day's high. Typical move: 0.3% of price.
-            Since then: bars 0 to 2 hold.
-            
-            # The asset now: ASSET_01 (crypto)
-            Last price: $97.84. Typical move in one bar: $0.37.
-            Crypto, American hours (bar 94 of 96). Patterns in the last 4 bars: bullish marubozu (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: seven up, one down; this bar is a large up bar closing near its high. Short-term trend up (4.8 typical moves above the 20-bar average). Long-term trend up (1.4 above the 20-day average). Volume high (3.0 times normal). Price is 3.4 above the day's average price, 0.4 below the day's high, 6.3 above the day's low, and 1.1 above the previous day's high. Typical move: 0.4% of price.
-            
-            # Candle patterns named above
-            bullish marubozu: bullish. A long up bar with little or no wick on either side.
-          ''',
-          'DECISION': '1-2110-ASSET_01',
-          'ID': '1-2110-ASSET_01-position_screen',
-          'JEV_VERSION': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'QUESTIONS': dict({
-            'position_screen': dict({
-              'instructions': 'Does the position in ASSET_01 call for action now? Only a hard move against it on volume well above normal, the price near its stop price, a strong bar back against it after it had gone its way, or a good gain that has stopped moving counts. Drifting its way, choppy small bars and average volume do not. Most positions at most steps need no action.',
-              'type': 'noul',
-            }),
-          }),
-          'READING_VERSION': '897d78bcb9f6',
-          'SIM': 1,
-          'STEP': 2110,
-        }),
-      ]),
-      'SIM.LLM_EXCHANGES': list([
-      ]),
-      'SIM.SIM_EVENTS': list([
-      ]),
-    }),
-  })
-# ---
-# name: test_scenario[review_ends_in_reduce_after_a_doji]
-  dict({
-    'memory_lookups': list([
-    ]),
-    'orders': list([
-    ]),
-    'records': dict({
-      'MEMORY.DECISIONS': list([
-        dict({
-          'ACTION': 'nothing',
-          'ANSWERS': None,
-          'ASSET': 'ASSET_01',
-          'CANDIDATE_TRADES': None,
-          'DATASET': 1,
-          'END_OF_SESSION': None,
-          'EPISODES_SHOWN': None,
-          'FIRST_WRITTEN_BY': 1,
-          'ID': '1-2056-ASSET_01',
-          'JEV_VERSION': 'jev-1.14.0',
-          'KIND': 'position_screen',
-          'LIMITED_BY': None,
-          'LIMIT_HIT': None,
-          'LLM_MODEL': None,
-          'LLM_NOTE': None,
-          'LOOKUPS': None,
-          'MEMORIES_RELEVANT': None,
-          'OUTCOMES_KNOWN_FROM': None,
-          'PICK': None,
-          'POSITION': 2,
-          'PROMPT_VERSION': None,
-          'RATING': None,
-          'REDUCE_SHARE': None,
-          'SCREEN_ANSWER': 0.29,
-          'SELECTED': None,
-          'SIM': 1,
-          'SIZE_AFTER_TRIMMING': None,
-          'SIZE_CHOSEN': None,
-          'SKIPPED_BECAUSE': None,
-          'STANDING': None,
-          'STEP': 2056,
-          'THESIS_INTACT': None,
-          'TIER': 1,
-        }),
-      ]),
-      'MEMORY.OUTCOMES': list([
-      ]),
-      'SIM.ACCOUNT_STEPS': list([
-        dict({
-          'ACCOUNT_VALUE': 10138.13533862198,
-          'CASH': 5996.0,
-          'DAILY_LOSS_REACHED': False,
-          'EXPOSURE': 4142.13533862198,
-          'ID': '1-2056',
-          'LOAN': 0.0,
-          'SIM': 1,
-          'START_OF_DAY_VALUE': 10000.0,
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.CALLS': list([
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': None,
-          'COST_USD': 5.8968e-05,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-position_screen',
-          'MODEL': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'RETRIES': 0,
-          'SERVICE': 'jev',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': None,
-          'TOKENS_IN': 1404,
-          'TOKENS_OUT': 21,
-        }),
-      ]),
-      'SIM.CHARGES': list([
-      ]),
-      'SIM.JEV_REQUESTS': list([
-        dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"position_screen":{"type":"noul","noul":0.29}},"usage":{"input_tokens":1404,"output_tokens":21}}',
-          'ASSET': 'ASSET_01',
-          'BACKGROUND_AFTER_OPENING': '''
-            # The account now
-            Account value: $10,138.
-            Cash: $5,996. Loan: none.
-            Open positions: 1, worth $4,142.
-            It may hold up to $20,276 in positions (2 times account value), so $16,134 more.
-            
-            # Other open positions
-            None.
-            
-            # The position: ASSET_01 (crypto)
-            Long, $4,000, opened 10 bars ago at an entry price of $288.49.
-            Stop price: $282.58, fixed. Code sells there. It is 5.4% below the last price.
-            Now: the position is worth $4,142. Closing it now would leave +$132 (+3.3%) after trading costs. At best it was +$132, at worst -$31.
-            Situation when it was opened: Crypto, Asian hours (bar 29 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a small down bar closing mid-range. Short-term trend down (0.2 typical moves below the 20-bar average). Long-term trend up (9.0 above the 20-day average). Volume low (0.8 times normal). Price is 0.1 above the day's average price, 1.9 below the day's high, 1.7 above the day's low, and 0.1 above the previous day's high. Typical move: 0.4% of price.
-            Since then: bars 0 to 9 hold.
-            
-            # The asset now: ASSET_01 (crypto)
-            Last price: $298.74. Typical move in one bar: $1.56.
-            Crypto, European hours (bar 40 of 96). Patterns in the last 4 bars: doji (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: six up, two down; this bar is a large up bar closing near its high. Short-term trend up (6.2 typical moves above the 20-bar average). Long-term trend up (9.8 above the 20-day average). Volume high (3.5 times normal). Price is 6.1 above the day's average price, 0.2 below the day's high, 7.9 above the day's low, and 6.7 above the previous day's high. Typical move: 0.5% of price.
-            
-            # Candle patterns named above
-            doji: neutral. A bar that closes almost exactly where it opened.
-          ''',
-          'DECISION': '1-2056-ASSET_01',
-          'ID': '1-2056-ASSET_01-position_screen',
-          'JEV_VERSION': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'QUESTIONS': dict({
-            'position_screen': dict({
-              'instructions': 'Does the position in ASSET_01 call for action now? Only a hard move against it on volume well above normal, the price near its stop price, a strong bar back against it after it had gone its way, or a good gain that has stopped moving counts. Drifting its way, choppy small bars and average volume do not. Most positions at most steps need no action.',
-              'type': 'noul',
-            }),
-          }),
-          'READING_VERSION': '897d78bcb9f6',
-          'SIM': 1,
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.LLM_EXCHANGES': list([
-      ]),
-      'SIM.SIM_EVENTS': list([
-      ]),
-    }),
-  })
-# ---
-# name: test_scenario[review_llm_selects_none_after_a_fall]
-  dict({
-    'memory_lookups': list([
-      tuple(
-        'track_record',
-        'bearish engulfing',
-        'long',
-      ),
-      tuple(
-        'track_record',
-        'bearish engulfing',
-        'short',
-      ),
-      tuple(
-        'search',
-        dict({
-        }),
-      ),
-      tuple(
-        'search',
-        dict({
-          'asset': 'same_asset',
-          'standing': 'at_a_loss',
-        }),
-      ),
-      tuple(
-        'search',
-        dict({
-          'asset': 'same_asset_class',
-          'pattern': 'bearish engulfing',
-          'standing': 'at_a_loss',
-        }),
-      ),
-      tuple(
-        'search',
-        dict({
-          'asset': 'same_asset_class',
-          'standing': 'at_a_loss',
-        }),
-      ),
-      tuple(
-        'read',
-        list([
-          '1-1736-ASSET_02',
-          '1-1676-ASSET_02',
-          '1-1616-ASSET_02',
-        ]),
-      ),
-    ]),
-    'orders': list([
-      dict({
-        'AMOUNT_AFTER_TRIMMING': None,
-        'AMOUNT_CHOSEN': None,
-        'COMMISSION_OR_TRADING_FEE': None,
-        'DECISION': '1-2056-ASSET_01',
-        'ID': '1-2056-ASSET_01-3',
-        'INSTRUMENT': 'ASSET_01_SPOT',
-        'KIND': 'close',
-        'LIMITED_BY': None,
-        'POSITION': 2,
-        'PRICE': None,
-        'PRICE_BEFORE_SLIPPAGE': None,
-        'REASON': 'jev',
-        'SIDE': None,
-        'SIM': 1,
-        'SLIPPAGE_COST': None,
-        'STATUS': 'waiting',
-        'STEP_CARRIED_OUT': None,
-        'STEP_DECIDED': 2056,
-        'UNITS': None,
-        'VALUE': None,
-      }),
-    ]),
-    'records': dict({
-      'MEMORY.DECISIONS': list([
-        dict({
-          'ACTION': 'close',
-          'ANSWERS': dict({
-            'action_1': dict({
-              'add': 0.02,
-              'close': 0.69,
-              'hold': 0.22,
-              'reduce': 0.07,
-            }),
-            'action_2': dict({
-              'add': 0.02,
-              'close': 0.69,
-              'hold': 0.23,
-              'reduce': 0.06,
-            }),
-            'action_3': dict({
-              'add': 0.02,
-              'close': 0.65,
-              'hold': 0.26,
-              'reduce': 0.07,
-            }),
-            'action_4': dict({
-              'add': 0.02,
-              'close': 0.66,
-              'hold': 0.25,
-              'reduce': 0.07,
-            }),
-            'action_5': dict({
-              'add': 0.03,
-              'close': 0.58,
-              'hold': 0.29,
-              'reduce': 0.1,
-            }),
-            'memories_relevant': 0.37,
-            'thesis_intact': 0.14,
-          }),
-          'ASSET': 'ASSET_01',
-          'CANDIDATE_TRADES': None,
-          'DATASET': 1,
-          'END_OF_SESSION': False,
-          'EPISODES_SHOWN': list([
-            dict({
-              'episode_id': '1-1736-ASSET_02',
-              'from_first_search': True,
-              'label': 'E1',
-              'merged_rank': 1,
-              'opened': False,
-              'text_rank': 1,
-              'vector_rank': 1,
-            }),
-            dict({
-              'episode_id': '1-1676-ASSET_02',
-              'from_first_search': True,
-              'label': 'E2',
-              'merged_rank': 2,
-              'opened': False,
-              'text_rank': 3,
-              'vector_rank': 2,
-            }),
-            dict({
-              'episode_id': '1-1616-ASSET_02',
-              'from_first_search': True,
-              'label': 'E3',
-              'merged_rank': 3,
-              'opened': False,
-              'text_rank': 2,
-              'vector_rank': 3,
-            }),
-          ]),
-          'FIRST_WRITTEN_BY': 1,
-          'ID': '1-2056-ASSET_01',
-          'JEV_VERSION': 'jev-1.14.0',
-          'KIND': 'position_review',
-          'LIMITED_BY': None,
-          'LIMIT_HIT': None,
-          'LLM_MODEL': 'claude-haiku-5-5',
-          'LLM_NOTE': 'No past reviews of a loss-making long in this asset or class with a bearish engulfing. The closest available are the three crypto holds, which were in profit, so they match only loosely on position an',
-          'LOOKUPS': list([
-            dict({
-              'episode_ids': tuple(
-              ),
-              'inputs': dict({
-                'asset': 'same_asset',
-                'standing': 'at_a_loss',
-              }),
-              'latency_seconds': 0.0,
-              'refused': None,
-              'tool': 'search_episodes',
-            }),
-            dict({
-              'episode_ids': tuple(
-              ),
-              'inputs': dict({
-                'asset': 'same_asset_class',
-                'pattern': 'bearish engulfing',
-                'standing': 'at_a_loss',
-              }),
-              'latency_seconds': 0.0,
-              'refused': None,
-              'tool': 'search_episodes',
-            }),
-            dict({
-              'episode_ids': tuple(
-              ),
-              'inputs': dict({
-                'asset': 'same_asset_class',
-                'standing': 'at_a_loss',
-              }),
-              'latency_seconds': 0.0,
-              'refused': None,
-              'tool': 'search_episodes',
-            }),
-          ]),
-          'MEMORIES_RELEVANT': 0.37,
-          'OUTCOMES_KNOWN_FROM': None,
-          'PICK': 'close',
-          'POSITION': 2,
-          'PROMPT_VERSION': 'd89f938ddeb7',
-          'RATING': None,
-          'REDUCE_SHARE': None,
-          'SCREEN_ANSWER': 0.58,
-          'SELECTED': list([
-            '1-1736-ASSET_02',
-            '1-1676-ASSET_02',
-            '1-1616-ASSET_02',
-          ]),
-          'SIM': 1,
-          'SIZE_AFTER_TRIMMING': None,
-          'SIZE_CHOSEN': None,
-          'SKIPPED_BECAUSE': None,
-          'STANDING': dict({
-            'bars_open': 5,
-            'best': -0.7033239677391285,
-            'direction': 'long',
-            'percent': -1.3319896114642131,
-            'profit': -26.639792229284268,
-            'put_in': 2000.0000000000002,
-            'stop_distance': 0.03501994240847061,
-            'worst': -26.639792229284268,
-          }),
-          'STEP': 2056,
-          'THESIS_INTACT': 0.14,
-          'TIER': 2,
-        }),
-      ]),
-      'MEMORY.OUTCOMES': list([
-      ]),
-      'SIM.ACCOUNT_STEPS': list([
-        dict({
-          'ACCOUNT_VALUE': 9976.326708670367,
-          'CASH': 7998.0,
-          'DAILY_LOSS_REACHED': False,
-          'EXPOSURE': 1978.326708670367,
-          'ID': '1-2056',
-          'LOAN': 0.0,
-          'SIM': 1,
-          'START_OF_DAY_VALUE': 10000.0,
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.CALLS': list([
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': None,
-          'COST_USD': 5.9556000000000004e-05,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-position_screen',
-          'MODEL': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'RETRIES': 0,
-          'SERVICE': 'jev',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': None,
-          'TOKENS_IN': 1418,
-          'TOKENS_OUT': 21,
-        }),
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': 0,
-          'COST_USD': 0.0005944000000000001,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-select-1',
-          'MODEL': 'claude-haiku-5-5',
-          'PURPOSE': 'select',
-          'RETRIES': 0,
-          'SERVICE': 'anthropic',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': 107,
-          'TOKENS_IN': 5004,
-          'TOKENS_OUT': 188,
-        }),
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': 5000,
-          'COST_USD': 0.00012770000000000001,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-select-2',
-          'MODEL': 'claude-haiku-5-5',
-          'PURPOSE': 'select',
-          'RETRIES': 0,
-          'SERVICE': 'anthropic',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': 0,
-          'TOKENS_IN': 5222,
-          'TOKENS_OUT': 111,
-        }),
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': 5220,
-          'COST_USD': 0.00010790000000000001,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-select-3',
-          'MODEL': 'claude-haiku-5-5',
-          'PURPOSE': 'select',
-          'RETRIES': 0,
-          'SERVICE': 'anthropic',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': 0,
-          'TOKENS_IN': 5367,
-          'TOKENS_OUT': 82,
-        }),
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': 5365,
-          'COST_USD': 0.00022115,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-select-4',
-          'MODEL': 'claude-haiku-5-5',
-          'PURPOSE': 'select',
-          'RETRIES': 0,
-          'SERVICE': 'anthropic',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': 165,
-          'TOKENS_IN': 5480,
-          'TOKENS_OUT': 312,
-        }),
-        dict({
-          'ASSET': 'ASSET_01',
-          'CACHED_TOKENS': None,
-          'COST_USD': 0.000133644,
-          'DECISION': '1-2056-ASSET_01',
-          'ERROR': None,
-          'ID': '1-2056-ASSET_01-action',
-          'MODEL': 'jev-1.14.0',
-          'PURPOSE': 'action',
-          'RETRIES': 0,
-          'SERVICE': 'jev',
-          'SIM': 1,
-          'STEP': 2056,
-          'THINKING_TOKENS': None,
-          'TOKENS_IN': 3182,
-          'TOKENS_OUT': 263,
-        }),
-      ]),
-      'SIM.CHARGES': list([
-      ]),
-      'SIM.JEV_REQUESTS': list([
-        dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"position_screen":{"type":"noul","noul":0.58}},"usage":{"input_tokens":1418,"output_tokens":21}}',
-          'ASSET': 'ASSET_01',
-          'BACKGROUND_AFTER_OPENING': '''
-            # The account now
-            Account value: $9,976.
-            Cash: $7,998. Loan: none.
-            Open positions: 1, worth $1,978.
-            It may hold up to $19,953 in positions (2 times account value), so $17,974 more.
-            
-            # Other open positions
-            None.
-            
-            # The position: ASSET_01 (crypto)
-            Long, $2,000, opened 5 bars ago at an entry price of $101.74.
-            Stop price: $97.12, fixed. Code sells there. It is 3.5% below the last price.
-            Now: the position is worth $1,978. Closing it now would leave -$27 (-1.3%) after trading costs. At best it was -$1, at worst -$27.
-            Situation when it was opened: Crypto, European hours (bar 34 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: two up, six down; this bar is a medium down bar closing near its low. Short-term trend down (0.8 typical moves below the 20-bar average). Long-term trend down (0.6 below the 20-day average). Volume low (0.9 times normal). Price is 0.3 below the day's average price, 2.5 below the day's high, 1.9 above the day's low, and 11.1 below the previous day's high. Typical move: 0.4% of price.
-            Since then: bars 0 to 4 hold.
-            
-            # The asset now: ASSET_01 (crypto)
-            Last price: $100.64. Typical move in one bar: $0.38.
-            Crypto, European hours (bar 40 of 96). Patterns in the last 4 bars: bearish engulfing (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a large down bar closing near its low. Short-term trend down (3.5 typical moves below the 20-bar average). Long-term trend down (1.0 below the 20-day average). Volume high (2.4 times normal). Price is 2.9 below the day's average price, 5.2 below the day's high, 0.2 above the day's low, and 13.7 below the previous day's high. Typical move: 0.4% of price.
-            
-            # Candle patterns named above
-            bearish engulfing: bearish. An up bar, then a down bar whose body covers the first bar's body.
-          ''',
-          'DECISION': '1-2056-ASSET_01',
-          'ID': '1-2056-ASSET_01-position_screen',
-          'JEV_VERSION': 'jev-1.14.0',
-          'PURPOSE': 'position_screen',
-          'QUESTIONS': dict({
-            'position_screen': dict({
-              'instructions': 'Does the position in ASSET_01 call for action now? Only a hard move against it on volume well above normal, the price near its stop price, a strong bar back against it after it had gone its way, or a good gain that has stopped moving counts. Drifting its way, choppy small bars and average volume do not. Most positions at most steps need no action.',
-              'type': 'noul',
-            }),
-          }),
-          'READING_VERSION': '897d78bcb9f6',
-          'SIM': 1,
-          'STEP': 2056,
-        }),
-        dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"action_1":{"type":"choice","choice":"close","confidence":0.59,"probabilities":{"add":0.02,"reduce":0.07,"close":0.69,"hold":0.22}},"action_2":{"type":"choice","choice":"close","confidence":0.59,"probabilities":{"reduce":0.06,"add":0.02,"close":0.69,"hold":0.23}},"action_3":{"type":"choice","choice":"close","confidence":0.53,"probabilities":{"add":0.02,"close":0.65,"reduce":0.07,"hold":0.26}},"action_4":{"type":"choice","choice":"close","confidence":0.55,"probabilities":{"add":0.02,"hold":0.25,"close":0.66,"reduce":0.07}},"action_5":{"type":"choice","choice":"close","confidence":0.44,"probabilities":{"close":0.58,"add":0.03,"hold":0.29,"reduce":0.1}},"thesis_intact":{"type":"noul","noul":0.14},"memories_relevant":{"type":"noul","noul":0.37}},"usage":{"input_tokens":3182,"output_tokens":263}}',
-          'ASSET': 'ASSET_01',
-          'BACKGROUND_AFTER_OPENING': '''
-            # The account now
-            Account value: $9,976.
-            Cash: $7,998. Loan: none.
-            Open positions: 1, worth $1,978.
-            It may hold up to $19,953 in positions (2 times account value), so $17,974 more.
-            
-            # Other open positions
-            None.
-            
-            # The position: ASSET_01 (crypto)
-            Long, $2,000, opened 5 bars ago at an entry price of $101.74.
-            Stop price: $97.12, fixed. Code sells there. It is 3.5% below the last price.
-            Now: the position is worth $1,978. Closing it now would leave -$27 (-1.3%) after trading costs. At best it was -$1, at worst -$27.
-            Situation when it was opened: Crypto, European hours (bar 34 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: two up, six down; this bar is a medium down bar closing near its low. Short-term trend down (0.8 typical moves below the 20-bar average). Long-term trend down (0.6 below the 20-day average). Volume low (0.9 times normal). Price is 0.3 below the day's average price, 2.5 below the day's high, 1.9 above the day's low, and 11.1 below the previous day's high. Typical move: 0.4% of price.
-            Since then: bars 0 to 4 hold.
-            
-            # The asset now: ASSET_01 (crypto)
-            Last price: $100.64. Typical move in one bar: $0.38.
-            Crypto, European hours (bar 40 of 96). Patterns in the last 4 bars: bearish engulfing (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a large down bar closing near its low. Short-term trend down (3.5 typical moves below the 20-bar average). Long-term trend down (1.0 below the 20-day average). Volume high (2.4 times normal). Price is 2.9 below the day's average price, 5.2 below the day's high, 0.2 above the day's low, and 13.7 below the previous day's high. Typical move: 0.4% of price.
-            
-            # Track record: the account's own closed trades on the candle patterns of the last 4 bars
-            Bearish engulfing, long, crypto: 0 closed trades, too few to show totals.
-            Bearish engulfing, short, crypto: 0 closed trades, too few to show totals.
-            Each line is the narrowest group that fits the current situation and has at least 10 closed trades. A win is a trade that closed with a profit after trading costs.
-            
-            # Past episodes: 3 of the account's own earlier reviews of an open position, at moments like the current one, newest first
-            Episode 1: 3 days ago, another asset, crypto
-            Situation then: Crypto, Asian hours (bar 8 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a medium up bar closing near its high. Short-term trend down (0.7 typical moves below the 20-bar average). Price is 0.0 above the day's average price, 1.6 below the day's high, 1.3 above the day's low, and 9.2 below the previous day's high. Typical move: 0.4% of price.
-            The position then: long, $1,000, open 2 bars, +$8 (+0.8%), stop price 0.5% away. At best it had been +$10, at worst -$3.
-            Decided: hold.
-            Afterwards: price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.
-            The whole trade: bar 0 hold (this review); bar 1 stop price reached.
-            Ended: closed at its stop price 5 bars later, -$4 (-0.4%).
-            
-            Episode 2: 3 days ago, another asset, crypto
-            Situation then: Crypto, European hours (bar 44 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: three up, five down; this bar is a small up bar closing at its high. Short-term trend down (2.1 typical moves below the 20-bar average). Price is 3.6 below the day's average price, 6.3 below the day's high, 0.6 above the day's low, and 6.0 below the previous day's high. Typical move: 0.4% of price.
-            The position then: long, $1,000, open 2 bars, +$8 (+0.8%), stop price 0.5% away. At best it had been +$10, at worst -$3.
-            Decided: hold.
-            Afterwards: price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.
-            The whole trade: bar 0 hold (this review); bar 1 stop price reached.
-            Ended: closed at its stop price 5 bars later, -$4 (-0.4%).
-            
-            Episode 3: 4 days ago, another asset, crypto
-            Situation then: Crypto, American hours (bar 80 of 96). Patterns in the last 4 bars: none. Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a medium down bar closing near its low. Short-term trend up (0.4 typical moves above the 20-bar average). Price is 0.1 below the day's average price, 3.3 below the day's high, 4.6 above the day's low, and 7.8 below the previous day's high. Typical move: 0.3% of price.
-            The position then: long, $1,000, open 2 bars, +$8 (+0.8%), stop price 0.5% away. At best it had been +$10, at worst -$3.
-            Decided: hold.
-            Afterwards: price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day.
-            The whole trade: bar 0 hold (this review); bar 1 stop price reached.
-            Ended: closed at its stop price 5 bars later, -$4 (-0.4%).
-            
-            # Candle patterns named above
-            bearish engulfing: bearish. An up bar, then a down bar whose body covers the first bar's body.
-          ''',
-          'DECISION': '1-2056-ASSET_01',
-          'ID': '1-2056-ASSET_01-action',
-          'JEV_VERSION': 'jev-1.14.0',
-          'PURPOSE': 'action',
-          'QUESTIONS': dict({
-            'action_1': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $870 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$27 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'action_2': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $870 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$27 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'action_3': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $870 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$27 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'action_4': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $870 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$27 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'action_5': dict({
-              'criteria': dict({
-                'add': 'Add: put more money into the position, in the same direction and with the same stop price. How much is asked next. Code allows up to $870 more.',
-                'close': "Close: sell the whole position at the next bar's open, for about -$27 after trading costs.",
-                'hold': 'Hold: keep the position as it is.',
-                'reduce': 'Reduce: close part of the position and keep the rest. How much is asked next.',
-              }),
-              'instructions': 'What should the account do with the position in ASSET_01 at this step?',
-              'type': 'choice',
-            }),
-            'memories_relevant': dict({
-              'instructions': 'Do the past episodes shown fit the current situation?',
-              'type': 'noul',
-            }),
-            'thesis_intact': dict({
-              'instructions': 'Does the reason for opening the position, the situation it was opened in, still hold?',
-              'type': 'noul',
-            }),
-          }),
-          'READING_VERSION': '897d78bcb9f6',
-          'SIM': 1,
-          'STEP': 2056,
-        }),
-      ]),
-      'SIM.LLM_EXCHANGES': list([
-        dict({
-          'ASSET': 'ASSET_01',
-          'DECISION': '1-2056-ASSET_01',
-          'FAILED_REPLIES': list([
-          ]),
-          'ID': '1-2056-ASSET_01',
-          'MESSAGES': list([
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'content': '''
-                  # Current situation
-                  Asset: ASSET_01 (crypto)
-                  Crypto, European hours (bar 40 of 96). Patterns in the last 4 bars: bearish engulfing (this bar). Latest hourly bar: none. Latest daily bar: none. Last 8 bars: four up, four down; this bar is a large down bar closing near its low. Short-term trend down (3.5 typical moves below the 20-bar average). Long-term trend down (1.0 below the 20-day average). Volume high (2.4 times normal). Price is 2.9 below the day's average price, 5.2 below the day's high, 0.2 above the day's low, and 13.7 below the previous day's high. Typical move: 0.4% of price.
-                  
-                  # The position now
-                  Long, $2,000, open 5 bars, -$27 (-1.3%), stop price 3.5% away. At best it has been -$1, at worst -$27.
-                  
-                  # The 3 past episodes most like this moment, all reviews of a long, closest first
-                  ID | how long ago | asset | part of the day, long-term trend, volume | candle patterns | the position then | what was decided | what happened next
-                  E1 | 3 days ago | ASSET_02, crypto | Asian hours | no pattern | long, $1,000, open 2 bars, +$8 (+0.8%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  E2 | 3 days ago | ASSET_02, crypto | European hours | no pattern | long, $1,000, open 2 bars, +$8 (+0.8%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  E3 | 4 days ago | ASSET_02, crypto | American hours | no pattern | long, $1,000, open 2 bars, +$8 (+0.8%), stop price 0.5% away | hold | price went +0.1% after 1 bar, +0.4% after 4 bars, +1.0% by the end of the day; closed at its stop price 5 bars later: -$4 (-0.4%)
-                  
-                  # Candle patterns named above
-                  bearish engulfing: bearish. An up bar, then a down bar whose body covers the first bar's body.
-                ''',
-                'id': None,
-                'name': None,
-                'response_metadata': dict({
-                }),
-                'type': 'human',
-              }),
-              'type': 'human',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'content': list([
-                  dict({
-                    'signature': 'CAQS+AYKEAgUGAI4AUIIdGhpbmtpbmcSDBIvqIzCejFHX27h0hoMeCPTpeJW+RTSLkXXIjC+cp257DtO+AKx9QHH13k/YkIYL7MUnJZPtcfa9KK4KLsVBnHRy/6lGWE7Mz8ynSEqlQZbVnMPMNvGs2LZHn/P8qPnulf8sU/lcMr/sDLfWpRSHVkfVIto9OtVSXaiHDry/LGcMKhvb0vcZBkf1WyZK1f28GZx9h5RiZohCPsCm0FnYnH63uesFAvMhskziOlqrczDu11semZRXWNqMTStqZr/E+mnBJbdeLWO0HlxkuDbMsJ/kCTlRZy3XcPNCJlG44QNdOERE3iBRBZZV+sKYpA09/hHY2qsEA6jNbK43N+OCZaDRay3FInsErtZtdzYr2f+5ecZTfcx6+d80V8wdoWiedrMPT4sRTdYgDANZtkmSVN2EMLWxI/9SlQXrhrGz6M0t2Po4D6lQnQbrGxyo4h7Q+6kkZrixwGxfZU9Zd1ZJProl4F0AMxq+0Scur4QNFyV3vkivSFQghDfo2fRLRG3qfrN+C2TIVjPQqa6uyy20T/FmiM2aCVBVxOW4CH2cGIDveAEumEjQFaHEVpRSrzVTXlE7NaiJ3MX9AeB1ptLJxT/Kk0pNTfS9orcJoMbiD/sAwx15ipqbbkb/uVKrNswrgVB6Q/Z0qYZLowGaRMUd0pfS6gMTeCSVpwa9I9I1pCP8EmVXgNEPbsVQfef/5jd4XJithCMSBaDBEq+zEoPt/xNuJ3Xyw/XyfYkOMQXRNaJZpbZpgOP42adH5JDAzcNZ8v0LoZldv2dUNd9hoy31XLLLvQ44Pyb6wuGugPKYVO3FzGynjDZ3SD87lO+RVRmAlBBG1m0U9hktnTn8T52nDLleTXeb8XWy0zLA3mU94GPmZsHmyUdrJUkr379qyw9B+UhXEGFl1pJyBc5JYI7sJxO3b5G3al/m6qDRa/MaIC3xcdXM6yf1ZHKX/yTYzMpiq7bn7uHlZN1CaAm4JAjOoz50SkkX3ruTvuRLaptfQ550HAAeSJjb43zTPlwFzYqnsRS41LZP1u6NtpS3aKgPf4O+iG9DdYWYX6ySY3TDnwAw4CleJh+H37gKbCaDyWDPICUWg+PvbKFcXqoCQz4dCvf8dgL5mbOX0ocf86iE7BZjwiCxDIfXRbTdvPrGrlLlI4c/HMYAQ==',
-                    'thinking': '',
-                    'type': 'thinking',
-                  }),
-                  dict({
-                    'caller': dict({
-                      'type': 'direct',
-                    }),
-                    'id': 'toolu_016E3nWh5TnmN2b6AMdyX33T',
-                    'input': dict({
-                      'asset': 'same_asset',
-                      'standing': 'at_a_loss',
-                    }),
-                    'name': 'search_episodes',
-                    'toolset_name': None,
-                    'type': 'tool_use',
-                  }),
-                ]),
-                'id': 'lc_run--(new each run)',
-                'invalid_tool_calls': list([
-                ]),
-                'name': None,
-                'response_metadata': dict({
-                  'container': None,
-                  'diagnostics': None,
-                  'finish_reason': 'tool_use',
-                  'finish_state': 'complete',
-                  'id': 'msg_011ChRyE5j3g3pWAm3cKecmC',
-                  'model': 'claude-haiku-5-5',
-                  'model_name': 'claude-haiku-5-5',
-                  'model_provider': 'anthropic',
-                  'normalized_finish_reason': 'tool_call',
-                  'stop_details': None,
-                  'stop_reason': 'tool_use',
-                  'stop_sequence': None,
-                  'usage': dict({
-                    'cache_creation': dict({
-                      'ephemeral_1h_input_tokens': 0,
-                      'ephemeral_5m_input_tokens': 5000,
-                    }),
-                    'cache_creation_input_tokens': 5000,
-                    'cache_read_input_tokens': 0,
-                    'inference_geo': 'global',
-                    'input_tokens': 4,
-                    'output_tokens': 188,
-                    'output_tokens_details': dict({
-                      'thinking_tokens': 107,
-                    }),
-                    'server_tool_use': None,
-                    'service_tier': 'standard',
-                    'speed': 'standard',
-                  }),
-                }),
-                'tool_calls': list([
-                  dict({
-                    'args': dict({
-                      'asset': 'same_asset',
-                      'standing': 'at_a_loss',
-                    }),
-                    'id': 'toolu_016E3nWh5TnmN2b6AMdyX33T',
-                    'name': 'search_episodes',
-                    'type': 'tool_call',
-                  }),
-                ]),
-                'type': 'ai',
-                'usage_metadata': dict({
-                  'input_token_details': dict({
-                    'cache_creation': 0,
-                    'cache_read': 0,
-                    'ephemeral_1h_input_tokens': 0,
-                    'ephemeral_5m_input_tokens': 5000,
-                  }),
-                  'input_tokens': 5004,
-                  'output_token_details': dict({
-                    'reasoning': 107,
-                  }),
-                  'output_tokens': 188,
-                  'total_tokens': 5192,
-                }),
-              }),
-              'type': 'ai',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'artifact': None,
-                'content': 'No past episodes match (same asset, any pattern, any decision, at a loss).',
-                'id': None,
-                'name': None,
-                'response_metadata': dict({
-                }),
-                'status': 'success',
-                'tool_call_id': 'toolu_016E3nWh5TnmN2b6AMdyX33T',
-                'type': 'tool',
-              }),
-              'type': 'tool',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'content': list([
-                  dict({
-                    'caller': dict({
-                      'type': 'direct',
-                    }),
-                    'id': 'toolu_011g93tF5KPD8Acd39NLmSet',
-                    'input': dict({
-                      'asset': 'same_asset_class',
-                      'pattern': 'bearish engulfing',
-                      'standing': 'at_a_loss',
-                    }),
-                    'name': 'search_episodes',
-                    'toolset_name': None,
-                    'type': 'tool_use',
-                  }),
-                ]),
-                'id': 'lc_run--(new each run)',
-                'invalid_tool_calls': list([
-                ]),
-                'name': None,
-                'response_metadata': dict({
-                  'container': None,
-                  'diagnostics': None,
-                  'finish_reason': 'tool_use',
-                  'finish_state': 'complete',
-                  'id': 'msg_011ChRyEAbziSgGdL8PssLtA',
-                  'model': 'claude-haiku-5-5',
-                  'model_name': 'claude-haiku-5-5',
-                  'model_provider': 'anthropic',
-                  'normalized_finish_reason': 'tool_call',
-                  'stop_details': None,
-                  'stop_reason': 'tool_use',
-                  'stop_sequence': None,
-                  'usage': dict({
-                    'cache_creation': dict({
-                      'ephemeral_1h_input_tokens': 0,
-                      'ephemeral_5m_input_tokens': 220,
-                    }),
-                    'cache_creation_input_tokens': 220,
-                    'cache_read_input_tokens': 5000,
-                    'inference_geo': 'global',
-                    'input_tokens': 2,
-                    'output_tokens': 111,
-                    'output_tokens_details': dict({
-                      'thinking_tokens': 0,
-                    }),
-                    'server_tool_use': None,
-                    'service_tier': 'standard',
-                    'speed': 'standard',
-                  }),
-                }),
-                'tool_calls': list([
-                  dict({
-                    'args': dict({
-                      'asset': 'same_asset_class',
-                      'pattern': 'bearish engulfing',
-                      'standing': 'at_a_loss',
-                    }),
-                    'id': 'toolu_011g93tF5KPD8Acd39NLmSet',
-                    'name': 'search_episodes',
-                    'type': 'tool_call',
-                  }),
-                ]),
-                'type': 'ai',
-                'usage_metadata': dict({
-                  'input_token_details': dict({
-                    'cache_creation': 0,
-                    'cache_read': 5000,
-                    'ephemeral_1h_input_tokens': 0,
-                    'ephemeral_5m_input_tokens': 220,
-                  }),
-                  'input_tokens': 5222,
-                  'output_token_details': dict({
-                    'reasoning': 0,
-                  }),
-                  'output_tokens': 111,
-                  'total_tokens': 5333,
-                }),
-              }),
-              'type': 'ai',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'artifact': None,
-                'content': 'No past episodes match (same asset class, bearish engulfing, any decision, at a loss).',
-                'id': None,
-                'name': None,
-                'response_metadata': dict({
-                }),
-                'status': 'success',
-                'tool_call_id': 'toolu_011g93tF5KPD8Acd39NLmSet',
-                'type': 'tool',
-              }),
-              'type': 'tool',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'content': list([
-                  dict({
-                    'caller': dict({
-                      'type': 'direct',
-                    }),
-                    'id': 'toolu_01FtEAQZudi43TeirfqoYnV1',
-                    'input': dict({
-                      'asset': 'same_asset_class',
-                      'standing': 'at_a_loss',
-                    }),
-                    'name': 'search_episodes',
-                    'toolset_name': None,
-                    'type': 'tool_use',
-                  }),
-                ]),
-                'id': 'lc_run--(new each run)',
-                'invalid_tool_calls': list([
-                ]),
-                'name': None,
-                'response_metadata': dict({
-                  'container': None,
-                  'diagnostics': None,
-                  'finish_reason': 'tool_use',
-                  'finish_state': 'complete',
-                  'id': 'msg_011ChRyEDzdN58oYeUkHYqbm',
-                  'model': 'claude-haiku-5-5',
-                  'model_name': 'claude-haiku-5-5',
-                  'model_provider': 'anthropic',
-                  'normalized_finish_reason': 'tool_call',
-                  'stop_details': None,
-                  'stop_reason': 'tool_use',
-                  'stop_sequence': None,
-                  'usage': dict({
-                    'cache_creation': dict({
-                      'ephemeral_1h_input_tokens': 0,
-                      'ephemeral_5m_input_tokens': 145,
-                    }),
-                    'cache_creation_input_tokens': 145,
-                    'cache_read_input_tokens': 5220,
-                    'inference_geo': 'global',
-                    'input_tokens': 2,
-                    'output_tokens': 82,
-                    'output_tokens_details': dict({
-                      'thinking_tokens': 0,
-                    }),
-                    'server_tool_use': None,
-                    'service_tier': 'standard',
-                    'speed': 'standard',
-                  }),
-                }),
-                'tool_calls': list([
-                  dict({
-                    'args': dict({
-                      'asset': 'same_asset_class',
-                      'standing': 'at_a_loss',
-                    }),
-                    'id': 'toolu_01FtEAQZudi43TeirfqoYnV1',
-                    'name': 'search_episodes',
-                    'type': 'tool_call',
-                  }),
-                ]),
-                'type': 'ai',
-                'usage_metadata': dict({
-                  'input_token_details': dict({
-                    'cache_creation': 0,
-                    'cache_read': 5220,
-                    'ephemeral_1h_input_tokens': 0,
-                    'ephemeral_5m_input_tokens': 145,
-                  }),
-                  'input_tokens': 5367,
-                  'output_token_details': dict({
-                    'reasoning': 0,
-                  }),
-                  'output_tokens': 82,
-                  'total_tokens': 5449,
-                }),
-              }),
-              'type': 'ai',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'artifact': None,
-                'content': 'No past episodes match (same asset class, any pattern, any decision, at a loss).',
-                'id': None,
-                'name': None,
-                'response_metadata': dict({
-                }),
-                'status': 'success',
-                'tool_call_id': 'toolu_01FtEAQZudi43TeirfqoYnV1',
-                'type': 'tool',
-              }),
-              'type': 'tool',
-            }),
-            dict({
-              'data': dict({
-                'additional_kwargs': dict({
-                }),
-                'content': list([
-                  dict({
-                    'signature': 'CAQSowkKEAgUGAI4AUIIdGhpbmtpbmcSDGawDslNLcoEy8hmVhoMYxTJQLzmwZZLK5v2IjBHJxj2Prd7M8fo1JWD8ip5N/pkpfwOqoxDXpHz/V2Uds8zzeCvC3etGmfgCoTHNeEqwAiU7k1v7nDtkaaxHgIqmjS6PZdXamIa1LWYONk0ejfAEbaF0hVzXBHX5abQpPRa+UXMSofktzoF700xUngJkuafaxeoFck1HLixlFcDokIhLBmBI/iMA/LCRHydavbtgReCACbjIpjNF0cmQTKDKAGNeY3YL83CkZttFB3FZUbzVEDY4d1pF/URUjr6KVlCJ0z80TBdaXx4g7lZeu1cMSOyVRJgpS0JwbD+4cfH+WElWyrLjituq1GDN9p5rWIKLzyWqDLNwbz65WHzxcsg1U5R8otC16ZdJZDaRSJZ7CtlT8q5r6sWJlh8JoxPbXnL09Hrc3uaxGbVSLiJpVCqZB3HpUDDSviQ5K7dUCnUAd4S105XaCu6wFgSoKA6CIBvEyXucIt5HRbAYC9UhKDEGUjB5PzSF/Nnstor35yYA4PUz29PuqZu90UK39VmGKtpUApnBN4GWqdBBvjK2XPCcuM3RIZ0dQDDqwmDMY61apWo3dBEQIPusW5AfbrH72fpfYSh/qdptrGTo5bz+aEKqJwcqwhLDlp1OM5i3LXHIrjHL2Rej6rfq54qfjhU7P7JFJLw4Ry9+7+9NI41lchcAYaXG1Aw110GykH4nzlKUoK6QwOwRLGzcWOHM03WCE92KONk+dSmUztgrRuUl6XgoAnTy8tnWzGY7GXNyrgB6b4el8C2gnIBqYns3kI70oZaIo9ONffV0MFegh3Urpip8Ed7dVgvnjKXjw8jjVXoHIcvy0Q8IayVHuKHmwrid3Q2QqKh8BaixecVvz4toiYTOME6JF87L8LCMN1p72DvhGSH2ko+ZiD2yPVuhYW1fLYrwW7DGJWY3bWW04b1o6ElWqIwhG67aTO7GQQ6d1VAOlCzUqqrepfdULHwUICIW6AQCe/aBcFwUJxNCjGqi/KQACklM1VPj/ZuFPa4u6KKldQsXpFAFqU6MetuXk7WzCyLGPJF1hsSHlRNETVE2QXXCQvpql374rQmT3hMJcGPAIAJE15QXtlvJi7aa61+BzqR7jKdo6zQtLI2xRcfs2ppVBjSlLkQuPfhDDUXuhl4Lf2NSyjbjWNAbIP/F0/YXwkBopSeK7aiFvC/eJFSb0Gt8G4uQj0qWjZ3k2z6w0cUUQVpnYkiJPT6CM+ONyvcnTSoXGhKc5Hi3xGV1q3S8iSOG6pI4tfSmlcCaDrdUcJfZCfJF+zFDs6Gw4FgppMWdhDJ7zwRg8Qf6UIVgQSvOFAzuPiZ5TCKy0kjHK85QVdoYYiC2TlJJZsYk5CcIqGCZzxONxmktZIRHCOyvhSaPmy/cusTq2gw7NHjaoisApNJUc7g9uXXqf/Acf9NNSD9nxjSP6Erij6caclqllYs8af1iDuLzKmTeQ20AKyEe+CSTu+nShU00jX3jaEukE8XReDKCq9eAjfZSzUKXgPdF0kByp54COdmAkLxrxH8W5d1mwuV3BgB',
-                    'thinking': '',
-                    'type': 'thinking',
-                  }),
-                  dict({
-                    'caller': dict({
-                      'type': 'direct',
-                    }),
-                    'id': 'toolu_01CApSD6XvAA6h1vRaDJeLEd',
-                    'input': dict({
-                      'episode_ids': list([
-                        'E1',
-                        'E2',
-                        'E3',
-                      ]),
-                      'note': 'No past reviews of a loss-making long in this asset or class with a bearish engulfing. The closest available are the three crypto holds, which were in profit, so they match only loosely on position and pattern.',
-                    }),
-                    'name': 'select_episodes',
-                    'toolset_name': None,
-                    'type': 'tool_use',
-                  }),
-                ]),
-                'id': 'lc_run--(new each run)',
-                'invalid_tool_calls': list([
-                ]),
-                'name': None,
-                'response_metadata': dict({
-                  'container': None,
-                  'diagnostics': None,
-                  'finish_reason': 'tool_use',
-                  'finish_state': 'complete',
-                  'id': 'msg_011ChRyEH7uUWjCsA7DaMNL1',
-                  'model': 'claude-haiku-5-5',
-                  'model_name': 'claude-haiku-5-5',
-                  'model_provider': 'anthropic',
-                  'normalized_finish_reason': 'tool_call',
-                  'stop_details': None,
-                  'stop_reason': 'tool_use',
-                  'stop_sequence': None,
-                  'usage': dict({
-                    'cache_creation': dict({
-                      'ephemeral_1h_input_tokens': 0,
-                      'ephemeral_5m_input_tokens': 113,
-                    }),
-                    'cache_creation_input_tokens': 113,
-                    'cache_read_input_tokens': 5365,
-                    'inference_geo': 'global',
-                    'input_tokens': 2,
-                    'output_tokens': 312,
-                    'output_tokens_details': dict({
-                      'thinking_tokens': 165,
-                    }),
-                    'server_tool_use': None,
-                    'service_tier': 'standard',
-                    'speed': 'standard',
-                  }),
-                }),
-                'tool_calls': list([
-                  dict({
-                    'args': dict({
-                      'episode_ids': list([
-                        'E1',
-                        'E2',
-                        'E3',
-                      ]),
-                      'note': 'No past reviews of a loss-making long in this asset or class with a bearish engulfing. The closest available are the three crypto holds, which were in profit, so they match only loosely on position and pattern.',
-                    }),
-                    'id': 'toolu_01CApSD6XvAA6h1vRaDJeLEd',
-                    'name': 'select_episodes',
-                    'type': 'tool_call',
-                  }),
-                ]),
-                'type': 'ai',
-                'usage_metadata': dict({
-                  'input_token_details': dict({
-                    'cache_creation': 0,
-                    'cache_read': 5365,
-                    'ephemeral_1h_input_tokens': 0,
-                    'ephemeral_5m_input_tokens': 113,
-                  }),
-                  'input_tokens': 5480,
-                  'output_token_details': dict({
-                    'reasoning': 165,
-                  }),
-                  'output_tokens': 312,
-                  'total_tokens': 5792,
                 }),
               }),
               'type': 'ai',
@@ -10222,7 +8830,6 @@
                 'asset': 'same_asset_class',
                 'pattern': 'three black crows',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -10233,7 +8840,6 @@
                 'asset': 'same_asset_class',
                 'pattern': 'bearish engulfing',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -11355,7 +9961,6 @@
                 'asset': 'same_asset_class',
                 'pattern': 'bullish marubozu',
               }),
-              'latency_seconds': 0.014999999999417923,
               'refused': None,
               'tool': 'search_episodes',
             }),
@@ -11366,7 +9971,6 @@
                 'direction': 'long',
                 'pattern': 'bullish marubozu',
               }),
-              'latency_seconds': 0.0,
               'refused': None,
               'tool': 'read_track_record',
             }),
