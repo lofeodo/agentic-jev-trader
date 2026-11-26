@@ -111,6 +111,8 @@ def test_a_sim_s_header_has_its_name_status_days_and_settings(sims, api):
 
 def test_an_unknown_sim_is_not_found(api):
     assert api.get("/sims/99").status_code == 404
+    assert api.get("/sims/99/trades/1").status_code == 404
+    assert api.get("/sims/99/decisions/99-140-ASSET_01/trail").status_code == 404
 
 
 def account(sims, sim_id, step, value, **columns):
@@ -138,6 +140,7 @@ def fill(sims, sim_id, position, kind, side, step, units, price, asset="ASSET_01
             "SIM": sim_id,
             "POSITION": position,
             "INSTRUMENT": f"{asset}_SPOT",
+            "DECISION": f"{sim_id}-{step - 1}-{asset}",
             "KIND": kind,
             "REASON": "jev",
             "SIDE": side,
@@ -304,6 +307,7 @@ def test_the_live_figures_carry_the_open_positions_in_real_prices(sims, api):
         "opened_at": "2025-03-02T00:30:00",
         "amount_chosen": 2_000.0,
         "limited_by": "trade_risk",
+        "decision": f"{sim}-97-ASSET_01",  # opens its decision trail
     }
 
 
@@ -361,6 +365,7 @@ def test_the_live_figures_carry_the_latest_decisions_newest_first(sims, api):
         (139, "Apple"),
     ]
     assert latest[0] == {
+        "decision": f"{sim}-140-ASSET_01",
         "step": 140,
         "at": "2025-03-02T11:00:00",
         "asset": {"name": "Apple", "masked_id": "ASSET_01"},

@@ -19,7 +19,7 @@ import {
   type TradeFilters,
   type TradeLine,
 } from "./api/client";
-import { AssetTag, DirectionWords, ErrorBox, PriceTag, SectionHeading } from "./pieces";
+import { AssetTag, DirectionWords, ErrorBox, PriceTag, SectionHeading, TrailButton, type OpenTrail } from "./pieces";
 import { dayAndTime, dollars, dollarsAndCents, fromApi, signedDollars, units } from "./format";
 
 // A setting (appendix 8, section 8.9), like the 1-second one on the sim page.
@@ -61,10 +61,23 @@ function usePolled<T>(load: () => Promise<T>, keepAsking: boolean, deps: unknown
   return { data, error };
 }
 
-export function SimReport({ id, header, inProgress, firstNumber }: { id: number; header: SimHeader; inProgress: boolean; firstNumber: number }) {
+// `onOpenTrail`: opens the decision trail of a trade or a no-trade look.
+export function SimReport({
+  id,
+  header,
+  inProgress,
+  firstNumber,
+  onOpenTrail,
+}: {
+  id: number;
+  header: SimHeader;
+  inProgress: boolean;
+  firstNumber: number;
+  onOpenTrail: OpenTrail;
+}) {
   return (
     <>
-      <Trades id={id} inProgress={inProgress} number={firstNumber} />
+      <Trades id={id} inProgress={inProgress} number={firstNumber} onOpenTrail={onOpenTrail} />
       <MeasurementsSection id={id} inProgress={inProgress} number={firstNumber + 1} />
       <ScorecardSection id={id} inProgress={inProgress} number={firstNumber + 2} />
       <SettingsSection header={header} number={firstNumber + 3} />
@@ -110,7 +123,7 @@ const limitWords = (limit: string) => `the ${limit.replaceAll("_", " ")} limit`;
 const when = (at: string | null, step: number | null) =>
   at ? dayAndTime(fromApi(at)) : step === null ? "--" : `step ${step}`;
 
-function Trades({ id, inProgress, number }: { id: number; inProgress: boolean; number: number }) {
+function Trades({ id, inProgress, number, onOpenTrail }: { id: number; inProgress: boolean; number: number; onOpenTrail: OpenTrail }) {
   const [filters, setFilters] = useState<TradeFilters>(NO_FILTERS);
   const [page, setPage] = useState(1);
   const { data: table, error } = usePolled(() => fetchTrades(id, filters, page, PAGE_SIZE), inProgress, [id, page, ...Object.values(filters)]);
@@ -160,7 +173,11 @@ function Trades({ id, inProgress, number }: { id: number; inProgress: boolean; n
             </thead>
             <tbody>
               {table.lines.map((line) =>
-                line.kind === "trade" ? <TradeRow key={`t${line.position}`} line={line} /> : <NoTradeRow key={`n${line.decision}`} line={line} />,
+                line.kind === "trade" ? (
+                  <TradeRow key={`t${line.position}`} simId={id} line={line} onOpenTrail={onOpenTrail} />
+                ) : (
+                  <NoTradeRow key={`n${line.decision}`} line={line} onOpenTrail={onOpenTrail} />
+                ),
               )}
             </tbody>
           </table>
@@ -203,11 +220,17 @@ function Marks({ marks }: { marks: DayMark[] }) {
   );
 }
 
-function TradeRow({ line }: { line: TradeLine }) {
+// The time it opened leads to the trade's page; "trail" opens how it was decided.
+function TradeRow({ simId, line, onOpenTrail }: { simId: number; line: TradeLine; onOpenTrail: OpenTrail }) {
   const tags = [line.trimmed && "trimmed", line.held_overnight && "overnight"].filter(Boolean).join(", ");
   return (
     <tr className={row}>
-      <td className={td}>{when(line.opened_at, line.opened_step)}</td>
+      <td className={td}>
+        <a href={`#/sims/${simId}/trades/${line.position}`} className="underline">
+          {when(line.opened_at, line.opened_step)}
+        </a>
+        <TrailButton decision={line.decision} onOpenTrail={onOpenTrail} />
+      </td>
       <td className={td}>
         <AssetTag asset={line.asset} />
         {line.units !== null && <div className="text-[12.5px] text-dim">{units(line.units)} units</div>}
@@ -238,7 +261,7 @@ function TradeRow({ line }: { line: TradeLine }) {
   );
 }
 
-function NoTradeRow({ line }: { line: TradeLine }) {
+function NoTradeRow({ line, onOpenTrail }: { line: TradeLine; onOpenTrail: OpenTrail }) {
   const why =
     line.pick === "no_trade"
       ? "Jev picked no trade"
@@ -247,7 +270,10 @@ function NoTradeRow({ line }: { line: TradeLine }) {
         : "No order was placed";
   return (
     <tr className={`${row} text-dim`}>
-      <td className={td}>{when(line.decided_at, line.decided_step)}</td>
+      <td className={td}>
+        {when(line.decided_at, line.decided_step)}
+        <TrailButton decision={line.decision} onOpenTrail={onOpenTrail} />
+      </td>
       <td className={td}>
         <AssetTag asset={line.asset} />
       </td>

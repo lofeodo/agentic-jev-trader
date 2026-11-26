@@ -165,7 +165,7 @@ class SnowflakeApiStore:
 
     def latest_decisions(self, sim_id, limit):
         return self._rows(
-            "SELECT STEP, ASSET, KIND, TIER, SCREEN_ANSWER, SKIPPED_BECAUSE, ACTION "
+            "SELECT ID, STEP, ASSET, KIND, TIER, SCREEN_ANSWER, SKIPPED_BECAUSE, ACTION "
             f"FROM MEMORY.DECISIONS WHERE {OWN_ROWS} "
             "ORDER BY STEP DESC, ASSET LIMIT ?",
             (sim_id, limit),
