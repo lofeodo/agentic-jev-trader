@@ -2,9 +2,9 @@
 
 The page's own code writes the screen's, the full evaluation's, the position screen's and the
 position review's text from its made-up story. This test runs that code with Node and compares
-it, word for word, with what our code writes from the same story. The full evaluation and the
-review are compared as the agent without memory sends them (the page's tab 6, case C): the memory
-sections come with the agent with memory.
+it, word for word, with what our code writes from the same story. The full evaluation is compared
+with memory (tab 2, and the "nothing to show" cases A and B) and without (case C); the review
+without memory (tabs 4 and 5) and with it (tab 5's past reviews).
 """
 
 import json
@@ -18,13 +18,19 @@ import pytest
 from jev_trader.broker import Direction, load_stop_price_settings, load_trading_costs
 from jev_trader.jev.full_evaluation import candidate_trades
 from jev_trader.jev.reading import (
+    MEMORIES_RELEVANT,
     AccountView,
     AssetView,
+    MemorySections,
+    PastEpisodes,
     PositionLine,
     PositionView,
     Reading,
 )
+from jev_trader.memory.episodes import Ended, Episode, Prices, Trade
+from jev_trader.memory.track_record import Group, TrackRecord
 from jev_trader.risk import load_risk_profile
+from tests.unit.llm.test_llm_walkthrough_page import past_review
 
 PAGE = Path(__file__).parents[3] / "docs" / "jev-reading-walkthrough.html"
 PRINT_THE_STORY = """
@@ -37,6 +43,12 @@ console.log(JSON.stringify({
   pickQuestion: QUESTIONS.pick(ASSET),
   pickOptions: pickOptions(ASSET, ACCOUNT),
   withoutMemory: fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, null),
+  selected: SELECTED,
+  withMemory: fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, MEMORY),
+  sizeWithMemory: fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, MEMORY, candidateTrades(ASSET)[0]),
+  noneSelected: fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, { trackRecord: TRACK_RECORD, episodes: [] }),
+  noneYet: fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, { trackRecord: THIN_TRACK_RECORD, episodes: [], holdsNoEpisodes: true }),
+  memoriesRelevant: QUESTIONS.memoriesRelevant,
   sizeBackground: fullEvaluationBackground(ASSET, ACCOUNT, PLAYBOOK, null, candidateTrades(ASSET)[0]),
   sizeQuestion: QUESTIONS.size,
   sizeOptions: sizeOptions(ACCOUNT, candidateTrades(ASSET)[0]),
@@ -61,6 +73,10 @@ console.log(JSON.stringify({
   addOptions: (() => { const facts = positionFacts(POSITION, ASSET_LATER);
     return sizeOptions(ACCOUNT_LATER, POSITION, { stopShare: facts.stopDistance, riskUsed: facts.riskUsed, held: facts.worth }); })(),
   endOfSession: positionSection({ ...POSITION, barsAgo: 22, since: ["bars 1 to 21 hold"] }, ASSET_LATER, true),
+  reviews: REVIEW_MEMORY.episodes,
+  reviewWithMemory: positionReviewBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION, REVIEW_MEMORY),
+  reduceWithMemory: positionReviewBackground(ASSET_LATER, ACCOUNT_LATER, PLAYBOOK, POSITION, REVIEW_MEMORY,
+    "Reduce: close part of the position and keep the rest."),
 }));
 """
 
@@ -186,6 +202,148 @@ def test_the_picks_background_without_memory_is_the_pages_word_for_word(story):
     names = [o["name"] for o in story["pickOptions"]]
     request = reading().pick_request(*views(story), our_trades(story), [names] * 5)
     assert request.background == story["withoutMemory"]
+
+
+# The agent with memory: the page's tab 2 (four episodes selected) and its cases A and B.
+
+NOW = 1000 * 96  # the step of the page's full evaluation
+REASONS = {"choice": "jev", "stop": "stop_price"}
+
+
+def tracks(*records) -> tuple[TrackRecord, ...]:
+    """The page's track record, one line per pattern and direction, as our records."""
+    return tuple(
+        TrackRecord(
+            pattern=pattern,
+            direction=direction,
+            asset_class="stock",
+            minimum_sample=10,
+            closed_trades=fits.trades if fits else closed,
+            groups=[fits] if fits else [],
+        )
+        for pattern, direction, fits, closed in records
+    )
+
+
+def fits(trades, wins, gain, loss, total, **split) -> Group:
+    return Group(
+        trades=trades,
+        made_money=wins,
+        average_gain=gain,
+        average_loss=loss,
+        total_profit=total,
+        fits=True,
+        **split,
+    )
+
+
+WITH_TREND = {"trend": "with the trend", "volume_level": "high"}
+TRACK_RECORD = tracks(
+    (
+        "bullish engulfing",
+        "long",
+        fits(11, 7, 38, -21, 182, **WITH_TREND, part_of_day="first hour"),
+        11,
+    ),
+    (
+        "bullish engulfing",
+        "short",
+        fits(14, 4, 27, -24, -132, trend="against the trend"),
+        14,
+    ),
+    ("hammer", "long", fits(23, 11, 29, -22, 55, **WITH_TREND), 23),
+    ("hammer", "short", None, 6),
+)
+THIN_TRACK_RECORD = tracks(
+    ("bullish engulfing", "long", None, 2),
+    ("bullish engulfing", "short", None, 0),
+    ("hammer", "long", None, 1),
+    ("hammer", "short", None, 0),
+)
+
+
+def episodes(story) -> tuple[Episode, ...]:
+    """The page's four selected episodes, as memory stores them."""
+    found = []
+    for n, e in enumerate(story["selected"], start=1):
+        trade, ended, after = e.get("trade"), e.get("ended"), e.get("after")
+        found.append(
+            Episode(
+                id=f"made-up-{n}",
+                kind="full_evaluation",
+                asset=e["asset"],
+                asset_class=e["assetClass"],
+                step=NOW - e["stepsAgo"],
+                situation=e["situation"],
+                patterns=e["patterns"],
+                longer_patterns=e.get("patternsOnLongerBars", []),
+                part_of_day="first hour",
+                trend="up",
+                volume="high",
+                decided=trade["direction"] if trade else "no_trade",
+                trade=trade
+                and Trade(
+                    direction=trade["direction"],
+                    stop=trade["stop"],
+                    stop_distance=trade["stopPercent"] / 100,
+                    dollars=trade["dollars"],
+                ),
+                ended=ended
+                and Ended(
+                    reason=REASONS[ended["reason"]],
+                    bars_after=ended["bars"],
+                    profit=ended["profit"],
+                    percent=ended["percent"],
+                    best=ended["best"],
+                    worst=ended["worst"],
+                ),
+                prices=after
+                and Prices(
+                    after_1_bar=after["oneBar"] / 100,
+                    after_4_bars=after["fourBars"] / 100,
+                    end_of_day=after["endOfDay"] / 100,
+                ),
+            )
+        )
+    return tuple(found)
+
+
+def test_the_picks_background_with_memory_is_the_pages_word_for_word(story):
+    names = [o["name"] for o in story["pickOptions"]]
+    memory = MemorySections(NOW, TRACK_RECORD, PastEpisodes.SELECTED, episodes(story))
+
+    request = reading().pick_request(
+        *views(story), our_trades(story), [names] * 5, memory
+    )
+
+    assert request.background == story["withMemory"]
+    assert request.questions[MEMORIES_RELEVANT] == {
+        "type": "noul",
+        "instructions": story["memoriesRelevant"],
+    }
+    size = reading().size_request(*views(story), our_trades(story)[0], memory)
+    assert size.background == story["sizeWithMemory"]
+
+
+@pytest.mark.parametrize(
+    ("past", "track_record", "page"),
+    [
+        (PastEpisodes.NONE_SELECTED, TRACK_RECORD, "noneSelected"),
+        (PastEpisodes.NONE_YET, THIN_TRACK_RECORD, "noneYet"),
+    ],
+)
+def test_each_nothing_to_show_case_is_the_pages_word_for_word(
+    story, past, track_record, page
+):
+    names = [o["name"] for o in story["pickOptions"]]
+    memory = MemorySections(NOW, track_record, past)
+
+    request = reading().pick_request(
+        *views(story), our_trades(story), [names] * 5, memory
+    )
+
+    assert request.background == story[page]
+    assert MEMORIES_RELEVANT not in request.questions
 
 
 def test_the_pick_is_asked_as_copies_with_the_pages_options(story):
@@ -331,3 +489,51 @@ def test_an_end_of_session_review_adds_the_pages_one_line(story):
         asset, account, playbook, position, [["hold", "close", "reduce", "add"]] * 5
     )
     assert story["endOfSession"] in request.background
+
+
+# The position review with memory (tab 5: the four past reviews tab 6 of the LLM walkthrough
+# selected, and the track record for the patterns of this moment)
+
+REVIEW_TRACK_RECORD = tracks(
+    ("spinning top", "long", fits(31, 14, 27, -19, 55, trend="with the trend"), 31),
+    (
+        "spinning top",
+        "short",
+        fits(12, 4, 22, -21, -80, trend="against the trend"),
+        12,
+    ),
+    (
+        "doji",
+        "long",
+        fits(19, 9, 30, -20, 70, trend="with the trend", volume_level="average"),
+        19,
+    ),
+    ("doji", "short", None, 7),
+)
+
+
+def review_memory(story) -> MemorySections:
+    episodes = tuple(past_review(e) for e in story["reviews"])
+    return MemorySections(NOW, REVIEW_TRACK_RECORD, PastEpisodes.SELECTED, episodes)
+
+
+def test_the_reviews_background_with_memory_is_the_pages_word_for_word(story):
+    names = ["hold", "close", "reduce", "add"]
+
+    request = reading().action_request(
+        *position_views(story), [names] * 5, memory=review_memory(story)
+    )
+
+    assert request.background == story["reviewWithMemory"]
+    assert request.questions[MEMORIES_RELEVANT] == {
+        "type": "noul",
+        "instructions": story["memoriesRelevant"],
+    }
+
+
+def test_the_reduce_request_with_memory_is_the_pages_word_for_word(story):
+    request = reading().reduce_request(
+        *position_views(story), memory=review_memory(story)
+    )
+
+    assert request.background == story["reduceWithMemory"]

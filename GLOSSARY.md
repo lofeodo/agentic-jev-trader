@@ -234,7 +234,7 @@ A reply from the LLM from which code can neither run a lookup nor take an answer
 _Avoid_: Invalid output, malformed answer
 
 **Prompt version**:
-The name of one exact wording of everything the LLM is sent that is not data: its standing instructions, its tool descriptions, and the layout of each message. Every sim and every full evaluation records the one it used.
+The name of one exact wording of everything the LLM is sent that is not data: its standing instructions, its tool descriptions, and the layout of each message, for both of its jobs (full evaluations and position reviews). Every sim, every full evaluation and every position review records the one it used.
 _Avoid_: Prompt revision, prompt ID
 
 **Transcript**:
@@ -430,6 +430,10 @@ _Avoid_: Trade log, position notes
 **Entry memory**:
 The scorecard lines and selected episodes Jev read in the full evaluation that opened a position. They are kept with the position unchanged and shown with it. Jev does not read them again: a position review reads episodes selected for its own moment.
 _Avoid_: Frozen memory, carried memory
+
+**Fresh memory**:
+The scorecard lines and selected episodes Jev read in one position review, chosen for that review's moment. Each review's fresh memory is stored on the review, beside the position's entry memory and never over it.
+_Avoid_: Review memory, new memory
 
 **Situation text**:
 The one-paragraph plain-language description of a snapshot, written by code and embedded for episode search.

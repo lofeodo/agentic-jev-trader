@@ -48,6 +48,15 @@ class Snapshot:
     typical_move: float | None  # in masked dollars; None when not available
     bars_left: int | None  # in a stock's session (0 on its last bar); None for crypto
     patterns: tuple[str, ...]  # every candle pattern the situation text names
+    # The patterns of the last 4 bars alone, without the latest hourly and daily bars'; None
+    # where they were not told apart: then all of `patterns`.
+    window_patterns: tuple[str, ...] | None = None
+
+    @property
+    def recent_patterns(self) -> tuple[str, ...]:
+        """The candle patterns of the last 4 bars: the track record's patterns (spec appendix
+        4, section 8)."""
+        return self.patterns if self.window_patterns is None else self.window_patterns
 
 
 # Bars by step, then by asset: only the assets with a bar at that step.

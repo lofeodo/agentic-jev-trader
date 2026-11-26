@@ -9,6 +9,9 @@ server's own tool list, so the two cannot drift apart.
 
 Code's first search goes through the same tool, by the same bridge, as the LLM's.
 
+The bridge is asynchronous; the agent's steps are not. `Connection` keeps one session open for a
+sim and gives the lookups for each moment as plain blocking calls (`BlockingLookups`).
+
 Choices the spec leaves to the build:
 
 - An input the LLM may not set (the sim, the step, or anything not in its definition) is refused
@@ -18,11 +21,15 @@ Choices the spec leaves to the build:
   it is retried or counted is the LLM loop's to decide (appendix 5, last section).
 """
 
+import asyncio
+import concurrent.futures
+import threading
 import tomllib
-from collections.abc import AsyncIterator, Sequence
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Self
 
 import httpx2
 from mcp import ClientSession
@@ -43,6 +50,9 @@ from jev_trader.memory.server import FILLED_IN_BY_CODE, PATH
 from jev_trader.memory.track_record import TrackRecord
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "llm_tools.toml"
+SERVER_SETTINGS_PATH = (
+    Path(__file__).resolve().parents[3] / "config" / "memory_server.toml"
+)
 LOOKUP_TOOLS = ("search_episodes", "read_episodes", "read_track_record")
 
 
@@ -209,6 +219,14 @@ class MemoryBridge:
         )
 
 
+def local_url(path: Path = SERVER_SETTINGS_PATH) -> str:
+    """The memory server's address on this computer: the host and port it listens on, from
+    `config/memory_server.toml`."""
+    with open(path, "rb") as file:
+        settings = tomllib.load(file)
+    return f"http://{settings['host']}:{settings['port']}"
+
+
 @asynccontextmanager
 async def connect(
     url: str, http_client: httpx2.AsyncClient | None = None
@@ -222,3 +240,93 @@ async def connect(
     ):
         await session.initialize()
         yield session
+
+
+class Connection:
+    """Memory's lookups as plain blocking calls, for the agent's steps (`MemoryLookups` in
+    `jev_trader.llm.selection`), over one MCP session kept open for the whole sim.
+
+    The session lives on an event loop in a thread of its own, opened and closed by one task, as
+    the SDK's client asks; each lookup is handed to that loop and waited for. Use it as a context
+    manager, then `lookups_at(context)` gives the lookups for one moment. `open_session` makes
+    the session (by default `connect(url)`); tests pass one reaching an in-process server.
+    """
+
+    def __init__(
+        self,
+        url: str,
+        patterns: Sequence[str],
+        open_session: Callable[[], AbstractAsyncContextManager[ClientSession]]
+        | None = None,
+    ):
+        self.patterns = list(patterns)
+        self._open = open_session or (lambda: connect(url))
+        self._session: ClientSession | None = None
+        self._held: concurrent.futures.Future | None = None
+        self._close: asyncio.Event | None = None
+
+    def __enter__(self) -> Self:
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
+        self._thread.start()
+        opened: concurrent.futures.Future = concurrent.futures.Future()
+        self._held = asyncio.run_coroutine_threadsafe(self._hold(opened), self._loop)
+        try:
+            self._session = opened.result()
+        except BaseException:
+            self._stop()
+            raise
+        return self
+
+    def __exit__(self, *exc) -> None:
+        if self._close is not None:
+            self._loop.call_soon_threadsafe(self._close.set)
+        try:
+            if self._held is not None:
+                self._held.result()
+        finally:
+            self._stop()
+
+    async def _hold(self, opened: concurrent.futures.Future) -> None:
+        """Open the session, hand it over, and keep it open until asked to close."""
+        self._close = asyncio.Event()
+        try:
+            async with self._open() as session:
+                opened.set_result(session)
+                await self._close.wait()
+        except BaseException as error:
+            if not opened.done():
+                opened.set_exception(error)
+            raise
+
+    def _stop(self) -> None:
+        self._loop.call_soon_threadsafe(self._loop.stop)
+        self._thread.join()
+        self._loop.close()
+
+    def run(self, coroutine):
+        """Run one of the bridge's calls on the session's loop and wait for its answer."""
+        return asyncio.run_coroutine_threadsafe(coroutine, self._loop).result()
+
+    def lookups_at(self, context: LookupContext) -> "BlockingLookups":
+        if self._session is None:
+            raise RuntimeError("the memory connection is not open")
+        return BlockingLookups(
+            self, MemoryBridge(self._session, context, self.patterns)
+        )
+
+
+class BlockingLookups:
+    """The three lookups for one moment, each a plain call that waits for its answer."""
+
+    def __init__(self, connection: Connection, bridge: MemoryBridge):
+        self.connection, self.bridge = connection, bridge
+
+    def search(self, **filters: str) -> SearchResult:
+        return self.connection.run(self.bridge.search(**filters))
+
+    def read(self, episode_ids: list[str]) -> Episodes:
+        return self.connection.run(self.bridge.read(episode_ids))
+
+    def track_record(self, pattern: str, direction: str) -> TrackRecord:
+        return self.connection.run(self.bridge.track_record(pattern, direction))

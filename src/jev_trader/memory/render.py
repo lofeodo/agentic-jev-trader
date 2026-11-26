@@ -10,13 +10,16 @@ read at (for "3 days ago") and the asset looked at (for "same asset").
 - **In full**: the situation as written then, what was decided, and how it ended. For the LLM a
   past trade also shows how it was handled bar by bar; Jev's block leaves that line out and
   names no other asset. A past position review reads the same for both.
-- **The track record**: one line per group shown, the one that fits marked.
+- **The track record**: for the LLM, one line per group shown, the one that fits marked; for
+  Jev, one line per candle pattern and direction: the group that fits, or the count alone.
 
 Choices the spec leaves to the build:
 
 - A measurement not available at the time leaves its word out of the one-line setting.
 - A trade stored before its best and worst, its journal or the money it put in were kept with
   its outcomes reads without them.
+- An episode in full whose prices afterwards are not stored leaves its "Afterwards" line out;
+  its one line leaves the price moves empty.
 """
 
 import math
@@ -24,7 +27,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from jev_trader.memory.episodes import NO_TRADE, Episode, Step
+from jev_trader.memory.episodes import NO_TRADE, Episode, Standing, Step
 from jev_trader.memory.track_record import Group, TrackRecord
 from jev_trader.sim.clock import STEPS_PER_DAY
 
@@ -57,7 +60,7 @@ def _dollars(n: float) -> str:
     return f"{'-' if rounded < 0 else ''}${abs(rounded):,}"
 
 
-def _signed_dollars(n: float) -> str:
+def signed_dollars(n: float) -> str:
     rounded = _round(n)
     return f"{'-' if rounded < 0 else '+'}${abs(rounded):,}"
 
@@ -110,13 +113,15 @@ def _price_after(episode: Episode, w: dict) -> str:
     )
 
 
-def _standing(episode: Episode, w: dict) -> str:
-    s = episode.standing
+def standing(s: Standing, w: dict) -> str:
+    """How a position stands (or stood, at a past review): "long, $5,000, open 6 bars, +$18
+    (+0.4%), stop price 0.9% away". The LLM reads a reviewed position's standing now in the
+    same words."""
     return w["standing"].format(
         direction=s.direction,
         dollars=_dollars(s.put_in),
         bars=_count(w["bars"], s.bars_open),
-        profit=_signed_dollars(s.profit),
+        profit=signed_dollars(s.profit),
         percent=_signed_percent(s.percent),
         stop=_share(s.stop_distance),
     )
@@ -135,7 +140,7 @@ def _trade_ended(episode: Episode, separator: str, w: dict) -> str:
         reason=w["closing_reasons"][e.reason],
         bars=_count(w["bars"], e.bars_after),
         separator=separator,
-        profit=_signed_dollars(e.profit),
+        profit=signed_dollars(e.profit),
         percent=_percent_of(e, w),
     )
 
@@ -145,7 +150,7 @@ def _review_ended(episode: Episode, separator: str, w: dict) -> str:
     e = episode.ended
     values = {
         "separator": separator,
-        "profit": _signed_dollars(e.profit),
+        "profit": signed_dollars(e.profit),
         "percent": _percent_of(e, w),
     }
     if e.closed_at_this_review:
@@ -163,7 +168,7 @@ def step_text(step: Step, w: dict) -> str:
         words = dict(zip(REDUCE_SHARES, w["reduce_share_words"], strict=True))
         text = w["reduce"].format(
             share=words.get(step.share, f"{_round(100 * step.share)}%"),
-            profit=_signed_dollars(step.profit),
+            profit=signed_dollars(step.profit),
         )
     elif step.action == "add":
         text = w["add"].format(amount=_dollars(step.amount))
@@ -203,12 +208,12 @@ def summary_line(episode: Episode, label: str, reader: Reader) -> str:
     ]
     if episode.is_review:
         columns += [
-            _standing(episode, w),
+            standing(episode.standing, w),
             step_text(episode.review, w),
-            f"{_price_after(episode, w)}; {_review_ended(episode, ': ', w)}",
+            "; ".join([*_moves(episode, w), _review_ended(episode, ": ", w)]),
         ]
     elif episode.decided == NO_TRADE:
-        columns += [w["no_trade"], _price_after(episode, w)]
+        columns += [w["no_trade"], "".join(_moves(episode, w))]
     else:
         t = episode.trade
         columns += [
@@ -218,6 +223,17 @@ def summary_line(episode: Episode, label: str, reader: Reader) -> str:
             _trade_ended(episode, ": ", w),
         ]
     return w["column_separator"].join(columns)
+
+
+def _moves(episode: Episode, w: dict) -> list[str]:
+    """Where the price went afterwards, or nothing when those prices are not stored."""
+    return [] if episode.prices is None else [_price_after(episode, w)]
+
+
+def _afterwards(episode: Episode, w: dict) -> list[str]:
+    if episode.prices is None:
+        return []
+    return [w["afterwards"].format(after=_price_after(episode, w))]
 
 
 def full_episode(episode: Episode, label: str, reader: Reader) -> str:
@@ -235,21 +251,18 @@ def full_episode(episode: Episode, label: str, reader: Reader) -> str:
         s = episode.standing
         lines += [
             w["position_then"].format(
-                standing=_standing(episode, w),
-                best=_signed_dollars(s.best),
-                worst=_signed_dollars(s.worst),
+                standing=standing(episode.standing, w),
+                best=signed_dollars(s.best),
+                worst=signed_dollars(s.worst),
             ),
             w["review_decided"].format(decided=step_text(episode.review, w)),
-            w["afterwards"].format(after=_price_after(episode, w)),
+            *_afterwards(episode, w),
         ]
         if episode.journal:
             lines.append(w["whole_trade"].format(steps=bar_by_bar(episode.journal, w)))
         lines.append(w["ended"].format(ended=_review_ended(episode, ", ", w)))
     elif episode.decided == NO_TRADE:
-        lines += [
-            w["decided_no_trade"],
-            w["afterwards"].format(after=_price_after(episode, w)),
-        ]
+        lines += [w["decided_no_trade"], *_afterwards(episode, w)]
     else:
         t, e = episode.trade, episode.ended
         lines.append(
@@ -265,13 +278,18 @@ def full_episode(episode: Episode, label: str, reader: Reader) -> str:
         ended = w["ended"].format(ended=_trade_ended(episode, ", ", w))
         if e.best is not None and e.worst is not None:
             ended += w["best_and_worst"].format(
-                best=_signed_dollars(e.best), worst=_signed_dollars(e.worst)
+                best=signed_dollars(e.best), worst=signed_dollars(e.worst)
             )
         lines.append(ended)
     return "\n".join(lines)
 
 
-def _group_name(group: Group, w: dict) -> str:
+def capitalized(text: str) -> str:
+    return text[0].upper() + text[1:]
+
+
+def _splits(group: Group, w: dict) -> list[str]:
+    """What the group is split by: "with the long-term trend", "high volume", "first hour"."""
     words = []
     if group.trend is not None:
         words.append(w["trends"][group.trend])
@@ -279,14 +297,28 @@ def _group_name(group: Group, w: dict) -> str:
         words.append(w["volume_levels"][group.volume_level])
     if group.part_of_day is not None:
         words.append(group.part_of_day)
-    if not words:
-        return w["all_trades"]
-    name = ", ".join(words)
-    return name[0].upper() + name[1:]
+    return words
+
+
+def _group_name(group: Group, w: dict) -> str:
+    words = _splits(group, w)
+    return capitalized(", ".join(words)) if words else w["all_trades"]
+
+
+def _group_line(group: Group, name: str, w: dict) -> str:
+    return w["group"].format(
+        name=name,
+        trades=group.trades,
+        wins=group.made_money,
+        share=f"{_round(100 * group.made_money / group.trades)}%",
+        gain=_maybe(group.average_gain, w),
+        loss=_maybe(group.average_loss, w),
+        total=signed_dollars(group.total_profit),
+    )
 
 
 def _maybe(n: float | None, w: dict) -> str:
-    return w["no_gain"] if n is None else _signed_dollars(n)
+    return w["no_gain"] if n is None else signed_dollars(n)
 
 
 def track_record(record: TrackRecord, wording: dict | None = None) -> str:
@@ -300,15 +332,28 @@ def track_record(record: TrackRecord, wording: dict | None = None) -> str:
         return heading + "\n" + _count(w["too_few"], record.closed_trades)
     lines = [heading]
     for g in record.groups:
-        line = w["group"].format(
-            name=_group_name(g, w),
-            trades=g.trades,
-            wins=g.made_money,
-            share=f"{_round(100 * g.made_money / g.trades)}%",
-            gain=_maybe(g.average_gain, w),
-            loss=_maybe(g.average_loss, w),
-            total=_signed_dollars(g.total_profit),
-        )
+        line = _group_line(g, _group_name(g, w), w)
         lines.append(line + (w["fits"] if g.fits else ""))
     lines.append(w["not_shown"].format(minimum=record.minimum_sample))
     return "\n".join(lines)
+
+
+def track_record_line(record: TrackRecord, wording: dict | None = None) -> str:
+    """The track record in one line, as Jev reads it: the group that fits the current
+    situation, named in full ("Hammer, long, stocks, with the long-term trend: 23 closed
+    trades, ..."), or the count alone when no group holds the minimum sample."""
+    w = wording or load_wording()
+    fits = next((g for g in record.groups if g.fits), None)
+    words = [
+        w["line_name"].format(
+            pattern=record.pattern,
+            direction=record.direction,
+            asset_class=w["asset_classes"][record.asset_class],
+        ),
+        *([] if fits is None else _splits(fits, w)),
+    ]
+    name = capitalized(", ".join(words))
+    if fits is None:
+        too_few = _count(w["too_few"], record.closed_trades)
+        return w["too_few_line"].format(name=name, too_few=too_few)
+    return _group_line(fits, name, w)

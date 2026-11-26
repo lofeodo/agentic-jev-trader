@@ -1,17 +1,22 @@
 """What Jev reads: the background and the questions, written by code (spec appendix 4, section 8).
 
-The words live in `prompts/jev_reading.toml`. The same data always gives the same text: nothing
-here reads a clock, a random number, a step number or a sim number.
+The words live in `prompts/jev_reading.toml`; a past episode and a track record line are written
+with the words in `prompts/episodes.toml`, by the renderer the LLM's lookups use
+(`jev_trader.memory.render`). The same data always gives the same text: nothing here reads a
+clock, a random number or a sim number, and the step only counts how long ago an episode was.
 
-The **reading version** is a fingerprint worked out from the wording, the opening as this sim's
-settings fill it in, and the layout of a request, so a changed word, setting or section order
-gives a new version and nobody has to bump a number.
+The **reading version** is a fingerprint worked out from both wording files, the opening as this
+sim's settings fill it in, and the layout of a request (with and without memory), so a changed
+word, setting or section order gives a new version and nobody has to bump a number.
 
 Choices the spec leaves to the build:
 
 - An asset with no typical move (its price did not move for 14 bars) has that sentence left out,
   as the situation text leaves out a number that is not available.
 - Room to hold more never reads below $0, and a negative amount reads "-$5".
+- With no candle pattern showing, the track record section says so in one line.
+- The candle pattern notes take the episodes' patterns (15-minute, then hourly and daily) in the
+  order the episodes are shown, newest first.
 """
 
 import hashlib
@@ -20,7 +25,9 @@ import math
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from jev_trader.broker import Direction, TradingCosts
 from jev_trader.jev.full_evaluation import NO_TRADE, SHUFFLED_COPIES, CandidateTrade
@@ -34,6 +41,10 @@ from jev_trader.jev.position_review import (
     reduce_option_name,
 )
 from jev_trader.risk import RiskLimit, RiskProfile
+
+if TYPE_CHECKING:  # memory's episodes reach back here through the sim's records
+    from jev_trader.memory.episodes import Episode
+    from jev_trader.memory.track_record import TrackRecord
 
 WORDING_PATH = Path(__file__).resolve().parents[3] / "prompts" / "jev_reading.toml"
 VERSION_LENGTH = 12
@@ -122,6 +133,48 @@ class PositionView:
         }
 
 
+class PastEpisodes(StrEnum):
+    """What the past-episodes section has to show. Each "nothing to show" case is its own
+    state, worded apart, so Jev can tell them apart; the agent without memory passes no memory
+    at all, and its background has neither memory section."""
+
+    SELECTED = "selected"
+    NONE_SELECTED = "none_selected"  # the LLM chose none: memory has earlier decisions
+    NONE_YET = "none_yet"  # memory holds none yet, so the LLM was not asked
+
+
+# The recorded-only question of request 1 when past episodes are shown (spec appendix 4,
+# section 10).
+MEMORIES_RELEVANT = "memories_relevant"
+
+
+@dataclass(frozen=True)
+class MemorySections:
+    """The agent with memory's two sections of a full evaluation's or position review's
+    background: the track record, then the past episodes the LLM selected (spec appendix 4,
+    sections 7 and 8).
+
+    `step` is the step the evaluation or review runs at, for how long ago each episode was.
+    """
+
+    step: int
+    track_records: tuple["TrackRecord", ...]  # one per candle pattern and direction
+    past_episodes: PastEpisodes
+    episodes: tuple["Episode", ...] = ()  # the selected ones, in any order
+
+    @property
+    def newest_first(self) -> tuple["Episode", ...]:
+        """The episodes as Jev reads them: newest first, so the LLM's order of preference does
+        not reach Jev."""
+        return tuple(sorted(self.episodes, key=lambda e: (-e.step, e.id)))
+
+    def __post_init__(self):
+        if bool(self.episodes) != (self.past_episodes is PastEpisodes.SELECTED):
+            raise ValueError(
+                f"{len(self.episodes)} episodes do not fit {self.past_episodes}"
+            )
+
+
 @dataclass(frozen=True)
 class JevRequest:
     """One call to Jev: a background, and its questions as they go on the wire."""
@@ -207,6 +260,119 @@ _LAYOUT_POSITION = PositionView(
 )
 
 
+def _patterns_named_in(memory: MemorySections | None) -> tuple[str, ...]:
+    """Every candle pattern the episodes shown name, for the pattern notes."""
+    if memory is None:
+        return ()
+    return tuple(
+        name for e in memory.newest_first for name in (*e.patterns, *e.longer_patterns)
+    )
+
+
+def _layout_memories() -> list[MemorySections]:
+    """Memory in each of its states, on fixed data, so the reading version carries the memory
+    sections' layout: a pattern with a group that fits and one with too few trades (or no
+    pattern at all), and a past trade, a past no trade and a past position review."""
+    from jev_trader.memory.episodes import (
+        Ended,
+        Episode,
+        Prices,
+        Standing,
+        Step,
+        Trade,
+    )
+    from jev_trader.memory.track_record import Group, TrackRecord
+
+    fits = Group(
+        trend="with the trend",
+        volume_level="high",
+        part_of_day="first hour",
+        trades=10,
+        made_money=5,
+        average_gain=1.0,
+        average_loss=-1.0,
+        total_profit=0.0,
+        fits=True,
+    )
+    records = (
+        TrackRecord(
+            pattern="pattern",
+            direction="long",
+            asset_class="stock",
+            minimum_sample=10,
+            closed_trades=10,
+            groups=[fits],
+        ),
+        TrackRecord(
+            pattern="pattern",
+            direction="short",
+            asset_class="stock",
+            minimum_sample=10,
+            closed_trades=1,
+            groups=[],
+        ),
+    )
+    trade = Episode(
+        id="1-1-OTHER",
+        kind="full_evaluation",
+        asset="OTHER",
+        asset_class="crypto",
+        step=1,
+        situation="Situation.",
+        patterns=["pattern"],
+        longer_patterns=["pattern"],
+        part_of_day="morning",
+        trend="up",
+        volume="high",
+        decided="long",
+        trade=Trade(direction="long", stop="tight", stop_distance=0.01, dollars=10.0),
+        prices=Prices(after_1_bar=0.01, after_4_bars=0.01, end_of_day=0.01),
+        ended=Ended(
+            reason="jev", bars_after=1, profit=1.0, percent=1.0, best=1.0, worst=-1.0
+        ),
+    )
+    no_trade = trade.model_copy(
+        update={
+            "id": "1-2-ASSET",
+            "asset": "ASSET",
+            "step": 2,
+            "decided": "no_trade",
+            "trade": None,
+            "ended": None,
+        }
+    )
+    review = trade.model_copy(
+        update={
+            "id": "1-3-ASSET",
+            "kind": "position_review",
+            "asset": "ASSET",
+            "step": 3,
+            "decided": "hold",
+            "trade": None,
+            "review": Step(bar=1, action="hold", this_review=True),
+            "standing": Standing(
+                direction="long",
+                put_in=10.0,
+                bars_open=1,
+                profit=1.0,
+                percent=1.0,
+                stop_distance=0.01,
+                best=1.0,
+                worst=-1.0,
+            ),
+            "ended": Ended(reason="jev", bars_after=1, profit=1.0, percent=1.0),
+            "journal": [Step(bar=1, action="hold", this_review=True)],
+        }
+    )
+    episodes = (trade, no_trade, review)
+    return [
+        MemorySections(200, records, PastEpisodes.SELECTED, episodes),
+        MemorySections(200, records, PastEpisodes.NONE_SELECTED),
+        MemorySections(200, records, PastEpisodes.NONE_YET),
+        MemorySections(200, (), PastEpisodes.NONE_YET),
+    ]
+
+
 class Reading:
     """The text of one sim's requests to Jev, given the settings it runs with."""
 
@@ -215,9 +381,17 @@ class Reading:
         costs: TradingCosts,
         risk: RiskProfile,
         wording: Mapping | None = None,
+        episode_wording: Mapping | None = None,
     ):
+        # Imported here: memory reaches back to this module through the sim's records.
+        from jev_trader.memory import render
+
+        self._render = render  # the episode renderer the LLM's lookups share
         self.risk = risk
         self.wording = dict(load_wording() if wording is None else wording)
+        self.episode_wording = dict(
+            render.load_wording() if episode_wording is None else episode_wording
+        )
         self.opening = self.wording["opening"].format(
             stock_commission=dollars(costs.stock_commission),
             crypto_fee=f"{100 * costs.crypto_trading_fee:.1f}%",
@@ -243,9 +417,15 @@ class Reading:
             self.reduce_request(*held),
             self.add_request(*held),
         ]
+        memory_layouts = [self._background(*views, m) for m in _layout_memories()]
+        memory_layouts += [
+            self._position_background(*held, m) for m in _layout_memories()
+        ]
         fingerprinted = json.dumps(
             {
                 "wording": self.wording,
+                "episode_wording": self.episode_wording,
+                "memory_layout": memory_layouts,
                 "opening": self.opening,
                 "layout": [[s.background, s.questions] for s in samples],
             },
@@ -275,25 +455,41 @@ class Reading:
         playbook: Mapping[str, tuple[str, str]],
         trades: tuple[CandidateTrade, ...],
         orders: list[list[str]],
+        memory: MemorySections | None = None,
     ) -> JevRequest:
-        """Request 1 of a full evaluation: which of the seven options, asked once per order.
+        """Request 1 of a full evaluation: which of the seven options, asked once per order,
+        and, when at least one past episode is shown, whether they fit (recorded only).
 
         `orders` lists the option names in the order each copy sends them. Without memory the
         background is the screen's: the memory sections are absent, with nothing said about it.
         """
         options = self.pick_options(asset, account, trades)
         instructions = self.wording["pick_question"].format(asset=asset.asset_id)
+        questions = {
+            f"pick_{n}": {
+                "type": "choice",
+                "instructions": instructions,
+                "criteria": {name: options[name] for name in order},
+            }
+            for n, order in enumerate(orders, start=1)
+        }
+        questions.update(self._memories_relevant(memory))
         return JevRequest(
-            background=self._background(asset, account, playbook),
-            questions={
-                f"pick_{n}": {
-                    "type": "choice",
-                    "instructions": instructions,
-                    "criteria": {name: options[name] for name in order},
-                }
-                for n, order in enumerate(orders, start=1)
-            },
+            background=self._background(asset, account, playbook, memory),
+            questions=questions,
         )
+
+    def _memories_relevant(self, memory: MemorySections | None) -> dict[str, dict]:
+        """The recorded-only question whether the past episodes shown fit: asked only when at
+        least one is shown."""
+        if memory is None or not memory.episodes:
+            return {}
+        return {
+            MEMORIES_RELEVANT: {
+                "type": "noul",
+                "instructions": self.wording["memories_relevant_question"],
+            }
+        }
 
     def size_request(
         self,
@@ -301,14 +497,16 @@ class Reading:
         account: AccountView,
         playbook: Mapping[str, tuple[str, str]],
         trade: CandidateTrade,
+        memory: MemorySections | None = None,
     ) -> JevRequest:
         """Request 2: how much money, asked smallest first and largest first, and the rating."""
         w = self.wording
         picked = f"{w['trade_picked_heading']}\n{self._trade_text(trade, asset.price)}"
         options = self.size_options(asset, account, trade)
         size = {"type": "choice", "instructions": w["size_question"]}
+        background = self._background(asset, account, playbook, memory)
         return JevRequest(
-            background=self._background(asset, account, playbook) + "\n\n" + picked,
+            background=background + "\n\n" + picked,
             questions={
                 "size_small_first": {**size, "criteria": options},
                 "size_large_first": {
@@ -345,12 +543,14 @@ class Reading:
         position: PositionView,
         orders: list[list[str]],
         add_allowed: bool = True,
+        memory: MemorySections | None = None,
     ) -> JevRequest:
-        """Request 1 of a position review: hold, close, reduce or add, asked once per order, and
-        whether the reason for opening it still holds (recorded only).
+        """Request 1 of a position review: hold, close, reduce or add, asked once per order,
+        whether the reason for opening it still holds, and, when at least one past episode is
+        shown, whether they fit (both recorded only).
 
         `orders` lists the option names in the order each copy sends them. Without memory the
-        background is the position screen's.
+        background is the position screen's; with it, the memory sections follow the asset.
         """
         w = self.wording
         options = self.action_options(asset, account, position, add_allowed)
@@ -367,8 +567,11 @@ class Reading:
             "type": "noul",
             "instructions": w["thesis_intact_question"],
         }
+        questions.update(self._memories_relevant(memory))
         return JevRequest(
-            background=self._position_background(asset, account, playbook, position),
+            background=self._position_background(
+                asset, account, playbook, position, memory
+            ),
             questions=questions,
         )
 
@@ -412,6 +615,7 @@ class Reading:
         account: AccountView,
         playbook: Mapping[str, tuple[str, str]],
         position: PositionView,
+        memory: MemorySections | None = None,
     ) -> JevRequest:
         """Request 2 after a reduce: how much, asked smallest first and largest first."""
         w = self.wording
@@ -424,7 +628,7 @@ class Reading:
                 left=dollars((1 - share) * position.worth),
             )
         return self._decided_request(
-            asset, account, playbook, position, "reduce", options
+            asset, account, playbook, position, "reduce", options, memory
         )
 
     def add_request(
@@ -433,6 +637,7 @@ class Reading:
         account: AccountView,
         playbook: Mapping[str, tuple[str, str]],
         position: PositionView,
+        memory: MemorySections | None = None,
     ) -> JevRequest:
         """Request 2 after an add: how much more, in the five sizes of a new trade."""
         w = self.wording
@@ -452,7 +657,9 @@ class Reading:
             loss = position.risk_used(asset.price) + actual * stop_share
             text += w["add_loss"].format(loss=dollars(loss))
             options[size_option_name(share)] = text
-        return self._decided_request(asset, account, playbook, position, "add", options)
+        return self._decided_request(
+            asset, account, playbook, position, "add", options, memory
+        )
 
     def since(self, journal: list[dict]) -> tuple[str, ...]:
         """A position's "since then", from its journal: one entry a bar, runs of the same merged.
@@ -493,11 +700,14 @@ class Reading:
         position: PositionView,
         decided: str,
         options: dict[str, str],
+        memory: MemorySections | None = None,
     ) -> JevRequest:
         """Request 2: the background ending with what was decided ("reduce" or "add"), and how
         much, asked smallest first and largest first."""
         w = self.wording
-        background = self._position_background(asset, account, playbook, position)
+        background = self._position_background(
+            asset, account, playbook, position, memory
+        )
         background += f"\n\n{w['decided_heading']}\n{w['decided_' + decided]}"
         question = {"type": "choice", "instructions": w[f"{decided}_question"]}
         return JevRequest(
@@ -583,16 +793,70 @@ class Reading:
         asset: AssetView,
         account: AccountView,
         playbook: Mapping[str, tuple[str, str]],
+        memory: MemorySections | None = None,
     ) -> str:
-        """The screen's background, which is also a full evaluation's without memory."""
+        """The screen's background, which is also a full evaluation's without memory. With
+        memory, the track record and the past episodes follow the asset."""
         sections = [
             self.opening,
             self._account(account),
             self._open_positions(account.positions),
             self._asset(asset),
-            self._pattern_notes(asset.patterns, playbook),
+            *self._memory(asset, memory),
+            self._pattern_notes(asset.patterns + _patterns_named_in(memory), playbook),
         ]
         return "\n\n".join(s for s in sections if s)
+
+    def _memory(
+        self, asset: AssetView, memory: MemorySections | None, review: bool = False
+    ) -> tuple[str, str]:
+        """The track record and past-episodes sections; both absent without memory. In a
+        position review (`review`) the past episodes are earlier reviews, and their heading
+        says so."""
+        if memory is None:
+            return ("", "")
+        return (
+            self._track_record(memory),
+            self._past_episodes(asset, memory, review),
+        )
+
+    def _track_record(self, memory: MemorySections) -> str:
+        w = self.wording
+        if not memory.track_records:
+            return f"{w['track_record_heading']}\n{w['track_record_no_pattern']}"
+        lines = [
+            self._render.track_record_line(r, self.episode_wording)
+            for r in memory.track_records
+        ]
+        footer = w["track_record_footer"].format(
+            minimum=memory.track_records[0].minimum_sample
+        )
+        return "\n".join([w["track_record_heading"], *lines, footer])
+
+    def _past_episodes(
+        self, asset: AssetView, memory: MemorySections, review: bool
+    ) -> str:
+        render = self._render
+        w = self.wording
+        if memory.past_episodes is PastEpisodes.NONE_YET:
+            return f"{w['past_episodes_none_heading']}\n{w['past_episodes_none_yet']}"
+        if memory.past_episodes is PastEpisodes.NONE_SELECTED:
+            return (
+                f"{w['past_episodes_none_heading']}\n{w['past_episodes_none_selected']}"
+            )
+        reader = render.Reader(
+            asset=asset.asset_id,
+            now=memory.step,
+            for_jev=True,
+            wording=self.episode_wording,
+        )
+        blocks = [
+            render.full_episode(e, w["episode_label"].format(number=n), reader)
+            for n, e in enumerate(memory.newest_first, start=1)
+        ]
+        key = "review_past_episodes_heading" if review else "past_episodes_heading"
+        heading = w[key].format(count=len(blocks))
+        return "\n".join([heading, "\n\n".join(blocks)])
 
     def _trade_text(self, trade: CandidateTrade, price: float) -> str:
         template = (
@@ -702,17 +966,21 @@ class Reading:
         account: AccountView,
         playbook: Mapping[str, tuple[str, str]],
         position: PositionView,
+        memory: MemorySections | None = None,
     ) -> str:
-        """A position screen's background, which is also a position review's without memory."""
+        """A position screen's background, which is also a position review's without memory.
+        With memory, the track record and the past episodes follow the asset."""
         w = self.wording
         others = tuple(p for p in account.positions if p.asset != asset.asset_id)
+        named = asset.patterns + position.patterns_at_entry + _patterns_named_in(memory)
         sections = [
             self.opening,
             self._account(account),
             self._open_positions(others, w["other_positions_heading"]),
             self._position(asset, position),
             self._asset(asset, held=True),
-            self._pattern_notes(asset.patterns + position.patterns_at_entry, playbook),
+            *self._memory(asset, memory, review=True),
+            self._pattern_notes(named, playbook),
         ]
         return "\n\n".join(s for s in sections if s)
 

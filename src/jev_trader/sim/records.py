@@ -9,16 +9,22 @@ so a record stored twice by mistake shows up in the duplicate count at the end o
 - A notable moment: sim, step, kind, and its number among that step's moments of that kind.
 - A decision: sim, step and asset. A Jev request and its paid call: the same, and their purpose
   (screen, pick or size; for an open position, position_screen, action, reduce or add).
+- A call to the LLM: the same, the purpose "select", and its number in the selection.
+- The LLM's exchange in a full evaluation: the decision's ID.
 
 An order Jev decided carries its decision's ID; code's own orders (a stop price, a forced close,
 the sim's end, the holding sim's purchases) carry none.
 """
+
+from dataclasses import asdict
+from typing import TYPE_CHECKING
 
 from jev_trader.broker import Broker, Charge, ClosingReason, Fill, Order, OrderKind
 from jev_trader.jev.client import JevReply
 from jev_trader.jev.full_evaluation import Evaluation
 from jev_trader.jev.position_review import Review
 from jev_trader.jev.reading import JevRequest, Reading
+from jev_trader.llm.clients import LlmCall
 from jev_trader.sim.market import instrument
 from jev_trader.sim.store import (
     ACTION_NOTHING,
@@ -28,6 +34,9 @@ from jev_trader.sim.store import (
     KIND_SCREEN,
     now,
 )
+
+if TYPE_CHECKING:  # the selection reads memory, whose outcomes build on these records
+    from jev_trader.llm.selection import Selection
 
 
 def order_id(sim_id: int, step_decided: int, asset: str, number: int) -> str:
@@ -164,6 +173,48 @@ def decision_row(
         "SIZE_AFTER_TRIMMING": e and e.size_after_trimming,
         "LIMITED_BY": e and e.limited_by,
         "ACTION": action,
+        "MEMORIES_RELEVANT": e and e.memories_relevant,
+    }
+
+
+def selection_columns(selection: "Selection | None") -> dict:
+    """A full evaluation's or position review's columns for how the LLM selected its past
+    episodes (spec appendix 5, section 6; appendix 6, section 3.5): the model, the prompt
+    version, the episodes selected (stored IDs, most useful first), the note, any limit hit,
+    every episode shown (its label, ranks, which search found it first, whether it was opened
+    in full), and each lookup in order (tool, inputs, episode IDs returned, latency, why it was
+    refused if it was). Empty without memory, or when memory held nothing and the LLM was not
+    asked."""
+    if selection is None:
+        return {}
+    return {
+        "LLM_MODEL": selection.model,
+        "PROMPT_VERSION": selection.prompt_version,
+        "SELECTED": list(selection.episode_ids),
+        "LLM_NOTE": selection.note,
+        "LIMIT_HIT": None if selection.limit_hit is None else str(selection.limit_hit),
+        "EPISODES_SHOWN": [asdict(s) for s in selection.shown],
+        "LOOKUPS": [asdict(lookup) for lookup in selection.lookups],
+    }
+
+
+def llm_exchange_row(
+    sim_id: int, step: int, asset: str, selection: "Selection"
+) -> dict:
+    """The LLM's exchange in one full evaluation or position review, word for word: every
+    message after the standing instructions (the same for every evaluation of one prompt
+    version), each failed reply, and the smaller slips carried on from."""
+    decision = decision_id(sim_id, step, asset)
+    return {
+        "ID": decision,
+        "SIM": sim_id,
+        "STEP": step,
+        "ASSET": asset,
+        "DECISION": decision,
+        "PROMPT_VERSION": selection.prompt_version,
+        "MESSAGES": list(selection.exchange),
+        "FAILED_REPLIES": list(selection.failed_replies),
+        "SLIPS": list(selection.slips),
     }
 
 
@@ -205,6 +256,7 @@ def position_decision_row(
         "END_OF_SESSION": r and r.end_of_session,
         "THESIS_INTACT": r and r.thesis_intact,
         "REDUCE_SHARE": r and r.reduce_share,
+        "MEMORIES_RELEVANT": r and r.memories_relevant,
     }
 
 
@@ -227,6 +279,15 @@ def _decision_columns(
         "JEV_VERSION": None if reply is None else reply.model,
         # Set once every outcome the episode needs is known (`jev_trader.memory.outcomes`).
         "OUTCOMES_KNOWN_FROM": None,
+        # How the LLM selected past episodes, empty unless it was asked.
+        "LLM_MODEL": None,
+        "PROMPT_VERSION": None,
+        "SELECTED": None,
+        "LLM_NOTE": None,
+        "LIMIT_HIT": None,
+        "EPISODES_SHOWN": None,
+        "LOOKUPS": None,
+        "MEMORIES_RELEVANT": None,
         # An open position's columns, empty for an asset with no position.
         "POSITION": None,
         "STANDING": None,
@@ -281,6 +342,32 @@ def jev_call_row(
         "LATENCY_SECONDS": reply.latency_seconds,
         "RETRIES": reply.retries,
         "ERROR": None,
+        "CALLED_AT": now(),
+    }
+
+
+def llm_call_row(
+    sim_id: int, step: int, asset: str, call: LlmCall, number: int
+) -> dict:
+    """One call to the LLM in a full evaluation's or position review's selection: its
+    `number` among them, from 1. MODEL is the model the provider says answered."""
+    return {
+        "ID": f"{sim_id}-{step}-{asset}-select-{number}",
+        "SIM": sim_id,
+        "PURPOSE": "select",
+        "STEP": step,
+        "ASSET": asset,
+        "DECISION": decision_id(sim_id, step, asset),
+        "SERVICE": call.service,
+        "MODEL": call.model,
+        "TOKENS_IN": call.tokens_in,
+        "CACHED_TOKENS": call.cached_tokens,
+        "TOKENS_OUT": call.tokens_out,
+        "THINKING_TOKENS": call.thinking_tokens,
+        "COST_USD": call.cost_usd,
+        "LATENCY_SECONDS": call.latency_seconds,
+        "RETRIES": call.retries,
+        "ERROR": call.error,
         "CALLED_AT": now(),
     }
 

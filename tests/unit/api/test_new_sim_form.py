@@ -18,6 +18,7 @@ from jev_trader.api.llm_names import llm_model
 from jev_trader.api.store import InMemoryApiStore
 from jev_trader.broker import AssetClass, Bar
 from jev_trader.llm.models import load_model_settings
+from jev_trader.llm.settings import load_call_settings
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket, Period
 from jev_trader.sim.store import InMemorySimStore
 from tests.unit.api.conftest import StandInBuilds, StandInLauncher
@@ -104,6 +105,13 @@ def add_base_memory(sims, record_step=150):
         }
     )
     return sim_id
+
+
+@pytest.fixture(autouse=True)
+def llm_keys(monkeypatch):
+    """Made-up keys for both LLMs: the checker refuses a sim with memory without its key."""
+    for provider in set(load_model_settings().providers.values()):
+        monkeypatch.setenv(load_call_settings(provider).key_variable, "made-up")
 
 
 @pytest.fixture
@@ -380,6 +388,15 @@ def start(api, wanted):
     answer = api.post("/sims", json=wanted)
     assert answer.status_code == 202, answer.text
     return answer.json()["sim_ids"]
+
+
+def test_a_sim_with_memory_is_refused_while_its_llm_has_no_key(api, monkeypatch):
+    monkeypatch.delenv(load_call_settings("anthropic").key_variable)
+
+    answer = api.post("/sims", json=free_sim())
+
+    assert answer.status_code == 409
+    assert "llm_key_missing" in [r["code"] for r in answer.json()["refusals"]]
 
 
 def test_a_measurement_with_both_models_creates_three_sims(api, sims, launcher):

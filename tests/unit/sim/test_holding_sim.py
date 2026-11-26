@@ -124,8 +124,3 @@ def test_the_holding_sim_may_replay_test_period_days_whatever_its_kind(market):
     run_sim(store, market, holding_sim(store, market, kind="free"))
 
     assert store.sim(1)["STATUS"] == "finished"
-
-
-def test_the_agent_with_memory_is_not_built_yet(market):
-    with pytest.raises(ValueError, match="memory_on"):
-        holding_sim(InMemorySimStore(), market, variant="memory_on")

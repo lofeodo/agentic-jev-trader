@@ -53,11 +53,21 @@ from jev_trader.jev.client import JevClient, JevFailed, load_jev_settings
 from jev_trader.jev.reading import Reading
 from jev_trader.jobs import this_process
 from jev_trader.llm.models import load_model_settings
+from jev_trader.llm.selection import (
+    LlmFailed,
+    MemoryLookups,
+    SelectionLimits,
+    Selector,
+    StandInSelector,
+    standing_part,
+)
+from jev_trader.llm.settings import load_llm_settings
+from jev_trader.llm.wording import prompt_version
+from jev_trader.memory.bridge import LookupContext
 from jev_trader.risk import RiskProfile, load_risk_profile
 from jev_trader.sim import records
-from jev_trader.sim.agent import AgentWithoutMemory
+from jev_trader.sim.agent import AgentWithMemory, AgentWithoutMemory
 from jev_trader.sim.checker import (
-    BUILT_VARIANTS,
     Planned,
     require_allowed,
     require_memory,
@@ -77,6 +87,7 @@ from jev_trader.sim.store import (
     StopReason,
     now,
 )
+from jev_trader.sim.tracing import Tracing
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -155,7 +166,8 @@ def settings_document(
     The holding sim applies no risk profile and calls no model, so it stores neither. The agent's
     sims add their risk profile, how Jev is called, and the reading version; the agent with memory
     also its LLM, `llm`, one setting naming provider and model (`"anthropic:claude-haiku-5-5"`),
-    read back by `jev_trader.api.llm_names`.
+    read back by `jev_trader.api.llm_names` (by default the default model's), the selection's
+    limits and the prompt version.
     """
     costs = load_trading_costs()
     document = {
@@ -170,7 +182,9 @@ def settings_document(
         document["jev"] = asdict(load_jev_settings())
         document["reading_version"] = Reading(costs, risk).version
     if variant == "memory_on":
-        document["llm"] = {"model": llm}
+        document["llm"] = {"model": llm or load_llm_settings().model}
+        document["selection_limits"] = asdict(SelectionLimits())
+        document["prompt_version"] = prompt_version()
     return document
 
 
@@ -308,6 +322,7 @@ class _Batch:
             "SIM.SIM_EVENTS": [],
             "SIM.CALLS": [],
             "SIM.JEV_REQUESTS": [],
+            "SIM.LLM_EXCHANGES": [],
             "MEMORY.DECISIONS": [],
             "MEMORY.OUTCOMES": [],
         }
@@ -326,20 +341,28 @@ def run_sim(
     steps_per_write: int = 1,
     report: Callable[[str], None] = lambda line: None,
     jev: JevClient | None = None,
+    lookups_at: Callable[[LookupContext], MemoryLookups] | None = None,
+    selector: Selector | None = None,
+    tracing: Tracing | None = None,
 ) -> SimResult:
     """Run the sim from its first step, or resume it after its last completed step.
 
     The agent's sims need `jev`, store one step per write, and stop at their spending cap. A call
-    to Jev that still fails after its retries stops the sim and raises `JevFailed`.
+    to Jev that still fails after its retries stops the sim and raises `JevFailed`. The agent
+    with memory also needs memory's lookups (`lookups_at`) and the LLM's selection step
+    (`selector`; by default the stand-in, which selects none); an LLM that cannot be used stops
+    the sim and raises `LlmFailed`. `tracing` sends a sample of full evaluations to LangSmith; by
+    default the sim kind's sample, and only when the environment switches LangSmith on.
     """
     sim = store.sim(sim_id)
     if sim["STATUS"] == SimStatus.FINISHED:
         raise ValueError(f"sim {sim_id} is finished: code writes nothing more to it")
-    if sim["VARIANT"] not in BUILT_VARIANTS:
-        raise ValueError(f"the {sim['VARIANT']} variant is not built yet")
     is_agent = sim["VARIANT"] != "buy_hold"
     if is_agent and jev is None:
         raise ValueError(f"the {sim['VARIANT']} variant needs a Jev client")
+    with_memory = sim["VARIANT"] == "memory_on"
+    if with_memory and lookups_at is None:
+        raise ValueError("the memory_on variant needs memory's lookups")
     if is_agent and steps_per_write != 1:
         raise ValueError("the agent's sims store one step per write")
     info = market.dataset(sim["DATASET"])
@@ -359,6 +382,8 @@ def run_sim(
             "it needs a higher cap to carry on"
         )
     strategy = BuyHold(first_step, sim["STARTING_VALUE"])
+    if tracing is None:
+        tracing = Tracing.for_kind(sim["KIND"]) if is_agent else Tracing()
     if is_agent:
         reading = Reading(costs, risk)
         if reading.version != settings["reading_version"]:
@@ -367,7 +392,18 @@ def run_sim(
                 f"and the wording is now {reading.version}: it cannot carry on"
             )
         store.save_reading(reading.version, reading.opening)
-        strategy = AgentWithoutMemory(
+        if with_memory:
+            version, system_prompts, tools = standing_part(
+                SelectionLimits(**settings["selection_limits"]),
+                list(market.playbook(info.dataset_id)),
+            )
+            if version != settings["prompt_version"]:
+                raise ValueError(
+                    f"sim {sim_id} started on prompt version {settings['prompt_version']}, "
+                    f"and the LLM's wording is now {version}: it cannot carry on"
+                )
+            store.save_prompt(version, system_prompts, tools)
+        agent_arguments = (
             sim_id,
             info.dataset_id,
             last_step,
@@ -377,6 +413,15 @@ def run_sim(
             stops,
             sim["RANDOM_SEED"],
         )
+        if with_memory:
+            strategy = AgentWithMemory(
+                *agent_arguments,
+                lookups_at=lookups_at,
+                selector=selector or StandInSelector(),
+                tracing=tracing,
+            )
+        else:
+            strategy = AgentWithoutMemory(*agent_arguments, tracing=tracing)
 
     last_completed = sim["LAST_COMPLETED_STEP"]
     if last_completed is None:
@@ -432,16 +477,17 @@ def run_sim(
             | ({last_step} if start <= last_step else set())
         )
         for step in steps:
-            _run_step(
-                sim_id,
-                step,
-                previous,
-                last_step,
-                broker,
-                strategy,
-                bars_by_step.get(step, {}),
-                batch,
-            )
+            with tracing.off():  # only a full evaluation opens a trace
+                _run_step(
+                    sim_id,
+                    step,
+                    previous,
+                    last_step,
+                    broker,
+                    strategy,
+                    bars_by_step.get(step, {}),
+                    batch,
+                )
             previous = step
             if batch.steps >= steps_per_write or step == last_step:
                 spent += sum(r["COST_USD"] for r in batch.rows["SIM.CALLS"])
@@ -481,11 +527,16 @@ def run_sim(
                     return SimResult(sim_id, broker.account_value(), steps_stored, True)
     except StepAlreadyWritten:
         raise  # another copy is running it: leave its row alone
-    except JevFailed as error:
+    except (JevFailed, LlmFailed) as error:
+        reason = (
+            StopReason.JEV_FAILED
+            if isinstance(error, JevFailed)
+            else StopReason.LLM_FAILED
+        )
         store.update(
             sim_id,
             STATUS=str(SimStatus.STOPPED),
-            STOP_REASON=str(StopReason.JEV_FAILED),
+            STOP_REASON=str(reason),
             FAILURE_REASON=str(error),
             ENDED_AT=now(),
         )

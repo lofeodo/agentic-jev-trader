@@ -1,0 +1,17 @@
+# Tracing to LangSmith (spec appendix 9, section 14). A trace is LangSmith's record of one full
+# evaluation, with every request and answer inside it, for looking at examples when a decision
+# looks wrong. Nothing in the app or the analysis needs one. The free Developer plan allows 5,000
+# traces a month; no card is on file, so it cannot bill.
+#
+# Tracing runs only when `.env` sets LANGSMITH_TRACING to true and LANGSMITH_API_KEY. It is
+# always off in tests.
+
+# The share of full evaluations traced, as "1 in N", by sim kind. LangSmith picks which, at
+# random. 1 traces every one; 30 traces about one per replayed day of a measurement sim. Checks
+# (screens) and position reviews never get a trace.
+[one_in]
+practice = 1
+measurement = 30
+tuning = 30
+build-up = 30
+free = 30

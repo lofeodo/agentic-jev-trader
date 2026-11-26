@@ -5,12 +5,27 @@ The server's own code runs over an in-memory stand-in for the database with made
 (`conftest.py`). An episode is a stored full evaluation or position review with how it turned out.
 """
 
+from contextlib import asynccontextmanager
+
 import pytest
 
-from jev_trader.memory.bridge import LookupContext, MemoryToolFailed
+from jev_trader.memory.bridge import (
+    Connection,
+    LookupContext,
+    MemoryToolFailed,
+    connect,
+)
 from jev_trader.memory.lookups import NotAllowed
 from jev_trader.memory.render import Reader, full_episode, summary_line, track_record
-from tests.unit.memory.conftest import SIM, bridge_to, run, served, vector
+from tests.unit.memory.conftest import (
+    HOST,
+    PATTERNS,
+    SIM,
+    bridge_to,
+    run,
+    served,
+    vector,
+)
 
 NOW = 500
 ASSET = "ASSET_01"
@@ -295,3 +310,28 @@ def test_a_tool_that_fails_on_the_server_comes_back_flagged(memory):
         "search_episodes failed: Error executing tool search_episodes:"
         " ASSET_42 has no snapshot at step 500"
     )
+
+
+def test_the_sims_connection_gives_the_lookups_as_plain_calls(memory):
+    """The agent's steps are not asynchronous: the sim job reaches memory through
+    `Connection`, one session kept open for the whole sim."""
+    current(memory)
+    near = memory.no_trade(ASSET, 100, features=vector(0.1), embedding=(1, 0.1, 0))
+
+    @asynccontextmanager
+    async def session():
+        async with (
+            served(memory.store) as http,
+            connect(f"http://{HOST}", http_client=http) as opened,
+        ):
+            yield opened
+
+    with Connection("http://unused", PATTERNS, open_session=session) as connection:
+        lookups = connection.lookups_at(full_evaluation())
+        found = lookups.search()
+        read = lookups.read([near])
+        record = lookups.track_record("hammer", "long")
+
+    assert ids(found) == [near]
+    assert [e.id for e in read.episodes] == [near]
+    assert (record.pattern, record.direction) == ("hammer", "long")
