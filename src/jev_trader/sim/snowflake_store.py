@@ -237,7 +237,14 @@ class SnowflakeSimStore(_Connection):
             (version, opening, now()),
         )
 
-    def save_prompt(self, version: str, system_prompt: str, tools: list[dict]) -> None:
+    def save_prompt(
+        self,
+        version: str,
+        system_prompts: dict[str, str],
+        tools: dict[str, list[dict]],
+    ) -> None:
+        """SYSTEM_PROMPT holds both jobs' standing instructions as JSON text, by job, and TOOLS
+        both jobs' tools, by job."""
         self._run(
             "MERGE INTO SIM.LLM_PROMPTS AS stored "
             "USING (SELECT ? AS PROMPT_VERSION, ? AS SYSTEM_PROMPT, ? AS TOOLS, "
@@ -246,7 +253,7 @@ class SnowflakeSimStore(_Connection):
             "WHEN NOT MATCHED THEN INSERT (PROMPT_VERSION, SYSTEM_PROMPT, TOOLS, CREATED_AT) "
             "VALUES (new.PROMPT_VERSION, new.SYSTEM_PROMPT, PARSE_JSON(new.TOOLS), "
             "new.CREATED_AT)",
-            (version, system_prompt, json.dumps(tools), now()),
+            (version, json.dumps(system_prompts), json.dumps(tools), now()),
         )
 
     def spent(self, sim_id: int) -> float:

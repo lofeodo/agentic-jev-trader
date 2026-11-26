@@ -27,7 +27,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from jev_trader.memory.episodes import NO_TRADE, Episode, Step
+from jev_trader.memory.episodes import NO_TRADE, Episode, Standing, Step
 from jev_trader.memory.track_record import Group, TrackRecord
 from jev_trader.sim.clock import STEPS_PER_DAY
 
@@ -60,7 +60,7 @@ def _dollars(n: float) -> str:
     return f"{'-' if rounded < 0 else ''}${abs(rounded):,}"
 
 
-def _signed_dollars(n: float) -> str:
+def signed_dollars(n: float) -> str:
     rounded = _round(n)
     return f"{'-' if rounded < 0 else '+'}${abs(rounded):,}"
 
@@ -113,13 +113,15 @@ def _price_after(episode: Episode, w: dict) -> str:
     )
 
 
-def _standing(episode: Episode, w: dict) -> str:
-    s = episode.standing
+def standing(s: Standing, w: dict) -> str:
+    """How a position stands (or stood, at a past review): "long, $5,000, open 6 bars, +$18
+    (+0.4%), stop price 0.9% away". The LLM reads a reviewed position's standing now in the
+    same words."""
     return w["standing"].format(
         direction=s.direction,
         dollars=_dollars(s.put_in),
         bars=_count(w["bars"], s.bars_open),
-        profit=_signed_dollars(s.profit),
+        profit=signed_dollars(s.profit),
         percent=_signed_percent(s.percent),
         stop=_share(s.stop_distance),
     )
@@ -138,7 +140,7 @@ def _trade_ended(episode: Episode, separator: str, w: dict) -> str:
         reason=w["closing_reasons"][e.reason],
         bars=_count(w["bars"], e.bars_after),
         separator=separator,
-        profit=_signed_dollars(e.profit),
+        profit=signed_dollars(e.profit),
         percent=_percent_of(e, w),
     )
 
@@ -148,7 +150,7 @@ def _review_ended(episode: Episode, separator: str, w: dict) -> str:
     e = episode.ended
     values = {
         "separator": separator,
-        "profit": _signed_dollars(e.profit),
+        "profit": signed_dollars(e.profit),
         "percent": _percent_of(e, w),
     }
     if e.closed_at_this_review:
@@ -166,7 +168,7 @@ def step_text(step: Step, w: dict) -> str:
         words = dict(zip(REDUCE_SHARES, w["reduce_share_words"], strict=True))
         text = w["reduce"].format(
             share=words.get(step.share, f"{_round(100 * step.share)}%"),
-            profit=_signed_dollars(step.profit),
+            profit=signed_dollars(step.profit),
         )
     elif step.action == "add":
         text = w["add"].format(amount=_dollars(step.amount))
@@ -206,7 +208,7 @@ def summary_line(episode: Episode, label: str, reader: Reader) -> str:
     ]
     if episode.is_review:
         columns += [
-            _standing(episode, w),
+            standing(episode.standing, w),
             step_text(episode.review, w),
             "; ".join([*_moves(episode, w), _review_ended(episode, ": ", w)]),
         ]
@@ -249,9 +251,9 @@ def full_episode(episode: Episode, label: str, reader: Reader) -> str:
         s = episode.standing
         lines += [
             w["position_then"].format(
-                standing=_standing(episode, w),
-                best=_signed_dollars(s.best),
-                worst=_signed_dollars(s.worst),
+                standing=standing(episode.standing, w),
+                best=signed_dollars(s.best),
+                worst=signed_dollars(s.worst),
             ),
             w["review_decided"].format(decided=step_text(episode.review, w)),
             *_afterwards(episode, w),
@@ -276,13 +278,13 @@ def full_episode(episode: Episode, label: str, reader: Reader) -> str:
         ended = w["ended"].format(ended=_trade_ended(episode, ", ", w))
         if e.best is not None and e.worst is not None:
             ended += w["best_and_worst"].format(
-                best=_signed_dollars(e.best), worst=_signed_dollars(e.worst)
+                best=signed_dollars(e.best), worst=signed_dollars(e.worst)
             )
         lines.append(ended)
     return "\n".join(lines)
 
 
-def _capitalized(text: str) -> str:
+def capitalized(text: str) -> str:
     return text[0].upper() + text[1:]
 
 
@@ -300,7 +302,7 @@ def _splits(group: Group, w: dict) -> list[str]:
 
 def _group_name(group: Group, w: dict) -> str:
     words = _splits(group, w)
-    return _capitalized(", ".join(words)) if words else w["all_trades"]
+    return capitalized(", ".join(words)) if words else w["all_trades"]
 
 
 def _group_line(group: Group, name: str, w: dict) -> str:
@@ -311,12 +313,12 @@ def _group_line(group: Group, name: str, w: dict) -> str:
         share=f"{_round(100 * group.made_money / group.trades)}%",
         gain=_maybe(group.average_gain, w),
         loss=_maybe(group.average_loss, w),
-        total=_signed_dollars(group.total_profit),
+        total=signed_dollars(group.total_profit),
     )
 
 
 def _maybe(n: float | None, w: dict) -> str:
-    return w["no_gain"] if n is None else _signed_dollars(n)
+    return w["no_gain"] if n is None else signed_dollars(n)
 
 
 def track_record(record: TrackRecord, wording: dict | None = None) -> str:
@@ -350,7 +352,7 @@ def track_record_line(record: TrackRecord, wording: dict | None = None) -> str:
         ),
         *([] if fits is None else _splits(fits, w)),
     ]
-    name = _capitalized(", ".join(words))
+    name = capitalized(", ".join(words))
     if fits is None:
         too_few = _count(w["too_few"], record.closed_trades)
         return w["too_few_line"].format(name=name, too_few=too_few)

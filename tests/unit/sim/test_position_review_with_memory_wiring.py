@@ -149,8 +149,10 @@ def test_a_review_gets_the_past_reviews_the_llm_selected():
     assert review_context.position_direction == "long"
     [call] = run.llm.calls
     first = text_of(call.messages[1])
-    assert "long of $4,000" in first and "open 0 bars" in first  # the standing
-    assert "The 1 past episode most like it" in first  # fewer than 10: the real count
+    assert "Long, $4,000, open 0 bars" in first  # the standing
+    assert (
+        "The 1 past episode most like this moment" in first
+    )  # fewer than 10: the real count
     assert PAST_REVIEW.situation in run.action["state"]
     assert run.review["SELECTED"] == [PAST_REVIEW.id]
     assert MEMORIES_RELEVANT in run.action["questions"]
