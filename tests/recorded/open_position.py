@@ -5,11 +5,11 @@ Each starts from an account already holding a position (`MadeUpPosition`) and ru
 position screen through the position review to the order and the stored records. Jev's and the
 LLM's answers cannot be dictated, so each scenario's made-up market leans towards its path: a
 calm market for a screen that says no, a sharp fall for a close, a fast rise for a reduce, and
-so on. Which path a scenario really took shows only once its answers are recorded; one that took
-another is renamed to the path it took, and another is written for the path left uncovered.
+so on. Which path a scenario really took showed only once its answers were recorded: the position
+screen said no to most calm markets, so the scenarios behind a review lean on bigger moves.
 
-Two need no saved answers, since code alone acts, so their saved expected results let them run
-now: the sim's last step at a stock's last bar of the session (where nothing is asked of a
+Two need no saved answers, since code alone acts, so their saved expected results alone let
+them run: the sim's last step at a stock's last bar of the session (where nothing is asked of a
 position), and the holding sim. At the stop price,
 code closes the position before the agent looks; the asset, now with no position, then goes
 through the screen as usual.
@@ -72,12 +72,15 @@ def _long(amount=2_000.0, steps_ago=4, stop_distance=0.03) -> MadeUpPosition:
     return MadeUpPosition(Direction.LONG, amount, steps_ago, stop_distance)
 
 
+# A gentle dip met by a hammer (a hint the price will turn back up), on a position opened three
+# bars before: just enough for the position screen to say yes, mild enough that Jev holds.
 HOLD = Scenario(
-    name="review_ends_in_hold",
+    name="hold_after_a_gentle_dip",
     path="a position review ending in hold",
     inputs=MadeUpInputs(
         step=BEFORE_MIDNIGHT,
-        prices=MadeUpPrices(seed=11, last_moves=(0.002, 0.003, 0.002), last_volume=1.8),
+        prices=MadeUpPrices(seed=22, last_moves=(-0.005, -0.003), last_volume=2.2),
+        patterns=((BEFORE_MIDNIGHT, "hammer"),),
         memory=PAST_REVIEWS,
         position=_long(steps_ago=3, stop_distance=WIDE_STOP),
     ),
@@ -109,35 +112,6 @@ SCENARIOS = [
         ),
     ),
     Scenario(
-        name="review_ends_in_reduce",
-        path="a position review ending in reduce",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(
-                seed=13, drift=0.0005, last_moves=(0.01, 0.012), last_volume=3.0
-            ),
-            patterns=((STEP, "shooting star"),),
-            memory=PAST_REVIEWS,
-            position=_long(amount=3_000.0, steps_ago=12),
-        ),
-    ),
-    Scenario(
-        name="review_ends_in_add",
-        path="a position review ending in add",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(
-                seed=14,
-                drift=0.0008,
-                last_moves=(0.002, 0.003, 0.004),
-                last_volume=2.0,
-            ),
-            patterns=((STEP - 1, "three advancing white soldiers"),),
-            memory=PAST_REVIEWS,
-            position=_long(amount=1_000.0, steps_ago=4),
-        ),
-    ),
-    Scenario(
         name="end_of_session_review",
         path="an end-of-session review",
         inputs=MadeUpInputs(
@@ -149,27 +123,14 @@ SCENARIOS = [
         ),
     ),
     Scenario(
-        name="review_llm_selects_none",
-        path="a review where the LLM selects none",
-        inputs=MadeUpInputs(
-            step=STEP,
-            prices=MadeUpPrices(seed=16, last_moves=(0.006,), last_volume=2.0),
-            # Past reviews of another asset only, in other markets: none much like this one.
-            memory=tuple(
-                PastReview(STEP - 500 + 60 * n, position=n, asset="ASSET_02")
-                for n in range(1, 4)
-            ),
-            position=_long(steps_ago=5),
-        ),
-    ),
-    Scenario(
-        name="review_without_memory",
+        name="review_without_memory_after_a_fall",
         path="a review in the agent without memory",
         inputs=MadeUpInputs(
             step=STEP,
-            prices=MadeUpPrices(seed=17, last_moves=(0.004, 0.006), last_volume=2.2),
+            prices=MadeUpPrices(seed=27, last_moves=(-0.005, -0.008), last_volume=2.5),
+            patterns=((STEP, "bearish engulfing"),),
             with_memory=False,
-            position=_long(steps_ago=5),
+            position=_long(steps_ago=5, stop_distance=WIDE_STOP),
         ),
     ),
     Scenario(

@@ -38,6 +38,7 @@ them the sim's last step, with no model asked: only the broker and the episodes'
 The position-review outcomes test uses it.
 """
 
+import re
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import (
     AbstractAsyncContextManager,
@@ -89,9 +90,15 @@ from tests.recorded.made_up import (
 )
 
 RANDOM_SEED = 0
-# Columns that differ from run to run however the answers are handed back: when a call was
-# made and how long it took. They are left out of what is compared.
-VARIES_RUN_TO_RUN = frozenset({"CALLED_AT", "LATENCY_SECONDS"})
+# Columns, and keys inside a column, that differ from run to run however the answers are handed
+# back: when a call was made and how long a call or a lookup took. They are left out of what is
+# compared.
+VARIES_RUN_TO_RUN = frozenset({"CALLED_AT", "LATENCY_SECONDS", "latency_seconds"})
+# LangChain gives each LLM reply an ID of its own making, a new one each run, and the exchange
+# stores it word for word: it is compared as this stand-in. The provider's own ID, in the
+# reply's metadata, is the saved answer's and stays.
+LANGCHAIN_RUN_ID = re.compile(r"^lc_run--[0-9a-f-]+$")
+RUN_ID_STAND_IN = "lc_run--(new each run)"
 # The holding sim holds five assets (spec appendix 1, section 6); the first is `ASSET`.
 HOLDING_ASSETS = tuple(f"ASSET_0{n}" for n in range(1, 6))
 
@@ -445,9 +452,23 @@ def _agent(
 
 
 def _without_run_to_run_columns(rows: list[dict]) -> list[dict]:
-    return [
-        {k: v for k, v in row.items() if k not in VARIES_RUN_TO_RUN} for row in rows
-    ]
+    return [_without_run_to_run_values(row) for row in rows]
+
+
+def _without_run_to_run_values(value: Any) -> Any:
+    """`value` without the keys that vary run to run, and with each of LangChain's run IDs
+    replaced by the stand-in, however deep."""
+    if isinstance(value, dict):
+        return {
+            k: _without_run_to_run_values(v)
+            for k, v in value.items()
+            if k not in VARIES_RUN_TO_RUN
+        }
+    if isinstance(value, list | tuple):
+        return type(value)(_without_run_to_run_values(v) for v in value)
+    if isinstance(value, str) and LANGCHAIN_RUN_ID.match(value):
+        return RUN_ID_STAND_IN
+    return value
 
 
 def _set_up(

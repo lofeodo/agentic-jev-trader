@@ -2,15 +2,23 @@
 written list in `paths.py`, and every path has a scenario.
 
 The service-failure paths run on hand-written fake answers: their scenarios are in
-`test_service_failures.py`, and are in `COVERING` too.
+`test_service_failures.py`. The paths the real models would not take on demand run on a recorded
+scenario's answers with the deciding one written by hand: `test_hand_written_answers.py`. Both
+are in `COVERING` too.
 """
 
-import pytest
-
-from tests.recorded import test_scenarios, test_service_failures
+from tests.recorded import (
+    test_hand_written_answers,
+    test_scenarios,
+    test_service_failures,
+)
 from tests.recorded.paths import PATHS
 
-COVERING = [*test_scenarios.SCENARIOS, *test_service_failures.SCENARIOS]
+COVERING = [
+    *test_scenarios.SCENARIOS,
+    *test_hand_written_answers.SCENARIOS,
+    *test_service_failures.SCENARIOS,
+]
 
 
 def test_the_list_names_each_path_once():
@@ -29,7 +37,6 @@ def test_every_scenario_has_its_own_name():
     assert len(set(names)) == len(names)
 
 
-@pytest.mark.dormant
 def test_every_path_has_a_scenario():
     covered = {s.path for s in COVERING}
 

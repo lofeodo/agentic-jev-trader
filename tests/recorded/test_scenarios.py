@@ -10,13 +10,12 @@ The frame is in `scenarios.py`, the made-up data in `made_up.py`, and the paths 
 may name in `paths.py`. The scenarios for an asset with no position are in `no_position.py`,
 those with an open position and at the sim's last step in `open_position.py`.
 
-A scenario with neither saved answers (its cassette) nor a saved expected result is skipped,
-saying so, until its answers are recorded (the slice's closing ticket). One that asks no model
-anything, such as a trade blocked by the daily loss limit, needs no saved answers: its expected
-result alone lets it run.
+Every scenario that asks a model has saved answers (its cassette, under `cassettes/`), and
+every scenario has a saved expected result. A new scenario fails until its answers are recorded
+and its expected result written: nothing is skipped. One that asks no model anything, such as a
+trade blocked by the daily loss limit, needs no saved answers: its expected result alone lets it
+run.
 """
-
-from pathlib import Path
 
 import pytest
 
@@ -35,35 +34,9 @@ from tests.recorded.scenarios import (
 )
 
 SCENARIOS: list[Scenario] = [*no_position.SCENARIOS, *open_position.SCENARIOS]
-EXPECTED_RESULTS = Path(__file__).parent / "__snapshots__" / "test_scenarios.ambr"
-
-
-def _has_expected_result(test_name: str) -> bool:
-    # Read from syrupy's own file: each expected result starts with a `# name: <test>` line.
-    return (
-        EXPECTED_RESULTS.exists()
-        and f"# name: {test_name}\n" in EXPECTED_RESULTS.read_text(encoding="utf-8")
-    )
-
-
-@pytest.fixture
-def waiting_for_answers(request, record_mode, vcr_cassette_dir, default_cassette_name):
-    """Skip the scenario while it has neither saved answers nor a saved expected result, unless
-    answers are being recorded or expected results rewritten."""
-    answers = Path(vcr_cassette_dir, f"{default_cassette_name}.yaml")
-    if (
-        record_mode == "none"
-        and not request.config.getoption("--snapshot-update")
-        and not answers.exists()
-        and not _has_expected_result(request.node.name)
-    ):
-        pytest.skip(
-            "no saved answers yet: they are recorded in the slice's closing ticket"
-        )
 
 
 @pytest.mark.vcr
-@pytest.mark.usefixtures("waiting_for_answers")
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
 def test_scenario(scenario, snapshot):
     assert run_scenario(scenario).compared() == snapshot
@@ -78,11 +51,10 @@ BARS_AFTER = 6
 
 @pytest.mark.vcr
 @pytest.mark.default_cassette(HOLD_CASSETTE)
-def test_a_position_reviews_outcomes(record_mode, vcr_cassette_dir):
+def test_a_position_reviews_outcomes():
     """Where the price went after 1 bar, 4 bars and by the end of the day, and how the trade
-    ended; the review is searchable only once all of them are known. It replays the hold
+    ended; the review is searchable only once all of them are known. It hands back the hold
     scenario's saved answers, then lets the bars pass with no model asked."""
-    _skip_without(record_mode, Path(vcr_cassette_dir) / HOLD_CASSETTE)
     step = HOLD.inputs.step
 
     result = run_scenario(HOLD, bars_after=BARS_AFTER)
@@ -122,8 +94,8 @@ def test_a_position_reviews_outcomes(record_mode, vcr_cassette_dir):
     assert searchable(known, last_step)
 
 
-# What each scenario's account holds as its step begins needs no model, so it is checked here
-# while the answers are not saved yet.
+# What each scenario's account holds as its step begins needs no model: it is checked here on its
+# own, so a wrong set-up shows apart from the agent's answers.
 
 
 @pytest.mark.parametrize(
@@ -173,13 +145,3 @@ def _bar_at_step(scenario: Scenario):
     inputs = scenario.inputs
     series = made_up_series(ASSET, inputs.asset_class, inputs.step, inputs.prices)
     return series.bar(inputs.step)
-
-
-def _skip_without(record_mode: str, cassette: Path) -> None:
-    """Skip, saying why, a test whose answers are not saved yet, unless they are being
-    recorded."""
-    if record_mode == "none" and not cassette.exists():
-        pytest.skip(
-            f"no saved answers yet ({cassette.name}): "
-            "they are recorded in the slice's closing ticket"
-        )
