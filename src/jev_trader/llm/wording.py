@@ -196,11 +196,7 @@ class LlmWording:
         m = self.wording["messages"]
         return {
             "episodes": _count(m["episodes"], len(summaries)),
-            "columns": (
-                m["summary_columns"]
-                if job == FULL_EVALUATION
-                else self.wording[POSITION_REVIEW]["summary_columns"]
-            ),
+            "columns": self.wording[job]["summary_columns"],
             "summaries": "\n".join(summaries),
         }
 
