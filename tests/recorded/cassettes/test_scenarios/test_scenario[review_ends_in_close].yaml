@@ -790,8 +790,6 @@ interactions:
       - '10248'
       content-type:
       - application/json
-      cookie:
-      - __cf_bm=DSt_zuNncnPjv.bA7dTOJJLlrdHyXpKb2_UAGX7_IjE-1795715442.2225227-1.0.1.1-gifYgI42771W0S7YjpWBIzyB7bDIynfEbiu5M35L9akmgCII9mie9Mu3dgaQRTjfssIIuxmWk3jwiIcHSWoiqJSSfFYnnKvzYVZHukAUwPaEqF9WSoOC3gqcCIn8TjwI
       host:
       - api.typesafe.ai
       user-agent:

@@ -3190,7 +3190,7 @@
     'orders': list([
       dict({
         'AMOUNT_AFTER_TRIMMING': 1099.5817737543673,
-        'AMOUNT_CHOSEN': 10968.181508165448,
+        'AMOUNT_CHOSEN': 11965.288917998669,
         'COMMISSION_OR_TRADING_FEE': None,
         'DECISION': '1-2056-ASSET_01',
         'ID': '1-2056-ASSET_01-3',
@@ -3247,16 +3247,16 @@
               'reduce': 0.1,
             }),
             'add_large_first': dict({
-              'size_120_percent': 0.0,
-              'size_200_percent': 1.0,
+              'size_120_percent': 1.0,
+              'size_200_percent': 0.0,
               'size_20_percent': 0.0,
               'size_40_percent': 0.0,
               'size_80_percent': 0.0,
             }),
             'add_small_first': dict({
-              'size_120_percent': 0.0,
+              'size_120_percent': 1.0,
               'size_200_percent': 0.0,
-              'size_20_percent': 1.0,
+              'size_20_percent': 0.0,
               'size_40_percent': 0.0,
               'size_80_percent': 0.0,
             }),
@@ -3361,7 +3361,7 @@
           ]),
           'SIM': 1,
           'SIZE_AFTER_TRIMMING': 1099.5817737543673,
-          'SIZE_CHOSEN': 10968.181508165448,
+          'SIZE_CHOSEN': 11965.288917998669,
           'SKIPPED_BECAUSE': None,
           'STANDING': dict({
             'bars_open': 8,
@@ -3654,7 +3654,7 @@
           'STEP': 2056,
         }),
         dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"add_small_first":{"type":"choice","choice":"size_20_percent","confidence":0.5,"probabilities":{"size_20_percent":1.0,"size_40_percent":0.0,"size_80_percent":0.0,"size_120_percent":0.0,"size_200_percent":0.0}},"add_large_first":{"type":"choice","choice":"size_200_percent","confidence":0.5,"probabilities":{"size_200_percent":1.0,"size_120_percent":0.0,"size_80_percent":0.0,"size_40_percent":0.0,"size_20_percent":0.0}}},"usage":{"input_tokens":1000,"output_tokens":20}}',
+          'ANSWER': '{"model":"jev-1.14.0","answers":{"add_small_first":{"type":"choice","choice":"size_120_percent","confidence":0.5,"probabilities":{"size_20_percent":0.0,"size_40_percent":0.0,"size_80_percent":0.0,"size_120_percent":1.0,"size_200_percent":0.0}},"add_large_first":{"type":"choice","choice":"size_120_percent","confidence":0.5,"probabilities":{"size_200_percent":0.0,"size_120_percent":1.0,"size_80_percent":0.0,"size_40_percent":0.0,"size_20_percent":0.0}}},"usage":{"input_tokens":1000,"output_tokens":20}}',
           'ASSET': 'ASSET_01',
           'BACKGROUND_AFTER_OPENING': '''
             # The account now
@@ -4158,9 +4158,9 @@
             }),
             'memories_relevant': 0.37,
             'reduce_large_first': dict({
-              'reduce_25_percent': 0.0,
+              'reduce_25_percent': 1.0,
               'reduce_50_percent': 0.0,
-              'reduce_75_percent': 1.0,
+              'reduce_75_percent': 0.0,
             }),
             'reduce_small_first': dict({
               'reduce_25_percent': 1.0,
@@ -4258,7 +4258,7 @@
           'POSITION': 2,
           'PROMPT_VERSION': 'd89f938ddeb7',
           'RATING': None,
-          'REDUCE_SHARE': 0.5,
+          'REDUCE_SHARE': 0.25,
           'SCREEN_ANSWER': 0.73,
           'SELECTED': list([
             '1-1976-ASSET_01',
@@ -4560,7 +4560,7 @@
           'STEP': 2056,
         }),
         dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"reduce_small_first":{"type":"choice","choice":"reduce_25_percent","confidence":0.5,"probabilities":{"reduce_25_percent":1.0,"reduce_50_percent":0.0,"reduce_75_percent":0.0}},"reduce_large_first":{"type":"choice","choice":"reduce_75_percent","confidence":0.5,"probabilities":{"reduce_75_percent":1.0,"reduce_50_percent":0.0,"reduce_25_percent":0.0}}},"usage":{"input_tokens":1000,"output_tokens":20}}',
+          'ANSWER': '{"model":"jev-1.14.0","answers":{"reduce_small_first":{"type":"choice","choice":"reduce_25_percent","confidence":0.5,"probabilities":{"reduce_25_percent":1.0,"reduce_50_percent":0.0,"reduce_75_percent":0.0}},"reduce_large_first":{"type":"choice","choice":"reduce_25_percent","confidence":0.5,"probabilities":{"reduce_75_percent":0.0,"reduce_50_percent":0.0,"reduce_25_percent":1.0}}},"usage":{"input_tokens":1000,"output_tokens":20}}',
           'ASSET': 'ASSET_01',
           'BACKGROUND_AFTER_OPENING': '''
             # The account now
@@ -5295,7 +5295,7 @@
           'STEP': 2056,
         }),
         dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"action_1":{"type":"choice","choice":"close","confidence":0.73,"probabilities":{"add":0.02,"reduce":0.05,"close":0.8,"hold":0.13}},"action_2":{"type":"choice","choice":"close","confidence":0.76,"probabilities":{"reduce":0.04,"add":0.01,"close":0.82,"hold":0.13}},"action_3":{"type":"choice","choice":"close","confidence":0.68,"probabilities":{"add":0.01,"close":0.76,"reduce":0.05,"hold":0.18}},"action_4":{"type":"choice","choice":"close","confidence":0.67,"probabilities":{"add":0.02,"hold":0.18,"close":0.75,"reduce":0.05}},"action_5":{"type":"choice","choice":"close","confidence":0.6,"probabilities":{"close":0.7,"add":0.02,"hold":0.22,"reduce":0.06}},"thesis_intact":{"type":"noul","noul":0.18},"memories_relevant":{"type":"noul","noul":0.37}},"usage":{"input_tokens":3316,"output_tokens":263}}',
+          'ANSWER': '{"model":"jev-1.14.0","answers":{"action_1":{"type":"choice","choice":"close","confidence":0.73,"probabilities":{"add":0.02,"reduce":0.05,"close":0.8,"hold":0.13}},"action_2":{"type":"choice","choice":"close","confidence":0.76,"probabilities":{"reduce":0.04,"add":0.01,"close":0.82,"hold":0.13}},"action_3":{"type":"choice","choice":"close","confidence":0.68,"probabilities":{"add":0.01,"close":0.76,"reduce":0.05,"hold":0.18}},"action_4":{"type":"choice","choice":"close","confidence":0.67,"probabilities":{"add":0.02,"hold":0.18,"close":0.75,"reduce":0.05}},"action_5":{"type":"choice","choice":"close","confidence":0.6,"probabilities":{"close":0.7,"add":0.02,"hold":0.22,"reduce":0.06}},"thesis_intact":{"type":"noul","noul":0.18}},"usage":{"input_tokens":3316,"output_tokens":263}}',
           'ASSET': 'ASSET_01',
           'BACKGROUND_AFTER_OPENING': '''
             # The account now
@@ -6029,7 +6029,7 @@
           'STEP': 2056,
         }),
         dict({
-          'ANSWER': '{"model":"jev-1.14.0","answers":{"pick_1":{"type":"choice","choice":"long_tight_stop","confidence":0.38,"probabilities":{"short_tight_stop":0.03,"short_wide_stop":0.01,"no_trade":0.32,"long_medium_stop":0.1,"short_medium_stop":0.01,"long_wide_stop":0.06,"long_tight_stop":0.47}},"pick_2":{"type":"choice","choice":"long_tight_stop","confidence":0.51,"probabilities":{"short_wide_stop":0.01,"no_trade":0.23,"short_tight_stop":0.02,"long_wide_stop":0.04,"long_medium_stop":0.11,"long_tight_stop":0.58,"short_medium_stop":0.01}},"pick_3":{"type":"choice","choice":"long_tight_stop","confidence":0.3,"probabilities":{"long_tight_stop":0.4,"short_medium_stop":0.03,"short_wide_stop":0.02,"long_wide_stop":0.12,"short_tight_stop":0.03,"long_medium_stop":0.16,"no_trade":0.24}},"pick_4":{"type":"choice","choice":"long_tight_stop","confidence":0.39,"probabilities":{"long_wide_stop":0.05,"long_tight_stop":0.48,"short_wide_stop":0.02,"long_medium_stop":0.15,"short_medium_stop":0.02,"short_tight_stop":0.04,"no_trade":0.24}},"pick_5":{"type":"choice","choice":"long_tight_stop","confidence":0.23,"probabilities":{"long_tight_stop":0.34,"short_wide_stop":0.02,"no_trade":0.29,"long_medium_stop":0.18,"short_tight_stop":0.03,"short_medium_stop":0.02,"long_wide_stop":0.12}},"memories_relevant":{"type":"noul","noul":0.67}},"usage":{"input_tokens":4330,"output_tokens":449}}',
+          'ANSWER': '{"model":"jev-1.14.0","answers":{"pick_1":{"type":"choice","choice":"long_tight_stop","confidence":0.38,"probabilities":{"short_tight_stop":0.03,"short_wide_stop":0.01,"no_trade":0.32,"long_medium_stop":0.1,"short_medium_stop":0.01,"long_wide_stop":0.06,"long_tight_stop":0.47}},"pick_2":{"type":"choice","choice":"long_tight_stop","confidence":0.51,"probabilities":{"short_wide_stop":0.01,"no_trade":0.23,"short_tight_stop":0.02,"long_wide_stop":0.04,"long_medium_stop":0.11,"long_tight_stop":0.58,"short_medium_stop":0.01}},"pick_3":{"type":"choice","choice":"long_tight_stop","confidence":0.3,"probabilities":{"long_tight_stop":0.4,"short_medium_stop":0.03,"short_wide_stop":0.02,"long_wide_stop":0.12,"short_tight_stop":0.03,"long_medium_stop":0.16,"no_trade":0.24}},"pick_4":{"type":"choice","choice":"long_tight_stop","confidence":0.39,"probabilities":{"long_wide_stop":0.05,"long_tight_stop":0.48,"short_wide_stop":0.02,"long_medium_stop":0.15,"short_medium_stop":0.02,"short_tight_stop":0.04,"no_trade":0.24}},"pick_5":{"type":"choice","choice":"long_tight_stop","confidence":0.23,"probabilities":{"long_tight_stop":0.34,"short_wide_stop":0.02,"no_trade":0.29,"long_medium_stop":0.18,"short_tight_stop":0.03,"short_medium_stop":0.02,"long_wide_stop":0.12}}},"usage":{"input_tokens":4330,"output_tokens":449}}',
           'ASSET': 'ASSET_01',
           'BACKGROUND_AFTER_OPENING': '''
             # The account now

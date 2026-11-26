@@ -40,7 +40,8 @@ def drop_private_answer_headers(response):
 def vcr_config():
     return {
         # Keep API keys out of the saved files: Anthropic sends `x-api-key`, Jev `Authorization`.
-        "filter_headers": ["authorization", "x-api-key"],
+        # The SDKs also send back the bot-check cookie a service set: not needed either.
+        "filter_headers": ["authorization", "x-api-key", "cookie"],
         "before_record_response": drop_private_answer_headers,
         # Save answers as readable text, not compressed bytes.
         "decode_compressed_response": True,

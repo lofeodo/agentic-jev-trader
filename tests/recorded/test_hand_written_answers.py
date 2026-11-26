@@ -7,8 +7,8 @@ Three recording rounds tried these paths with real answers, and none came back:
   never replied without a tool call, never named an episode it was not shown, and always
   selected some episodes;
 - **Jev's rarer reviews**: on every review of a losing position Jev closed it (sold all of it)
-  or held it; it never gave reducing (selling part) or adding (buying more) more than 10%, and
-  a review whose LLM selects none needs the LLM's slip above.
+  or held it; it never rated reducing (selling part) or adding (buying more) more likely than
+  1 in 10, and a review whose LLM selects none needs the LLM's slip above.
 
 So each scenario here hands back a recorded scenario's real answers, in the order they were
 saved, with only the answer that decides the path written by hand: the LLM's reply with no tool
@@ -41,8 +41,8 @@ from jev_trader.sim.store import KIND_POSITION_REVIEW
 from tests.recorded import no_position, open_position
 from tests.recorded.masking import findings_in
 from tests.recorded.scenarios import Scenario, ScenarioResult, run_scenario
-from tests.recorded.test_harness import JEV_HOST, LLM_HOST
-from tests.unit.sim.test_agent_without_memory import RATING, choice_answer
+from tests.recorded.test_harness import JEV_HOST, LLM_HOST, HandWrittenAnswers
+from tests.unit.sim.test_agent_without_memory import choice_answer
 
 CASSETTES = Path(__file__).parent / "cassettes" / "test_scenarios"
 SENTENCE = "Episode E1 looks most like this moment."
@@ -60,7 +60,7 @@ REVIEW = _named(open_position.SCENARIOS, "review_ends_in_close")
 
 
 @dataclass
-class Answers:
+class SavedAnswers:
     """The answers to hand back, in order: the LLM's replies and Jev's answers, each a saved
     answer's body."""
 
@@ -69,21 +69,21 @@ class Answers:
 
 
 @dataclass(frozen=True)
-class HandWritten:
+class HandWrittenScenario:
     """A scenario run on `recorded`'s saved answers, with `edit` writing the deciding one by
     hand."""
 
     scenario: Scenario
     recorded: Scenario
-    edit: Callable[[Answers], None]
+    edit: Callable[[SavedAnswers], None]
     took_its_path: Callable[[ScenarioResult], bool]
 
 
-def _saved_answers(scenario: Scenario) -> Answers:
+def _saved_answers(scenario: Scenario) -> SavedAnswers:
     saved = yaml.safe_load(
         (CASSETTES / f"test_scenario[{scenario.name}].yaml").read_text(encoding="utf-8")
     )
-    answers = Answers([], [])
+    answers = SavedAnswers([], [])
     for interaction in saved["interactions"]:
         body = json.loads(interaction["response"]["body"]["string"])
         host = httpx2.URL(interaction["request"]["uri"]).host
@@ -113,18 +113,18 @@ def _reply(like: dict, *calls: tuple[str, dict], text: str | None = None) -> dic
     }
 
 
-def _selection(answers: Answers) -> dict:
+def _selection(answers: SavedAnswers) -> dict:
     """The tool call of the last LLM reply, which selects the episodes."""
     (call,) = [c for c in answers.llm[-1]["content"] if c["type"] == "tool_use"]
     assert call["name"] == "select_episodes"
     return call["input"]
 
 
-def _sentence_first(answers: Answers) -> None:
+def _sentence_first(answers: SavedAnswers) -> None:
     answers.llm.insert(0, _reply(answers.llm[0], text=SENTENCE))
 
 
-def _three_more_lookups(answers: Answers) -> None:
+def _three_more_lookups(answers: SavedAnswers) -> None:
     """The recorded evaluation looked up 3 times before it selected: 3 more reach the limit."""
     more = [
         ("search_episodes", {"pattern": "hammer", "asset": "same_asset_class"}),
@@ -135,18 +135,22 @@ def _three_more_lookups(answers: Answers) -> None:
     answers.llm[at:at] = [_reply(answers.llm[0], call) for call in more]
 
 
-def _names_one_never_shown(answers: Answers) -> None:
+def _names_one_never_shown(answers: SavedAnswers) -> None:
     _selection(answers)["episode_ids"].insert(0, NEVER_SHOWN)
 
 
-def _selects_none(answers: Answers) -> None:
+def _selects_none(answers: SavedAnswers) -> None:
     _selection(answers).update(
         episode_ids=[], note="None of these past episodes is like this moment."
     )
+    # With no past episode shown, Jev is not asked whether they are relevant: its saved answer
+    # to that question goes too.
+    for answer in answers.jev:
+        answer["answers"].pop("memories_relevant", None)
 
 
-def _review_leans_to(action: str) -> Callable[[Answers], None]:
-    def edit(answers: Answers) -> None:
+def _review_leans_to(action: str) -> Callable[[SavedAnswers], None]:
+    def edit(answers: SavedAnswers) -> None:
         (review,) = [a for a in answers.jev if "action_1" in a["answers"]]
         for name, answer in review["answers"].items():
             if not name.startswith("action_"):
@@ -176,8 +180,16 @@ def _reviewed(action: str) -> Callable[[ScenarioResult], bool]:
     return took
 
 
-def _hand_written(name: str, path: str, recorded: Scenario, edit, took) -> HandWritten:
-    return HandWritten(Scenario(name, path, recorded.inputs), recorded, edit, took)
+def _hand_written(
+    name: str,
+    path: str,
+    recorded: Scenario,
+    edit: Callable[[SavedAnswers], None],
+    took: Callable[[ScenarioResult], bool],
+) -> HandWrittenScenario:
+    return HandWrittenScenario(
+        Scenario(name, path, recorded.inputs), recorded, edit, took
+    )
 
 
 HAND_WRITTEN = [
@@ -241,55 +253,38 @@ HAND_WRITTEN = [
 SCENARIOS = [h.scenario for h in HAND_WRITTEN]
 
 
-class Replayed:
-    """Hands back `answers` in order, host by host, keeping every request sent: (host, body).
-    Jev's requests past the saved ones (the "how much" after a reduce or an add) are answered
-    by hand: each question's first option."""
+class SavedThenByHand(HandWrittenAnswers):
+    """Hands back the saved answers in order, host by host, keeping every request sent:
+    (host, body). Jev's requests past the saved ones (the "how much" after a reduce or an add)
+    get the harness's hand-written answer."""
 
-    def __init__(self, answers: Answers):
-        self.answers = answers
-        self.sent: list[tuple[str, dict]] = []
+    def __init__(self, saved: SavedAnswers):
+        super().__init__()
+        self.saved = saved
 
     def answer(self, request: httpx2.Request) -> httpx2.Response:
-        host, body = request.url.host, json.loads(request.read())
-        self.sent.append((host, body))
-        if host == LLM_HOST:
-            return httpx2.Response(200, json=self.answers.llm.pop(0))
-        if self.answers.jev:
-            return httpx2.Response(200, json=self.answers.jev.pop(0))
-        return httpx2.Response(200, json=_by_hand(body))
-
-
-def _by_hand(body: dict) -> dict:
-    answers = {}
-    for name, question in body["questions"].items():
-        if question["type"] == "score":
-            answers[name] = RATING
-        else:
-            first = next(iter(question["criteria"]))
-            answers[name] = choice_answer(question["criteria"], {first: 1.0})
-    return {
-        "model": "jev-1.14.0",
-        "answers": answers,
-        "usage": {"input_tokens": 1000, "output_tokens": 20},
-    }
+        host = request.url.host
+        waiting = self.saved.llm if host == LLM_HOST else self.saved.jev
+        if not waiting and host == JEV_HOST:
+            return super().answer(request)
+        self.sent.append((host, json.loads(request.read())))
+        return httpx2.Response(200, json=waiting.pop(0))
 
 
 @pytest.mark.parametrize("hand_written", HAND_WRITTEN, ids=lambda h: h.scenario.name)
 def test_hand_written_scenario(hand_written, snapshot, monkeypatch):
-    answers = _saved_answers(hand_written.recorded)
-    hand_written.edit(answers)
-    replayed = Replayed(answers)
+    saved = _saved_answers(hand_written.recorded)
+    hand_written.edit(saved)
+    answers = SavedThenByHand(saved)
     monkeypatch.setattr(
         httpx2.HTTPTransport,
         "handle_request",
-        lambda transport, request: replayed.answer(request),
+        lambda transport, request: answers.answer(request),
     )
 
     result = run_scenario(hand_written.scenario)
 
     assert hand_written.took_its_path(result)
-    assert answers.llm == []  # every LLM reply was asked for
-    assert {host for host, _ in replayed.sent} <= {JEV_HOST, LLM_HOST}
-    assert findings_in(replayed.sent) == []  # the masking scan
+    assert saved.llm == []  # every LLM reply was asked for
+    assert findings_in(answers.sent) == []  # the masking scan
     assert result.compared() == snapshot

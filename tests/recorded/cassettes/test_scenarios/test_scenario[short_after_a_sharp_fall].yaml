@@ -1010,8 +1010,6 @@ interactions:
       - '13551'
       content-type:
       - application/json
-      cookie:
-      - __cf_bm=gV_JyHgcFemDi4rK9gMzyK8omV6agWN0u6yob6F7Nw0-1795715433.3032498-1.0.1.1-y1f1_5gG0iCoYYsLAAZK4UVy.vxsS3ty0gYB0I8wCbU0IbfbGzjIIKBgK_k3Yc19yFDLK1fv5BteQia9_iWKNbTmckOGT2h9WMwRHwYHJ3COwa0WXooxYvQY4dnVB2Ec
       host:
       - api.typesafe.ai
       user-agent:
@@ -1175,8 +1173,6 @@ interactions:
       - '9203'
       content-type:
       - application/json
-      cookie:
-      - __cf_bm=gV_JyHgcFemDi4rK9gMzyK8omV6agWN0u6yob6F7Nw0-1795715433.3032498-1.0.1.1-y1f1_5gG0iCoYYsLAAZK4UVy.vxsS3ty0gYB0I8wCbU0IbfbGzjIIKBgK_k3Yc19yFDLK1fv5BteQia9_iWKNbTmckOGT2h9WMwRHwYHJ3COwa0WXooxYvQY4dnVB2Ec
       host:
       - api.typesafe.ai
       user-agent:

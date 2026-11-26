@@ -53,7 +53,7 @@ BARS_AFTER = 6
 @pytest.mark.default_cassette(HOLD_CASSETTE)
 def test_a_position_reviews_outcomes():
     """Where the price went after 1 bar, 4 bars and by the end of the day, and how the trade
-    ended; the review is searchable only once all of them are known. It replays the hold
+    ended; the review is searchable only once all of them are known. It hands back the hold
     scenario's saved answers, then lets the bars pass with no model asked."""
     step = HOLD.inputs.step
 
