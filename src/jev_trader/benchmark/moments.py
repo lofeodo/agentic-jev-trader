@@ -10,13 +10,16 @@ Choices the spec leaves to the build:
 
 - The moments are drawn, not stored: the build-up sim's own full evaluations and position
   reviews of its last 30 days (`MEMORY.DECISIONS`), 5 of each job per asset picked by the sim's
-  random seed, so every run on the same sim gets the same 50. An asset with fewer than 5 of a
-  job gives all it has.
+  random seed, so every run on the same sim gets the same 50. Only a finished build-up sim is
+  drawn from. An asset with fewer than 5 of a job gives all it has; the command says how many
+  moments it ran on.
 - The situation is rebuilt from the dataset (`FEATURES.SNAPSHOTS`, the playbook, the asset's
   class), and a position review's open position from its decision row (`STANDING`,
   `END_OF_SESSION`), as the sim built them.
 - The first search is made once per moment, through the memory server on the build-up sim's
-  memory at the moment's step, and the same result is handed to every model at every pass.
+  memory at the moment's step, and the same result is handed to every model at every pass. It
+  is made again on each run, so a run after a change to the search's settings starts from the
+  changed search.
 """
 
 import json
@@ -36,6 +39,7 @@ from jev_trader.memory.lookups import SearchResult
 from jev_trader.memory.outcomes import EPISODE_KINDS
 from jev_trader.memory.search import FULL_EVALUATION, Job
 from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
+from jev_trader.sim.store import SimStatus
 
 BUILD_UP = "build-up"  # SIM.SIMS.KIND of the build-up sim
 PER_JOB_AND_ASSET = 5  # moments of each job drawn for each asset
@@ -97,13 +101,12 @@ class NoSavedMoments(LookupError):
 @dataclass(frozen=True)
 class Candidate:
     """A full evaluation or position review of the build-up sim that may be drawn: its asset,
-    step and job, and in a position review how the position stood."""
+    step and job, and in a position review the open position."""
 
     asset: str
     step: int
     job: Job
-    standing: dict | None = None
-    end_of_session: bool = False
+    position: ReviewedPosition | None = None
 
 
 def draw(candidates: Sequence[Candidate], seed: int) -> list[Candidate]:
@@ -112,8 +115,7 @@ def draw(candidates: Sequence[Candidate], seed: int) -> list[Candidate]:
     picker = random.Random(seed)
     groups: dict[tuple[bool, str], list[Candidate]] = {}
     for candidate in sorted(candidates, key=_order):
-        key = (candidate.job != FULL_EVALUATION, candidate.asset)
-        groups.setdefault(key, []).append(candidate)
+        groups.setdefault(_group(candidate), []).append(candidate)
     drawn = []
     for key in sorted(groups):
         group = groups[key]
@@ -121,8 +123,13 @@ def draw(candidates: Sequence[Candidate], seed: int) -> list[Candidate]:
     return sorted(drawn, key=_order)
 
 
-def _order(candidate: Candidate) -> tuple:
-    return (candidate.job != FULL_EVALUATION, candidate.asset, candidate.step)
+def _group(candidate: Candidate) -> tuple[bool, str]:
+    """Full evaluations before position reviews, then by asset."""
+    return (candidate.job != FULL_EVALUATION, candidate.asset)
+
+
+def _order(candidate: Candidate) -> tuple[bool, str, int]:
+    return (*_group(candidate), candidate.step)
 
 
 class BuildUpSim:
@@ -139,8 +146,10 @@ class BuildUpSim:
             raise NoSavedMoments(
                 f"sim {sim} is a {row['KIND']} sim, not the build-up sim"
             )
-        if row["LAST_COMPLETED_STEP"] is None:
-            raise NoSavedMoments(f"sim {sim} has not completed a step yet")
+        if row["STATUS"] != SimStatus.FINISHED:
+            raise NoSavedMoments(
+                f"sim {sim} is {row['STATUS']}: its moments are drawn once it has finished"
+            )
         self.dataset = row["DATASET"]
         self.seed = row["RANDOM_SEED"]
         self.last_step = row["LAST_COMPLETED_STEP"]
@@ -166,10 +175,7 @@ class BuildUpSim:
                 asset=asset,
                 step=step,
                 job=kind,
-                standing=json.loads(standing)
-                if isinstance(standing, str)
-                else standing,
-                end_of_session=bool(end_of_session),
+                position=_reviewed(standing, end_of_session),
             )
             for asset, step, kind, standing, end_of_session in rows
         ]
@@ -192,11 +198,6 @@ class BuildUpSim:
         moments = []
         for candidate in drawn:
             snapshot = snapshots[candidate.step][candidate.asset]
-            position = None
-            if candidate.job != FULL_EVALUATION:
-                position = ReviewedPosition(
-                    Standing(**candidate.standing), candidate.end_of_session
-                )
             situation = Situation(
                 asset=candidate.asset,
                 asset_class=str(classes[candidate.asset]),
@@ -204,8 +205,18 @@ class BuildUpSim:
                 text=snapshot.situation_text,
                 patterns=snapshot.patterns,
                 playbook=self.playbook,
-                position=position,
+                position=candidate.position,
             )
             lookups = lookups_at(context_at(self.sim, situation))
             moments.append(SavedMoment(self.sim, situation, lookups.search()))
         return moments
+
+
+def _reviewed(standing, end_of_session) -> ReviewedPosition | None:
+    """A position review's open position, from its decision row's STANDING (JSON) and
+    END_OF_SESSION; None on a full evaluation's row."""
+    if standing is None:
+        return None
+    if isinstance(standing, str):
+        standing = json.loads(standing)
+    return ReviewedPosition(Standing(**standing), bool(end_of_session))

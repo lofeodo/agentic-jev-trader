@@ -7,7 +7,9 @@ could take the total past the cap, the run stops itself and the report says so.
 
 What the next attempt could cost is not known before it runs, so the meter takes the dearest
 attempt so far as its guess: at $1.40 spent, with no attempt so far over $0.10, one more is let
-through (to $1.50 at most); had one cost $0.35, the run stops at $1.40. The sum is compared
+through (to $1.50 at most); had one cost $0.35, the run stops at $1.40. It is a guess: an
+attempt dearer than every one before it can pass the cap by the difference (a fraction of a
+cent at the benchmark's prices), and the first attempt is always let through. The sum is compared
 rounded to a millionth of a dollar, so the small error of adding cents in a computer (fourteen
 $0.10 attempts add to a hair over $1.40) never stops a run that is exactly at the cap.
 """
@@ -35,9 +37,8 @@ class SpendMeter:
     def __init__(self, cap_usd: float):
         self.cap_usd = cap_usd
         self._spent_usd = 0.0
-        self._dearest_usd = (
-            0.0  # the dearest attempt so far: the guess for the next one
-        )
+        # The dearest attempt so far: the guess for the next one.
+        self._dearest_usd = 0.0
 
     @property
     def spent_usd(self) -> float:

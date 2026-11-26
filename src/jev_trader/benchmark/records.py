@@ -15,8 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from jev_trader.benchmark.attempts import Attempt
-from jev_trader.sim.records import decision_id
-from jev_trader.sim.store import now
+from jev_trader.sim.records import llm_call_row
 
 PURPOSE = "benchmark"
 DETAIL_DIR = Path(__file__).resolve().parents[3] / "logs" / "benchmark"
@@ -40,29 +39,16 @@ def call_rows(attempt: Attempt, run: str) -> list[dict]:
     moment = attempt.moment
     return [
         {
+            **llm_call_row(moment.sim, moment.now, moment.asset, call, number),
             "ID": f"{PURPOSE}-{run}-{attempt_name(attempt)}-{number}",
             "SIM": None,
             "PURPOSE": PURPOSE,
-            "STEP": moment.now,
-            "ASSET": moment.asset,
-            "DECISION": decision_id(moment.sim, moment.now, moment.asset),
-            "SERVICE": call.service,
-            "MODEL": call.model,
-            "TOKENS_IN": call.tokens_in,
-            "CACHED_TOKENS": call.cached_tokens,
-            "TOKENS_OUT": call.tokens_out,
-            "THINKING_TOKENS": call.thinking_tokens,
-            "COST_USD": call.cost_usd,
-            "LATENCY_SECONDS": call.latency_seconds,
-            "RETRIES": call.retries,
-            "ERROR": call.error,
-            "CALLED_AT": now(),
         }
         for number, call in enumerate(attempt.calls, start=1)
     ]
 
 
-def detail(attempt: Attempt) -> dict:
+def detail_file(attempt: Attempt) -> dict:
     """Everything kept about the attempt in its file: the moment, the result, each call, and the
     exchange word for word (the whole selection when the model answered; otherwise why it did
     not, its failed replies and the exchange up to the failure)."""
@@ -106,7 +92,7 @@ class SnowflakeAttemptLog:
         self.detail_dir.mkdir(parents=True, exist_ok=True)
         path = self.detail_dir / f"{attempt_name(attempt)}.json"
         path.write_text(
-            json.dumps(detail(attempt), indent=2, ensure_ascii=False, default=str),
+            json.dumps(detail_file(attempt), indent=2, ensure_ascii=False, default=str),
             encoding="utf-8",
         )
         rows = call_rows(attempt, self.run)

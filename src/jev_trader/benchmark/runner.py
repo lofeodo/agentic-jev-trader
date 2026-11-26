@@ -55,8 +55,9 @@ class SelectionRunner:
         try:
             selection = selector.select(moment.situation, lookups, moment.first_search)
         except LlmFailed as failed:
-            # A call still failing after its retries carries that call; the third failed
-            # reply carries none.
+            # A failed call carries that call; the third failed reply carries none. A call
+            # the provider refused outright (never retried) counts with the retries used up:
+            # it went wrong the same way, a call that could not be made.
             outcome = (
                 Outcome.FAILED_REPLY if failed.call is None else Outcome.RETRIES_USED_UP
             )

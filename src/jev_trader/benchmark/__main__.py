@@ -108,6 +108,7 @@ def main(
     try:
         with ExitStack() as held:
             parts = parts_for(args, held)
+            print(f"{len(parts.moments)} saved moments, {len(models)} model(s).")
             run = run_benchmark(
                 parts.moments,
                 models,
