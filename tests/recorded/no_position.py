@@ -13,14 +13,19 @@ borrowed coins, the price falls 1%, the account is up $20). The **daily loss lim
 trades for the rest of the UTC day once the account is down 5% since midnight ($500 of $10,000).
 """
 
-from tests.recorded.made_up import MadeUpPrices, PastNoTrade, PastTrade
+from tests.recorded.made_up import (
+    STEP,
+    MadeUpPrices,
+    PastEpisode,
+    PastNoTrade,
+    PastTrade,
+)
 from tests.recorded.scenarios import MadeUpInputs, Scenario
 
-DAY = 96
-STEP = 21 * DAY + 40  # day 22: every measurement has the 20 days it needs
 OTHER_ASSETS = ("ASSET_02", "ASSET_03", "ASSET_04", "ASSET_05")
 
-# A rise on high volume after a hammer (a bullish candle pattern): worth a closer look.
+# A rise after a hammer (a candle pattern read as a hint the price will rise), on two and a half
+# times the usual trading (volume): worth a closer look.
 RISING = MadeUpPrices(seed=4, last_moves=(0.004, 0.006), last_volume=2.5)
 RISING_PATTERNS = ((STEP - 1, "hammer"),)
 
@@ -33,7 +38,7 @@ SMALL_MEMORY = (
 )
 
 
-def _busy_memory(count: int, every: int) -> tuple:
+def _busy_memory(count: int, every: int) -> tuple[PastEpisode, ...]:
     """`count` past episodes, one every `every` steps back from the scenario's step: trades
     long and short that made or lost money, closed by Jev or at their stop price, and
     no-trades, spread over the five assets. Enough to tempt the LLM into more lookups."""
@@ -140,6 +145,61 @@ SCENARIOS = [
             step=STEP, prices=RISING, patterns=RISING_PATTERNS, memory=UNLIKE_MEMORY
         ),
     ),
+    # Second candidates for the LLM's paths, which the inputs steer least.
+    Scenario(
+        name="looks_further_after_a_bearish_hint",
+        path="the LLM looks further first",
+        inputs=MadeUpInputs(
+            step=STEP,
+            prices=MadeUpPrices(seed=13, last_moves=(0.002, -0.006), last_volume=2.0),
+            patterns=((STEP, "shooting star"),),
+            memory=LARGE_MEMORY,
+        ),
+    ),
+    Scenario(
+        name="hits_the_lookup_limit_on_opposite_hints",
+        path="the LLM hits its limit of 6 lookups",
+        inputs=MadeUpInputs(
+            step=STEP,
+            prices=MadeUpPrices(seed=14, last_moves=(0.006, -0.005), last_volume=2.6),
+            patterns=(
+                (STEP - 2, "morning star"),
+                (STEP - 1, "hanging man"),
+                (STEP, "doji"),
+            ),
+            memory=LARGE_MEMORY,
+        ),
+    ),
+    Scenario(
+        name="replies_without_a_tool_call_in_a_large_memory",
+        path="the LLM replies without a tool call and is asked again",
+        inputs=MadeUpInputs(
+            step=STEP,
+            prices=MadeUpPrices(seed=15, last_moves=(-0.003, 0.004), last_volume=1.9),
+            patterns=((STEP, "spinning top"),),
+            memory=LARGE_MEMORY,
+        ),
+    ),
+    Scenario(
+        name="names_an_unshown_episode_in_a_busy_memory",
+        path="the LLM names an episode ID it was never shown",
+        inputs=MadeUpInputs(
+            step=STEP,
+            prices=MadeUpPrices(seed=16, last_moves=(-0.007, -0.004), last_volume=2.5),
+            patterns=((STEP, "bearish engulfing"),),
+            memory=BUSY_MEMORY,
+        ),
+    ),
+    Scenario(
+        name="selects_none_on_a_fall_against_unlike_episodes",
+        path="the LLM selects none",
+        inputs=MadeUpInputs(
+            step=STEP,
+            prices=MadeUpPrices(seed=17, last_moves=(-0.006, -0.008), last_volume=2.7),
+            patterns=((STEP, "three black crows"),),
+            memory=UNLIKE_MEMORY,
+        ),
+    ),
     Scenario(
         name="memory_holds_none_yet",
         path="nothing to show: memory holds none yet",
@@ -211,7 +271,8 @@ SCENARIOS = [
             memory=SHORTS_THAT_WORKED,
         ),
     ),
-    # Bars that swing about 3% each put even the tightest stop price about 3% away, so the
+    # A stop price is the price at which code closes a trade by itself to cap its loss. Bars
+    # that swing about 3% each put even the tightest stop price about 3% away, so the
     # trade risk limit (lose at most 1% of the account, $100, at the stop price) allows about
     # $3,300: a size Jev picks above that is cut down.
     Scenario(
@@ -236,7 +297,7 @@ SCENARIOS = [
             prices=RISING,
             patterns=RISING_PATTERNS,
             memory=SMALL_MEMORY,
-            value_at_midnight=10_600.0,
+            start_of_day_value=10_600.0,
         ),
     ),
     Scenario(

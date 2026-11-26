@@ -27,6 +27,7 @@ EXPECTED_RESULTS = Path(__file__).parent / "__snapshots__" / "test_scenarios.amb
 
 
 def _has_expected_result(test_name: str) -> bool:
+    # Read from syrupy's own file: each expected result starts with a `# name: <test>` line.
     return (
         EXPECTED_RESULTS.exists()
         and f"# name: {test_name}\n" in EXPECTED_RESULTS.read_text(encoding="utf-8")
@@ -50,6 +51,7 @@ def waiting_for_answers(request, record_mode, vcr_cassette_dir, default_cassette
 
 
 @pytest.mark.vcr
+@pytest.mark.usefixtures("waiting_for_answers")
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
-def test_scenario(scenario, snapshot, waiting_for_answers):
+def test_scenario(scenario, snapshot):
     assert run_scenario(scenario).compared() == snapshot
