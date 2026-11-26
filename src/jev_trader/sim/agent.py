@@ -762,7 +762,12 @@ class _DecisionWithMemory(_Recalls, _DecisionAtStep):
 
 class _PositionWithMemory(_Recalls, _PositionAtStep):
     """An open position, in the agent with memory: the LLM's second job selects past position
-    reviews of the same direction, told the position's standing as well."""
+    reviews of the same direction, told the position's standing as well.
+
+    The review's fresh memory is stored on the review's own records, in the same columns and
+    tables as a full evaluation's: how the LLM selected on its decision row, the exchange in
+    `SIM.LLM_EXCHANGES`, and the track record lines and episodes Jev read in its requests. The
+    entry memory stays on the full evaluation that opened the position, never written again."""
 
     def _recall(self, position: PositionView) -> MemorySections:
         context = LookupContext(
@@ -779,19 +784,3 @@ class _PositionWithMemory(_Recalls, _PositionAtStep):
                 end_of_session=position.end_of_session,
             ),
         )
-
-    def _store_decision(
-        self,
-        skipped_because: str | None,
-        screen: JevReply | None = None,
-        review: Review | None = None,
-        action: str = ACTION_NOTHING,
-    ) -> None:
-        super()._store_decision(skipped_because, screen, review, action)
-        self._store_fresh_memory()
-
-    def _store_fresh_memory(self) -> None:
-        """EMPTY SLOT, for the ticket "Position review with memory: fresh memory beside the
-        entry memory" (#181): store the review's fresh memory (the track record lines and
-        episodes it read) beside the entry memory the position was opened on, for the decision
-        trail. Nothing is stored yet."""

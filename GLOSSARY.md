@@ -431,6 +431,10 @@ _Avoid_: Trade log, position notes
 The scorecard lines and selected episodes Jev read in the full evaluation that opened a position. They are kept with the position unchanged and shown with it. Jev does not read them again: a position review reads episodes selected for its own moment.
 _Avoid_: Frozen memory, carried memory
 
+**Fresh memory**:
+The scorecard lines and selected episodes Jev read in one position review, chosen for that review's moment. Each review's fresh memory is stored on the review, beside the position's entry memory and never over it.
+_Avoid_: Review memory, new memory
+
 **Situation text**:
 The one-paragraph plain-language description of a snapshot, written by code and embedded for episode search.
 
