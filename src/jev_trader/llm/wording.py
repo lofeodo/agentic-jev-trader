@@ -143,21 +143,19 @@ class LlmWording:
         asset: str,
         asset_class: str,
         situation: str,
-        standing: Mapping,
+        standing: Standing,
         end_of_session: bool,
         summaries: Sequence[str],
         pattern_notes: str = "",
     ) -> str:
         """The first message of a position review: as a full evaluation's, with the position's
-        standing (`PositionView.standing`: direction, dollars, bars open, profit or loss, stop
-        price distance, best and worst so far) and, at an end-of-session review, its one line."""
+        standing (direction, dollars, bars open, profit or loss, stop price distance, best and
+        worst so far) and, at an end-of-session review, its one line."""
         w = self.wording[POSITION_REVIEW]
         position = w["position_now"].format(
-            standing=render.capitalized(
-                render.standing(Standing(**standing), self.episodes)
-            ),
-            best=render.signed_dollars(standing["best"]),
-            worst=render.signed_dollars(standing["worst"]),
+            standing=render.capitalized(render.standing(standing, self.episodes)),
+            best=render.signed_dollars(standing.best),
+            worst=render.signed_dollars(standing.worst),
         )
         if end_of_session:
             position += "\n" + w["end_of_session"]
@@ -167,7 +165,7 @@ class LlmWording:
                 asset_class=asset_class,
                 situation=situation,
                 position=position,
-                direction=standing["direction"],
+                direction=standing.direction,
                 **self._listing(summaries, POSITION_REVIEW),
             )
             + pattern_notes

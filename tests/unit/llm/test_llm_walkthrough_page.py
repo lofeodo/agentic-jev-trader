@@ -305,7 +305,7 @@ def review_situation(story, position: dict, end_of_session: bool) -> Situation:
         patterns=tuple(current["patterns"]),
         playbook={n: (p["lean"], p["shape"]) for n, p in story["playbook"].items()},
         position=ReviewedPosition(
-            standing=standing(position), end_of_session=end_of_session
+            standing=Standing(**standing(position)), end_of_session=end_of_session
         ),
     )
 
