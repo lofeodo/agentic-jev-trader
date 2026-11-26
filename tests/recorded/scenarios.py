@@ -25,23 +25,32 @@ Every request is the same from run to run (`test_harness.py` sends one twice): J
 shuffled from the sim's random seed, and no clock time or random ID goes into anything a model
 reads.
 
-Not built yet: an account holding a position on the asset (#170).
+An account holding a position begins the step as a resumed sim's does (ADR 0013): the broker's
+own entry opened the position some steps before, the bars since passed through the broker, and
+the account is brought back from its saved state. The agent gets back the position's situation
+at entry and its journal, one hold a bar. The holding sim's five purchases are made the same
+way, by its own strategy at the made-up calendar's first step.
+
+`run_scenario(scenario, bars_after=n)` then lets `n` more of the asset's bars pass, the last of
+them the sim's last step, with no model asked: only the broker and the episodes' outcomes act.
+The position-review outcomes test uses it.
 """
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import (
     AbstractAsyncContextManager,
     ExitStack,
     asynccontextmanager,
     closing,
 )
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 from mcp import Client, ClientSession
 
 from jev_trader.broker import (
     AssetClass,
+    Bar,
     Broker,
     Direction,
     load_stop_price_settings,
@@ -58,8 +67,9 @@ from jev_trader.memory.store import MemoryStore
 from jev_trader.memory.track_record import TrackRecord
 from jev_trader.risk import load_risk_profile
 from jev_trader.sim.agent import AgentWithMemory, AgentWithoutMemory
+from jev_trader.sim.clock import midnights_between
 from jev_trader.sim.market import DatasetInfo, InMemoryMarket, Period, Playbook
-from jev_trader.sim.runner import StepBatch, run_step
+from jev_trader.sim.runner import BuyHold, StepBatch, run_step
 from jev_trader.sim.tracing import Tracing
 from tests.recorded.made_up import (
     ASSET,
@@ -76,16 +86,26 @@ RANDOM_SEED = 0
 # Columns that differ from run to run however the answers are handed back: when a call was
 # made and how long it took. They are left out of what is compared.
 VARIES_RUN_TO_RUN = frozenset({"CALLED_AT", "LATENCY_SECONDS"})
+# The holding sim holds five assets (spec appendix 1, section 6); the first is `ASSET`.
+HOLDING_ASSETS = tuple(f"ASSET_0{n}" for n in range(1, 6))
 
 
 @dataclass(frozen=True)
 class MadeUpPosition:
-    """A position the account holds on the asset when the step begins."""
+    """A position the account holds on the asset when the step begins.
+
+    It opened `steps_ago` steps before the scenario's step (the asset must have a bar there),
+    from an entry of `amount` dollars decided at the asset's bar before. Its stop price sits
+    `stop_distance` from the price the entry was decided at, as a share of it (0.02 is 2%):
+    below a long's, above a short's; the broker allows at most 5%. The entry is made with no
+    risk limit, so `amount` may be more than the account holds: $38,000 on $10,000 is mostly
+    borrowed money.
+    """
 
     direction: Direction
     amount: float  # dollars put in
     steps_ago: int  # the step it was opened at, counted back from the scenario's step
-    stop_price: float
+    stop_distance: float = 0.02
 
 
 @dataclass(frozen=True)
@@ -96,8 +116,10 @@ class MadeUpInputs:
     to it, drawn as `prices` says, and `patterns` are the candle patterns recognised on the
     asset, as (step, name) pairs. `memory` holds the made-up past episodes (none: memory holds
     none yet); `with_memory` False runs the agent without memory. `sim_ends_here` makes the step
-    the sim's last, where everything is sold (ADR 0009). `playbook` is every candle pattern's
-    lean and shape: the dataset build's own unless a scenario says otherwise.
+    the sim's last, where everything is sold (ADR 0009). `holding_sim` runs the holding sim
+    instead of the agent: no model, and the five assets of `HOLDING_ASSETS` bought at the
+    made-up calendar's first step. `playbook` is every candle pattern's lean and shape: the
+    dataset build's own unless a scenario says otherwise.
     """
 
     step: int
@@ -109,29 +131,38 @@ class MadeUpInputs:
     cash: float = 10_000.0
     position: MadeUpPosition | None = None
     sim_ends_here: bool = False
+    holding_sim: bool = False
     playbook: Playbook = field(default_factory=the_playbook)
 
 
 @dataclass(frozen=True)
 class Scenario:
     """One asset at one step: its name (the test's ID and its saved files' name), the path
-    through the agent it covers (word for word from `paths.PATHS`), and its made-up inputs."""
+    through the agent it covers (word for word from `paths.PATHS`), and its made-up inputs.
+    `asks_a_model` False: code alone acts, so it needs no saved answers."""
 
     name: str
     path: str
     inputs: MadeUpInputs
+    asks_a_model: bool = True
 
 
 @dataclass(frozen=True)
 class ScenarioResult:
-    """The three things a scenario's test compares with what was saved."""
+    """The three things a scenario's test compares with what was saved, and the decisions whose
+    outcomes all became known, each with the step they were known from (not compared)."""
 
     memory_lookups: list[tuple]
     orders: list[dict]
     records: dict[str, list[dict]]
+    outcomes_known: dict[str, int] = field(default_factory=dict)
 
     def compared(self) -> dict[str, Any]:
-        return asdict(self)
+        return {
+            "memory_lookups": self.memory_lookups,
+            "orders": self.orders,
+            "records": self.records,
+        }
 
 
 class _NotedLookups:
@@ -173,23 +204,184 @@ def _noted(
     return lambda context: _NotedLookups(connection.lookups_at(context), asked)
 
 
-def _market(inputs: MadeUpInputs, made_up: MadeUpMarket) -> InMemoryMarket:
-    step = inputs.step
-    series = made_up.series(ASSET)
-    first = series.steps[0]
+def _market(
+    inputs: MadeUpInputs, made_up: MadeUpMarket, assets: Sequence[str], last_step: int
+) -> InMemoryMarket:
+    """The made-up dataset. It has snapshots of the agent's asset from the scenario's step on;
+    the holding sim reads none."""
+    series = {asset: made_up.series(asset) for asset in assets}
+    first = min(s.steps[0] for s in series.values())
     info = DatasetInfo(
         dataset_id=DATASET,
         status="published",
         first_step=first,
-        last_step=step,
-        periods=(Period("test", "made-up market", first, step),),
-        assets={ASSET: inputs.asset_class},
+        last_step=last_step,
+        periods=(Period("test", "made-up market", first, last_step),),
+        assets={asset: inputs.asset_class for asset in assets},
     )
+    snapshots = {}
+    if not inputs.holding_sim:
+        snapshots = {
+            step: {ASSET: made_up.snapshot(ASSET, step)}
+            for step in series[ASSET].steps
+            if step >= inputs.step
+        }
     return InMemoryMarket(
         datasets=[info],
-        bars={DATASET: {ASSET: series.broker_bars()}},
-        snapshots={DATASET: {step: {ASSET: made_up.snapshot(ASSET, step)}}},
+        bars={DATASET: {asset: s.broker_bars() for asset, s in series.items()}},
+        snapshots={DATASET: snapshots},
         playbook=inputs.playbook,
+    )
+
+
+def _account(
+    inputs: MadeUpInputs,
+    made_up: MadeUpMarket,
+    market: InMemoryMarket,
+    empty: Broker,
+) -> tuple[Broker, int | None]:
+    """The account as it stands when the scenario's step begins, and the last step it saw
+    (None: it holds nothing, so it is `empty` as given).
+
+    What it holds is bought by the broker's own orders, with no risk limit; the bars since pass
+    through it, with each night's charges. It is then brought back from its saved state with
+    `empty`'s settings, as a resumed sim's is (ADR 0013), so the step's records hold only the
+    step's own."""
+    if inputs.position is None and not inputs.holding_sim:
+        return empty, None
+    setting_up = Broker(
+        cash=empty.cash,
+        asset_classes=empty.asset_classes,
+        costs=empty.costs,
+        stop_settings=empty.stop_settings,
+    )
+    steps = made_up.series(ASSET).steps
+    if inputs.holding_sim:
+        decided = steps[0]
+    else:
+        decided = steps[steps.index(inputs.step - inputs.position.steps_ago) - 1]
+    previous = decided
+    for step, bars in sorted(market.bars(DATASET, decided, inputs.step - 1).items()):
+        for midnight in midnights_between(previous, step):
+            setting_up.charge_overnight(midnight)
+        for asset in sorted(bars):
+            setting_up.on_bar(asset, bars[asset])
+        if step == decided:
+            _buy(inputs, setting_up, step, bars)
+        previous = step
+    held = set(empty.asset_classes) if inputs.holding_sim else {ASSET}
+    if gone := held - set(setting_up.positions):
+        raise ValueError(f"{sorted(gone)} closed before step {inputs.step}")
+    account = Broker.from_state(
+        setting_up.state(),
+        empty.asset_classes,
+        empty.costs,
+        empty.stop_settings,
+        empty.risk,
+    )
+    return account, previous
+
+
+def _buy(inputs: MadeUpInputs, broker: Broker, step: int, bars: dict[str, Bar]) -> None:
+    """Place what the account will hold: the holding sim's five purchases, or the position."""
+    if inputs.holding_sim:
+        BuyHold(step, inputs.cash).on_step(step, broker, bars)
+        return
+    position = inputs.position
+    away = (
+        -position.stop_distance
+        if position.direction is Direction.LONG
+        else position.stop_distance
+    )
+    broker.enter(
+        ASSET,
+        position.direction,
+        position.amount,
+        round(bars[ASSET].close * (1 + away), 4),
+        step,
+    )
+
+
+def _held_since(
+    agent: AgentWithoutMemory, made_up: MadeUpMarket, broker: Broker, step: int
+) -> None:
+    """Give the agent back the open position's situation at entry and its journal, as a resumed
+    sim's agent gets them: one hold for each bar it was looked at, from bar 0, the bar it
+    opened in, to the bar before this step."""
+    position = broker.positions[ASSET]
+    steps = made_up.series(ASSET).steps
+    at_entry = made_up.snapshot(ASSET, steps[steps.index(position.step_opened) - 1])
+    looked_at = [s for s in steps if position.step_opened <= s < step]
+    agent.restore(
+        {
+            "entries": {},
+            "positions": {
+                str(position.position_id): {
+                    "situation": at_entry.situation_text,
+                    "patterns": list(at_entry.patterns),
+                    "journal": [
+                        {"bar": bar, "action": "hold"} for bar in range(len(looked_at))
+                    ],
+                }
+            },
+            "outcomes": {},
+        }
+    )
+
+
+class _OutcomesOnly:
+    """The bars after a scenario's step: the agent looks at nothing, so no model is asked. The
+    broker carries out the orders waiting and checks stop prices, and the episodes learn their
+    outcomes."""
+
+    def __init__(self, agent: AgentWithoutMemory):
+        self.agent = agent
+
+    def on_step(
+        self, step: int, broker: Broker, bars: dict[str, Bar]
+    ) -> dict[str, list[dict]]:
+        return {}
+
+    def after_step(
+        self, step: int, broker: Broker, bars: dict[str, Bar]
+    ) -> tuple[list[dict], dict[str, int]]:
+        return self.agent.after_step(step, broker, bars)
+
+
+def _agent(
+    inputs: MadeUpInputs,
+    made_up: MadeUpMarket,
+    market: InMemoryMarket,
+    last_step: int,
+    held: ExitStack,
+    asked: list[tuple],
+) -> AgentWithoutMemory:
+    """The agent, with or without memory, on the real Jev client and LLM selection, with memory
+    reached through the real memory server and each lookup noted in `asked`."""
+    costs, risk = load_trading_costs(), load_risk_profile()
+    jev = held.enter_context(closing(JevClient(load_jev_settings())))
+    arguments = (
+        SIM,
+        DATASET,
+        last_step,
+        market,
+        jev,
+        Reading(costs, risk),
+        load_stop_price_settings(),
+        RANDOM_SEED,
+    )
+    if not inputs.with_memory:
+        return AgentWithoutMemory(*arguments, tracing=Tracing())
+    store = made_up_memory(made_up, inputs.step, inputs.memory)
+    # The address goes unused: the session reaches the server in-process.
+    memory = held.enter_context(
+        Connection("in-process", list(inputs.playbook), open_session=_in_process(store))
+    )
+    return AgentWithMemory(
+        *arguments,
+        lookups_at=_noted(memory, asked),
+        selector=LlmSelector(load_llm_settings()),
+        tracing=Tracing(),
     )
 
 
@@ -199,74 +391,55 @@ def _without_run_to_run_columns(rows: list[dict]) -> list[dict]:
     ]
 
 
-def run_scenario(scenario: Scenario) -> ScenarioResult:
+def run_scenario(scenario: Scenario, bars_after: int = 0) -> ScenarioResult:
     """Run the scenario's one step through the agent's whole decision path.
 
     Jev and the LLM are the real clients: their requests are answered from the test's saved
-    files, and a request with no saved answer fails the test.
+    files, and a request with no saved answer fails the test. Then `bars_after` more of the
+    asset's bars pass with no model asked, the last of them the sim's last step.
     """
     inputs = scenario.inputs
-    if inputs.position is not None:
-        raise NotImplementedError(
-            "an account holding a position comes with ticket #170"
-        )
+    if bars_after and (inputs.sim_ends_here or inputs.holding_sim):
+        raise ValueError("bars after the step need the agent, in a sim that carries on")
     step = inputs.step
+    assets = HOLDING_ASSETS if inputs.holding_sim else (ASSET,)
     made_up = MadeUpMarket(
-        inputs.asset_class, step, inputs.prices, {ASSET: inputs.patterns}
+        inputs.asset_class, step, inputs.prices, {ASSET: inputs.patterns}, bars_after
     )
-    market = _market(inputs, made_up)
-    costs, risk = load_trading_costs(), load_risk_profile()
-    stops = load_stop_price_settings()
-    broker = Broker(
+    later = made_up.series(ASSET).steps[-bars_after:] if bars_after else []
+    if later:
+        last_step = later[-1]
+    else:
+        last_step = step if inputs.sim_ends_here else step + 1
+    market = _market(inputs, made_up, assets, last_step)
+    empty = Broker(
         cash=inputs.cash,
-        asset_classes={ASSET: inputs.asset_class},
-        costs=costs,
-        stop_settings=stops,
-        risk=risk,
+        asset_classes={asset: inputs.asset_class for asset in assets},
+        costs=load_trading_costs(),
+        stop_settings=load_stop_price_settings(),
+        risk=None if inputs.holding_sim else load_risk_profile(),
     )
-    last_step = step if inputs.sim_ends_here else step + 1
+    broker, previous = _account(inputs, made_up, market, empty)
+    # Holding nothing, the step before is the step itself: no midnight passes, so no night is
+    # charged.
+    previous = step if previous is None else previous
     asked: list[tuple] = []
+    batch = StepBatch()
     with ExitStack() as held:
-        jev = held.enter_context(closing(JevClient(load_jev_settings())))
-        arguments = (
-            SIM,
-            DATASET,
-            last_step,
-            market,
-            jev,
-            Reading(costs, risk),
-            stops,
-            RANDOM_SEED,
-        )
-        if inputs.with_memory:
-            store = made_up_memory(made_up, step, inputs.memory)
-            # The address goes unused: the session reaches the server in-process.
-            memory = held.enter_context(
-                Connection(
-                    "in-process", list(inputs.playbook), open_session=_in_process(store)
-                )
-            )
-            agent = AgentWithMemory(
-                *arguments,
-                lookups_at=_noted(memory, asked),
-                selector=LlmSelector(load_llm_settings()),
-                tracing=Tracing(),
-            )
+        if inputs.holding_sim:
+            strategy = BuyHold(made_up.series(ASSET).steps[0], inputs.cash)
         else:
-            agent = AgentWithoutMemory(*arguments, tracing=Tracing())
-        batch = StepBatch()
-        # The step before is the step itself: no midnight passes, so no night is charged.
+            strategy = _agent(inputs, made_up, market, last_step, held, asked)
+            if inputs.position is not None:
+                _held_since(strategy, made_up, broker, step)
+        bars = {asset: made_up.series(asset).bar(step) for asset in assets}
+        run_step(SIM, step, previous, last_step, broker, strategy, bars, batch)
         previous = step
-        run_step(
-            SIM,
-            step,
-            previous,
-            last_step,
-            broker,
-            agent,
-            {ASSET: made_up.series(ASSET).bar(step)},
-            batch,
-        )
+        for after in later:
+            bar = {ASSET: made_up.series(ASSET).bar(after)}
+            outcomes_only = _OutcomesOnly(strategy)
+            run_step(SIM, after, previous, last_step, broker, outcomes_only, bar, batch)
+            previous = after
     tables = batch.tables()
     orders = tables.pop("SIM.ORDERS")
     return ScenarioResult(
@@ -275,4 +448,5 @@ def run_scenario(scenario: Scenario) -> ScenarioResult:
         records={
             table: _without_run_to_run_columns(rows) for table, rows in tables.items()
         },
+        outcomes_known=dict(batch.outcomes_known),
     )

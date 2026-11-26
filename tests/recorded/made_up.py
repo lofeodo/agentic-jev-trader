@@ -140,36 +140,62 @@ class Series:
         return (_session(ends.date()).close - ends) // BAR_LENGTH
 
 
+def _drawn_bar(
+    step: int,
+    opened: float,
+    move: float,
+    draw: random.Random,
+    swing: float,
+    volume_against_usual: float = 1.0,
+) -> DatasetBar:
+    close = round(opened * (1 + move), 4)
+    above = abs(draw.gauss(0, swing / 2))
+    below = abs(draw.gauss(0, swing / 2))
+    volume = USUAL_VOLUME * (0.8 + 0.4 * draw.random()) * volume_against_usual
+    return DatasetBar(
+        start=_start(step),
+        open=opened,
+        high=round(max(opened, close) * (1 + above), 4),
+        low=round(min(opened, close) * (1 - below), 4),
+        close=close,
+        volume=round(volume, 1),
+    )
+
+
 def made_up_series(
-    asset: str, asset_class: StrEnum, last_step: int, prices: MadeUpPrices
+    asset: str,
+    asset_class: StrEnum,
+    last_step: int,
+    prices: MadeUpPrices,
+    bars_after: int = 0,
 ) -> Series:
-    """The asset's bars from step 1 to `last_step`, drawn from `prices`. `asset_class` may be
-    the broker's or the dataset's: the measurements need the dataset's."""
+    """The asset's bars from step 1 to `last_step`, drawn from `prices`, then `bars_after` more
+    of its bars. The bars after are drawn apart (same drift and swing, no set moves), so the
+    bars up to `last_step` are the same with or without them. `asset_class` may be the broker's
+    or the dataset's: the measurements need the dataset's."""
     asset_class = AssetClass(str(asset_class))
     steps = [s for s in range(1, last_step + 1) if trades_at(asset_class, s)]
     draw = random.Random(f"{prices.seed}-{asset}")
     moves = [prices.drift + draw.gauss(0, prices.swing) for _ in steps]
     if prices.last_moves:
         moves[-len(prices.last_moves) :] = prices.last_moves
-    bars, close = [], FIRST_PRICE
+    bars: list[DatasetBar] = []
     for n, (step, move) in enumerate(zip(steps, moves), start=1):
-        opened, close = close, round(close * (1 + move), 4)
-        above = abs(draw.gauss(0, prices.swing / 2))
-        below = abs(draw.gauss(0, prices.swing / 2))
-        volume = USUAL_VOLUME * (0.8 + 0.4 * draw.random())
-        if n == len(steps):
-            volume *= prices.last_volume
-        bars.append(
-            DatasetBar(
-                start=_start(step),
-                open=opened,
-                high=round(max(opened, close) * (1 + above), 4),
-                low=round(min(opened, close) * (1 - below), 4),
-                close=close,
-                volume=round(volume, 1),
-            )
-        )
-    days = (last_step - 1) // STEPS_PER_DAY + 1
+        opened = bars[-1].close if bars else FIRST_PRICE
+        volume = prices.last_volume if n == len(steps) else 1.0
+        bars.append(_drawn_bar(step, opened, move, draw, prices.swing, volume))
+    later, wanted = (
+        random.Random(f"{prices.seed}-{asset}-after"),
+        len(bars) + bars_after,
+    )
+    step = last_step
+    while len(bars) < wanted:
+        step += 1
+        if trades_at(asset_class, step):
+            move = prices.drift + later.gauss(0, prices.swing)
+            bars.append(_drawn_bar(step, bars[-1].close, move, later, prices.swing))
+            steps.append(step)
+    days = (steps[-1] - 1) // STEPS_PER_DAY + 1
     sessions = {
         day: _session(day)
         for day in (FIRST_DAY + timedelta(days=d) for d in range(days))
@@ -197,8 +223,9 @@ def made_up_embedding(text: str) -> list[float]:
 
 
 class MadeUpMarket:
-    """The made-up bars of every asset a scenario names, up to its step. `patterns` are the
-    candle patterns recognised on each asset, as (step, name) pairs."""
+    """The made-up bars of every asset a scenario names, up to its step, then `bars_after` more
+    of each asset's bars. `patterns` are the candle patterns recognised on each asset, as
+    (step, name) pairs."""
 
     def __init__(
         self,
@@ -206,16 +233,17 @@ class MadeUpMarket:
         last_step: int,
         prices: MadeUpPrices,
         patterns: Mapping[str, Sequence[tuple[int, str]]],
+        bars_after: int = 0,
     ):
         self.asset_class = AssetClass(str(asset_class))
         self.last_step, self.prices = last_step, prices
-        self.patterns = patterns
+        self.patterns, self.bars_after = patterns, bars_after
         self._series: dict[str, Series] = {}
 
     def series(self, asset: str) -> Series:
         if asset not in self._series:
             self._series[asset] = made_up_series(
-                asset, self.asset_class, self.last_step, self.prices
+                asset, self.asset_class, self.last_step, self.prices, self.bars_after
             )
         return self._series[asset]
 
@@ -281,7 +309,8 @@ class PastTrade:
 @dataclass(frozen=True)
 class PastReview:
     """A past review of position `position` (open 2 bars, `profit` dollars up then) that decided
-    `action` (nothing is a hold, close, reduce, add); complete 6 steps later."""
+    `action` (nothing is a hold, close, reduce, add); complete 6 steps later. A reduce sold half
+    the position, an add put in $1,000 more."""
 
     step: int
     position: int
@@ -343,7 +372,7 @@ def made_up_memory(
                     closing_reason=episode.closing_reason,
                 )
             case PastReview():
-                memory.review(
+                review = memory.review(
                     episode.asset,
                     episode.step,
                     episode.position,
@@ -351,5 +380,8 @@ def made_up_memory(
                     action=episode.action,
                     profit=episode.profit,
                 )
+                (row,) = [r for r in memory.store.decisions_table if r["ID"] == review]
+                row["REDUCE_SHARE"] = 0.5 if episode.action == "reduce" else None
+                row["SIZE_AFTER_TRIMMING"] = 1000.0 if episode.action == "add" else None
     memory.snapshot(ASSET, now)
     return memory.store
