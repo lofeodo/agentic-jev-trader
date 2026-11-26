@@ -219,18 +219,16 @@ HANDLED = re.compile(r"bars? (\d+)(?: to (\d+))? (.+?)( \(this review\))?")
 ENDINGS = {"stop price reached": "stop_price"}
 
 
-def review_step(decided: str, bar: int) -> tuple[str, Step]:
+def review_step(decided: str, bar: int) -> Step:
     """What one of the page's past reviews decided, as memory stores it."""
     if reduced := REDUCED.fullmatch(decided):
         share, sign, profit = reduced.groups()
         made = float(profit.replace(",", "")) * (-1 if sign == "-" else 1)
-        return "reduce", Step(
-            bar=bar, action="reduce", share=SHARES[share], profit=made
-        )
+        return Step(bar=bar, action="reduce", share=SHARES[share], profit=made)
     if added := ADDED.fullmatch(decided):
         amount = float(added.group(1).replace(",", ""))
-        return "add", Step(bar=bar, action="add", amount=amount)
-    return decided, Step(bar=bar, action=decided)
+        return Step(bar=bar, action="add", amount=amount)
+    return Step(bar=bar, action=decided)
 
 
 def journal(handled: list[str]) -> list[Step]:
@@ -242,7 +240,7 @@ def journal(handled: list[str]) -> list[Step]:
             if what in ENDINGS:
                 step = Step(bar=bar, action=ENDINGS[what])
             else:
-                step = review_step(what, bar)[1]
+                step = review_step(what, bar)
             steps.append(step.model_copy(update={"this_review": bool(this_review)}))
     return steps
 
@@ -264,7 +262,7 @@ def standing(p: dict) -> dict:
 def past_review(e: dict) -> Episode:
     """One of the page's made-up past position reviews, as memory stores it."""
     part_of_day, trend, volume = e["setting"]
-    decided, step = review_step(e["decided"], e["position"]["bars"])
+    step = review_step(e["decided"], e["position"]["bars"])
     ended, after = e["ended"], e["after"]
     return Episode(
         id=f"made-up-{e['key']}",
@@ -278,7 +276,7 @@ def past_review(e: dict) -> Episode:
         part_of_day=part_of_day,
         trend=trend.removeprefix("long-term trend "),
         volume=volume.removeprefix("volume "),
-        decided=decided,
+        decided=step.action,
         review=step,
         standing=Standing(**standing(e["position"])),
         prices=Prices(

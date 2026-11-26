@@ -429,16 +429,21 @@ def test_the_answer_tool_does_not_count_as_a_lookup_in_a_review():
             asks(search),
             asks(read("E3")),
             asks(search),
-            answers(["E2"]),  # after five lookups: the answer is taken, not refused
+            asks((ANSWER_TOOL, {"episode_ids": "E2"})),  # an answer that does not fit
+            asks(read("E6")),  # still the sixth lookup: the answer did not count
+            answers(["E6"]),
         ]
     )
 
     run.run()
 
-    assert len(run.llm.calls) == 6
-    assert all(c.tools == ALL_TOOLS for c in run.llm.calls)
-    assert run.events("an LLM limit hit") == []
-    assert run.review["SELECTED"] == [REVIEWS[2].id]
+    calls = run.llm.calls
+    assert len(calls) == 8
+    assert all(c.tools == ALL_TOOLS for c in calls[:7])
+    assert [REVIEWS[6].id] in run.memory.reads()  # the sixth lookup was run
+    assert calls[7].tools == {ANSWER_TOOL}
+    assert len(run.events("a failed reply")) == 1
+    assert run.review["SELECTED"] == [REVIEWS[6].id]
 
 
 def test_after_60_seconds_the_lookup_tools_are_switched_off_in_a_review():
@@ -625,6 +630,7 @@ def test_both_jobs_carry_one_prompt_version_stored_with_both_jobs_words():
     ("file", "path"),
     [
         ("llm", ("position_review", "system_prompt")),
+        ("llm", ("position_review", "first_message")),
         ("llm", ("full_evaluation", "system_prompt")),
         ("tools", ("position_review", "search_episodes", "description")),
         ("tools", ("full_evaluation", "search_episodes", "description")),
@@ -690,7 +696,7 @@ def test_the_entry_memory_is_unchanged_while_each_reviews_fresh_memory_is_stored
         [REVIEWS[2].id],
         [REVIEWS[3].id, REVIEWS[1].id],
     ]
-    assert {r["POSITION"] for r in reviews} != {None}
+    assert None not in {r["POSITION"] for r in reviews}
     exchanges = reviewed.store.rows("SIM.LLM_EXCHANGES", reviewed.sim_id)
     assert [e["DECISION"] for e in exchanges] == [
         reviewed.entry["ID"],
