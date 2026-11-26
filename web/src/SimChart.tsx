@@ -1,7 +1,8 @@
 // The sim page's chart (spec appendix 7, sections 5 and 12): account value over time for the sim,
 // holding the five assets, and the other sims over the same days. Straight lines between points
 // (a smooth curve could show values the account never had), a faint grid, hatching under the
-// sim's line, and a small tick along the bottom for each trade opened.
+// sim's line, and a small tick along the bottom for each trade opened: clicking one opens the
+// decision trail of the decision that opened it.
 import { bisector, line as d3line, area as d3area, scaleLinear } from "d3";
 import { useRef, useState } from "react";
 
@@ -48,12 +49,13 @@ export type ChartProps = {
   stepsStartAt: string | null;
   windowSteps: number;
   onPick: (step: number) => void;
+  onOpenTrail?: (decision: string) => void;
 };
 
 type Hover = { step: number; clientX: number; clientY: number };
 
 export function SimChart(props: ChartProps) {
-  const { lines, ticks, firstStep, lastStep, startingValue, stepsStartAt, windowSteps, onPick } =
+  const { lines, ticks, firstStep, lastStep, startingValue, stepsStartAt, windowSteps, onPick, onOpenTrail } =
     props;
   const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
@@ -226,6 +228,30 @@ export function SimChart(props: ChartProps) {
             onPick(stepAt(e.clientX));
           }}
         />
+
+        {/* Over the chart's click area, so a tick's click opens its trail, not the moment. */}
+        {onOpenTrail &&
+          ticks.map((t) => {
+            const decision = t.decision;
+            if (decision === null) return null;
+            return (
+              <rect
+                key={`hit-${t.position}`}
+                x={x(t.opened_step) - 6}
+                y={Y1 - 18}
+                width={12}
+                height={18}
+                fill="transparent"
+                className="cursor-pointer"
+                onClick={() => {
+                  setHover(null);
+                  onOpenTrail(decision);
+                }}
+              >
+                <title>{`${t.asset.name}: ${t.direction} opened. Click for how it was decided.`}</title>
+              </rect>
+            );
+          })}
       </svg>
 
       {hover && sim && hoverValue !== null && (

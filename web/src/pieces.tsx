@@ -1,5 +1,5 @@
 // Small pieces shared by the sim page and its side panel.
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { AssetName, DecisionLine, LiveFigures, OrderLine, Price } from "./api/client";
 import { dollars, price } from "./format";
 
@@ -26,17 +26,24 @@ export function PriceTag({ price: p }: { price: Price }) {
 }
 
 // A side panel over the right of the page: its title bar, its Close button, and Escape to close.
+// A panel opened from another (a decision trail from a moment) lies on top; Escape closes only it.
 export function SidePanel({ title, wide, onClose, children }: { title: string; wide?: boolean; onClose: () => void; children: ReactNode }) {
+  const panel = useRef<HTMLElement>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      const open = document.querySelectorAll("[data-side-panel]");
+      if (e.key === "Escape" && open[open.length - 1] === panel.current) onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (
     <aside
+      ref={panel}
+      data-side-panel
       aria-label={title}
-      className={`fixed top-0 right-0 bottom-0 z-30 ${wide ? "w-[min(720px,100vw)]" : "w-[min(480px,100vw)]"} overflow-y-auto border-l-[1.5px] border-rule bg-screen`}
+      className={`fixed top-0 right-0 bottom-0 z-30 ${wide ? "w-[min(1000px,100vw)]" : "w-[min(480px,100vw)]"} overflow-y-auto border-l-[1.5px] border-rule bg-screen`}
     >
       <div className="flex items-center justify-between bg-amber px-[2ch] py-1 font-mono text-[13.5px] tracking-widest text-screen">
         <span>{title}</span>

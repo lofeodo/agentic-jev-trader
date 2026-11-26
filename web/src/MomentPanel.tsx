@@ -1,12 +1,25 @@
 // The A moment side panel (spec appendix 7, section 4): opened by a click on the chart, it shows
 // the account at that moment, the positions it held, and what it opened or closed around then.
+// "trail" beside a position or an order opens the decision trail of the decision behind it.
 import { useEffect, useState } from "react";
 
 import { fetchMoment, type Moment } from "./api/client";
-import { AssetTag, DirectionWords, ErrorBox, PriceTag, SidePanel, orderWords } from "./pieces";
+import { AssetTag, DirectionWords, ErrorBox, PriceTag, SidePanel, TrailButton, orderWords, type OpenTrail } from "./pieces";
 import { dayAndTime, dollars, fromApi, signedDollars, toApi, units } from "./format";
 
-export function MomentPanel({ simId, step, at, onClose }: { simId: number; step: number; at: Date; onClose: () => void }) {
+export function MomentPanel({
+  simId,
+  step,
+  at,
+  onClose,
+  onOpenTrail,
+}: {
+  simId: number;
+  step: number;
+  at: Date;
+  onClose: () => void;
+  onOpenTrail: OpenTrail;
+}) {
   const [moment, setMoment] = useState<Moment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const asked = toApi(at);
@@ -29,7 +42,7 @@ export function MomentPanel({ simId, step, at, onClose }: { simId: number; step:
       <p className="mb-4 font-mono text-[12.5px] tracking-wider text-dim">Step {moment?.step ?? step}</p>
       {error && <ErrorBox title="Cannot read this moment" text={error} />}
       {!moment && !error && <p className="font-mono text-dim">Loading...</p>}
-      {moment && <MomentBody moment={moment} />}
+      {moment && <MomentBody moment={moment} onOpenTrail={onOpenTrail} />}
     </SidePanel>
   );
 }
@@ -43,7 +56,7 @@ function Row({ name, figure }: { name: string; figure: string }) {
   );
 }
 
-function MomentBody({ moment }: { moment: Moment }) {
+function MomentBody({ moment, onOpenTrail }: { moment: Moment; onOpenTrail: OpenTrail }) {
   const a = moment.account;
   const gap = a && moment.holding_value !== null ? a.account_value - moment.holding_value : null;
   const hours = (moment.window_steps * 15) / 60;
@@ -88,6 +101,7 @@ function MomentBody({ moment }: { moment: Moment }) {
                 )}
                 {p.value_usd !== null && `, worth ${dollars(p.value_usd)}`}
               </div>
+              <TrailButton decision={p.decision} onOpenTrail={onOpenTrail} />
             </li>
           ))}
         </ul>
@@ -113,6 +127,7 @@ function MomentBody({ moment }: { moment: Moment }) {
                   : ""}
               </div>
               <AssetTag asset={o.asset} /> {orderWords(o)}
+              <TrailButton decision={o.decision} onOpenTrail={onOpenTrail} />
             </li>
           ))}
         </ol>
