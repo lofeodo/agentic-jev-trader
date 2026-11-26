@@ -6,33 +6,15 @@ Rewrite the expected results after a deliberate change, then read the difference
 
     conda run -n agentic-jev-trader python -m pytest tests/recorded --block-network --snapshot-update
 
-The frame is in `scenarios.py`. Only one trivial scenario is here so far, which asks no model:
-the real scenarios come with the slice's units.
+The frame is in `scenarios.py`, the made-up data in `made_up.py`, and the paths each scenario
+may name in `paths.py`. The scenarios come with the slice's units.
 """
 
 import pytest
 
-from jev_trader.broker import Bar
-from jev_trader.sim.market import Snapshot
-from tests.recorded.scenarios import MadeUpInputs, Scenario, run_scenario
+from tests.recorded.scenarios import Scenario, run_scenario
 
-SCENARIOS = [
-    # A crypto asset whose dataset has no typical move at the step: no candidate trade can be
-    # built, so code skips it (tier 0) and asks neither Jev nor the LLM.
-    Scenario(
-        name="no_typical_move",
-        path="no position: code asks nothing",
-        inputs=MadeUpInputs(
-            bars=(Bar(step=200, open=100.0, high=101.0, low=99.0, close=100.5),),
-            snapshot=Snapshot(
-                situation_text="Made-up situation.",
-                typical_move=None,
-                bars_left=None,
-                patterns=(),
-            ),
-        ),
-    ),
-]
+SCENARIOS: list[Scenario] = []
 
 
 @pytest.mark.vcr
