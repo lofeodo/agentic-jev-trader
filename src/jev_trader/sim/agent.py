@@ -104,6 +104,7 @@ from jev_trader.llm.selection import (
     Situation,
 )
 from jev_trader.memory.bridge import LookupContext
+from jev_trader.memory.episodes import Standing
 from jev_trader.memory.outcomes import Outcomes, is_last_bar_of_day
 from jev_trader.memory.search import DIRECTIONS, POSITION_REVIEW
 from jev_trader.risk import RiskLimit
@@ -779,7 +780,7 @@ class _PositionWithMemory(_Recalls, _PositionAtStep):
         return self._recall_at(
             context,
             ReviewedPosition(
-                standing=position.standing(self.view.price),
+                standing=Standing(**position.standing(self.view.price)),
                 end_of_session=position.end_of_session,
             ),
         )

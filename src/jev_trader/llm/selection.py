@@ -76,7 +76,7 @@ from jev_trader.memory.bridge import (
     ToolDefinition,
     definitions,
 )
-from jev_trader.memory.episodes import Episode
+from jev_trader.memory.episodes import Episode, Standing
 from jev_trader.memory.lookups import MOST_READ, Episodes, Found, SearchResult
 from jev_trader.memory.search import (
     FULL_EVALUATION,
@@ -129,11 +129,11 @@ class MemoryLookups(Protocol):
 
 @dataclass(frozen=True)
 class ReviewedPosition:
-    """The open position a position review selects for: its standing (as
-    `jev_trader.jev.reading.PositionView.standing` gives it) and whether this is a stock's
+    """The open position a position review selects for: its standing (from
+    `jev_trader.jev.reading.PositionView.standing`) and whether this is a stock's
     end-of-session review."""
 
-    standing: dict
+    standing: Standing
     end_of_session: bool = False
 
 

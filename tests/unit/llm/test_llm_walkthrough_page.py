@@ -8,7 +8,7 @@ from the same story, through a scripted fake LLM. A past episode in full is comp
 
 The second job (tab "Always sent" and tab 6: a position review) is compared the same way: its
 standing instructions, its two own tool descriptions, and its first message, at a review and at
-an end-of-session review. Those tests are the slice's, dormant until its closing ticket.
+an end-of-session review.
 """
 
 import json
@@ -305,7 +305,7 @@ def review_situation(story, position: dict, end_of_session: bool) -> Situation:
         patterns=tuple(current["patterns"]),
         playbook={n: (p["lean"], p["shape"]) for n, p in story["playbook"].items()},
         position=ReviewedPosition(
-            standing=standing(position), end_of_session=end_of_session
+            standing=Standing(**standing(position)), end_of_session=end_of_session
         ),
     )
 
@@ -332,14 +332,12 @@ def review_sent(story, position: dict, end_of_session: bool, shown: int):
     return llm.calls
 
 
-@pytest.mark.dormant
 def test_the_second_jobs_instructions_are_the_pages_word_for_word(story):
     assert LlmWording().system_prompt(POSITION_REVIEW) == story["reviewSystemPrompt"]
     [call] = review_sent(story, story["positionNow"], False, 10)
     assert text_of(call.messages[0]) == story["reviewSystemPrompt"]
 
 
-@pytest.mark.dormant
 def test_the_second_jobs_tools_are_described_as_on_the_page(story):
     ours = [
         *definitions(POSITION_REVIEW, list(story["playbook"])),
@@ -354,13 +352,11 @@ def test_the_second_jobs_tools_are_described_as_on_the_page(story):
         assert described[name] == first_job[name]
 
 
-@pytest.mark.dormant
 def test_a_reviews_first_message_is_the_pages_word_for_word(story):
     [call] = review_sent(story, story["positionNow"], False, 10)
     assert text_of(call.messages[-1]) == story["reviewFirst"]
 
 
-@pytest.mark.dormant
 def test_an_end_of_session_reviews_first_message_is_the_pages_word_for_word(story):
     # Two past reviews found: the heading gives the real count.
     [call] = review_sent(story, story["positionAtClose"], True, 2)

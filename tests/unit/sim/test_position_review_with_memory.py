@@ -16,8 +16,6 @@ sent, and the records stored.
 - The fixed messages are compared with the wording in `prompts/llm_selection.toml`, as in the
   full evaluation's tests; the exact layouts are compared with the walkthrough page in
   `tests/unit/llm/test_llm_walkthrough_page.py`.
-
-Every test here is dormant until the slice's closing ticket.
 """
 
 import copy
@@ -62,8 +60,6 @@ from tests.unit.sim.test_full_evaluation_with_memory import (
     text_of,
     tool_name,
 )
-
-pytestmark = pytest.mark.dormant
 
 ALL_TOOLS = {"search_episodes", "read_episodes", "read_track_record", ANSWER_TOOL}
 # The one line an end-of-session review adds to the first message, as both walkthrough pages
