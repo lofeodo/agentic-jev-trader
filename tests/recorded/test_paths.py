@@ -1,16 +1,16 @@
 """The path-coverage check (spec appendix 10, section 8): every scenario names a path from the
 written list in `paths.py`, and every path has a scenario.
 
-A test of the service-failure paths, which run on hand-written fake answers, adds its scenarios
-to `COVERING` too.
+The service-failure paths run on hand-written fake answers: their scenarios are in
+`test_service_failures.py`, and are in `COVERING` too.
 """
 
 import pytest
 
-from tests.recorded import test_scenarios
+from tests.recorded import test_scenarios, test_service_failures
 from tests.recorded.paths import PATHS
 
-COVERING = [*test_scenarios.SCENARIOS]
+COVERING = [*test_scenarios.SCENARIOS, *test_service_failures.SCENARIOS]
 
 
 def test_the_list_names_each_path_once():
