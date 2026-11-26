@@ -263,7 +263,7 @@ def overlap_line(item: Overlap) -> str:
         return f"- {job}, {item.model} against {against}: no pairs to compare."
     return (
         f"- {job}, {item.model} against {against}: {percent(item.average)} on average, "
-        f"standard deviation {percent(item.deviation)}, over {item.pairs} pairs."
+        f"standard deviation {percent(item.deviation)}, over {item.pairs} pair{'' if item.pairs == 1 else 's'}."
     )
 
 

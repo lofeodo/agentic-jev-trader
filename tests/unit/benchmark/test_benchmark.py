@@ -55,8 +55,6 @@ from jev_trader.memory.episodes import Episode, Standing
 from jev_trader.memory.lookups import Episodes, Found, SearchResult
 from jev_trader.memory.track_record import TrackRecord
 
-pytestmark = pytest.mark.dormant
-
 HAIKU, GLM = "claude-haiku-5-5", "glm-5.3-flash"
 CAP_USD = 1.50
 FULL, REVIEW = "full evaluation", "position review"
