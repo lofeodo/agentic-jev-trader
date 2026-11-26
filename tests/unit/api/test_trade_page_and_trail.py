@@ -23,7 +23,7 @@ the sim writes it:
 - step 192: a 40-cent borrow fee for the night (the cost of borrowing the shares sold short).
 - step 201: closed at its stop price, 15 units bought back at 104.
 
-And a closer look at Bitcoin at step 110 that ended in no trade.
+And a full evaluation of Bitcoin at step 110 that ended in no trade.
 """
 
 import json
@@ -62,7 +62,7 @@ READING = "reading-1"
 OPENING = "# The task\nYou read one asset at a time for a selective day trader."
 PROMPT = "prompt-1"
 SYSTEM_PROMPTS = {
-    "full_evaluation": "You choose the past episodes Jev reads before a closer look.",
+    "full_evaluation": "You choose the past episodes Jev reads before a full evaluation.",
     "position_review": "You choose the past reviews Jev reads before it reviews a position.",
 }
 TOOLS = {
@@ -156,12 +156,17 @@ def sections(*parts):
 
 
 SCREEN_BACKGROUND = sections(ACCOUNT, APPLE_NOW, NOTES)
+BITCOIN_NOW = "# ASSET_02, crypto\nLast price 61.00."
 PICK_BACKGROUND = sections(
     ACCOUNT,
     APPLE_NOW,
     track_record(ENTRY_LINES),
     past_episodes(list(ENTRY_EPISODES.values())),
     NOTES,
+)
+SIZE_BACKGROUND = sections(
+    PICK_BACKGROUND,
+    f"{JEV['trade_picked_heading']}\nShort, medium stop price at 104.00.",
 )
 POSITION_SCREEN_BACKGROUND = sections(HELD, APPLE_NOW, POSITION, NOTES)
 REVIEW_BACKGROUND = sections(
@@ -200,6 +205,8 @@ PATTERNS = (
     "harami",
 )
 NOT_A_TOOL_CALL = "E1 looks closest to this hammer."
+REVIEW_NOTE = "The same short, held."
+NONE_FITS = "None fits."
 NOTE = "E1 is the same short on the same stock."
 REVIEW_FIRST_MESSAGE = (
     "Position: short ASSET_01 at 100.00, open 7 bars, -$2 so far.\n"
@@ -232,6 +239,7 @@ def full_evaluation_exchange():
             AIMessage("", tool_calls=lookups),
             *results,
             refused,
+            HumanMessage(LLM.answer_now_at_limit()),
             AIMessage(NOT_A_TOOL_CALL),
             HumanMessage(LLM.reask(lookups_left=False)),
             AIMessage("", tool_calls=[answer]),
@@ -582,7 +590,7 @@ def stored_sim(sims):
         97,
         APPLE,
         "size",
-        PICK_BACKGROUND,
+        SIZE_BACKGROUND,
         {"size_small_first": {"type": "choice", "instructions": SIZE_Q}},
         {"size_small_first": {"probabilities": {"size_2": 1.0}}},
     )
@@ -654,7 +662,7 @@ def stored_sim(sims):
         LIMITED_BY="position",
         ACTION="add",
         THESIS_INTACT=0.7,
-        **selection(list(REVIEW_EPISODES), "The same short, held.", REVIEW_EPISODES),
+        **selection(list(REVIEW_EPISODES), REVIEW_NOTE, REVIEW_EPISODES),
     )
     jev_request(
         sims,
@@ -695,7 +703,7 @@ def stored_sim(sims):
         sim,
         105,
         APPLE,
-        answer_only_exchange(REVIEW_FIRST_MESSAGE, ["E1"], "The same short, held."),
+        answer_only_exchange(REVIEW_FIRST_MESSAGE, ["E1"], REVIEW_NOTE),
     )
     order(
         sims,
@@ -726,7 +734,7 @@ def stored_sim(sims):
         ANSWERS={**action_copies((0.7, 0.2, 0.1, 0.0)), "thesis_intact": 0.6},
         PICK="hold",
         THESIS_INTACT=0.6,
-        **selection([], "None fits.", ["70-20-ASSET_03"]),
+        **selection([], NONE_FITS, [f"{MEMORY_SIM}-20-{BITCOIN}"]),
     )
     jev_request(
         sims,
@@ -747,7 +755,7 @@ def stored_sim(sims):
         sim,
         120,
         APPLE,
-        answer_only_exchange(END_OF_SESSION_FIRST_MESSAGE, [], "None fits."),
+        answer_only_exchange(END_OF_SESSION_FIRST_MESSAGE, [], NONE_FITS),
     )
 
     # The night's charges: the trade's borrow fee, the account's loan interest, another
@@ -770,7 +778,7 @@ def stored_sim(sims):
         COMMISSION_OR_TRADING_FEE=1.5,
     )
 
-    # Step 110: a closer look at Bitcoin that ended in no trade.
+    # Step 110: a full evaluation of Bitcoin that ended in no trade.
     decision(
         sims,
         sim,
@@ -781,7 +789,7 @@ def stored_sim(sims):
         SCREEN_ANSWER=0.75,
         ANSWERS={"pick_1": {"long_tight_stop": 0.3, "no_trade": 0.7}},
         PICK="no_trade",
-        **selection([], "None fits.", [f"{MEMORY_SIM}-60-{BITCOIN}"]),
+        **selection([], NONE_FITS, [f"{MEMORY_SIM}-60-{BITCOIN}"]),
     )
     jev_request(
         sims,
@@ -789,7 +797,7 @@ def stored_sim(sims):
         110,
         BITCOIN,
         "screen",
-        "# ASSET_02, crypto\nLast price 61.00.",
+        BITCOIN_NOW,
         {"screen": {"type": "noul", "instructions": BTC_SCREEN_Q}},
         {"screen": {"noul": 0.75}},
     )
@@ -799,7 +807,7 @@ def stored_sim(sims):
         110,
         BITCOIN,
         "pick",
-        "# ASSET_02, crypto\nLast price 61.00.",
+        BITCOIN_NOW,
         {"pick_1": {"type": "choice", "instructions": BTC_PICK_Q}},
         {"pick_1": {"probabilities": {"long_tight_stop": 0.3, "no_trade": 0.7}}},
     )
@@ -808,7 +816,7 @@ def stored_sim(sims):
         sim,
         110,
         BITCOIN,
-        answer_only_exchange("Situation: ASSET_02, crypto.", [], "None fits."),
+        answer_only_exchange("Situation: ASSET_02, crypto.", [], NONE_FITS),
     )
     return sim
 
@@ -860,8 +868,8 @@ def test_the_trade_page_draws_the_price_around_the_trade_with_its_marks(sims, ap
     marks = {(m["kind"], m["step"]): m for m in page["marks"]}
     assert marks[("entry", 98)]["price"] == real(100.0)
     assert marks[("close", 201)]["price"] == real(104.0)
-    [stop] = [m for m in page["marks"] if m["kind"] == "stop price"]
-    assert stop["price"] == real(104.0)
+    [stop_price] = [m for m in page["marks"] if m["kind"] == "stop price"]
+    assert stop_price["price"] == real(104.0)
     assert marks[("position screen", 101)]["decision"] == f"{sim}-101-{APPLE}"
     assert marks[("position review", 105)]["decision"] == f"{sim}-105-{APPLE}"
     assert marks[("position review", 120)]["decision"] == f"{sim}-120-{APPLE}"
@@ -1039,7 +1047,7 @@ def test_the_screen_pick_and_size_stops_show_jev_s_requests_word_for_word(sims, 
     )
     assert_jev_exchange(
         stop_named(found, "size"),
-        PICK_BACKGROUND,
+        SIZE_BACKGROUND,
         [SIZE_Q],
         [{"size_small_first": {"probabilities": {"size_2": 1.0}}}],
     )
@@ -1060,8 +1068,9 @@ def test_the_memory_stop_joins_the_standing_instructions_and_tools_to_the_exchan
         assert tool["name"] in tools["text"]
         assert tool["description"] in tools["text"]
     # Then every stored message, in order: 1 first message, 1 reply with 7 lookups, 7 results,
-    # the reply that was not a tool call, the re-ask, and the answer.
-    assert len(exchange) == 12
+    # code's message to answer now, the reply that was not a tool call, the re-ask, and the
+    # answer.
+    assert len(exchange) == 13
     first, lookups, *results = exchange[:9]
     assert (first["sender"], first["role"], first["text"]) == (
         "code",
@@ -1076,7 +1085,11 @@ def test_the_memory_stop_joins_the_standing_instructions_and_tools_to_the_exchan
         *(f"No more episodes on {p}." for p in PATTERNS[:6]),
         LLM.lookups_used_up(),
     ]
-    not_a_tool_call, reask, answer = exchange[9:]
+    answer_now, not_a_tool_call, reask, answer = exchange[9:]
+    assert (answer_now["sender"], answer_now["text"]) == (
+        "code",
+        LLM.answer_now_at_limit(),
+    )
     assert not_a_tool_call["sender"] == "llm"
     assert NOT_A_TOOL_CALL in not_a_tool_call["text"]
     assert (reask["sender"], reask["text"]) == ("code", LLM.reask(lookups_left=False))
@@ -1120,7 +1133,7 @@ def test_the_limits_and_order_stops_carry_the_order_s_figures(sims, api):
     }
 
 
-def test_a_closer_look_that_ended_in_no_trade_stops_at_the_pick(sims, api):
+def test_a_full_evaluation_that_ended_in_no_trade_stops_at_the_pick(sims, api):
     sim = stored_sim(sims)
 
     found = trail(api, sim, 110, asset=BITCOIN)
@@ -1130,7 +1143,7 @@ def test_a_closer_look_that_ended_in_no_trade_stops_at_the_pick(sims, api):
     assert found["asset"] == {"name": "Bitcoin", "masked_id": BITCOIN}
     assert_jev_exchange(
         stop_named(found, "pick"),
-        "# ASSET_02, crypto\nLast price 61.00.",
+        BITCOIN_NOW,
         [BTC_PICK_Q],
         [{"pick_1": {"probabilities": {"long_tight_stop": 0.3, "no_trade": 0.7}}}],
     )
@@ -1174,9 +1187,6 @@ def test_a_position_review_s_trail_has_its_own_stops(sims, api):
             },
             {"add_small_first": {"probabilities": {"size_1": 1.0}}},
         ],
-    )
-    assert f"{OPENING}\n\n{REVIEW_BACKGROUND}" in "\n".join(
-        texts(stop_named(found, "answer"), "code")
     )
     # The review's own standing instructions and tools, and its own exchange.
     memory = stop_named(found, "memory")["messages"]
