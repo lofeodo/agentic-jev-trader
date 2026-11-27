@@ -15,8 +15,13 @@ database is reached, and a missing setting still fails at once.
 
 Statements use `%s` placeholders. Each statement commits on its own (autocommit, as Snowflake's
 connector does); a store that writes several statements all or nothing opens a transaction
-itself (`with connection.transaction(): ...`), and sends them in one round trip inside
-`with connection.pipeline(): ...`.
+itself (`with connection.transaction(): ...`), which waits for the database's answer to its
+start, each statement and its end. To send them all in one round trip, a store writes them in
+`with connection.transaction_in_one_trip() as cursor: ...`: `BEGIN`, the statements and
+`COMMIT` go together in psycopg's pipeline mode (statements sent together, answered together).
+psycopg's own `transaction()` inside `pipeline()` would wait for its start and end: 3 or 4
+trips. Since no answer comes back before the end, a check that must stop the write goes inside
+the SQL (a statement that fails), not in Python between statements.
 
 **Threads.** The API and the memory server answer requests on several threads, all through the
 one connection. psycopg runs one statement at a time on it, but a transaction is the
@@ -103,6 +108,27 @@ class OneConnection:
         """The statements inside go to the database together, in one round trip."""
         with self._lock, self._open().pipeline():
             yield
+
+    @contextmanager
+    def transaction_in_one_trip(self) -> Iterator:
+        """A cursor whose statements commit together or not at all, sent with `BEGIN` and
+        `COMMIT` in one round trip. No statement's answer can be read inside: a statement that
+        fails raises its error as the block ends, and nothing of the block is kept."""
+        import psycopg
+
+        with self._lock:
+            connection = self._open()
+            try:
+                with connection.pipeline(), connection.cursor() as cursor:
+                    cursor.execute("BEGIN")
+                    yield cursor
+                    cursor.execute("COMMIT")
+            except BaseException:
+                # A failed statement leaves the transaction open and refusing: end it.
+                idle = psycopg.pq.TransactionStatus.IDLE
+                if not connection.closed and connection.info.transaction_status != idle:
+                    connection.execute("ROLLBACK")
+                raise
 
     def close(self) -> None:
         with self._lock:

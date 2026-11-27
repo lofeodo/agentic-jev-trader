@@ -297,7 +297,7 @@ class SnowflakeSimStore(_Connection):
             f"FROM MEMORY.DECISIONS WHERE {OWN_ROWS} AND KIND IN (?, ?)",
             (cut_off, sim_id, *SCREENED_KINDS),
         )
-        return int(asked), int(yes)
+        return int(asked), int(yes or 0)
 
     def position_screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
         [(asked, yes)] = self._run(
@@ -305,7 +305,7 @@ class SnowflakeSimStore(_Connection):
             f"FROM MEMORY.DECISIONS WHERE {OWN_ROWS} AND KIND IN (?, ?)",
             (cut_off, sim_id, *POSITION_KINDS),
         )
-        return int(asked), int(yes)
+        return int(asked), int(yes or 0)
 
     def position_review_counts(self, sim_id: int) -> dict[str, int]:
         [(reviews, end_of_session, closes, reduces, adds)] = self._run(
@@ -314,12 +314,13 @@ class SnowflakeSimStore(_Connection):
             f"WHERE {OWN_ROWS} AND KIND = ?",
             (ACTION_CLOSE, ACTION_REDUCE, ACTION_ADD, sim_id, KIND_POSITION_REVIEW),
         )
+        # COUNT_IF over no rows reads empty, not 0 (#258).
         return {
             "reviews": int(reviews),
-            "end_of_session": int(end_of_session),
-            ACTION_CLOSE: int(closes),
-            ACTION_REDUCE: int(reduces),
-            ACTION_ADD: int(adds),
+            "end_of_session": int(end_of_session or 0),
+            ACTION_CLOSE: int(closes or 0),
+            ACTION_REDUCE: int(reduces or 0),
+            ACTION_ADD: int(adds or 0),
         }
 
     def full_evaluation_counts(self, sim_id: int) -> tuple[int, int]:
@@ -328,7 +329,7 @@ class SnowflakeSimStore(_Connection):
             f"WHERE {OWN_ROWS} AND KIND = ?",
             (ACTION_ENTRY, sim_id, KIND_FULL_EVALUATION),
         )
-        return int(evaluations), int(entries)
+        return int(evaluations), int(entries or 0)
 
 
 def _delete_ids(cur, table: str, sim_id: int, ids: list[str]) -> None:
