@@ -9,14 +9,15 @@ more often than random ones did. It calls no model. `--shape-share` and `--bar-d
 several values to try instead of the sim's own; `--after` picks when the price is read (`1_bar`,
 `4_bars`, `end_of_day`); `--sample 2000` checks only that many records, for a quicker answer.
 
-It logs in to Snowflake as the memory login (`SNOWFLAKE_ACCOUNT` and
-`SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`, the key `memory.p8` in `SNOWFLAKE_LOCAL_DIR`), whose
-role can only read, and serves its three tools at `/mcp` and its health at `/health`, on the
-host, port and host names in `config/memory_server.toml`. `--database TRADING_AGENT_TEST` serves
-the test database. `--in-cluster` is for its pod in the kind cluster: it listens on every
-address of its container, so the cluster's other pods reach it as `memory`. It logs in to
-Snowflake on the first lookup, not at start. Output is plain ASCII: `conda run` on Windows fails
-on other characters.
+Both log in as the memory login, whose role can only read, to the database `DATABASE_ENGINE` in
+`.env` names: Snowflake (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD`, the key
+`memory.p8` in `SNOWFLAKE_LOCAL_DIR`) or Postgres (`POSTGRES_HOST` and
+`POSTGRES_MEMORY_PASSWORD`). `serve` serves its three tools at `/mcp` and its health at
+`/health`, on the host, port and host names in `config/memory_server.toml`.
+`--database TRADING_AGENT_TEST` serves the test database. `--in-cluster` is for its pod in the
+kind cluster: it listens on every address of its container, so the cluster's other pods reach
+it as `memory`. It logs in on the first lookup, not at start. Output is plain ASCII:
+`conda run` on Windows fails on other characters.
 """
 
 import argparse
@@ -33,9 +34,9 @@ from jev_trader.memory.search import SearchSettings
 from jev_trader.memory.search_check import AFTER, load_memory, report
 from jev_trader.memory.server import build_server, http_app
 from jev_trader.memory.store import UnknownSim
-from jev_trader.storage import LoginNotSet, NotBuiltYet
-from jev_trader.storage.database import open_database, refuse_postgres_until
-from jev_trader.storage.snowflake import DATABASE, connect
+from jev_trader.storage import LoginNotSet
+from jev_trader.storage.database import open_database
+from jev_trader.storage.snowflake import DATABASE
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 # In its pod: every address of the container, which only the cluster can reach.
@@ -66,22 +67,21 @@ def serve(database: str, port: int | None, in_cluster: bool = False) -> int:
     return 0
 
 
-def load_from_snowflake(sim: int, after: str, database: str) -> tuple[dict, list]:
-    """The sim's settings and memory, read as the memory login. LoginNotSet if it is not set."""
+def load_from_database(sim: int, after: str, database: str) -> tuple[dict, list]:
+    """The sim's settings and memory, read as the memory login, on the engine
+    `DATABASE_ENGINE` names. LoginNotSet if it is not set."""
     load_dotenv(REPO_ROOT / ".env")
-    # The search check reads Snowflake alone until then.
-    refuse_postgres_until(279)
-    connection = connect("memory", database=database)
+    opened = open_database("memory", database)
     try:
-        return load_memory(connection, sim, after)
+        return load_memory(opened.connection, sim, after, opened.engine)
     finally:
-        connection.close()
+        opened.close()
 
 
 def check_search(args: argparse.Namespace, read_memory: Callable) -> int:
     try:
         settings, records = read_memory(args.sim, args.after, args.database)
-    except (LoginNotSet, UnknownSim, NotBuiltYet) as problem:
+    except (LoginNotSet, UnknownSim) as problem:
         print(f"Cannot read sim {args.sim}'s memory: {problem}")
         return 2
     base = SearchSettings.of_sim(settings)
@@ -95,7 +95,7 @@ def check_search(args: argparse.Namespace, read_memory: Callable) -> int:
 
 
 def main(
-    argv: list[str] | None = None, read_memory: Callable = load_from_snowflake
+    argv: list[str] | None = None, read_memory: Callable = load_from_database
 ) -> int:
     parser = argparse.ArgumentParser(prog="python -m jev_trader.memory")
     commands = parser.add_subparsers(dest="command", required=True)
