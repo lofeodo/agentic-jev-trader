@@ -19,14 +19,11 @@ from jev_trader.dataset.measurements import MEASUREMENT_NAMES
 from jev_trader.dataset.postgres_store import PostgresStore as DatasetStore
 from jev_trader.dataset.situation_text import PATTERN_WINDOW_STEPS
 from jev_trader.sim.market import DatasetInfo
-from jev_trader.sim.postgres_store import PostgresMarket, PostgresSimStore
+from jev_trader.sim.postgres_store import OWN_ROWS, PostgresMarket, PostgresSimStore
 from jev_trader.sim.store import KIND_FULL_EVALUATION, KIND_POSITION_REVIEW
 
 _LONG_TERM_TREND = MEASUREMENT_NAMES.index("long_term_trend")
 _VOLUME_AGAINST_NORMAL = MEASUREMENT_NAMES.index("volume_against_normal")
-
-# A sim's own rows in the memory: rows copied in with its memory were written by another sim.
-_OWN_ROWS = "sim = %s AND first_written_by = sim"
 
 # Every column of a decision but its candidate trades, which no report needs.
 _DECISION_COLUMNS = (
@@ -170,7 +167,7 @@ class PostgresApiStore:
     def latest_decisions(self, sim_id: int, limit: int) -> list[dict]:
         return self._rows(
             "SELECT id, step, asset, kind, tier, screen_answer, skipped_because, action "
-            f"FROM memory.decisions WHERE {_OWN_ROWS} "
+            f"FROM memory.decisions WHERE {OWN_ROWS} "
             "ORDER BY step DESC, asset LIMIT %s",
             (sim_id, limit),
         )
@@ -218,7 +215,7 @@ class PostgresApiStore:
     def decisions(self, sim_id: int) -> list[dict]:
         return self._rows(
             f"SELECT {', '.join(_DECISION_COLUMNS)} FROM memory.decisions "
-            f"WHERE {_OWN_ROWS} ORDER BY step, asset",
+            f"WHERE {OWN_ROWS} ORDER BY step, asset",
             (sim_id,),
         )
 
@@ -231,14 +228,14 @@ class PostgresApiStore:
 
     def decision(self, sim_id: int, decision_id: str) -> dict | None:
         rows = self._rows(
-            f"SELECT * FROM memory.decisions WHERE {_OWN_ROWS} AND id = %s",
+            f"SELECT * FROM memory.decisions WHERE {OWN_ROWS} AND id = %s",
             (sim_id, decision_id),
         )
         return rows[0] if rows else None
 
     def position_decisions(self, sim_id: int, position: int) -> list[dict]:
         rows = self._rows(
-            f"SELECT * FROM memory.decisions WHERE {_OWN_ROWS} AND position = %s "
+            f"SELECT * FROM memory.decisions WHERE {OWN_ROWS} AND position = %s "
             "ORDER BY step",
             (sim_id, position),
         )
