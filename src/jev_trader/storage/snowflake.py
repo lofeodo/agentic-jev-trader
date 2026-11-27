@@ -11,13 +11,11 @@ import threading
 from collections.abc import Mapping
 from pathlib import Path
 
+from jev_trader.storage import LoginNotSet
+
 DATABASE = "TRADING_AGENT"
 TEST_DATABASE = "TRADING_AGENT_TEST"
 WAREHOUSE = "TRADING_AGENT_WH"
-
-
-class LoginNotSet(Exception):
-    """A Snowflake setting is missing from `.env`; the message names it."""
 
 
 def _required(env: Mapping[str, str], name: str) -> str:

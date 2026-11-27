@@ -381,12 +381,17 @@ def command(monkeypatch, market):
     def runs_no_step(*args, **kwargs):
         raise ValueError("the test runs no step")
 
-    monkeypatch.setattr("jev_trader.sim.__main__.connect", Nothing)
+    class NoDatabase(Nothing):
+        def sim_store(self):
+            return store
+
+        def market(self):
+            return market
+
+    monkeypatch.setattr("jev_trader.sim.__main__.open_database", NoDatabase)
     monkeypatch.setattr("jev_trader.sim.__main__.JevClient", Nothing)
     monkeypatch.setattr("jev_trader.sim.__main__.open_memory", Nothing)
     monkeypatch.setattr("jev_trader.sim.__main__.run_sim", runs_no_step)
-    monkeypatch.setattr("jev_trader.sim.__main__.SnowflakeSimStore", lambda c: store)
-    monkeypatch.setattr("jev_trader.sim.__main__.SnowflakeMarket", lambda c: market)
     return store
 
 

@@ -33,12 +33,9 @@ from jev_trader.memory.search import SearchSettings
 from jev_trader.memory.search_check import AFTER, load_memory, report
 from jev_trader.memory.server import build_server, http_app
 from jev_trader.memory.store import UnknownSim
-from jev_trader.storage.snowflake import (
-    DATABASE,
-    ConnectionOnFirstUse,
-    LoginNotSet,
-    connect,
-)
+from jev_trader.storage import LoginNotSet
+from jev_trader.storage.database import open_database
+from jev_trader.storage.snowflake import DATABASE, connect
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 # In its pod: every address of the container, which only the cluster can reach.
@@ -53,23 +50,19 @@ def load_settings(path: Path = CONFIG_DIR / "memory_server.toml") -> dict:
 def serve(database: str, port: int | None, in_cluster: bool = False) -> int:
     import uvicorn
 
-    from jev_trader.memory.snowflake_store import SnowflakeMemoryStore
-
     load_dotenv(REPO_ROOT / ".env")
     try:
-        connection = ConnectionOnFirstUse("memory", database=database)
+        opened = open_database("memory", database, on_first_use=True)
     except LoginNotSet as missing:
         print(missing)
         return 2
     settings = load_settings()
-    app = http_app(
-        build_server(SnowflakeMemoryStore(connection)), settings["allowed_hosts"]
-    )
+    app = http_app(build_server(opened.memory_store()), settings["allowed_hosts"])
     host = EVERY_ADDRESS if in_cluster else settings["host"]
     try:
         uvicorn.run(app, host=host, port=port or settings["port"])
     finally:
-        connection.close()
+        opened.close()
     return 0
 
 
