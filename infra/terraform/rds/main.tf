@@ -2,8 +2,9 @@
 # rule that lets in only this computer's home internet address, and the budget alarm.
 # Run through infra/rds.py, never by hand: it passes the passwords from .env and knows whether the
 # database is parked (deleted and kept as a snapshot).
-# Each apply that makes the database costs money: about 1.8 cents an hour while it is on, and
-# about $2.50 a month for its disk even while stopped.
+# Each apply that makes the database costs money: about 2.3 cents an hour while it is on (1.8 for
+# the database, 0.5 for its internet address), and about $2.50 a month for its disk even while
+# stopped.
 
 provider "aws" {
   region = "ca-central-1" # Montreal, where the Snowflake trial ran
@@ -14,8 +15,8 @@ provider "aws" {
 }
 
 locals {
-  identifier = "trading-agent" # also fixes the database's address, so a restore keeps it
-  admin_user = "trading_agent_admin"
+  identifier = "trading-agent"       # also fixes the database's address, so a restore keeps it (infra/rds.py)
+  admin_user = "trading_agent_admin" # infra/rds.py ADMIN_USER
   home_ip    = chomp(data.http.home_ip.response_body)
 }
 

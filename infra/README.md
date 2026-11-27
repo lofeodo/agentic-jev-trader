@@ -186,8 +186,9 @@ before any network call. When a step fails, the job prints the pods' logs.
 
 Postgres on Amazon's hosted database service, RDS, replaces Snowflake (spec appendix 11,
 ADR 0018). `infra/rds.py` runs everything here; AWS is reached with the AWS CLI's login on this
-computer (the `default` profile), so no AWS key goes in `.env` or the repo. When a command says
-the login has run out, run `aws sso login` and try again.
+computer (the `default` profile, set up once with `aws configure sso`), so no AWS key goes in
+`.env` or the repo. The login lasts 8 hours: when a command says it has run out, run
+`aws sso login` and try again.
 
 Two Terraform roots, each with its state in `~/.agentic-jev-trader/rds`, outside the repo:
 
@@ -201,7 +202,8 @@ Two Terraform roots, each with its state in `~/.agentic-jev-trader/rds`, outside
   the local Postgres the tests use: the five logins as Postgres roles (`trading_agent_builder`,
   `_sim`, `_memory`, `_api`, `_setup`) with no rights of their own, the two databases
   `trading_agent` and `trading_agent_test` owned by the setup login, and `pgvector` in each (only
-  the admin login may add it). What each login may read and write, the memory login reading only,
+  the admin login may add it; it is the Postgres add-on that compares the lists of numbers memory
+search uses). What each login may read and write, the memory login reading only,
   is granted by Alembic's first file as it makes the tables.
 
 Passwords: the admin login's (`POSTGRES_ADMIN_PASSWORD`) and each login's
@@ -211,8 +213,9 @@ them. After changing one, pass `-var=admin_password_version=2` (the admin's) or
 `-var=passwords_version=2` (a login's) to `apply`, one more than the last, or Terraform does not
 send it.
 
-What it costs: about 1.8 cents an hour while the database is on (about $13 a month if left on),
-and about $2.50 a month for its disk even while stopped. A parked database (below) costs only
+What it costs: about 2.3 cents an hour while the database is on (1.8 for the database, about
+$13 a month if left on, and 0.5 for its internet address), and about $2.50 a month for its disk
+even while stopped. A parked database (below) costs only
 its snapshot, cents a month for a few GB.
 
 ### The commands
@@ -234,12 +237,14 @@ conda run -n agentic-jev-trader python infra/rds.py restore
   part is planned against a made-up address.
 - `apply` makes or updates the database, then what is inside it, and prints the line
   `POSTGRES_HOST=...` to put in `.env`. The first one takes about 10 to 15 minutes, and the
-  database is then on.
+  database is then on. A stopped database must be `start`ed first.
 - `start` switches a stopped database on (a few minutes); `stop` switches it off. **Stop it after
-  each working session.** AWS starts a stopped database again by itself after 7 days.
+  each working session.** AWS starts a stopped database again by itself after 7 days. Both wait
+  out anything AWS is doing on its own first (a backup, a change).
 - `snapshot-and-delete`, before a pause longer than a few days: saves the database as a snapshot
-  (a copy of its disk) named `trading-agent-parked-<date and time>`, deletes the database, then
-  deletes the older parked snapshots, keeping the newest. Nothing inside is lost.
+  (a copy of its disk) named `trading-agent-parked-<date and time>`, then deletes the database.
+  Nothing inside is lost. Older parked snapshots stay (cents a month each); delete them in the
+  AWS console when no longer wanted.
 - `restore` makes the database again from the newest parked snapshot, with everything inside it,
   in about 10 to 15 minutes. Its address stays the same (it comes from the name
   `trading-agent`), so `.env` needs no change. It is on afterwards: stop it when done.

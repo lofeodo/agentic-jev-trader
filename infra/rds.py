@@ -37,15 +37,20 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AWS_DIR = REPO_ROOT / "infra" / "terraform" / "rds"
 POSTGRES_DIR = AWS_DIR / "postgres"
+# Its own folder, not SNOWFLAKE_LOCAL_DIR: that one goes with Snowflake at the end of the move.
 STATE_DIR = Path.home() / ".agentic-jev-trader" / "rds"
 
-# These must match infra/terraform/rds/main.tf and jev_trader.storage.postgres.LOGINS.
+# These three must match infra/terraform/rds/main.tf.
 REGION = "ca-central-1"
 IDENTIFIER = "trading-agent"
+ADMIN_USER = "trading_agent_admin"
 PARKED_PREFIX = f"{IDENTIFIER}-parked-"
-LOGINS = ("builder", "sim", "memory", "api", "setup")
-# Shown to `plan` before the database exists: the logins' part is planned, not run.
+# Shown to `plan` before the database exists: Terraform plans new logins without connecting.
 NOT_MADE_YET = "not-made-yet.invalid"
+# AWS passes through other statuses on its own (a backup, a change, starting, stopping); a
+# command waits them out before acting.
+SETTLED = ("available", "stopped")
+ON = "about 2.3 cents an hour (1.8 for the database, 0.5 for its internet address)"
 
 
 class SetupError(Exception):
@@ -78,8 +83,13 @@ def aws_secrets(env: Mapping[str, str]) -> dict[str, str]:
 
 def postgres_secrets(env: Mapping[str, str]) -> dict[str, str]:
     """What the logins' root reads from `.env`, as `TF_VAR_*` variables."""
+    # This checkout's own code, whichever copy the conda env has installed.
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+    from jev_trader.storage import postgres
+
     passwords = {
-        login: _required(env, f"POSTGRES_{login.upper()}_PASSWORD") for login in LOGINS
+        login: _required(env, postgres.password_variable(login))
+        for login in postgres.LOGINS
     }
     return {
         "TF_VAR_admin_password": _required(env, "POSTGRES_ADMIN_PASSWORD"),
@@ -105,6 +115,12 @@ def find_instance(rds) -> dict | None:
     return found["DBInstances"][0]
 
 
+def status_of(rds) -> str:
+    """The database's status, `deleted` when there is none."""
+    instance = find_instance(rds)
+    return instance["DBInstanceStatus"] if instance else "deleted"
+
+
 def parked_snapshots(rds) -> list[dict]:
     """The snapshots `snapshot-and-delete` made, newest first."""
     found = rds.describe_db_snapshots(
@@ -119,20 +135,15 @@ def parked_snapshots(rds) -> list[dict]:
     return sorted(parked, key=lambda s: s["SnapshotCreateTime"], reverse=True)
 
 
-def is_parked(rds) -> bool:
-    """No database, but a snapshot to restore it from."""
-    return find_instance(rds) is None and bool(parked_snapshots(rds))
-
-
-def wait_for_status(rds, wanted: str, minutes: int = 30) -> None:
+def wait_for(rds, wanted: tuple[str, ...], minutes: int = 30) -> str:
+    """Wait until the database's status is one of `wanted`, and return it."""
     deadline = time.monotonic() + minutes * 60
     while True:
-        instance = find_instance(rds)
-        status = instance["DBInstanceStatus"] if instance else "deleted"
-        if status == wanted:
-            return
+        status = status_of(rds)
+        if status in wanted:
+            return status
         if time.monotonic() > deadline:
-            raise SetupError(f"Still {status} after {minutes} minutes, not {wanted}.")
+            raise SetupError(f"Still {status} after {minutes} minutes.")
         print(f"  ... {status}")
         time.sleep(30)
 
@@ -141,45 +152,36 @@ def wait_for_status(rds, wanted: str, minutes: int = 30) -> None:
 
 
 def terraform(folder: Path, args: list[str], env: Mapping[str, str]) -> int:
-    """Run Terraform in `folder`. Only the arguments are shown, never `env`."""
-    return subprocess.run(
-        ["terraform", f"-chdir={folder}", *args], env=dict(env), check=False
-    ).returncode
-
-
-def init(folder: Path, state: str, env: Mapping[str, str]) -> int:
-    """`terraform init`, its output shown only when it fails."""
+    """Run Terraform in `folder`, after `init` (whose output shows only when it fails).
+    Only the arguments are shown, never `env`."""
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    done = subprocess.run(
+    state = STATE_DIR / (
+        "postgres.tfstate" if folder == POSTGRES_DIR else "rds.tfstate"
+    )
+    common = ["terraform", f"-chdir={folder}"]
+    init = subprocess.run(
         [
-            "terraform",
-            f"-chdir={folder}",
+            *common,
             "init",
             "-input=false",
             "-no-color",
             "-reconfigure",
-            f"-backend-config=path={(STATE_DIR / state).as_posix()}",
+            f"-backend-config=path={state.as_posix()}",
         ],
         env=dict(env),
         capture_output=True,
         text=True,
         check=False,
     )
-    if done.returncode != 0:
-        print(done.stdout + done.stderr, file=sys.stderr)
-    return done.returncode
-
-
-def aws_output(env: Mapping[str, str], name: str) -> str | None:
-    done = subprocess.run(
-        ["terraform", f"-chdir={AWS_DIR}", "output", "-raw", name],
+    if init.returncode != 0:
+        print(init.stdout + init.stderr, file=sys.stderr)
+        return init.returncode
+    command, *rest = args
+    return subprocess.run(
+        [*common, command, "-input=false", "-no-color", *rest],
         env=dict(env),
-        capture_output=True,
-        text=True,
         check=False,
-    )
-    value = done.stdout.strip()
-    return value if done.returncode == 0 and value else None
+    ).returncode
 
 
 def run_aws_root(
@@ -187,36 +189,26 @@ def run_aws_root(
     extra: list[str],
     env: Mapping[str, str],
     parked: bool,
-    restore_from=None,
+    restore_from: str | None = None,
 ) -> int:
-    done = init(AWS_DIR, "rds.tfstate", env)
-    if done != 0:
-        return done
     variables = [f"-var=parked={'true' if parked else 'false'}"]
     if restore_from:
         variables.append(f"-var=restore_from={restore_from}")
-    return terraform(
-        AWS_DIR, [command, "-input=false", "-no-color", *variables, *extra], env
-    )
+    return terraform(AWS_DIR, [command, *variables, *extra], env)
 
 
 def run_postgres_root(
     command: str, extra: list[str], env: Mapping[str, str], host: str
 ) -> int:
-    done = init(POSTGRES_DIR, "postgres.tfstate", env)
-    if done != 0:
-        return done
-    admin = aws_output(env, "admin_user") or "trading_agent_admin"
-    variables = [f"-var=host={host}", f"-var=admin_user={admin}"]
-    return terraform(
-        POSTGRES_DIR, [command, "-input=false", "-no-color", *variables, *extra], env
-    )
+    variables = [f"-var=host={host}", f"-var=admin_user={ADMIN_USER}"]
+    return terraform(POSTGRES_DIR, [command, *variables, *extra], env)
 
 
 # --- Commands -------------------------------------------------------------------------------
+# Each takes the RDS client, the arguments after the command (for Terraform) and the settings.
 
 
-def cmd_status(rds) -> int:
+def cmd_status(rds, extra: list[str], env: Mapping[str, str]) -> int:
     instance = find_instance(rds)
     if instance:
         print(f"Database {IDENTIFIER}: {instance['DBInstanceStatus']}")
@@ -235,62 +227,67 @@ def cmd_status(rds) -> int:
     return 0
 
 
-def cmd_terraform(rds, command: str, extra: list[str], env: dict) -> int:
-    """`plan` or `apply`, on the AWS root, then on the logins' root when it can be reached."""
-    parked = is_parked(rds)
-    run_env = {**os.environ, **aws_secrets(env), **postgres_secrets(env)}
-    done = run_aws_root(command, extra, run_env, parked)
-    if done != 0 or parked:
+def terraform_command(command: str):
+    """`plan` or `apply`: the AWS root, then the logins' root when it can be reached."""
+
+    def run(rds, extra: list[str], env: Mapping[str, str]) -> int:
+        instance = find_instance(rds)
+        status = instance["DBInstanceStatus"] if instance else None
+        parked = instance is None and bool(parked_snapshots(rds))
+        if status == "deleting":
+            raise SetupError("The database is being deleted: wait, then `status`.")
+        if command == "apply" and status not in (None, "available"):
+            raise SetupError(f"The database is {status}: `start` it before `apply`.")
+        run_env = {**os.environ, **aws_secrets(env)}
+        done = run_aws_root(command, extra, run_env, parked)
+        if done != 0:
+            return done
         if parked:
             print(
                 "The database is parked: the logins' part is inside the snapshot. "
                 "`restore` brings it back."
             )
-        return done
-    instance = find_instance(rds)
-    if instance is None:
-        if command == "apply":
             return done
-        # Before the database exists, plan the logins' part against a made-up address: Terraform
-        # plans new logins without connecting.
-        print("\nThe logins' part, once the database exists:")
-        return run_postgres_root("plan", [], run_env, NOT_MADE_YET)
-    if instance["DBInstanceStatus"] != "available":
-        print(
-            f"The database is {instance['DBInstanceStatus']}: the logins' part needs it "
-            "switched on (`start`)."
-        )
+        run_env.update(postgres_secrets(env))
+        instance = find_instance(rds)
+        if instance is None:
+            print("\nThe logins' part, once the database exists:")
+            return run_postgres_root("plan", [], run_env, NOT_MADE_YET)
+        if instance["DBInstanceStatus"] != "available":
+            print(
+                f"The database is {instance['DBInstanceStatus']}: the logins' part needs it "
+                "switched on (`start`)."
+            )
+            return done
+        host = instance["Endpoint"]["Address"]
+        print("\nThe logins, the two databases and pgvector, inside the database:")
+        done = run_postgres_root(command, extra, run_env, host)
+        if done == 0 and command == "apply":
+            print(f"\nPut this line in .env: POSTGRES_HOST={host}")
+            print(f"The database is on: {ON}, until `stop`.")
         return done
-    host = instance["Endpoint"]["Address"]
-    print("\nThe logins, the two databases and pgvector, inside the database:")
-    done = run_postgres_root(command, extra, run_env, host)
-    if done == 0 and command == "apply":
-        print(f"\nPut this line in .env: POSTGRES_HOST={host}")
-    return done
+
+    return run
 
 
-def cmd_start(rds) -> int:
-    instance = find_instance(rds)
-    if instance is None:
+def cmd_start(rds, extra: list[str], env: Mapping[str, str]) -> int:
+    if find_instance(rds) is None:
         raise SetupError("There is no database to start. `status` says why.")
-    if instance["DBInstanceStatus"] != "available":
-        if instance["DBInstanceStatus"] == "stopped":
-            rds.start_db_instance(DBInstanceIdentifier=IDENTIFIER)
-        print("Starting the database (a few minutes)...")
-        wait_for_status(rds, "available")
-    print("The database is on: about 1.8 cents an hour until `stop`.")
+    print("Starting the database (a few minutes)...")
+    if wait_for(rds, SETTLED) == "stopped":
+        rds.start_db_instance(DBInstanceIdentifier=IDENTIFIER)
+        wait_for(rds, ("available",))
+    print(f"The database is on: {ON}, until `stop`.")
     return 0
 
 
-def cmd_stop(rds) -> int:
-    instance = find_instance(rds)
-    if instance is None:
+def cmd_stop(rds, extra: list[str], env: Mapping[str, str]) -> int:
+    if find_instance(rds) is None:
         raise SetupError("There is no database to stop. `status` says why.")
-    if instance["DBInstanceStatus"] != "stopped":
-        if instance["DBInstanceStatus"] == "available":
-            rds.stop_db_instance(DBInstanceIdentifier=IDENTIFIER)
-        print("Stopping the database (a few minutes)...")
-        wait_for_status(rds, "stopped")
+    print("Stopping the database (a few minutes)...")
+    if wait_for(rds, SETTLED) == "available":
+        rds.stop_db_instance(DBInstanceIdentifier=IDENTIFIER)
+        wait_for(rds, ("stopped",))
     print(
         "The database is stopped: only its disk is billed (about $2.50 a month).\n"
         "AWS starts it again by itself after 7 days. For a longer pause, run "
@@ -299,11 +296,10 @@ def cmd_stop(rds) -> int:
     return 0
 
 
-def cmd_snapshot_and_delete(rds) -> int:
-    instance = find_instance(rds)
-    if instance is None:
+def cmd_snapshot_and_delete(rds, extra: list[str], env: Mapping[str, str]) -> int:
+    if find_instance(rds) is None:
         raise SetupError("There is no database to delete. `status` says why.")
-    older = parked_snapshots(rds)
+    wait_for(rds, SETTLED)
     name = PARKED_PREFIX + datetime.now(UTC).strftime("%Y%m%d-%H%M")
     print(f"Saving the database as the snapshot {name}, then deleting it...")
     rds.delete_db_instance(
@@ -312,12 +308,8 @@ def cmd_snapshot_and_delete(rds) -> int:
         FinalDBSnapshotIdentifier=name,
         DeleteAutomatedBackups=True,
     )
-    wait_for_status(rds, "deleted", minutes=45)
+    wait_for(rds, ("deleted",), minutes=45)
     rds.get_waiter("db_snapshot_available").wait(DBSnapshotIdentifier=name)
-    # Only the newest copy is kept: each costs cents a month.
-    for snapshot in older:
-        rds.delete_db_snapshot(DBSnapshotIdentifier=snapshot["DBSnapshotIdentifier"])
-        print(f"Deleted the older snapshot {snapshot['DBSnapshotIdentifier']}.")
     print(
         f"Parked: the database is deleted and kept as the snapshot {name} "
         "(cents a month). `restore` brings it back in 10 to 15 minutes."
@@ -325,59 +317,42 @@ def cmd_snapshot_and_delete(rds) -> int:
     return 0
 
 
-def cmd_restore(rds, env: dict) -> int:
+def cmd_restore(rds, extra: list[str], env: Mapping[str, str]) -> int:
     if find_instance(rds) is not None:
         raise SetupError("The database exists already: nothing to restore.")
     snapshots = parked_snapshots(rds)
     if not snapshots:
         raise SetupError("No snapshot to restore from. `status` says why.")
     name = snapshots[0]["DBSnapshotIdentifier"]
-    print(
-        f"Making the database again from the snapshot {name} (10 to 15 minutes)...",
-    )
+    print(f"Making the database again from the snapshot {name} (10 to 15 minutes)...")
     run_env = {**os.environ, **aws_secrets(env)}
     done = run_aws_root("apply", ["-auto-approve"], run_env, False, restore_from=name)
     if done == 0:
-        instance = find_instance(rds)
-        print(
-            "Restored and on: about 1.8 cents an hour until `stop`.\n"
-            f"POSTGRES_HOST={instance['Endpoint']['Address']}"
-        )
+        print(f"Restored. The database is on: {ON}, until `stop`.")
+        print(f"POSTGRES_HOST={find_instance(rds)['Endpoint']['Address']}")
     return done
+
+
+COMMANDS = {
+    "status": cmd_status,
+    "plan": terraform_command("plan"),
+    "apply": terraform_command("apply"),
+    "start": cmd_start,
+    "stop": cmd_stop,
+    "snapshot-and-delete": cmd_snapshot_and_delete,
+    "restore": cmd_restore,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python infra/rds.py")
-    parser.add_argument(
-        "command",
-        choices=(
-            "status",
-            "plan",
-            "apply",
-            "start",
-            "stop",
-            "snapshot-and-delete",
-            "restore",
-        ),
-    )
+    parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("terraform_args", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     # Each line shows at once, in order with Terraform's own output.
     sys.stdout.reconfigure(line_buffering=True)
     try:
-        env = read_env()
-        rds = rds_client()
-        if args.command == "status":
-            return cmd_status(rds)
-        if args.command in ("plan", "apply"):
-            return cmd_terraform(rds, args.command, args.terraform_args, env)
-        if args.command == "start":
-            return cmd_start(rds)
-        if args.command == "stop":
-            return cmd_stop(rds)
-        if args.command == "snapshot-and-delete":
-            return cmd_snapshot_and_delete(rds)
-        return cmd_restore(rds, env)
+        return COMMANDS[args.command](rds_client(), args.terraform_args, read_env())
     except SetupError as problem:
         print(f"Setup problem: {problem}", file=sys.stderr)
         return 2
