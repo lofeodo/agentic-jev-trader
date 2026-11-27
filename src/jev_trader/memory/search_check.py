@@ -54,6 +54,7 @@ from jev_trader.memory.search import (
     merge,
 )
 from jev_trader.memory.store import UnknownSim
+from jev_trader.storage.database import POSTGRES, SNOWFLAKE
 
 Ending = Literal["up", "down", "flat"]
 
@@ -233,7 +234,7 @@ _EPISODES = ", ".join(f"'{k}'" for k in EPISODE_KINDS)
 # The sim's complete episodes with their ending, on each engine. Placeholders: the ending's
 # outcome kind, then the sim.
 _MEMORY = {
-    "snowflake": (
+    SNOWFLAKE: (
         "SELECT D.ID, D.ASSET, D.STEP, D.KIND, D.STANDING:direction::VARCHAR AS DIRECTION, "
         "GREATEST(D.OUTCOMES_KNOWN_FROM, O.KNOWN_FROM) AS KNOWN_FROM, "
         "S.FEATURE_VECTOR::ARRAY AS FEATURES, S.EMBEDDING::ARRAY AS EMBEDDING, "
@@ -245,7 +246,7 @@ _MEMORY = {
         f"WHERE D.SIM = ? AND D.KIND IN ({_EPISODES}) "
         "AND D.OUTCOMES_KNOWN_FROM IS NOT NULL ORDER BY D.STEP, D.ID"
     ),
-    "postgres": (
+    POSTGRES: (
         "SELECT d.id, d.asset, d.step, d.kind, d.standing->>'direction' AS direction, "
         "GREATEST(d.outcomes_known_from, o.known_from) AS known_from, "
         "s.feature_vector::real[] AS features, s.embedding::real[] AS embedding, "
@@ -259,13 +260,13 @@ _MEMORY = {
     ),
 }
 _SETTINGS = {
-    "snowflake": "SELECT SETTINGS FROM SIM.SIMS WHERE ID = ?",
-    "postgres": "SELECT settings FROM sim.sims WHERE id = %s",
+    SNOWFLAKE: "SELECT SETTINGS FROM SIM.SIMS WHERE ID = ?",
+    POSTGRES: "SELECT settings FROM sim.sims WHERE id = %s",
 }
 
 
 def load_memory(
-    connection, sim: int, after: str, engine: str = "snowflake"
+    connection, sim: int, after: str, engine: str = SNOWFLAKE
 ) -> tuple[dict, list[Record]]:
     """The sim's settings and its memory's complete episodes, each with how it ended `after`
     (a key of `AFTER`). Read in one query, on `engine` (`snowflake`, whose connection uses `?`

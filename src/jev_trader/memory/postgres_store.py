@@ -9,7 +9,9 @@ with `pgvector`'s cosine distance (`<=>`, which is 1 minus the cosine similarity
 Snowflake's `VECTOR_COSINE_SIMILARITY` (spec appendix 11, section 2; ADR 0018). Nothing is
 turned into numbers here: the texts got their numbers when the dataset was built. Ties are
 broken by the episode's ID in byte order (every text column is `COLLATE "C"`), as Snowflake
-sorts, so the order is the same as before.
+sorts, so the order is the same as before (`tests/postgres/test_search_against_snowflake.py`
+replays searches Snowflake made). One case follows the in-memory stand-in rather than Snowflake:
+a text whose numbers are all 0, which real texts never give.
 
 **Read once per step** (spec appendix 11, section 4). Within one step the agent's lookups ask
 for the same things again and again: the sim's row and the asset's snapshot on every lookup, the
@@ -74,6 +76,8 @@ _POSITION_COLUMNS = (
     "size_after_trimming",
     "position",
 )
+# A step's lookups read one snapshot per asset looked at; 256 holds several steps of every asset
+# in a dataset, a few hundred kilobytes.
 _SNAPSHOTS_KEPT = 256
 _MISSING = object()
 
