@@ -33,8 +33,8 @@ from jev_trader.memory.search import SearchSettings
 from jev_trader.memory.search_check import AFTER, load_memory, report
 from jev_trader.memory.server import build_server, http_app
 from jev_trader.memory.store import UnknownSim
-from jev_trader.storage import LoginNotSet
-from jev_trader.storage.database import open_database
+from jev_trader.storage import LoginNotSet, NotBuiltYet
+from jev_trader.storage.database import open_database, refuse_postgres_until
 from jev_trader.storage.snowflake import DATABASE, connect
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -69,6 +69,8 @@ def serve(database: str, port: int | None, in_cluster: bool = False) -> int:
 def load_from_snowflake(sim: int, after: str, database: str) -> tuple[dict, list]:
     """The sim's settings and memory, read as the memory login. LoginNotSet if it is not set."""
     load_dotenv(REPO_ROOT / ".env")
+    # The search check reads Snowflake alone until then.
+    refuse_postgres_until(279)
     connection = connect("memory", database=database)
     try:
         return load_memory(connection, sim, after)
@@ -79,7 +81,7 @@ def load_from_snowflake(sim: int, after: str, database: str) -> tuple[dict, list
 def check_search(args: argparse.Namespace, read_memory: Callable) -> int:
     try:
         settings, records = read_memory(args.sim, args.after, args.database)
-    except (LoginNotSet, UnknownSim) as problem:
+    except (LoginNotSet, UnknownSim, NotBuiltYet) as problem:
         print(f"Cannot read sim {args.sim}'s memory: {problem}")
         return 2
     base = SearchSettings.of_sim(settings)

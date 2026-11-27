@@ -20,8 +20,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from jev_trader.storage import LoginNotSet
 from jev_trader.storage.save import NOT_SAVED, SnowflakeTables, save_tables
-from jev_trader.storage.snowflake import DATABASE, LoginNotSet, connect
+from jev_trader.storage.snowflake import DATABASE, connect
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SAVED_TABLES = REPO_ROOT / "saved-tables"

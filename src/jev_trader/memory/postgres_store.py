@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from jev_trader.memory.search import Candidate, Query
 from jev_trader.storage import NotBuiltYet
 
-_UNIT = 279
+_TICKET = 279
 
 
 class PostgresMemoryStore:
@@ -20,26 +20,26 @@ class PostgresMemoryStore:
         self.con = connection
 
     def sim(self, sim_id: int) -> dict:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def snapshot(self, dataset: int, asset: str, step: int) -> dict:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def ranked(
         self, query: Query, current: dict, weights: Sequence[float], top: int
     ) -> tuple[list[Candidate], list[Candidate]]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def decisions(self, sim: int, step: int, ids: Sequence[str]) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def outcomes(self, sim: int, step: int, decisions: Sequence[str]) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def position_rows(
         self, sim: int, step: int, positions: Sequence[int]
     ) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def closed_trades(self, sim: int, step: int, asset_class: str) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)

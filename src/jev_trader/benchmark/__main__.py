@@ -42,6 +42,7 @@ from jev_trader.benchmark.spending import SpendMeter, load_cap_usd
 from jev_trader.llm.models import load_model_settings
 from jev_trader.llm.settings import LlmSettings
 from jev_trader.memory.bridge import Connection, local_url
+from jev_trader.storage.database import refuse_postgres_until
 from jev_trader.storage.snowflake import DATABASE, connect
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -64,6 +65,8 @@ def open_parts(args: argparse.Namespace, held: ExitStack) -> Parts:
     if args.made_up:
         return Parts(made_up_moments(), FakeRunner(), NoAttemptLog())
     load_dotenv(REPO_ROOT / ".env")
+    # Its moments and calls are read and written on Snowflake alone until then.
+    refuse_postgres_until(278)
     snowflake = connect("sim", database=args.database)
     held.callback(snowflake.close)
     build_up = BuildUpSim(snowflake, args.sim)

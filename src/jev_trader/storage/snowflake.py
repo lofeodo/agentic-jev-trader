@@ -11,18 +11,11 @@ import threading
 from collections.abc import Mapping
 from pathlib import Path
 
-from jev_trader.storage import LoginNotSet
+from jev_trader.storage import required_setting as _required
 
 DATABASE = "TRADING_AGENT"
 TEST_DATABASE = "TRADING_AGENT_TEST"
 WAREHOUSE = "TRADING_AGENT_WH"
-
-
-def _required(env: Mapping[str, str], name: str) -> str:
-    value = (env.get(name) or "").strip()
-    if not value:
-        raise LoginNotSet(f"{name} is not set. Add it to .env (see .env.example).")
-    return value
 
 
 def key_file(login: str, env: Mapping[str, str] = os.environ) -> Path:

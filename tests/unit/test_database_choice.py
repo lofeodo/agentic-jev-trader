@@ -15,7 +15,7 @@ from jev_trader.sim.market import Market
 from jev_trader.sim.postgres_store import PostgresMarket, PostgresSimStore
 from jev_trader.sim.store import SimStore
 from jev_trader.storage import LoginNotSet, NotBuiltYet, postgres
-from jev_trader.storage.database import engine, open_database
+from jev_trader.storage.database import engine, open_database, refuse_postgres_until
 
 POSTGRES_ENV = {
     "DATABASE_ENGINE": "postgres",
@@ -61,9 +61,9 @@ def test_the_local_database_can_go_unencrypted_on_its_own_port():
 
 
 def test_a_process_reuses_one_connection_per_login_and_database():
-    sim = open_database("sim", "TRADING_AGENT_POSTGRES_CHOICE", env=POSTGRES_ENV)
-    again = open_database("sim", "trading_agent_postgres_choice", env=POSTGRES_ENV)
-    api = open_database("api", "TRADING_AGENT_POSTGRES_CHOICE", env=POSTGRES_ENV)
+    sim = open_database("sim", "TRADING_AGENT_TEST", env=POSTGRES_ENV)
+    again = open_database("sim", "trading_agent_test", env=POSTGRES_ENV)
+    api = open_database("api", "TRADING_AGENT_TEST", env=POSTGRES_ENV)
 
     assert sim.connection is again.connection
     assert api.connection is not sim.connection
@@ -95,3 +95,18 @@ def test_an_unbuilt_read_names_the_ticket_that_builds_it():
 
     with pytest.raises(NotBuiltYet, match="#279"):
         store.sim(1)
+
+
+def test_other_settings_get_their_own_connection():
+    moved = {**POSTGRES_ENV, "POSTGRES_HOST": "elsewhere.example.invalid"}
+
+    first = open_database("api", "TRADING_AGENT", env=POSTGRES_ENV)
+    other = open_database("api", "TRADING_AGENT", env=moved)
+
+    assert first.connection is not other.connection
+
+
+def test_a_program_still_on_snowflake_refuses_postgres():
+    refuse_postgres_until(279, {})
+    with pytest.raises(NotBuiltYet, match="#279"):
+        refuse_postgres_until(279, POSTGRES_ENV)

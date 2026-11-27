@@ -12,7 +12,7 @@ from jev_trader.sim.market import DatasetInfo
 from jev_trader.sim.postgres_store import PostgresMarket, PostgresSimStore
 from jev_trader.storage import NotBuiltYet
 
-_UNIT = 280
+_TICKET = 280
 
 
 class PostgresApiStore:
@@ -20,99 +20,99 @@ class PostgresApiStore:
         self.con = connection
 
     def total_spent(self) -> float:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def sims(self) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def sim(self, sim_id: int) -> dict | None:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def account_values_at(
         self, wanted: list[tuple[int, int]]
     ) -> dict[tuple[int, int], float]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def account_steps(
         self, sim_ids: list[int], after_step: int | None = None
     ) -> dict[int, list[dict]]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def account_at(self, sim_id: int, step: int) -> dict | None:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def orders(self, sim_id: int) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def events(self, sim_id: int) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def latest_decisions(self, sim_id: int, limit: int) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def closes_at(self, dataset: int, step: int) -> dict[str, float]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def trades_by_sim(self) -> dict[int, int]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def spent_by_sim(self) -> dict[int, float]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def spent_on(self, sim_id: int) -> float:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def asset_key(self) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def charges(self, sim_id: int) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def decisions(self, sim_id: int) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def calls(self, sim_id: int) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def decision(self, sim_id: int, decision_id: str) -> dict | None:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def position_decisions(self, sim_id: int, position: int) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def jev_requests(self, sim_id: int, decision_ids: list[str]) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def llm_exchange(self, sim_id: int, decision_id: str) -> dict | None:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def closes(
         self, dataset: int, asset: str, first_step: int, last_step: int
     ) -> dict[int, float]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def comparison_figures(self, sim_ids: list[int]) -> dict[int, dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def entry_details(
         self, dataset: int, wanted: list[tuple[str, int]]
     ) -> dict[tuple[str, int], dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def playbook(self) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def spending_by_item(self) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def datasets(self) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def dataset_rows(self, table: str, dataset_id: int) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     def daily_bars(self, dataset_id: int, asset: str) -> list[dict]:
-        raise NotBuiltYet(_UNIT)
+        raise NotBuiltYet(_TICKET)
 
     # Shared with the dataset builder and the sim, through their stores.
 
