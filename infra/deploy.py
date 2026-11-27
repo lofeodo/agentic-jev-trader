@@ -56,7 +56,7 @@ KEYS = {
     "anthropic_api_key": "ANTHROPIC_API_KEY",
 }
 # The logins that run in the cluster; the setup login stays on this computer.
-CLUSTER_LOGINS = ("api", "memory", "sim", "builder")
+CLUSTER_LOGINS = tuple(login for login in postgres.LOGINS if login != "setup")
 # Addresses that, inside a pod, name the pod itself rather than this computer.
 NOT_FROM_A_POD = ("127.0.0.1", "localhost", "::1")
 

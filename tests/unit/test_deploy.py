@@ -63,7 +63,7 @@ def test_a_missing_secret_is_named_and_no_value_is_shown():
     assert "pw-api" not in message
 
 
-@pytest.mark.parametrize("host", ["127.0.0.1", "localhost"])
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "::1"])
 def test_an_address_of_this_computer_is_refused(host):
     with pytest.raises(deploy.SetupError, match="names the pod itself"):
         deploy.secrets_env({**ENV, "POSTGRES_HOST": host})

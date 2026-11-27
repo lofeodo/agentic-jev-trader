@@ -170,6 +170,15 @@ jobs:
         run: |
           kubectl exec -n "$NAMESPACE" deploy/api -- python -c \
             'import urllib.request as u; print(u.urlopen(u.Request("http://127.0.0.1:8000/sims", headers={"Host": "api:8000"})).read().decode())'
+      # The memory server is asked for a sim's episodes over MCP (its one lookup address), inside
+      # its pod under its own name. It logs in as the memory login and looks the sim up: none, so
+      # the lookup answers an error naming it.
+      - name: The memory server answers from the database
+        run: |
+          kubectl exec -n "$NAMESPACE" deploy/memory -- env NO_SUCH_SIM="$NO_SUCH_SIM" python -c \
+            'import json, os, urllib.request as u; sim = int(os.environ["NO_SUCH_SIM"]); call = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "read_episodes", "arguments": {"sim": sim, "step": 1, "episode_ids": ["1-1-ASSET_01"]}}}; print(u.urlopen(u.Request("http://127.0.0.1:8765/mcp", data=json.dumps(call).encode(), headers={"Host": "memory:8765", "Content-Type": "application/json", "Accept": "application/json, text/event-stream"})).read().decode())' \
+            | tee memory.log
+          grep -q '"isError":true' memory.log && grep -q "$NO_SUCH_SIM" memory.log
       # The API's own launcher starts a sim's Job, with the API's own permissions. The sim never
       # existed, so the Job's program logs in, asks the database for it and is refused: the sign
       # it reached the database is that refusal in its output (`no sim <id>`, from the sim

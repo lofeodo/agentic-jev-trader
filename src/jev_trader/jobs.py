@@ -260,7 +260,7 @@ KUBE_CONTEXT = "kind-jev-trader"
 # The Python image's plain user (Dockerfile); its group can read the mounted settings file.
 PYTHON_USER = 10001
 # The ConfigMap telling every program where the database is (engine, address, port, encryption).
-DATABASE_SETTINGS = "postgres"
+DATABASE_CONFIG_MAP = "postgres"
 # Where a build's pod finds its settings file, carried in a ConfigMap.
 SETTINGS_DIR = "/settings"
 SETTINGS_KEY = "settings.toml"
@@ -336,7 +336,7 @@ class _ClusterJobs:
 
     A Job runs its pod once (no retry: `backoff_limit` 0) and is kept after it ends, so its
     output stays readable: `kubectl logs job/<name> -n jev-trader`. Each Job gets where the
-    database is (`DATABASE_SETTINGS`), its own login's password (the secret `postgres-<login>`),
+    database is (`DATABASE_CONFIG_MAP`), its own login's password (the secret `postgres-<login>`),
     one more secret of keys (`keys`), and no service account token, so it cannot reach the
     cluster itself.
     """
@@ -365,7 +365,7 @@ class _ClusterJobs:
         variables = [k8s.V1EnvVar(name=k, value=v) for k, v in (env or {}).items()]
         from_settings_and_secrets = [
             k8s.V1EnvFromSource(
-                config_map_ref=k8s.V1ConfigMapEnvSource(name=DATABASE_SETTINGS)
+                config_map_ref=k8s.V1ConfigMapEnvSource(name=DATABASE_CONFIG_MAP)
             ),
             k8s.V1EnvFromSource(
                 secret_ref=k8s.V1SecretEnvSource(name=f"postgres-{login}")

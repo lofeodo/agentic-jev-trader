@@ -132,7 +132,9 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
   `TF_VAR_*`, none on its command line) and the images of the current commit, keeping the
   state as `kubernetes.tfstate` in `~/.agentic-jev-trader/kubernetes` (`apply` puts real keys
   into the cluster). It refuses a `POSTGRES_HOST` of `127.0.0.1` or `localhost`: inside a pod
-  that names the pod itself.
+  that names the pod itself. Before the move to Postgres the state was kept in
+  `SNOWFLAKE_LOCAL_DIR`; a cluster deployed then is not known to the new state, so remove it
+  (`kind delete cluster --name jev-trader`) and make it again before the first deploy.
 
   ```
   conda run -n agentic-jev-trader python infra/deploy.py plan
@@ -194,17 +196,11 @@ with dummy keys (placeholders, no real key) and the local Postgres in place of R
 the local Postgres, joins it to the cluster's Docker network under the name `postgres`, makes
 the tables with Alembic, builds and loads both images, applies Terraform's Kubernetes part with
 the local passwords, runs `wait_healthy.py` from a pod (one running container in the cluster)
-inside the cluster, asks the API for its sims (an empty list read from the database), then has
+inside the cluster, asks the API for its sims (an empty list read from the database) and the
+memory server for a sim's episodes (refused: no such sim, also read from the database), then has
 the API's launcher start a sim's Job for a sim that never existed and checks the Job's output
 says `no sim <id>`: the Job logged in and asked the database. When a step fails, the job
 prints the pods' logs.
-
-To try the same on this computer, without RDS and without real keys: start a throwaway Postgres
-on the cluster's network (`docker run` of `pgvector/pgvector:0.8.3-pg17` with
-`--network kind --network-alias postgres`, `init.sql` mounted as in `local-postgres/compose.yaml`),
-make its tables with Alembic from the Python image as CI does, and run `deploy.py` with
-`POSTGRES_HOST=postgres`, `POSTGRES_SSL_MODE=disable`, the local passwords (`local-<login>`)
-and dummy keys set in the shell, which win over `.env`.
 
 ## Postgres on AWS RDS
 
