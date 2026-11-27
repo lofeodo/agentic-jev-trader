@@ -61,6 +61,20 @@ conda run -n agentic-jev-trader python -m ruff check .
 conda run -n agentic-jev-trader python -m ruff format --check .
 ```
 
+The database tests (`tests/postgres`, spec appendix 11, section 1) check that the stores read and write real tables. They run against a Postgres on this computer, in Docker (a throwaway copy of the database program, with `pgvector`, the add-on that compares lists of numbers for memory search; at `127.0.0.1:5433`, its passwords the `local-<login>` ones in `tests/postgres/helpers.py`), never RDS, so they cost nothing; CI runs them the same way. Docker Desktop must be running. Start it, run them, stop it (stopping throws its tables away; the tests make them again with Alembic). Until the slice's closing ticket (#283) they are dormant, so the command below runs them only with `--run-dormant` (as written here); `--run-model` adds the text-to-numbers check (downloads the model once, free, about 2 GB):
+
+```
+docker compose -f infra/local-postgres/compose.yaml up --detach --wait
+conda run -n agentic-jev-trader python -m pytest tests/postgres --run-dormant
+docker compose -f infra/local-postgres/compose.yaml down
+```
+
+Alembic is the tool that makes the Postgres tables and later changes them, one numbered file per change in `infra/alembic/versions/` (settings in `alembic.ini`), each applied once, in order. It logs in as the setup login, on the database `.env` points to (`POSTGRES_HOST`): on RDS this changes the developer's database, so ask first. `-x database=TRADING_AGENT_TEST` picks the test database:
+
+```
+conda run -n agentic-jev-trader python -m alembic -x database=TRADING_AGENT_TEST upgrade head
+```
+
 Hand-run groups (spec appendix 10, section 6):
 
 - `tests/snowflake`: real queries against `TRADING_AGENT_TEST`. Skipped unless the `SNOWFLAKE_*` login in `.env.example` is set. `conda run -n agentic-jev-trader python -m pytest tests/snowflake`

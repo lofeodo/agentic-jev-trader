@@ -55,6 +55,10 @@ ruff==0.17.4
 
 # Postgres on AWS RDS: the driver, with its compiled part (no Postgres install needed)
 psycopg[binary]==3.3.9
+# Making and changing the Postgres tables (alembic.ini, infra/alembic/); it connects through
+# SQLAlchemy, which drives psycopg underneath
+alembic==1.20.1
+SQLAlchemy==2.1.9
 
 # Snowflake: table changes (infra/), the connector (infra/ and the commands), key pairs
 schemachange==4.4.0
