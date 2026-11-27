@@ -100,3 +100,28 @@ def test_langsmith_tracing_is_off_in_tests(tree, monkeypatch):
     )
 
     tree.runpytest_subprocess("tests").assert_outcomes(passed=1)
+
+
+def test_dormant_tests_are_skipped_unless_asked_for(tree):
+    write_test(
+        tree,
+        "unit",
+        "import pytest\n\n"
+        "@pytest.mark.dormant\n"
+        "def test_waits_for_its_slice():\n"
+        "    pass\n",
+    )
+
+    tree.runpytest_subprocess("tests").assert_outcomes(skipped=1)
+    tree.runpytest_subprocess("tests", "--run-dormant").assert_outcomes(passed=1)
+
+
+def test_model_tests_are_skipped_unless_asked_for(tree):
+    write_test(
+        tree,
+        "unit",
+        "import pytest\n\n@pytest.mark.model\ndef test_runs_the_model():\n    pass\n",
+    )
+
+    tree.runpytest_subprocess("tests").assert_outcomes(skipped=1)
+    tree.runpytest_subprocess("tests", "--run-model").assert_outcomes(passed=1)
