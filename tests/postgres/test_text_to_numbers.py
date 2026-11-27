@@ -22,9 +22,8 @@ from pathlib import Path
 import pytest
 
 from jev_trader.dataset.snapshots import EMBEDDING_SIZE
-from jev_trader.storage import NotBuiltYet
 
-pytestmark = [pytest.mark.dormant, pytest.mark.model]
+pytestmark = pytest.mark.model
 
 SAVED = Path(__file__).with_name("snowflake_numbers.json")
 LEAST_SIMILARITY = 0.999
@@ -37,8 +36,6 @@ def cosine(a, b) -> float:
 
 
 def test_the_local_model_gives_snowflakes_numbers():
-    if not SAVED.exists():
-        raise NotBuiltYet(277)
     from jev_trader.dataset import text_to_numbers
 
     saved = json.loads(SAVED.read_text(encoding="utf-8"))

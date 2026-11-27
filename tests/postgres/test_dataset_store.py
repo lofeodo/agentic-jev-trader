@@ -2,7 +2,7 @@
 
 A build writes a dataset's rows and publishes it, or fails and throws them away. Snapshots are
 staged, then stored with the numbers the text-to-numbers model gives their situation texts: on
-Postgres that model runs on this computer (#277). Here a made-up stand-in gives the numbers, so
+Postgres that model runs on this computer. Here a made-up stand-in gives the numbers, so
 nothing is downloaded.
 """
 
@@ -12,10 +12,7 @@ import pytest
 
 from jev_trader.dataset.snapshots import EMBEDDING_SIZE, FEATURE_SIZE
 from jev_trader.dataset.store import made_up_embedding
-from jev_trader.storage import NotBuiltYet
 from tests.postgres.helpers import numbers, parsed
-
-pytestmark = pytest.mark.dormant
 
 
 @pytest.fixture
@@ -27,10 +24,7 @@ def store(builder):
 def made_up_numbers(monkeypatch):
     """The text-to-numbers model replaced by a made-up one: the same numbers for the same text,
     as many as the model gives. The store asks the model through `text_to_numbers.embed`."""
-    try:
-        from jev_trader.dataset import text_to_numbers
-    except ImportError:
-        raise NotBuiltYet(277) from None
+    from jev_trader.dataset import text_to_numbers
 
     def embed(texts):
         return [made_up_embedding(text) for text in texts]

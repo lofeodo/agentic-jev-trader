@@ -1,4 +1,4 @@
-"""All database access goes through this one module."""
+"""Logging in to the database: `postgres.py` connects, `database.py` hands out the stores."""
 
 from collections.abc import Mapping
 
@@ -13,13 +13,3 @@ def required_setting(env: Mapping[str, str], name: str) -> str:
     if not value:
         raise LoginNotSet(f"{name} is not set. Add it to .env (see .env.example).")
     return value
-
-
-class NotBuiltYet(NotImplementedError):
-    """A Postgres store's read or write that a later ticket of the Postgres slice fills in."""
-
-    def __init__(self, ticket: int):
-        super().__init__(
-            f"Not built yet on Postgres: ticket #{ticket} fills this in. "
-            "Set DATABASE_ENGINE=snowflake in .env meanwhile."
-        )

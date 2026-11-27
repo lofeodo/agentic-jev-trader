@@ -33,8 +33,6 @@ from jev_trader.memory.lookups import Lookups
 from jev_trader.memory.search import Filters
 from tests.postgres.helpers import insert
 
-pytestmark = pytest.mark.dormant
-
 SAVED = Path(__file__).with_name("snowflake_searches.json")
 
 

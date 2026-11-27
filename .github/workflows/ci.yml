@@ -38,8 +38,7 @@ jobs:
           POSTGRES_SSL_MODE: disable
           POSTGRES_SETUP_PASSWORD: local-setup
         run: python -m alembic -x database=TRADING_AGENT_TEST upgrade head
-      # The tests take the local Postgres's settings from tests/postgres/helpers.py. Until the
-      # slice's closing ticket switches them on, they are dormant and skipped here.
+      # The tests take the local Postgres's settings from tests/postgres/helpers.py.
       - name: Database tests (local Postgres)
         run: python -m pytest tests/postgres
       - uses: actions/setup-node@v6

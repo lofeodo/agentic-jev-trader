@@ -11,8 +11,6 @@ import pytest
 from jev_trader.sim.store import MEMORY_TABLES, StepAlreadyWritten
 from tests.postgres.helpers import insert
 
-pytestmark = pytest.mark.dormant
-
 
 def sim_row(dataset_id, **changes):
     return {

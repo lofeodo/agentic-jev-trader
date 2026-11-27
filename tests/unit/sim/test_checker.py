@@ -396,7 +396,7 @@ def test_resuming_a_sim_with_memory_is_refused_while_its_llm_has_no_key(monkeypa
 
 @pytest.fixture
 def command(monkeypatch, market):
-    """The sim command on the in-memory store and market, with no Snowflake."""
+    """The sim command on the in-memory store and market, with no database."""
     store = InMemorySimStore()
 
     class NoDatabase:

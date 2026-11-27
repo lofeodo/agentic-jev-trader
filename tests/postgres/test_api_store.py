@@ -17,8 +17,6 @@ from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from jev_trader.sim.store import now
 from tests.postgres.helpers import account_row, connect, insert
 
-pytestmark = pytest.mark.dormant
-
 
 def entry_row(sim_id, number):
     return {

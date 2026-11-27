@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // A screen that follows something in progress, such as a dataset build: read on opening, then
 // asked again `everyMs` after each answer while `again(answer)` holds, and whenever the
 // developer comes back to the tab. Never a new request before the last is answered, and quiet
-// once nothing is in progress, so an open tab doesn't keep Snowflake awake. `reload` asks now.
+// once nothing is in progress, so an open tab doesn't keep the database busy. `reload` asks now.
 export function usePoll<T>(
   read: () => Promise<T>,
   everyMs: number,

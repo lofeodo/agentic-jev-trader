@@ -1,4 +1,4 @@
-"""The sim's store and market in Postgres, as the sim login: the same tables as in Snowflake.
+"""The sim's store and market in Postgres, as the sim login.
 
 `connection` is the process's one connection (`jev_trader.storage.postgres.connection`), with
 `%s` placeholders; the store and the market share it. Lists and dictionaries go into `jsonb`

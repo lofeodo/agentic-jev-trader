@@ -15,8 +15,6 @@ from jev_trader.memory.store import NoSnapshot, UnknownSim
 from tests.postgres.helpers import connect
 from tests.postgres.made_up_memory import LATER, NOW, written_memory
 
-pytestmark = pytest.mark.dormant
-
 
 @pytest.fixture
 def written(sim_db, setup_login, made_up_dataset):

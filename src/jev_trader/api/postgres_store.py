@@ -1,14 +1,14 @@
-"""The API's reads from Postgres, as the API login: the same tables as in Snowflake.
+"""The API's reads from Postgres, as the API login.
 
 What the API shares with the dataset builder and the sim (adding and changing a dataset's or a
-sim's row, one sim's whole row, what the checker reads) goes through their Postgres stores, as
-in Snowflake. `connection` is the process's one connection
-(`jev_trader.storage.postgres.connection`), with `%s` placeholders.
+sim's row, one sim's whole row, what the checker reads) goes through their Postgres stores.
+`connection` is the process's one connection (`jev_trader.storage.postgres.connection`), with `%s`
+placeholders.
 
-Postgres hands column names back in lower case; each row here is keyed by the upper-case names
-the Snowflake store gives, so what the API answers does not change. JSON columns (`jsonb`) come
-back already read. A list of (sim, step) or (asset, step) pairs goes over as two lists, paired
-up again in the query by `unnest`, so a long list is still one statement.
+Postgres hands column names back in lower case; each row here is keyed by the upper-case names the
+tables were first written with (on Snowflake), so what the API answers did not change. JSON
+columns (`jsonb`) come back already read. A list of (sim, step) or (asset, step) pairs goes over
+as two lists, paired up again in the query by `unnest`, so a long list is still one statement.
 """
 
 import json

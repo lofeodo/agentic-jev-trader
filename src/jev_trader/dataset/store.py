@@ -1,8 +1,8 @@
 """Where a dataset build writes: the interface, and an in-memory stand-in for tests.
 
 A dataset is one row of `REF.DATASETS` plus rows in the tables below, each carrying the
-dataset's ID in its `DATASET` column. The Snowflake version is `snowflake_store.SnowflakeStore`.
-Column names match the numbered SQL files in `infra/migrations`.
+dataset's ID in its `DATASET` column. The database version is `postgres_store.PostgresStore`.
+Column names match `infra/alembic/versions/0001_todays_tables.py`.
 """
 
 import hashlib
@@ -83,7 +83,7 @@ class DatasetStore(Protocol):
 
 
 def now() -> datetime:
-    """The time now, in UTC, as Snowflake stores it (no time zone)."""
+    """The time now, in UTC, as the database stores it (no time zone)."""
     return datetime.now(UTC).replace(tzinfo=None)
 
 
@@ -102,7 +102,7 @@ def made_up_embedding(text: str) -> list[float]:
 class InMemoryStore:
     """The store as plain dictionaries: `datasets` by ID, and `tables` by name.
 
-    `embed` stands in for Snowflake's embedding model."""
+    `embed` stands in for the text-to-numbers model."""
 
     def __init__(self, embed: Callable[[str], list[float]] = made_up_embedding):
         self.datasets: dict[int, dict] = {}

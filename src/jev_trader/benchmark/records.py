@@ -77,9 +77,10 @@ def detail_file(attempt: Attempt) -> dict:
     return kept
 
 
-class SnowflakeAttemptLog:
-    """Keeps attempts in Snowflake, through `connection` (as the sim login), and in files under
-    `detail_dir`, in a folder of their own for the run `run` (by default named now)."""
+class DatabaseAttemptLog:
+    """Keeps attempts in the database, through `connection` (`postgres.OneConnection`, as the     sim
+    login), and in files under     `detail_dir`, in a folder of their own for the run `run` (by
+    default named now)."""
 
     def __init__(
         self, connection, detail_dir: Path = DETAIL_DIR, run: str | None = None
@@ -102,7 +103,7 @@ class SnowflakeAttemptLog:
         with self.connection.cursor() as cur:
             cur.executemany(
                 f"INSERT INTO SIM.CALLS ({', '.join(columns)}) "
-                f"VALUES ({', '.join('?' for _ in columns)})",
+                f"VALUES ({', '.join('%s' for _ in columns)})",
                 [[row[c] for c in columns] for row in rows],
             )
 

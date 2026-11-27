@@ -9,8 +9,6 @@ step read what does not change within the step (the sim's row, a snapshot, ...) 
 import time
 from collections import Counter
 
-import pytest
-
 from jev_trader.memory.lookups import Lookups
 from jev_trader.memory.search import Filters
 from jev_trader.sim import records as records_of
@@ -18,8 +16,6 @@ from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from tests.postgres.helpers import account_row, database, env_through
 from tests.postgres.made_up_memory import LATER, NOW, written_memory
 from tests.postgres.wire import Line
-
-pytestmark = pytest.mark.dormant
 
 # How late each answer arrives on the pretend line: about a trip to Montreal and back, made
 # long enough that one trip more or less is plain to see.

@@ -364,7 +364,7 @@ def test_the_sim_page_lists_only_the_decisions_the_sim_made(market):
 
 @pytest.fixture
 def command(monkeypatch, market):
-    """The sim command on the in-memory store and market, with no Snowflake, no Jev and no
+    """The sim command on the in-memory store and market, with no database, no Jev and no
     memory server; it creates the sim and runs no step."""
     store = InMemorySimStore()
 

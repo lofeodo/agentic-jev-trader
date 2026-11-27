@@ -1,11 +1,11 @@
 """The local Postgres the database tests use, and what they write into it and read back.
 
-The tests run against a Postgres with `pgvector` on this computer, in Docker (ticket #276 adds
-it, and the command that starts it): never RDS, whatever `.env` says, so they cost nothing. The
+The tests run against a Postgres with `pgvector` on this computer, in Docker (CLAUDE.md has the
+command that starts it): never RDS, whatever `.env` says, so they cost nothing. The
 settings below are the ones that local Postgres is made with; nothing here reads `.env`.
 
 Each login is the project's own role (`trading_agent_<login>`), with its own password, so the
-tests also see what each login may and may not do. The tables are made by Alembic (#276) as the
+tests also see what each login may and may not do. The tables are made by Alembic as the
 setup login, which is also the one the tests write made-up rows and read them back with.
 """
 
@@ -16,7 +16,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from jev_trader.sim.clock import day_of
-from jev_trader.storage import NotBuiltYet, postgres
+from jev_trader.storage import postgres
 from jev_trader.storage.database import open_database
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -26,7 +26,6 @@ LOCAL_PORT = 5433
 
 # What every program reads its database from, pointed at the local Postgres.
 LOCAL_ENV = {
-    "DATABASE_ENGINE": "postgres",
     "POSTGRES_HOST": LOCAL_HOST,
     "POSTGRES_PORT": str(LOCAL_PORT),
     "POSTGRES_SSL_MODE": "disable",
@@ -55,19 +54,14 @@ def connect(login: str, env: dict | None = None) -> psycopg.Connection:
 
 
 def alembic_config():
-    """Alembic's settings, for making every table from its first file on (#276).
+    """Alembic's settings, for making every table from its first file on.
 
     Alembic's settings file is `alembic.ini` at the repo root. The tests hand its `env.py` the
     settings to connect with through `config.attributes`: `env` (as `LOCAL_ENV`) and `database`.
     """
-    ini = REPO_ROOT / "alembic.ini"
-    try:
-        from alembic.config import Config
-    except ImportError:
-        raise NotBuiltYet(276) from None
-    if not ini.exists():
-        raise NotBuiltYet(276)
-    config = Config(str(ini))
+    from alembic.config import Config
+
+    config = Config(str(REPO_ROOT / "alembic.ini"))
     config.attributes["env"] = LOCAL_ENV
     config.attributes["database"] = TEST_DATABASE
     return config

@@ -54,7 +54,6 @@ from jev_trader.memory.search import (
     merge,
 )
 from jev_trader.memory.store import UnknownSim
-from jev_trader.storage.database import POSTGRES, SNOWFLAKE
 
 Ending = Literal["up", "down", "flat"]
 
@@ -230,54 +229,33 @@ AFTER = {
     "end_of_day": (OutcomeKind.PRICE_AT_END_OF_DAY, "at the end of the decision's day"),
 }
 
-_EPISODES = ", ".join(f"'{k}'" for k in EPISODE_KINDS)
-# The sim's complete episodes with their ending, on each engine. Placeholders: the ending's
-# outcome kind, then the sim.
-_MEMORY = {
-    SNOWFLAKE: (
-        "SELECT D.ID, D.ASSET, D.STEP, D.KIND, D.STANDING:direction::VARCHAR AS DIRECTION, "
-        "GREATEST(D.OUTCOMES_KNOWN_FROM, O.KNOWN_FROM) AS KNOWN_FROM, "
-        "S.FEATURE_VECTOR::ARRAY AS FEATURES, S.EMBEDDING::ARRAY AS EMBEDDING, "
-        "O.VALUE:change::FLOAT AS CHANGE "
-        "FROM MEMORY.DECISIONS D "
-        "JOIN FEATURES.SNAPSHOTS S ON S.DATASET = D.DATASET AND S.ASSET = D.ASSET "
-        "AND S.STEP = D.STEP "
-        "JOIN MEMORY.OUTCOMES O ON O.SIM = D.SIM AND O.DECISION = D.ID AND O.KIND = ? "
-        f"WHERE D.SIM = ? AND D.KIND IN ({_EPISODES}) "
-        "AND D.OUTCOMES_KNOWN_FROM IS NOT NULL ORDER BY D.STEP, D.ID"
-    ),
-    POSTGRES: (
-        "SELECT d.id, d.asset, d.step, d.kind, d.standing->>'direction' AS direction, "
-        "GREATEST(d.outcomes_known_from, o.known_from) AS known_from, "
-        "s.feature_vector::real[] AS features, s.embedding::real[] AS embedding, "
-        "(o.value->>'change')::float8 AS change "
-        "FROM memory.decisions d "
-        "JOIN features.snapshots s ON s.dataset = d.dataset AND s.asset = d.asset "
-        "AND s.step = d.step "
-        "JOIN memory.outcomes o ON o.sim = d.sim AND o.decision = d.id AND o.kind = %s "
-        f"WHERE d.sim = %s AND d.kind IN ({_EPISODES}) "
-        "AND d.outcomes_known_from IS NOT NULL ORDER BY d.step, d.id"
-    ),
-}
-_SETTINGS = {
-    SNOWFLAKE: "SELECT SETTINGS FROM SIM.SIMS WHERE ID = ?",
-    POSTGRES: "SELECT settings FROM sim.sims WHERE id = %s",
-}
+# The sim's complete episodes with their ending. Placeholders: the ending's outcome kind, the
+# sim, then the episode kinds.
+_MEMORY = (
+    "SELECT d.id, d.asset, d.step, d.kind, d.standing->>'direction' AS direction, "
+    "GREATEST(d.outcomes_known_from, o.known_from) AS known_from, "
+    "s.feature_vector::real[] AS features, s.embedding::real[] AS embedding, "
+    "(o.value->>'change')::float8 AS change "
+    "FROM memory.decisions d "
+    "JOIN features.snapshots s ON s.dataset = d.dataset AND s.asset = d.asset "
+    "AND s.step = d.step "
+    "JOIN memory.outcomes o ON o.sim = d.sim AND o.decision = d.id AND o.kind = %s "
+    "WHERE d.sim = %s AND d.kind = ANY(%s) "
+    "AND d.outcomes_known_from IS NOT NULL ORDER BY d.step, d.id"
+)
+_SETTINGS = "SELECT settings FROM sim.sims WHERE id = %s"
 
 
-def load_memory(
-    connection, sim: int, after: str, engine: str = SNOWFLAKE
-) -> tuple[dict, list[Record]]:
+def load_memory(connection, sim: int, after: str) -> tuple[dict, list[Record]]:
     """The sim's settings and its memory's complete episodes, each with how it ended `after`
-    (a key of `AFTER`). Read in one query, on `engine` (`snowflake`, whose connection uses `?`
-    placeholders, or `postgres`)."""
+    (a key of `AFTER`). Read in one query."""
     with connection.cursor() as cur:
-        cur.execute(_SETTINGS[engine], [sim])
+        cur.execute(_SETTINGS, [sim])
         found = cur.fetchone()
         if found is None:
             raise UnknownSim(sim)
-        settings = json.loads(found[0]) if isinstance(found[0], str) else found[0]
-        cur.execute(_MEMORY[engine], [str(AFTER[after][0]), sim])
+        settings = found[0]
+        cur.execute(_MEMORY, [str(AFTER[after][0]), sim, list(EPISODE_KINDS)])
         names = [d[0].upper() for d in cur.description]
         rows = [dict(zip(names, row, strict=True)) for row in cur.fetchall()]
 

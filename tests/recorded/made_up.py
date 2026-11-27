@@ -9,9 +9,9 @@ by code, so nothing from a data provider lands in the repo.
   LLM read is shaped as in a real dataset.
 - **Search numbers.** A real dataset's snapshot carries two lists of numbers the episode search
   compares: its 58 standard scores (the feature vector: each measurement told as how far it
-  sits from its usual value, 0 being usual) and the 768 numbers a Snowflake model turns its
+  sits from its usual value, 0 being usual) and the 768 numbers the text-to-numbers model turns its
   situation text into (the embedding: texts that say similar things get similar lists).
-  Tests have no Snowflake, so code makes both
+  Tests run no model, so code makes both
   up: the feature vector is the measurements themselves (one not available counts as 0, the
   average), and the embedding counts the text's words, each word adding 1 to one of the 768
   places, picked by a hash of the word. Texts sharing words come out alike, as with the real
@@ -216,7 +216,7 @@ def _window(patterns: Sequence[tuple[int, str]], step: int) -> list[tuple[str, i
 
 
 def made_up_embedding(text: str) -> list[float]:
-    """The made-up stand-in for the 768 numbers a Snowflake model turns a text into."""
+    """The made-up stand-in for the 768 numbers the text-to-numbers model turns a text into."""
     numbers = [0.0] * EMBEDDING_SIZE
     for word in re.findall(r"[a-z0-9]+", text.lower()):
         digest = hashlib.sha256(word.encode()).digest()

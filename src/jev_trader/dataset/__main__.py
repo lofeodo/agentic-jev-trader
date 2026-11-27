@@ -21,8 +21,7 @@ from jev_trader.dataset.build import BuildStopped, build_dataset
 from jev_trader.dataset.providers import BinanceFiles, TwelveData
 from jev_trader.dataset.settings import load_settings
 from jev_trader.storage import LoginNotSet
-from jev_trader.storage.database import open_database
-from jev_trader.storage.snowflake import DATABASE
+from jev_trader.storage.database import DATABASE, open_database
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 

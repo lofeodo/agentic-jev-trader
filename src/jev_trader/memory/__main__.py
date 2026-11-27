@@ -9,10 +9,8 @@ more often than random ones did. It calls no model. `--shape-share` and `--bar-d
 several values to try instead of the sim's own; `--after` picks when the price is read (`1_bar`,
 `4_bars`, `end_of_day`); `--sample 2000` checks only that many records, for a quicker answer.
 
-Both log in as the memory login, whose role can only read, to the database `DATABASE_ENGINE` in
-`.env` names: Snowflake (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD`, the key
-`memory.p8` in `SNOWFLAKE_LOCAL_DIR`) or Postgres (`POSTGRES_HOST` and
-`POSTGRES_MEMORY_PASSWORD`). `serve` serves its three tools at `/mcp` and its health at
+Both log in to Postgres as the memory login, whose role can only read (`POSTGRES_HOST` and
+`POSTGRES_MEMORY_PASSWORD` in `.env`). `serve` serves its three tools at `/mcp` and its health at
 `/health`, on the host, port and host names in `config/memory_server.toml`.
 `--database TRADING_AGENT_TEST` serves the test database. `--in-cluster` is for its pod in the
 kind cluster: it listens on every address of its container, so the cluster's other pods reach
@@ -35,8 +33,7 @@ from jev_trader.memory.search_check import AFTER, load_memory, report
 from jev_trader.memory.server import build_server, http_app
 from jev_trader.memory.store import UnknownSim
 from jev_trader.storage import LoginNotSet
-from jev_trader.storage.database import open_database
-from jev_trader.storage.snowflake import DATABASE
+from jev_trader.storage.database import DATABASE, open_database
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 # In its pod: every address of the container, which only the cluster can reach.
@@ -53,7 +50,7 @@ def serve(database: str, port: int | None, in_cluster: bool = False) -> int:
 
     load_dotenv(REPO_ROOT / ".env")
     try:
-        opened = open_database("memory", database, on_first_use=True)
+        opened = open_database("memory", database)
     except LoginNotSet as missing:
         print(missing)
         return 2
@@ -68,12 +65,12 @@ def serve(database: str, port: int | None, in_cluster: bool = False) -> int:
 
 
 def load_from_database(sim: int, after: str, database: str) -> tuple[dict, list]:
-    """The sim's settings and memory, read as the memory login, on the engine
-    `DATABASE_ENGINE` names. LoginNotSet if it is not set."""
+    """The sim's settings and memory, read as the memory login. LoginNotSet if a
+    setting is missing."""
     load_dotenv(REPO_ROOT / ".env")
     opened = open_database("memory", database)
     try:
-        return load_memory(opened.connection, sim, after, opened.engine)
+        return load_memory(opened.connection, sim, after)
     finally:
         opened.close()
 

@@ -79,10 +79,8 @@ tokenizers==0.23.3
 safetensors==0.8.0
 huggingface-hub==2.5.0
 
-# Snowflake: table changes (infra/), the connector (infra/ and the commands), key pairs
-schemachange==4.4.0
-snowflake-connector-python==4.8.1
-cryptography==50.0.2
+# Reading the Parquet files of the last Snowflake save (`storage load`)
+pyarrow==26.0.1
 
 # This project's own package, so its commands run as `python -m jev_trader...` from anywhere.
 -e .

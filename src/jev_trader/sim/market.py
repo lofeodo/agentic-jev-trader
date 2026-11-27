@@ -1,6 +1,6 @@
 """What a sim reads about its dataset: the dataset's row, its assets, and its 15-minute bars.
 
-`InMemoryMarket` is the stand-in the unit tests use; `snowflake_store.SnowflakeMarket` reads
+`InMemoryMarket` is the stand-in the unit tests use; `postgres_store.PostgresMarket` reads
 `REF.DATASETS`, `REF.DATASET_PERIODS`, `REF.ASSETS` and `RAW.BARS`. Nothing here reads the
 asset key: a sim knows assets by masked ID and time by step number only.
 """

@@ -1,5 +1,5 @@
 """The slice's tests: the LLM benchmark command on made-up saved moments with fake answers (spec
-appendix 9, section 8). Nothing here reaches a model, Jev, Snowflake or the memory server.
+appendix 9, section 8). Nothing here reaches a model, Jev, the database or the memory server.
 
 What the tests hand the command (`main(argv, parts_for=...)`):
 
@@ -321,7 +321,7 @@ def test_a_made_up_run_trades_nothing_and_touches_no_real_model(
 
     monkeypatch.setattr(clients, "chat_model", refused)
     monkeypatch.setattr(JevClient, "__init__", refused)
-    monkeypatch.setattr(command, "connect", refused)
+    monkeypatch.setattr(command, "open_database", refused)
     monkeypatch.setattr(command, "Connection", refused)
     monkeypatch.setattr(command, "load_dotenv", refused)
     report_file = tmp_path / "llm-benchmark.md"
