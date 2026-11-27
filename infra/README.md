@@ -181,3 +181,72 @@ cluster) inside the cluster, then has the API's launcher start a sim's Job and c
 ran. The Job fails at its Snowflake login, as expected, because the dummy key is not a key:
 its output says `Unable to load PEM file` (PEM is the text format a private key is saved in),
 before any network call. When a step fails, the job prints the pods' logs.
+
+## Postgres on AWS RDS
+
+Postgres on Amazon's hosted database service, RDS, replaces Snowflake (spec appendix 11,
+ADR 0018). `infra/rds.py` runs everything here; AWS is reached with the AWS CLI's login on this
+computer (the `default` profile), so no AWS key goes in `.env` or the repo. When a command says
+the login has run out, run `aws sso login` and try again.
+
+Two Terraform roots, each with its state in `~/.agentic-jev-trader/rds`, outside the repo:
+
+- `terraform/rds/`: the database (Postgres 17, the smallest size `db.t4g.micro`, one zone, in
+  Montreal `ca-central-1`, a 20 GB encrypted disk, one day of automatic backups), the network rule
+  that lets in only this computer's home internet address on the Postgres port (asked afresh on
+  each run, so re-running `apply` after the address changes moves the rule), encrypted
+  connections only, and a budget alarm that emails `AWS_BUDGET_EMAIL` once a month's whole AWS
+  bill passes $5 (a warning only: it switches nothing off).
+- `terraform/rds/postgres/`: inside the database, the same as `local-postgres/init.sql` makes in
+  the local Postgres the tests use: the five logins as Postgres roles (`trading_agent_builder`,
+  `_sim`, `_memory`, `_api`, `_setup`) with no rights of their own, the two databases
+  `trading_agent` and `trading_agent_test` owned by the setup login, and `pgvector` in each (only
+  the admin login may add it). What each login may read and write, the memory login reading only,
+  is granted by Alembic's first file as it makes the tables.
+
+Passwords: the admin login's (`POSTGRES_ADMIN_PASSWORD`) and each login's
+(`POSTGRES_<LOGIN>_PASSWORD`) stay in `.env`. They reach Terraform as `TF_VAR_*` environment
+variables and go to AWS and Postgres write-only, so neither state file, nor any output, holds
+them. After changing one, pass `-var=admin_password_version=2` (the admin's) or
+`-var=passwords_version=2` (a login's) to `apply`, one more than the last, or Terraform does not
+send it.
+
+What it costs: about 1.8 cents an hour while the database is on (about $13 a month if left on),
+and about $2.50 a month for its disk even while stopped. A parked database (below) costs only
+its snapshot, cents a month for a few GB.
+
+### The commands
+
+Each but `status` and `plan` costs money or changes the AWS account: Claude Code asks before each.
+
+```
+conda run -n agentic-jev-trader python infra/rds.py status
+conda run -n agentic-jev-trader python infra/rds.py plan
+conda run -n agentic-jev-trader python infra/rds.py apply -auto-approve
+conda run -n agentic-jev-trader python infra/rds.py start
+conda run -n agentic-jev-trader python infra/rds.py stop
+conda run -n agentic-jev-trader python infra/rds.py snapshot-and-delete
+conda run -n agentic-jev-trader python infra/rds.py restore
+```
+
+- `status` says whether the database is on, stopped, parked or not made yet, and its address.
+- `plan` shows what `apply` would change, in both roots. Before the database exists, the logins'
+  part is planned against a made-up address.
+- `apply` makes or updates the database, then what is inside it, and prints the line
+  `POSTGRES_HOST=...` to put in `.env`. The first one takes about 10 to 15 minutes, and the
+  database is then on.
+- `start` switches a stopped database on (a few minutes); `stop` switches it off. **Stop it after
+  each working session.** AWS starts a stopped database again by itself after 7 days.
+- `snapshot-and-delete`, before a pause longer than a few days: saves the database as a snapshot
+  (a copy of its disk) named `trading-agent-parked-<date and time>`, deletes the database, then
+  deletes the older parked snapshots, keeping the newest. Nothing inside is lost.
+- `restore` makes the database again from the newest parked snapshot, with everything inside it,
+  in about 10 to 15 minutes. Its address stays the same (it comes from the name
+  `trading-agent`), so `.env` needs no change. It is on afterwards: stop it when done.
+
+While parked, `plan` and `apply` leave the database out (they never make an empty one in its
+place); `restore` brings it back.
+
+First time: fill in `POSTGRES_ADMIN_PASSWORD`, the five `POSTGRES_<LOGIN>_PASSWORD` and
+`AWS_BUDGET_EMAIL` in `.env`, run `plan`, then `apply -auto-approve`, put the printed
+`POSTGRES_HOST` in `.env`, then make the tables with Alembic (CLAUDE.md), and `stop`.
