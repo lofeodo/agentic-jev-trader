@@ -255,3 +255,16 @@ place); `restore` brings it back.
 First time: fill in `POSTGRES_ADMIN_PASSWORD`, the five `POSTGRES_<LOGIN>_PASSWORD` and
 `AWS_BUDGET_EMAIL` in `.env`, run `plan`, then `apply -auto-approve`, put the printed
 `POSTGRES_HOST` in `.env`, then make the tables with Alembic (CLAUDE.md), and `stop`.
+
+### Moving the data in, and copies of it
+
+Once, with the database on and its tables made: a fresh `storage save` of Snowflake, taken while
+no sim or build is writing, goes in with `python -m jev_trader.storage load <save folder>`
+(CLAUDE.md). It checks the text-to-numbers model first, loads every table in one transaction,
+then compares row counts and some rows with the save.
+
+From then on `storage save` (with `DATABASE_ENGINE=postgres`) is `pg_dump`: one file on this
+computer. `storage restore <file>` loads it with `pg_restore` into a database that has the
+logins, the database and pgvector but no tables: after `apply` on a new RDS, skip Alembic and
+restore instead (the file holds Alembic's record too). Both tools run from the local Postgres's
+Docker image, so nothing needs installing.

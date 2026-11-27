@@ -12,7 +12,7 @@
 *.tfstate.*
 *.tfvars
 
-# Tables saved from Snowflake by `python -m jev_trader.storage save`
+# Copies of the database saved by `python -m jev_trader.storage save` (Parquet or pg_dump)
 saved-tables/
 
 # Copies of GitHub issues an agent saves before a large tracker edit (see RESTORE.md inside)
