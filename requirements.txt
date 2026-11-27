@@ -50,6 +50,9 @@ syrupy==7.0.3
 # Reading .env (tests and the commands)
 python-dotenv==1.2.4
 
+# AWS: switching the RDS database on and off, parking and restoring it (infra/rds.py)
+boto3==1.44.7
+
 # Style check
 ruff==0.17.4
 
