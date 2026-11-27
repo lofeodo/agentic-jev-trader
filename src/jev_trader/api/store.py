@@ -1,5 +1,6 @@
 """What the API reads (spec appendix 8). `InMemoryApiStore` is the stand-in the unit tests use;
-`snowflake_store.SnowflakeApiStore` reads the same things from Snowflake as the API login.
+`snowflake_store.SnowflakeApiStore` and `postgres_store.PostgresApiStore` read the same things
+from Snowflake and from Postgres, as the API login.
 """
 
 from typing import Protocol
