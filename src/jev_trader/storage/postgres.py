@@ -47,6 +47,24 @@ DEFAULT_PORT = 5432
 DEFAULT_SSL_MODE = "require"
 
 
+def as_param(value):
+    """`value` as psycopg sends it: lists and dictionaries as `jsonb` (Postgres's JSON column
+    type), the rest as they are."""
+    if isinstance(value, dict | list):
+        from psycopg.types.json import Jsonb
+
+        return Jsonb(value)
+    return value
+
+
+def set_clause(columns: dict) -> tuple[str, list]:
+    """An UPDATE's `SET ...` text for `columns`, and the values it sends."""
+    return (
+        ", ".join(f"{name} = %s" for name in columns),
+        [as_param(v) for v in columns.values()],
+    )
+
+
 def role(login: str) -> str:
     """The Postgres role `login` (`builder`, `sim`, ...) logs in as."""
     if login not in LOGINS:

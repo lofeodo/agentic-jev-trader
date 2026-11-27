@@ -1,7 +1,7 @@
 """The dataset store in Postgres, as the builder login: the same tables as in Snowflake.
 
 `connection` is the process's one connection (`jev_trader.storage.postgres.connection`), with
-`%s` placeholders. Lists and dictionaries go into `jsonb` columns (`bound`). A dataset's rows
+`%s` placeholders. Lists and dictionaries go into `jsonb` columns (`as_param`). A dataset's rows
 go in with `COPY`, Postgres's own way of loading many rows at once, inside one transaction.
 
 Snapshots keep their two steps. `stage_snapshots` holds the rows in
@@ -13,19 +13,13 @@ transaction. pgvector takes a list of numbers as text such as `[0.1,0.2]`.
 
 import json
 
-from psycopg.types.json import Jsonb
-
+from jev_trader.dataset import text_to_numbers
 from jev_trader.dataset.store import DATASET_TABLES, TABLES, DatasetStatus, now
-from jev_trader.storage import NotBuiltYet
+from jev_trader.storage.postgres import as_param, set_clause
 
 # Situation texts turned into numbers and written per batch, so a year of one asset's snapshots
 # (about 35,000) never sits in memory as numbers all at once.
 EMBED_BATCH = 1_000
-
-
-def bound(value):
-    """`value` as psycopg sends it: lists and dictionaries as `jsonb`, the rest as they are."""
-    return Jsonb(value) if isinstance(value, dict | list) else value
 
 
 def vector_text(numbers) -> str:
@@ -40,14 +34,7 @@ def copy_rows(cur, table: str, rows: list[dict]) -> None:
     columns = list(rows[0])
     with cur.copy(f"COPY {table} ({', '.join(columns)}) FROM STDIN") as copy:
         for row in rows:
-            copy.write_row([bound(row[c]) for c in columns])
-
-
-def _set_clause(columns: dict) -> tuple[str, list]:
-    return (
-        ", ".join(f"{name} = %s" for name in columns),
-        [bound(v) for v in columns.values()],
-    )
+            copy.write_row([as_param(row[c]) for c in columns])
 
 
 class PostgresStore:
@@ -72,12 +59,12 @@ class PostgresStore:
             "VALUES (nextval('REF.DATASET_IDS'), "
             "(SELECT COUNT(*) + 1 FROM REF.DATASETS WHERE NAME = %s), "
             f"{', '.join('%s' for _ in row)}) RETURNING ID, VERSION",
-            [name, *(bound(v) for v in row.values())],
+            [name, *(as_param(v) for v in row.values())],
         )
         return dataset_id, version
 
     def carry_on(self, dataset_id: int, columns: dict) -> int:
-        sets, values = _set_clause(columns)
+        sets, values = set_clause(columns)
         [(version,)] = self._run(
             f"UPDATE REF.DATASETS SET {sets} WHERE ID = %s RETURNING VERSION",
             [*values, dataset_id],
@@ -101,7 +88,7 @@ class PostgresStore:
                 )
 
     def update(self, dataset_id: int, **columns) -> None:
-        sets, values = _set_clause(columns)
+        sets, values = set_clause(columns)
         self._run(
             f"UPDATE REF.DATASETS SET {sets} WHERE ID = %s", [*values, dataset_id]
         )
@@ -144,11 +131,6 @@ class PostgresStore:
             )
 
     def embed_snapshots(self, dataset_id: int, asset: str) -> int:
-        try:
-            # Through the module, so a test can put made-up numbers in its place.
-            from jev_trader.dataset import text_to_numbers
-        except ImportError:
-            raise NotBuiltYet(277) from None
         staged = self._run(
             "SELECT STEP, SITUATION_TEXT FROM FEATURES.SNAPSHOTS_LOADING "
             "WHERE DATASET = %s AND ASSET = %s ORDER BY STEP",
@@ -157,6 +139,7 @@ class PostgresStore:
         with self.con.transaction(), self.con.cursor() as cur:
             for i in range(0, len(staged), EMBED_BATCH):
                 part = staged[i : i + EMBED_BATCH]
+                # Through the module, so a test can put made-up numbers in its place.
                 embeddings = text_to_numbers.embed([text for _, text in part])
                 cur.execute(
                     "INSERT INTO FEATURES.SNAPSHOTS (DATASET, ASSET, STEP, MEASUREMENTS, "

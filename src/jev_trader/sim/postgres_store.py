@@ -26,7 +26,6 @@ import psycopg
 
 from jev_trader.broker import AssetClass, Bar
 from jev_trader.dataset.measurements import MEASUREMENT_NAMES
-from jev_trader.dataset.postgres_store import bound
 from jev_trader.dataset.situation_text import PATTERN_WINDOW_STEPS
 from jev_trader.dataset.snapshots import FoundPatterns
 from jev_trader.sim.market import (
@@ -55,6 +54,7 @@ from jev_trader.sim.store import (
     StepAlreadyWritten,
     now,
 )
+from jev_trader.storage.postgres import as_param, set_clause
 
 # The bars a sim steps through: one per asset per step.
 FIFTEEN_MINUTES = "15m"
@@ -65,13 +65,6 @@ _TYPICAL_MOVE = MEASUREMENT_NAMES.index("typical_move_share_of_price")
 OWN_ROWS = "SIM = %s AND FIRST_WRITTEN_BY = SIM"
 # What the save's guard says when it stops the save.
 _NOT_AFTER = "step already written"
-
-
-def _set_clause(columns: dict) -> tuple[str, list]:
-    return (
-        ", ".join(f"{name} = %s" for name in columns),
-        [bound(v) for v in columns.values()],
-    )
 
 
 def _guard(sim_id: int, after_step: int | None) -> str:
@@ -98,7 +91,7 @@ def _insert(cur, table: str, rows: list[dict]) -> None:
         sql += " ON CONFLICT (ID) DO UPDATE SET " + ", ".join(
             f"{c} = EXCLUDED.{c}" for c in columns if c != "ID"
         )
-    cur.executemany(sql, [[bound(r[c]) for c in columns] for r in rows])
+    cur.executemany(sql, [[as_param(r[c]) for c in columns] for r in rows])
 
 
 class _Connection:
@@ -118,7 +111,7 @@ class PostgresSimStore(_Connection):
             f"INSERT INTO SIM.SIMS (ID, {', '.join(row)}) "
             f"VALUES (nextval('SIM.SIM_IDS'), {', '.join('%s' for _ in row)}) "
             "RETURNING ID",
-            [bound(v) for v in row.values()],
+            [as_param(v) for v in row.values()],
         )
         return sim_id
 
@@ -132,7 +125,7 @@ class PostgresSimStore(_Connection):
         return dict(zip(names, found, strict=True))
 
     def update(self, sim_id: int, **columns) -> None:
-        sets, values = _set_clause(columns)
+        sets, values = set_clause(columns)
         self._run(
             f"UPDATE SIM.SIMS SET {sets} WHERE ID = %s AND STATUS <> %s",
             [*values, sim_id, str(SimStatus.FINISHED)],
@@ -153,7 +146,7 @@ class PostgresSimStore(_Connection):
                 cur.execute(
                     "UPDATE SIM.SIMS SET LAST_COMPLETED_STEP = %s, ACCOUNT_STATE = %s, "
                     "LAST_WRITTEN_AT = %s WHERE ID = %s",
-                    (through_step, bound(state), now(), sim_id),
+                    (through_step, as_param(state), now(), sim_id),
                 )
                 for name in TABLES:
                     if rows.get(name):
@@ -209,7 +202,7 @@ class PostgresSimStore(_Connection):
         is not finished) first, then per memory table a DELETE of what the sim's memory held and
         an INSERT ... SELECT of the source's rows with SIM changed. The columns are read from
         the table, so a column added later is copied too."""
-        sets, values = _set_clause(columns)
+        sets, values = set_clause(columns)
         with self.con.transaction(), self.con.cursor() as cur:
             cur.execute(
                 f"UPDATE SIM.SIMS SET {sets} WHERE ID = %s "
@@ -250,7 +243,7 @@ class PostgresSimStore(_Connection):
         self._run(
             "INSERT INTO SIM.LLM_PROMPTS (PROMPT_VERSION, SYSTEM_PROMPT, TOOLS, CREATED_AT) "
             "VALUES (%s, %s, %s, %s) ON CONFLICT (PROMPT_VERSION) DO NOTHING",
-            (version, json.dumps(system_prompts), bound(tools), now()),
+            (version, json.dumps(system_prompts), as_param(tools), now()),
         )
 
     def spent(self, sim_id: int) -> float:
@@ -288,7 +281,9 @@ class PostgresSimStore(_Connection):
         )
         return float(found[0][0]) if found else None
 
-    def _answered(self, sim_id: int, cut_off: float, kinds) -> tuple[int, int]:
+    def _screen_answer_counts(
+        self, sim_id: int, cut_off: float, kinds
+    ) -> tuple[int, int]:
         [(asked, yes)] = self._run(
             "SELECT COUNT(SCREEN_ANSWER), COUNT(*) FILTER (WHERE SCREEN_ANSWER >= %s) "
             f"FROM MEMORY.DECISIONS WHERE {OWN_ROWS} AND KIND IN (%s, %s)",
@@ -297,10 +292,10 @@ class PostgresSimStore(_Connection):
         return int(asked), int(yes)
 
     def screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
-        return self._answered(sim_id, cut_off, SCREENED_KINDS)
+        return self._screen_answer_counts(sim_id, cut_off, SCREENED_KINDS)
 
     def position_screen_counts(self, sim_id: int, cut_off: float) -> tuple[int, int]:
-        return self._answered(sim_id, cut_off, POSITION_KINDS)
+        return self._screen_answer_counts(sim_id, cut_off, POSITION_KINDS)
 
     def position_review_counts(self, sim_id: int) -> dict[str, int]:
         [(reviews, end_of_session, closes, reduces, adds)] = self._run(

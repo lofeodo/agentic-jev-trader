@@ -58,6 +58,7 @@ _JSON_COLUMNS = {"SETTINGS", "ACCOUNT_STATE", "DETAILS"}
 # A sim's own rows of a memory table, bound to its ID: those it wrote, not those it copied from
 # the memory it started from. Every report on what one sim did reads through this.
 OWN_ROWS = "SIM = ? AND FIRST_WRITTEN_BY = SIM"
+# COUNT_IF over no rows reads empty, not 0, so each count it gives is read with `or 0` (#258).
 
 
 def _is_json(value) -> bool:
@@ -314,7 +315,6 @@ class SnowflakeSimStore(_Connection):
             f"WHERE {OWN_ROWS} AND KIND = ?",
             (ACTION_CLOSE, ACTION_REDUCE, ACTION_ADD, sim_id, KIND_POSITION_REVIEW),
         )
-        # COUNT_IF over no rows reads empty, not 0 (#258).
         return {
             "reviews": int(reviews),
             "end_of_session": int(end_of_session or 0),
