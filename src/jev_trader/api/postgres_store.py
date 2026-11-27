@@ -76,8 +76,8 @@ _SIM_COLUMNS = (
 )
 
 
-def _sorted(items) -> list[str]:
-    """An aggregated list sorted, NULLs dropped."""
+def _sorted_without_nulls(items) -> list[str]:
+    """An aggregated list (None when nothing was aggregated) sorted, NULLs dropped."""
     return sorted(item for item in items or [] if item is not None)
 
 
@@ -266,8 +266,8 @@ class PostgresApiStore:
         )
         if not rows:
             return None
-        [row] = rows
-        # The system prompts are JSON kept as text; every other column here is `jsonb`.
+        row = rows[0]
+        # The system prompts are JSON kept as text; every other JSON column is `jsonb`.
         prompts = row["SYSTEM_PROMPTS"]
         row["SYSTEM_PROMPTS"] = json.loads(prompts) if prompts else {}
         row["TOOLS"] = row["TOOLS"] or {}
@@ -309,7 +309,7 @@ class PostgresApiStore:
             figures = found[int(sim_id)]
             figures["FULL_EVALUATIONS"] = int(evaluations)
             figures["POSITION_REVIEWS"] = int(reviews)
-            figures["JEV_VERSIONS"] = _sorted(versions)
+            figures["JEV_VERSIONS"] = _sorted_without_nulls(versions)
         for sim_id, model_usd, seconds, models in self._run(
             "SELECT c.sim, COALESCE(SUM(c.cost_usd), 0), "
             "COALESCE(SUM(CASE WHEN d.kind = %s "
@@ -323,7 +323,7 @@ class PostgresApiStore:
             figures = found[int(sim_id)]
             figures["MODEL_USD"] = float(model_usd)
             figures["FULL_EVALUATION_SECONDS"] = float(seconds)
-            figures["LLM_MODELS"] = _sorted(models)
+            figures["LLM_MODELS"] = _sorted_without_nulls(models)
         return found
 
     def entry_details(
@@ -333,7 +333,7 @@ class PostgresApiStore:
         pairs = sorted(set(wanted))
         if not pairs:
             return found
-        lists = ([asset for asset, _ in pairs], [step for _, step in pairs])
+        assets_and_steps = ([asset for asset, _ in pairs], [step for _, step in pairs])
         wanted_rows = "unnest(%s::text[], %s::bigint[]) AS w(asset, step)"
         for asset, step, asset_class, trend, volume, bar, left in self._run(
             "SELECT w.asset, w.step, a.asset_class, "
@@ -346,7 +346,7 @@ class PostgresApiStore:
             "JOIN raw.bars b ON b.dataset = s.dataset AND b.asset = s.asset "
             "AND b.step = s.step AND b.bar_size = '15m' "
             "JOIN ref.assets a ON a.dataset = s.dataset AND a.masked_id = s.asset",
-            (*lists, dataset),
+            (*assets_and_steps, dataset),
         ):
             found[(asset, int(step))] = {
                 "ASSET_CLASS": asset_class,
@@ -364,7 +364,7 @@ class PostgresApiStore:
             "AND p.bar_size = '15m' "
             f"AND p.step BETWEEN w.step - {PATTERN_WINDOW_STEPS - 1} AND w.step "
             "ORDER BY w.asset, w.step, p.step DESC, p.pattern",
-            (*lists, dataset),
+            (*assets_and_steps, dataset),
         ):
             names = found.get((asset, int(step)), {}).get("PATTERNS")
             if names is not None and pattern not in names:
