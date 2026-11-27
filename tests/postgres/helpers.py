@@ -41,28 +41,27 @@ def env_through(port: int) -> dict:
     return {**LOCAL_ENV, "POSTGRES_PORT": str(port)}
 
 
-def database(login: str, env: dict = LOCAL_ENV):
+def database(login: str, env: dict | None = None):
     """`login`'s `Database` on the test database, as the programs open it."""
-    return open_database(login, TEST_DATABASE, env=env)
+    return open_database(login, TEST_DATABASE, env=env or LOCAL_ENV)
 
 
-def connect(login: str, env: dict = LOCAL_ENV) -> psycopg.Connection:
+def connect(login: str, env: dict | None = None) -> psycopg.Connection:
     """A connection of its own as `login`, outside the stores: to write made-up rows, read
     rows back, or play a second program."""
     return psycopg.connect(
-        **postgres.settings(login, TEST_DATABASE, env), autocommit=True
+        **postgres.settings(login, TEST_DATABASE, env or LOCAL_ENV), autocommit=True
     )
 
 
-def create_tables() -> None:
-    """Every table, made by Alembic from its first file on (#276) as the setup login.
+def alembic_config():
+    """Alembic's settings, for making every table from its first file on (#276).
 
     Alembic's settings file is `alembic.ini` at the repo root. The tests hand its `env.py` the
     settings to connect with through `config.attributes`: `env` (as `LOCAL_ENV`) and `database`.
     """
     ini = REPO_ROOT / "alembic.ini"
     try:
-        from alembic import command
         from alembic.config import Config
     except ImportError:
         raise NotBuiltYet(276) from None
@@ -71,6 +70,13 @@ def create_tables() -> None:
     config = Config(str(ini))
     config.attributes["env"] = LOCAL_ENV
     config.attributes["database"] = TEST_DATABASE
+    return config
+
+
+def create_tables(config) -> None:
+    """Every table, made by Alembic as the setup login."""
+    from alembic import command
+
     command.upgrade(config, "head")
 
 
@@ -124,6 +130,41 @@ def insert(con: psycopg.Connection, table: str, rows: list[dict]) -> None:
                 f"VALUES ({', '.join(mark for _, mark in bound)})",
                 [value for value, _ in bound],
             )
+
+
+def account_row(sim_id: int, step: int, value: float = 10_000.0) -> dict:
+    """A sim's account at `step`: all cash, worth `value`."""
+    return {
+        "ID": f"{sim_id}-{step}",
+        "SIM": sim_id,
+        "STEP": step,
+        "CASH": value,
+        "LOAN": 0.0,
+        "EXPOSURE": 0.0,
+        "ACCOUNT_VALUE": value,
+        "START_OF_DAY_VALUE": value,
+        "DAILY_LOSS_REACHED": False,
+    }
+
+
+def records(con, sim_id: int) -> dict:
+    """Every record of a sim but its events, table by table, without the sim's ID or the rows'
+    IDs: comparable across sims."""
+    from jev_trader.sim.store import TABLES
+
+    found = {}
+    for table in TABLES:
+        if table == "SIM.SIM_EVENTS":
+            continue
+        with con.cursor() as cur:
+            cur.execute(f"SELECT * FROM {table} WHERE SIM = %s", (sim_id,))
+            names = [d.name for d in cur.description]
+            rows = [
+                {n: v for n, v in zip(names, row) if n not in ("id", "sim")}
+                for row in cur.fetchall()
+            ]
+        found[table] = sorted(rows, key=repr)
+    return found
 
 
 def parsed(value):

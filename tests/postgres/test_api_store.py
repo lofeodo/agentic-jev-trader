@@ -15,23 +15,9 @@ from jev_trader.api.spending import spending
 from jev_trader.api.trades import Filters, trades_table
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from jev_trader.sim.store import now
-from tests.postgres.helpers import connect, insert
+from tests.postgres.helpers import account_row, connect, insert
 
 pytestmark = pytest.mark.dormant
-
-
-def account_row(sim_id, step, value):
-    return {
-        "ID": f"{sim_id}-{step}",
-        "SIM": sim_id,
-        "STEP": step,
-        "CASH": value,
-        "LOAN": 0.0,
-        "EXPOSURE": 0.0,
-        "ACCOUNT_VALUE": value,
-        "START_OF_DAY_VALUE": value,
-        "DAILY_LOSS_REACHED": False,
-    }
 
 
 def entry_row(sim_id, number):
@@ -330,6 +316,10 @@ def test_the_api_adds_and_changes_only_its_two_rows(api_db, setup_login):
             "DELETE FROM RAW.BARS",
             "DELETE FROM SIM.SIMS",
             "DELETE FROM REF.DATASETS",
+            "INSERT INTO SIM.SIM_EVENTS (ID, SIM, STEP, KIND) VALUES ('x', 1, 1, 'x')",
+            "INSERT INTO RAW.BARS (DATASET) VALUES (1)",
+            "UPDATE MEMORY.DECISIONS SET ACTION = 'close'",
+            "UPDATE SIM.ORDERS SET STATUS = 'cancelled'",
         ):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 con.execute(statement)

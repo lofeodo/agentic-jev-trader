@@ -4,7 +4,8 @@
 
 WHEN is `mid-step` (the step is worked out but its write never starts) or `while-writing` (the
 write is under way: another connection holds the sim's row, so the write waits inside its open
-transaction, and the program dies while it waits). The program ends with `os._exit`: no
+transaction, and the program dies while it waits; this relies on the write waiting for the
+sim's row, which it changes to move the last completed step). The program ends with `os._exit`: no
 clean-up, no rollback, no closed connection. Run with the repo root and `src` on PYTHONPATH.
 """
 

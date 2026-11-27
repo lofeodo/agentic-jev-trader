@@ -15,7 +15,7 @@ from jev_trader.memory.lookups import Lookups
 from jev_trader.memory.search import Filters
 from jev_trader.sim import records as records_of
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
-from tests.postgres.helpers import database, env_through
+from tests.postgres.helpers import account_row, database, env_through
 from tests.postgres.made_up_memory import LATER, NOW, written_memory
 from tests.postgres.wire import Line
 
@@ -57,33 +57,22 @@ def test_a_save_goes_to_the_database_in_one_trip(sim_db, made_up_dataset):
     store.update(sim_id, STATUS="running")
     decision = records_of.decision_row(sim_id, 1, 97, "ASSET_01", None)
     rows = {
-        "SIM.ACCOUNT_STEPS": [
-            {
-                "ID": f"{sim_id}-97",
-                "SIM": sim_id,
-                "STEP": 97,
-                "CASH": 10_000.0,
-                "LOAN": 0.0,
-                "EXPOSURE": 0.0,
-                "ACCOUNT_VALUE": 10_000.0,
-                "START_OF_DAY_VALUE": 10_000.0,
-                "DAILY_LOSS_REACHED": False,
-            }
-        ],
+        "SIM.ACCOUNT_STEPS": [account_row(sim_id, 97)],
         "SIM.SIM_EVENTS": [
             {"ID": f"{sim_id}-97-test", "SIM": sim_id, "STEP": 97, "KIND": "test"}
         ],
         "MEMORY.DECISIONS": [decision],
     }
     with Line(delay=DELAY) as line:
-        far = opened_through(line, "sim").sim_store()
+        far_db = opened_through(line, "sim")
+        far = far_db.sim_store()
         far.sim(sim_id)  # the connection is open before the timing starts
         line.clear()
 
         began = time.perf_counter()
         far.write_steps(sim_id, None, 97, rows, {"made_up": True})
         took = time.perf_counter() - began
-        far.con.close()
+        far_db.close()
 
     # Begin, the sim's row, three tables' rows and commit: several statements, one wait.
     assert len(line.statements) >= 4

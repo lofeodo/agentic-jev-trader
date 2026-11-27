@@ -1,6 +1,7 @@
 """The database tests of the move to Postgres (spec appendix 11), against the local Postgres.
 
-Every test here is `dormant` until the slice's closing ticket (#283) switches it on. Each starts
+The folder holds the slice's tests: the database tests, and the check of the text-to-numbers
+model (marked `model`), which needs no database. Every test here is `dormant` until the slice's closing ticket (#283) switches it on. Each starts
 from empty tables, made once per run by Alembic; the stores are opened as the programs open
 them (`open_database`), each as its own login.
 """
@@ -14,7 +15,7 @@ from tests.postgres import helpers
 @pytest.fixture(scope="session")
 def tables():
     """Every table, made once per run (#276)."""
-    helpers.create_tables()
+    config = helpers.alembic_config()
     try:
         con = helpers.connect("setup")
     except psycopg.OperationalError as error:
@@ -22,6 +23,7 @@ def tables():
             f"No local Postgres at {helpers.LOCAL_HOST}:{helpers.LOCAL_PORT} ({error}). "
             "Start it as CLAUDE.md says (#276)."
         )
+    helpers.create_tables(config)
     yield con
     con.close()
 

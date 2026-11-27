@@ -27,7 +27,15 @@ from jev_trader.sim.postgres_store import PostgresSimStore
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from jev_trader.sim.store import TABLES, InMemorySimStore, StepAlreadyWritten
 from jev_trader.storage import postgres
-from tests.postgres.helpers import LOCAL_ENV, REPO_ROOT, TEST_DATABASE, connect, parsed
+from tests.postgres.helpers import (
+    LOCAL_ENV,
+    REPO_ROOT,
+    TEST_DATABASE,
+    account_row,
+    connect,
+    parsed,
+    records,
+)
 
 pytestmark = pytest.mark.dormant
 
@@ -43,23 +51,6 @@ def new_sim(store, market, dataset_id, last_step):
         last_step=last_step,
     )
     return create_sim(store, market, request)
-
-
-def records(con, sim_id):
-    """Every record of a sim, table by table, without the sim's ID: comparable across sims."""
-    found = {}
-    for table in TABLES:
-        if table == "SIM.SIM_EVENTS":
-            continue
-        with con.cursor() as cur:
-            cur.execute(f"SELECT * FROM {table} WHERE SIM = %s", (sim_id,))
-            names = [d.name for d in cur.description]
-            rows = [
-                {n: v for n, v in zip(names, row) if n not in ("id", "sim")}
-                for row in cur.fetchall()
-            ]
-        found[table] = sorted(rows, key=repr)
-    return found
 
 
 @pytest.fixture
@@ -96,12 +87,6 @@ def _request_of(sim):
         last_step=sim["LAST_STEP"],
         starting_value=sim["STARTING_VALUE"],
     )
-
-
-def account_row(sim_id, step):
-    row = {"ID": f"{sim_id}-{step}", "SIM": sim_id, "STEP": step, "CASH": 1.0}
-    row |= {"LOAN": 0.0, "EXPOSURE": 0.0, "ACCOUNT_VALUE": 1.0}
-    return row | {"START_OF_DAY_VALUE": 1.0, "DAILY_LOSS_REACHED": False}
 
 
 def test_a_holding_sim_over_a_published_dataset_runs_to_the_end(

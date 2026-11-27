@@ -15,8 +15,7 @@ from fastapi.testclient import TestClient
 from jev_trader.api.app import create_app
 from jev_trader.jobs import LocalLauncher, builds_named, sim_job_command
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
-from tests.postgres.helpers import LOCAL_ENV, REPO_ROOT, TEST_DATABASE
-from tests.postgres.test_sim_store import records
+from tests.postgres.helpers import LOCAL_ENV, REPO_ROOT, TEST_DATABASE, records
 
 pytestmark = pytest.mark.dormant
 

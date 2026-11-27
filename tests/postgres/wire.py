@@ -103,7 +103,9 @@ class Line:
     def __exit__(self, *exc) -> None:
         self._closed = True
         self._listener.close()
-        for s in self._sockets:
+        with self._lock:
+            sockets = list(self._sockets)
+        for s in sockets:
             try:
                 s.close()
             except OSError:
@@ -124,11 +126,15 @@ class Line:
                 program, _ = self._listener.accept()
             except OSError:
                 return
-            database = socket.create_connection((LOCAL_HOST, LOCAL_PORT))
+            try:
+                database = socket.create_connection((LOCAL_HOST, LOCAL_PORT))
+            except OSError:
+                program.close()  # the program sees the database refuse, as without the line
+                continue
             for s in (program, database):
                 s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            self._sockets += [program, database]
             with self._lock:
+                self._sockets += [program, database]
                 self.connections += 1
             reader = _Reader(self)
             threading.Thread(
