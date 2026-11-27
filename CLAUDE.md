@@ -108,7 +108,7 @@ conda run -n agentic-jev-trader python -m jev_trader.sim start --dataset 1 --var
 conda run -n agentic-jev-trader python -m jev_trader.sim resume 12
 ```
 
-Run a practice sim of the agent without memory: at most one replayed day and 25 cents (`--spending-cap 0.40` raises the cap for that one sim). It calls Jev, so it costs money: run it only with my go-ahead.:
+Run a practice sim of the agent without memory: at most one replayed day and 25 cents (`--spending-cap 0.40` raises the cap for that one sim). It calls Jev, so it costs money: run it only with my go-ahead:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
@@ -199,7 +199,7 @@ Gotchas:
 - `.env` is gitignored, so it lives only in the main checkout: a git worktree has none. There, anything that reads `.env` finds nothing. Load the main checkout's `.env` into the environment first, never copy it: a short Python script that calls `dotenv.load_dotenv("<main checkout>/.env")` and then `pytest.main([...])`, run from the worktree.
 - A sim job started by the API runs the code of the checkout the API runs from, whichever copy is installed.
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
-- Every program opens the database through `jev_trader.storage.database.open_database`, which hands out its stores; a process keeps one connection per login and database (`storage/postgres.py`).
+- Every program opens the database through `jev_trader.storage.database.open_database`, which hands out its stores; a process keeps one connection per login and database (`storage/postgres.py`). The setup login's one-off tools (Alembic, `storage load`) open their own connection.
 - `requirements.txt` installs PyTorch for the text-to-numbers model (`dataset/text_to_numbers.py`): on Windows the NVIDIA build, about 3 GB, from PyTorch's own download site; elsewhere (CI, the Docker image) the smaller processor-only build. The model's own files (about 440 MB) download once, on the first `embed` call, into Hugging Face's cache (`~/.cache/huggingface`).
 - `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.
 - Every refusal before a sim starts or resumes comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. `run_sim` keeps its own guards for carrying a sim on (finished, cap already reached, changed wording of Jev's reading or the LLM's prompt), the sim command the two that need a live service (Jev's key works, the memory server answers), and `api/sim_jobs.py` the checks only the API makes (command-line-only kinds, days, a resume's new cap). A start from the app is let past the checker's "not built yet" refusal (`unbuilt_allowed`); the command line is not. So a measurement, build-up or free sim started from the app really runs and calls Jev (and, with memory, the LLM), up to its cap. The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.

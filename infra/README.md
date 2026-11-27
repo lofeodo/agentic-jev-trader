@@ -198,9 +198,10 @@ First time: fill in `POSTGRES_ADMIN_PASSWORD`, the five `POSTGRES_<LOGIN>_PASSWO
 ### Moving the data in, and copies of it
 
 Once, with the database on and its tables made: the last `storage save` of Snowflake (Parquet
-files and `manifest.json`, taken while no sim or build was writing) goes in with `conda run -n agentic-jev-trader python -m jev_trader.storage load
-<save folder>` (CLAUDE.md). It checks the text-to-numbers model first, loads every table in one transaction,
-then compares row counts and some rows with the save.
+files and `manifest.json`, taken while no sim or build was writing) goes in with `conda run -n
+agentic-jev-trader python -m jev_trader.storage load <save folder>` (CLAUDE.md). It checks the
+text-to-numbers model first, loads every table in one transaction, then compares row counts and
+some rows with the save.
 
 `storage save` is `pg_dump`: one file on this
 computer. `storage restore <file>` loads it with `pg_restore` into a database that has the

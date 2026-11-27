@@ -28,6 +28,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from jev_trader.storage import LoginNotSet, postgres
+from jev_trader.storage.database import DATABASE
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SAVED_TABLES = REPO_ROOT / "saved-tables"
@@ -109,17 +110,17 @@ def main(argv: list[str] | None = None) -> int:
     run = commands.add_parser(
         "save", help="save a copy of every table on this computer"
     )
-    run.add_argument("--database", default=postgres.DATABASE.upper())
+    run.add_argument("--database", default=DATABASE)
     run.add_argument("--folder", type=Path, default=SAVED_TABLES)
     move = commands.add_parser("load", help="load a Snowflake save into Postgres")
     move.add_argument("save", type=Path, help="the save's folder, with manifest.json")
-    move.add_argument("--database", default=postgres.DATABASE.upper())
+    move.add_argument("--database", default=DATABASE)
     move.add_argument("--check-only", action="store_true")
     back = commands.add_parser(
         "restore", help="load a pg_dump file into an empty Postgres"
     )
     back.add_argument("file", type=Path)
-    back.add_argument("--database", default=postgres.DATABASE.upper())
+    back.add_argument("--database", default=DATABASE)
     args = parser.parse_args(argv)
     load_dotenv(REPO_ROOT / ".env")
     try:

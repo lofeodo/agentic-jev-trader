@@ -64,7 +64,7 @@ resource "kubernetes_namespace_v1" "this" {
 
 # --- Where the database is, and the secrets ---------------------------------------------------
 # The ConfigMap `postgres` holds what every program needs to find the database and is no
-# secret: the engine, the address, the port and the encryption. One secret per login (the
+# secret: the address, the port and the encryption. One secret per login (the
 # services' memory and api, the jobs' sim and builder) holds that login's password only. The sim
 # jobs' model keys and the build jobs' price-data key are secrets of their own. The ZAI key
 # (only the benchmark uses it, on the developer's machine) and the LangSmith key (tracing,

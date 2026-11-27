@@ -229,9 +229,8 @@ AFTER = {
     "end_of_day": (OutcomeKind.PRICE_AT_END_OF_DAY, "at the end of the decision's day"),
 }
 
-_EPISODES = ", ".join(f"'{k}'" for k in EPISODE_KINDS)
-# The sim's complete episodes with their ending. Placeholders: the ending's outcome kind, then
-# the sim.
+# The sim's complete episodes with their ending. Placeholders: the ending's outcome kind, the
+# sim, then the episode kinds.
 _MEMORY = (
     "SELECT d.id, d.asset, d.step, d.kind, d.standing->>'direction' AS direction, "
     "GREATEST(d.outcomes_known_from, o.known_from) AS known_from, "
@@ -241,7 +240,7 @@ _MEMORY = (
     "JOIN features.snapshots s ON s.dataset = d.dataset AND s.asset = d.asset "
     "AND s.step = d.step "
     "JOIN memory.outcomes o ON o.sim = d.sim AND o.decision = d.id AND o.kind = %s "
-    f"WHERE d.sim = %s AND d.kind IN ({_EPISODES}) "
+    "WHERE d.sim = %s AND d.kind = ANY(%s) "
     "AND d.outcomes_known_from IS NOT NULL ORDER BY d.step, d.id"
 )
 _SETTINGS = "SELECT settings FROM sim.sims WHERE id = %s"
@@ -255,8 +254,8 @@ def load_memory(connection, sim: int, after: str) -> tuple[dict, list[Record]]:
         found = cur.fetchone()
         if found is None:
             raise UnknownSim(sim)
-        settings = json.loads(found[0]) if isinstance(found[0], str) else found[0]
-        cur.execute(_MEMORY, [str(AFTER[after][0]), sim])
+        settings = found[0]
+        cur.execute(_MEMORY, [str(AFTER[after][0]), sim, list(EPISODE_KINDS)])
         names = [d[0].upper() for d in cur.description]
         rows = [dict(zip(names, row, strict=True)) for row in cur.fetchall()]
 

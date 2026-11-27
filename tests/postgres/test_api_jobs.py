@@ -42,9 +42,8 @@ def test_a_restarted_api_finds_and_kills_the_job_and_the_sim_resumes_to_the_same
 ):
     for name, value in LOCAL_ENV.items():
         monkeypatch.setenv(name, value)  # the job's database
-    monkeypatch.setenv(
-        "POSTGRES_PORT", str(slow_line.port)
-    )  # reached through the slow line
+    # The job reaches the database through the slow line.
+    monkeypatch.setenv("POSTGRES_PORT", str(slow_line.port))
     monkeypatch.setenv("PYTHONPATH", str(REPO_ROOT / "src"))  # this checkout's code
     store, market = sim_db.sim_store(), sim_db.market()
     dataset_id = made_up_dataset(days=2)  # day 2, steps 97 to 192, is the sim

@@ -29,8 +29,9 @@ Every start and resume goes through the one checker (`checker.py`): a refused si
 nothing (a refused resume leaves the sim as it was), and each reason is printed with its fix.
 `--database TRADING_AGENT_TEST` uses the test database.
 
-Logs in to Postgres as the sim login (`POSTGRES_HOST` and `POSTGRES_SIM_PASSWORD` in `.env`); Jev's key is `TYPESAFE_API_KEY` in `.env`. Output is
-plain ASCII: `conda run` on Windows fails on other characters.
+Logs in to Postgres as the sim login (`POSTGRES_HOST` and `POSTGRES_SIM_PASSWORD` in `.env`);
+Jev's key is `TYPESAFE_API_KEY` in `.env`. Output is plain ASCII: `conda run` on Windows fails on
+other characters.
 """
 
 import argparse

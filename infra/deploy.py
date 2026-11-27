@@ -43,11 +43,12 @@ if (
 
 from infra import images
 from jev_trader.storage import postgres
+from jev_trader.storage.database import DATABASE, TEST_DATABASE
 
 KUBERNETES_DIR = REPO_ROOT / "infra" / "terraform" / "kubernetes"
 # Its own folder, beside infra/rds.py's.
 STATE_DIR = Path.home() / ".agentic-jev-trader" / "kubernetes"
-DATABASES = ("TRADING_AGENT", "TRADING_AGENT_TEST")
+DATABASES = (DATABASE, TEST_DATABASE)
 
 # Terraform's key variables (terraform/kubernetes/variables.tf), each from its line in .env.
 KEYS = {
@@ -124,7 +125,7 @@ def terraform(args: list[str], env: dict[str, str]) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python infra/deploy.py")
     parser.add_argument("command", choices=("plan", "apply"))
-    parser.add_argument("--database", choices=DATABASES, default="TRADING_AGENT")
+    parser.add_argument("--database", choices=DATABASES, default=DATABASE)
     parser.add_argument("terraform_args", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     try:

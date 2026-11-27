@@ -78,9 +78,9 @@ def detail_file(attempt: Attempt) -> dict:
 
 
 class DatabaseAttemptLog:
-    """Keeps attempts in the database, through `connection` (`postgres.OneConnection`, as the
-    sim login), and in files under
-    `detail_dir`, in a folder of their own for the run `run` (by default named now)."""
+    """Keeps attempts in the database, through `connection` (`postgres.OneConnection`, as the     sim
+    login), and in files under     `detail_dir`, in a folder of their own for the run `run` (by
+    default named now)."""
 
     def __init__(
         self, connection, detail_dir: Path = DETAIL_DIR, run: str | None = None

@@ -1,10 +1,10 @@
 """Today's tables, as Snowflake's numbered files V1 to V11 left them (spec appendix 11, section 1).
 
-The first Alembic file: it makes every table from nothing, in its final shape, so the column
-notes of V2 to V11 (removed with Snowflake; in git history) are gathered here, table by table. It runs as the setup
-login, which owns every table; the other four logins get what they need through the grants at
-the end of `upgrade`, the same split as Snowflake's was. Those
-four roles must exist first: the local Postgres's `init.sql` makes them, Terraform does on RDS.
+The first Alembic file: it makes every table from nothing, in its final shape, so the column notes
+of V2 to V11 (removed with Snowflake; in git history) are gathered here, table by table. It runs
+as the setup login, which owns every table; the other four logins get what they need through the
+grants at the end of `upgrade`, the same split as Snowflake's was. Those four roles must exist
+first: the local Postgres's `init.sql` makes them, Terraform does on RDS.
 
 How Snowflake's types are written here:
 

@@ -1,4 +1,4 @@
-"""All database access goes through this one module."""
+"""Logging in to the database: `postgres.py` connects, `database.py` hands out the stores."""
 
 from collections.abc import Mapping
 

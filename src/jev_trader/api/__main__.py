@@ -4,15 +4,15 @@
     conda run -n agentic-jev-trader python -m jev_trader.api describe web/openapi.json
 
 `serve` logs in to Postgres as the API login (`POSTGRES_HOST` and `POSTGRES_API_PASSWORD` in
-`.env`) and listens on this computer only. It starts sims' jobs as `JOB_LAUNCHER` in `.env` says (`local`,
-the default: programs on this computer, each printing to `logs/sims/sim-<id>.log`), on the
-database it serves, and dataset builds the same way (`logs/datasets/dataset-<id>.log`, beside
+`.env`) and listens on this computer only. It starts sims' jobs as `JOB_LAUNCHER` in `.env` says
+(`local`, the default: programs on this computer, each printing to `logs/sims/sim-<id>.log`), on
+the database it serves, and dataset builds the same way (`logs/datasets/dataset-<id>.log`, beside
 the build's settings file). `kubernetes` starts each as a Job in the kind cluster instead
-(`jev_trader.jobs`). A build logs in as the builder and needs
-`TWELVE_DATA_API_KEY`. `--in-cluster` is for its pod in the kind cluster: it listens on every
-address of its container and answers the cluster's callers too (`jev_trader.api.app`). It logs
-in on the first request that reads, not at start. `describe` needs no login.
-Output is plain ASCII: `conda run` on Windows fails on other characters.
+(`jev_trader.jobs`). A build logs in as the builder and needs `TWELVE_DATA_API_KEY`.
+`--in-cluster` is for its pod in the kind cluster: it listens on every address of its container
+and answers the cluster's callers too (`jev_trader.api.app`). It logs in on the first request that
+reads, not at start. `describe` needs no login. Output is plain ASCII: `conda run` on Windows
+fails on other characters.
 """
 
 import argparse
