@@ -11,7 +11,7 @@ only spends LLM money. The parts, in the order the command uses them:
   (`run_benchmark`);
 - `spending`: the running dollar total checked before each attempt (`SpendMeter`);
 - `records`: the real log: each attempt's calls in `SIM.CALLS` with the purpose "benchmark" and
-  no sim, its detail in a file (`SnowflakeAttemptLog`);
+  no sim, its detail in a file (`DatabaseAttemptLog`);
 - `report`: the plain-words page made from every attempt (`report`);
 - `made_up`: made-up moments and fake answers, for running the command for free (`--made-up`);
 - `__main__`: the command, `python -m jev_trader.benchmark`.

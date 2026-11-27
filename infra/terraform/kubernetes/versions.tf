@@ -8,8 +8,7 @@ terraform {
     }
   }
 
-  # A root of its own, apart from the Snowflake part in the folder above: its own provider and
-  # its own state, so deploying to a kind cluster never touches Snowflake. State stays outside
-  # the repo, as for the Snowflake part (-backend-config=path=...).
+  # A root of its own, apart from the RDS part: its own provider and its own state. State stays
+  # outside the repo (-backend-config=path=..., passed by infra/deploy.py).
   backend "local" {}
 }

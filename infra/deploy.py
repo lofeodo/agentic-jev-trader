@@ -45,7 +45,7 @@ from infra import images
 from jev_trader.storage import postgres
 
 KUBERNETES_DIR = REPO_ROOT / "infra" / "terraform" / "kubernetes"
-# Its own folder, beside infra/rds.py's: nothing here depends on Snowflake any more.
+# Its own folder, beside infra/rds.py's.
 STATE_DIR = Path.home() / ".agentic-jev-trader" / "kubernetes"
 DATABASES = ("TRADING_AGENT", "TRADING_AGENT_TEST")
 

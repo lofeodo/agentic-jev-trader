@@ -1,6 +1,6 @@
 """How a step is written: all or nothing, one writer at a time, and a restart that loses nothing.
 
-Spec appendix 6, section 6. The real database is covered by the hand-run `tests/snowflake` group;
+Spec appendix 6, section 6. The real database is covered by `tests/postgres`;
 these run the same rules on the in-memory stand-in.
 """
 

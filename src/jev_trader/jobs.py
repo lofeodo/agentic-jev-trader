@@ -30,7 +30,7 @@ from kubernetes import client as k8s
 from kubernetes import config as k8s_config
 from kubernetes.client import ApiException
 
-from jev_trader.storage.snowflake import DATABASE
+from jev_trader.storage.database import DATABASE
 
 SRC = Path(__file__).resolve().parents[1]
 REPO_ROOT = SRC.parent
@@ -259,7 +259,7 @@ NAMESPACE = "jev-trader"
 KUBE_CONTEXT = "kind-jev-trader"
 # The Python image's plain user (Dockerfile); its group can read the mounted settings file.
 PYTHON_USER = 10001
-# The ConfigMap telling every program where the database is (engine, address, port, encryption).
+# The ConfigMap telling every program where the database is (address, port, encryption).
 DATABASE_CONFIG_MAP = "postgres"
 # Where a build's pod finds its settings file, carried in a ConfigMap.
 SETTINGS_DIR = "/settings"

@@ -37,7 +37,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AWS_DIR = REPO_ROOT / "infra" / "terraform" / "rds"
 POSTGRES_DIR = AWS_DIR / "postgres"
-# Its own folder, not SNOWFLAKE_LOCAL_DIR: that one goes with Snowflake at the end of the move.
+# Outside the repo, beside infra/deploy.py's.
 STATE_DIR = Path.home() / ".agentic-jev-trader" / "rds"
 
 # These three must match infra/terraform/rds/main.tf.

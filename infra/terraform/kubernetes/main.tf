@@ -1,7 +1,7 @@
 # The project's Kubernetes part: the three long-lived services (the memory server, the API and
 # the web app) in a local kind cluster, the secrets they and the jobs read, and the permission
 # for the API to start and stop Jobs. Spec: issue #82, appendix 10 section 3.
-# Kept apart from the Snowflake part in infra/terraform, which it does not touch.
+# Kept apart from the RDS part in infra/terraform/rds, which it does not touch.
 #
 # The programs log in to Postgres on AWS RDS (spec appendix 11, section 1): the address and the
 # connection settings in the ConfigMap `postgres`, each login's password in its own secret.
@@ -77,7 +77,6 @@ resource "kubernetes_config_map_v1" "postgres" {
   }
 
   data = {
-    DATABASE_ENGINE   = "postgres"
     POSTGRES_HOST     = var.postgres_host
     POSTGRES_PORT     = tostring(var.postgres_port)
     POSTGRES_SSL_MODE = var.postgres_ssl_mode

@@ -9,7 +9,7 @@
 4. **Recognise candle patterns** on all three bar sizes, and store the playbook.
 5. **Measure.** The 58 measurements of every snapshot; the warm-up averages and spreads, frozen.
 6. **Write the situation text** of every snapshot, with its feature vector, and stage them.
-7. **Embed.** Snowflake's model turns each staged text into 768 numbers as the snapshots are
+7. **Embed.** The text-to-numbers model on this computer turns each staged text into 768 numbers as the snapshots are
    stored, one asset at a time.
 8. **Publish.** Write every other row, then mark the dataset published.
 

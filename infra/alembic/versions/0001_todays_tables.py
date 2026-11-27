@@ -1,9 +1,9 @@
 """Today's tables, as Snowflake's numbered files V1 to V11 left them (spec appendix 11, section 1).
 
 The first Alembic file: it makes every table from nothing, in its final shape, so the column
-notes of V2 to V11 (infra/migrations/) are gathered here, table by table. It runs as the setup
+notes of V2 to V11 (removed with Snowflake; in git history) are gathered here, table by table. It runs as the setup
 login, which owns every table; the other four logins get what they need through the grants at
-the end of `upgrade`, the same split as Snowflake's (infra/terraform/main.tf, `logins`). Those
+the end of `upgrade`, the same split as Snowflake's was. Those
 four roles must exist first: the local Postgres's `init.sql` makes them, Terraform does on RDS.
 
 How Snowflake's types are written here:
@@ -36,7 +36,7 @@ SCHEMAS = ("ref", "keys", "raw", "features", "sim", "memory")
 
 TEXT = 'text COLLATE "C"'
 
-# Who reads and writes which schema (as in infra/terraform/main.tf, `logins`). Reading is
+# Who reads and writes which schema (as Snowflake's logins did). Reading is
 # SELECT on its tables; writing adds INSERT, UPDATE, DELETE and TRUNCATE. `usage_only` opens the
 # schema and no table in it: the table-by-table exceptions are in TABLE_GRANTS.
 LOGINS = {

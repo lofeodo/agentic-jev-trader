@@ -1,4 +1,4 @@
-"""A whole dataset build, with made-up providers and an in-memory stand-in for Snowflake.
+"""A whole dataset build, with made-up providers and an in-memory stand-in for the database.
 
 The range is 3 to 7 July 2023: 3 July closes early (13:00 New York time, 17:00 UTC) and
 4 July is a holiday, so the stock has four sessions: 14 + 26 + 26 + 26 = 92 bars.

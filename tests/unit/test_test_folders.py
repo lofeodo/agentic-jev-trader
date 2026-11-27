@@ -8,20 +8,13 @@ import pytest
 pytest_plugins = ["pytester"]
 
 REAL_CONFTEST = Path(__file__).parents[1] / "conftest.py"
-SNOWFLAKE_LOGIN = {
-    "SNOWFLAKE_ACCOUNT": "made-up-account",
-    "SNOWFLAKE_USER": "made-up-user",
-    "SNOWFLAKE_PRIVATE_KEY_FILE": "made-up-key.p8",
-    "SNOWFLAKE_PRIVATE_KEY_FILE_PWD": "made-up-passphrase",
-}
 
 
 @pytest.fixture
 def tree(pytester, monkeypatch):
-    for name in [*SNOWFLAKE_LOGIN, "LANGSMITH_TRACING"]:
-        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
     tests = pytester.path / "tests"
-    for folder in ["unit", "recorded", "snowflake", "paid"]:
+    for folder in ["unit", "recorded", "paid"]:
         (tests / folder).mkdir(parents=True)
     (tests / "conftest.py").write_text(REAL_CONFTEST.read_text())
     return pytester
@@ -38,28 +31,6 @@ def test_paid_tests_are_skipped_unless_asked_for_by_hand(tree):
 
     tree.runpytest_subprocess("tests").assert_outcomes(skipped=1)
     tree.runpytest_subprocess("tests", "--run-paid").assert_outcomes(passed=1)
-
-
-def test_snowflake_tests_are_skipped_without_database_credentials(tree):
-    write_test(tree, "snowflake", "def test_runs_a_query():\n    pass\n")
-
-    tree.runpytest_subprocess("tests").assert_outcomes(skipped=1)
-
-
-def test_snowflake_tests_run_when_credentials_are_in_the_environment(tree, monkeypatch):
-    for name, value in SNOWFLAKE_LOGIN.items():
-        monkeypatch.setenv(name, value)
-    write_test(tree, "snowflake", "def test_runs_a_query():\n    pass\n")
-
-    tree.runpytest_subprocess("tests").assert_outcomes(passed=1)
-
-
-def test_snowflake_tests_run_when_credentials_are_in_the_env_file(tree):
-    lines = [f"{name}={value}" for name, value in SNOWFLAKE_LOGIN.items()]
-    (tree.path / ".env").write_text("\n".join(lines) + "\n")
-    write_test(tree, "snowflake", "def test_runs_a_query():\n    pass\n")
-
-    tree.runpytest_subprocess("tests").assert_outcomes(passed=1)
 
 
 @pytest.mark.parametrize("folder", ["unit", "recorded"])

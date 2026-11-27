@@ -9,7 +9,7 @@ appendix 3). A dataset build works them out once, for every asset at every bar, 
 - **The 58 measurements** of every snapshot, and from the warm-up period's snapshots the average
   and spread of each (`REF.WARMUP_STATS`), frozen with the dataset.
 - **The feature vector** (58 standard scores) and **the situation text** of every snapshot
-  (`FEATURES.SNAPSHOTS`). The text's embedding is added in the store, by Snowflake's model.
+  (`FEATURES.SNAPSHOTS`). The text's embedding is added in the store, by the text-to-numbers model.
 
 Everything here works on the masked bars, the rescaled and rounded prices `RAW.BARS` stores, so
 a snapshot always agrees with the bars a sim reads. Patterns and measurements are ratios of

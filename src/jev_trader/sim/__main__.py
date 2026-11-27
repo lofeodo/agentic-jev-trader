@@ -27,10 +27,9 @@ if the server does not answer.
 
 Every start and resume goes through the one checker (`checker.py`): a refused sim stores
 nothing (a refused resume leaves the sim as it was), and each reason is printed with its fix.
-`--database TRADING_AGENT_TEST` uses the test database. It needs migrations V5 to V10 applied.
+`--database TRADING_AGENT_TEST` uses the test database.
 
-Logs in as the sim login (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`,
-the key `sim.p8` in `SNOWFLAKE_LOCAL_DIR`); Jev's key is `TYPESAFE_API_KEY` in `.env`. Output is
+Logs in to Postgres as the sim login (`POSTGRES_HOST` and `POSTGRES_SIM_PASSWORD` in `.env`); Jev's key is `TYPESAFE_API_KEY` in `.env`. Output is
 plain ASCII: `conda run` on Windows fails on other characters.
 """
 
@@ -68,8 +67,7 @@ from jev_trader.sim.runner import (
 from jev_trader.sim.spending import load_spending_settings
 from jev_trader.sim.store import StepAlreadyWritten
 from jev_trader.storage import LoginNotSet
-from jev_trader.storage.database import open_database
-from jev_trader.storage.snowflake import DATABASE
+from jev_trader.storage.database import DATABASE, open_database
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 # Steps stored per write. The holding sim calls nothing paid, so a redone batch costs nothing;

@@ -1,24 +1,18 @@
-"""Copies of the database on this computer, and the move from Snowflake into Postgres.
+"""Copies of the database on this computer, and the move of a Snowflake save into Postgres.
 
     conda run -n agentic-jev-trader python -m jev_trader.storage save
     conda run -n agentic-jev-trader python -m jev_trader.storage load saved-tables/<save>
     conda run -n agentic-jev-trader python -m jev_trader.storage restore saved-tables/<file>.dump
 
-`save` copies the database `DATABASE_ENGINE` in `.env` names into `saved-tables/` in the repo
+`save` copies the database `.env` points to (`POSTGRES_HOST`) into `saved-tables/` in the repo
 (git ignores the folder); `--database TRADING_AGENT_TEST` saves the test database, `--folder`
-puts the copy elsewhere.
+puts the copy elsewhere. It is Postgres's own `pg_dump`: one file,
+`<database>-<date>-<time>.dump`, that `restore` (Postgres's `pg_restore`) loads into any
+Postgres with the logins, the database and pgvector but no tables, a new RDS included
+(`storage/dump.py`). It logs in as the setup login.
 
-- On Postgres it is Postgres's own `pg_dump`: one file, `<database>-<date>-<time>.dump`, that
-  `restore` (Postgres's `pg_restore`) loads into any Postgres with the logins, the database and
-  pgvector but no tables, a new RDS included (`storage/dump.py`). It logs in as the setup login.
-- On Snowflake (until the move is done) it is one folder of Parquet files per table, and
-  `manifest.json` with each table's rows, files and column types (`storage/save.py`). It logs in
-  as the API login, the only program login that reads every table, `KEYS` included
-  (`SNOWFLAKE_ACCOUNT` and `SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`, the key `api.p8` in
-  `SNOWFLAKE_LOCAL_DIR`). It cannot read `METADATA`, schemachange's record of applied SQL files.
-  It works only while the account is active.
-
-`load` puts a Snowflake save into the empty Postgres tables, after checking that the
+`load` puts a Snowflake save (the Parquet files and `manifest.json` that `storage save` wrote
+while the tables were on Snowflake) into the empty Postgres tables, after checking that the
 text-to-numbers model on this computer gives Snowflake's numbers, then compares the loaded rows
 with the save (`storage/load.py`); `--check-only` compares without loading. It logs in as the
 setup login, on the database `.env` points to (`POSTGRES_HOST`).
@@ -34,7 +28,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from jev_trader.storage import LoginNotSet, postgres
-from jev_trader.storage.database import POSTGRES, engine
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SAVED_TABLES = REPO_ROOT / "saved-tables"
@@ -44,23 +37,7 @@ def say(line: str) -> None:
     print(line, flush=True)
 
 
-def save_snowflake(database: str, folder: Path) -> int:
-    from jev_trader.storage.save import NOT_SAVED, SnowflakeTables, save_tables
-    from jev_trader.storage.snowflake import connect
-
-    connection = connect("api", database=database)
-    try:
-        out = save_tables(
-            SnowflakeTables(connection, database), folder, datetime.now(UTC), report=say
-        )
-    finally:
-        connection.close()
-    say(f"Not saved: {NOT_SAVED}")
-    say(f"Saved to {out}")
-    return 0
-
-
-def save_postgres(database: str, folder: Path) -> int:
+def save(database: str, folder: Path) -> int:
     from jev_trader.storage import dump
 
     settings = postgres.settings("setup", database)
@@ -69,12 +46,6 @@ def save_postgres(database: str, folder: Path) -> int:
     dump.dump(settings, file)
     say(f"Saved to {file} ({file.stat().st_size / 1e6:.1f} MB)")
     return 0
-
-
-def save(database: str, folder: Path) -> int:
-    if engine() == POSTGRES:
-        return save_postgres(database, folder)
-    return save_snowflake(database, folder)
 
 
 def restore(database: str, file: Path) -> int:

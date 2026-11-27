@@ -37,8 +37,6 @@ from tests.postgres.helpers import (
     records,
 )
 
-pytestmark = pytest.mark.dormant
-
 KILLED_SIM = REPO_ROOT / "tests" / "postgres" / "killed_sim.py"
 
 

@@ -1,4 +1,4 @@
-"""Which database a program uses, and how it logs in to Postgres. Nothing here connects: a
+"""How a program logs in to Postgres, and the stores it gets. Nothing here connects: a
 Postgres connection opens on first use, and these tests never use one."""
 
 import inspect
@@ -14,24 +14,16 @@ from jev_trader.memory.store import MemoryStore
 from jev_trader.sim.market import Market
 from jev_trader.sim.postgres_store import PostgresMarket, PostgresSimStore
 from jev_trader.sim.store import SimStore
-from jev_trader.storage import LoginNotSet, NotBuiltYet, postgres
-from jev_trader.storage.database import engine, open_database, refuse_postgres_until
+from jev_trader.storage import LoginNotSet, postgres
+from jev_trader.storage.database import open_database
 
 POSTGRES_ENV = {
-    "DATABASE_ENGINE": "postgres",
     "POSTGRES_HOST": "db.example.invalid",
     **{
         postgres.password_variable(login): f"{login}-made-up"
         for login in postgres.LOGINS
     },
 }
-
-
-def test_snowflake_is_used_until_postgres_is_named():
-    assert engine({}) == "snowflake"
-    assert engine({"DATABASE_ENGINE": "Postgres "}) == "postgres"
-    with pytest.raises(LoginNotSet, match="DATABASE_ENGINE"):
-        engine({"DATABASE_ENGINE": "sqlite"})
 
 
 @pytest.mark.parametrize("login", postgres.LOGINS)
@@ -81,7 +73,7 @@ def test_a_process_reuses_one_connection_per_login_and_database():
         (lambda d: d.api_store(), PostgresApiStore, ApiStore),
     ],
 )
-def test_postgres_has_every_store_with_its_whole_interface(make, kind, interface):
+def test_the_database_has_every_store_with_its_whole_interface(make, kind, interface):
     store = make(open_database("sim", "TRADING_AGENT", env=POSTGRES_ENV))
 
     assert isinstance(store, kind)
@@ -97,9 +89,3 @@ def test_other_settings_get_their_own_connection():
     other = open_database("api", "TRADING_AGENT", env=moved)
 
     assert first.connection is not other.connection
-
-
-def test_a_program_still_on_snowflake_refuses_postgres():
-    refuse_postgres_until(279, {})
-    with pytest.raises(NotBuiltYet, match="#279"):
-        refuse_postgres_until(279, POSTGRES_ENV)

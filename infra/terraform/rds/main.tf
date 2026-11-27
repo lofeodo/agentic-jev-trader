@@ -47,7 +47,7 @@ data "aws_subnets" "default" {
 
 resource "aws_security_group" "database" {
   name        = "trading-agent-database"
-  description = "Postgres from the developer's home internet address only"
+  description = "Postgres from the developer home internet address only"
   vpc_id      = data.aws_vpc.default.id
 }
 

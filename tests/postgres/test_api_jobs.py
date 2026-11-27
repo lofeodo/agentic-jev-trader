@@ -1,9 +1,11 @@
 """Start, Stop and Resume through the API with real jobs, on the local Postgres (spec appendix
 8, section 8.14; appendix 11, section 1).
 
-A holding sim on a made-up dataset: no paid call. It stores one step per write so that it runs
-long enough to be stopped halfway. The job is a program of its own, reading its database from
-the environment, which points it at the local Postgres.
+A holding sim on a made-up dataset: no paid call. The local Postgres answers so fast that the
+job would finish before it could be stopped, so the job reaches it through a pretend far-away
+line (`wire.Line`), and stores one step per write: it runs long enough to be stopped halfway.
+The job is a program of its own, reading its database from the environment, which points it at
+the line.
 """
 
 import time
@@ -16,8 +18,10 @@ from jev_trader.api.app import create_app
 from jev_trader.jobs import LocalLauncher, builds_named, sim_job_command
 from jev_trader.sim.runner import SimRequest, create_sim, run_sim
 from tests.postgres.helpers import LOCAL_ENV, REPO_ROOT, TEST_DATABASE, records
+from tests.postgres.wire import Line
 
-pytestmark = pytest.mark.dormant
+# Each answer reaches the job this late: about a tenth of a second a step.
+JOB_LINE_DELAY = 0.02
 
 
 def wait_until(check, seconds, what):
@@ -27,11 +31,20 @@ def wait_until(check, seconds, what):
         time.sleep(1)
 
 
+@pytest.fixture
+def slow_line():
+    with Line(delay=JOB_LINE_DELAY) as line:
+        yield line
+
+
 def test_a_restarted_api_finds_and_kills_the_job_and_the_sim_resumes_to_the_same_records(
-    sim_db, api_db, setup_login, made_up_dataset, tmp_path, monkeypatch
+    sim_db, api_db, setup_login, made_up_dataset, tmp_path, monkeypatch, slow_line
 ):
     for name, value in LOCAL_ENV.items():
         monkeypatch.setenv(name, value)  # the job's database
+    monkeypatch.setenv(
+        "POSTGRES_PORT", str(slow_line.port)
+    )  # reached through the slow line
     monkeypatch.setenv("PYTHONPATH", str(REPO_ROOT / "src"))  # this checkout's code
     store, market = sim_db.sim_store(), sim_db.market()
     dataset_id = made_up_dataset(days=2)  # day 2, steps 97 to 192, is the sim

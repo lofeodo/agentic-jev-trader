@@ -14,7 +14,7 @@ when first used, not when made, so a server starts and answers its health addres
 database is reached, and a missing setting still fails at once.
 
 Statements use `%s` placeholders. Each statement commits on its own (autocommit, as Snowflake's
-connector does); a store that writes several statements all or nothing opens a transaction
+connector did); a store that writes several statements all or nothing opens a transaction
 itself (`with connection.transaction(): ...`), which waits for the database's answer to its
 start, each statement and its end. To send them all in one round trip, a store writes them in
 `with connection.transaction_in_one_trip() as cursor: ...`: `BEGIN`, the statements and
@@ -30,7 +30,7 @@ statements would land in it. So `transaction()` holds the connection for its who
 a thread outside one waits for the block to end before its own statement runs.
 
 The database names are the Snowflake ones in lower case (`trading_agent`,
-`trading_agent_test`), so `--database TRADING_AGENT_TEST` names the test database on either.
+`trading_agent_test`), so `--database TRADING_AGENT_TEST` still names the test database.
 """
 
 import os
