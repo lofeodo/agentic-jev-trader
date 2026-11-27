@@ -14,7 +14,9 @@ Postgres with the logins, the database and pgvector but no tables, a new RDS inc
 `load` puts a Snowflake save (the Parquet files and `manifest.json` that `storage save` wrote
 while the tables were on Snowflake) into the empty Postgres tables, after checking that the
 text-to-numbers model on this computer gives Snowflake's numbers, then compares the loaded rows
-with the save (`storage/load.py`); `--check-only` compares without loading. It logs in as the
+with the save (`storage/load.py`); `--check-only` compares without loading. It commits a chunk
+of rows at a time; a dropped connection is tried again and carries on where it stopped, and
+`--resume` carries on a load that stopped part-way. It logs in as the
 setup login, on the database `.env` points to (`POSTGRES_HOST`).
 
 Output is plain ASCII: `conda run` on Windows fails on other characters.
@@ -59,40 +61,88 @@ def restore(database: str, file: Path) -> int:
     return 0
 
 
-def load(database: str, folder: Path, check_only: bool) -> int:
+# A dropped connection mid-load is tried again this many times, carrying on where it stopped.
+LOAD_TRIES = 5
+# Asks the database every 30 s whether a quiet connection is still there, so a line dropped
+# on the way is noticed rather than waited on.
+KEEPALIVES = {
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 5,
+}
+
+
+def _load_with_retries(settings: dict, folder: Path, resume: bool) -> None:
+    """The load, on a fresh connection after each dropped one, carrying on where it stopped."""
+    import psycopg
+
+    from jev_trader.storage import load as loading
+
+    for attempt in range(1, LOAD_TRIES + 1):
+        try:
+            with psycopg.connect(**settings, **KEEPALIVES, autocommit=True) as again:
+                loading.load_save(again, folder, report=say, resume=resume)
+            return
+        except psycopg.OperationalError as dropped:
+            if attempt == LOAD_TRIES:
+                raise
+            say(
+                f"The connection dropped ({str(dropped).splitlines()[0]}); carrying on."
+            )
+            resume = True
+
+
+def _ready_to_load(connection, folder: Path, resume: bool) -> bool:
+    """The tables can take the save and the local model gives Snowflake's numbers; otherwise
+    says why not."""
+    from jev_trader.dataset import text_to_numbers
+    from jev_trader.storage import load as loading
+
+    tables = loading.read_manifest(folder)
+    try:
+        loading.check_ready(connection, tables, resume)
+    except loading.LoadRefused as refused:
+        say(str(refused))
+        return False
+    episodes = loading.model_check_episodes(folder, tables)
+    if not episodes:
+        say("The save holds no snapshots, so no saved numbers to check.")
+    else:
+        say(f"Text-to-numbers check on {len(episodes)} saved episodes...")
+    similarities = loading.model_check(episodes, text_to_numbers.embed)
+    if similarities:
+        say("Similarities: " + ", ".join(f"{s:.6f}" for s in similarities))
+    if any(s < loading.LEAST_SIMILARITY for s in similarities):
+        say(
+            "The local model's numbers differ from Snowflake's (below "
+            f"{loading.LEAST_SIMILARITY}): nothing loaded. Stop and ask the developer."
+        )
+        return False
+    return True
+
+
+def load(database: str, folder: Path, check_only: bool, resume: bool = False) -> int:
     import psycopg
 
     from jev_trader.storage import load as loading
 
     settings = postgres.settings("setup", database)
     where = f"{settings['dbname']} on {settings['host']}"
-    with psycopg.connect(**settings, autocommit=True) as connection:
-        if not check_only:
-            from jev_trader.dataset import text_to_numbers
-
-            tables = loading.read_manifest(folder)
-            try:
-                loading.check_ready(connection, tables)
-            except loading.LoadRefused as refused:
-                say(str(refused))
+    if not check_only:
+        # Each step on a connection of its own: a line dropped during the long load takes
+        # none of the others with it.
+        with psycopg.connect(**settings, **KEEPALIVES, autocommit=True) as connection:
+            if not _ready_to_load(connection, folder, resume):
                 return 1
-            episodes = loading.model_check_episodes(folder, tables)
-            if not episodes:
-                say("The save holds no snapshots, so no saved numbers to check.")
-            else:
-                say(f"Text-to-numbers check on {len(episodes)} saved episodes...")
-            similarities = loading.model_check(episodes, text_to_numbers.embed)
-            if similarities:
-                say("Similarities: " + ", ".join(f"{s:.6f}" for s in similarities))
-            if any(s < loading.LEAST_SIMILARITY for s in similarities):
-                say(
-                    "The local model's numbers differ from Snowflake's (below "
-                    f"{loading.LEAST_SIMILARITY}): nothing loaded. Stop and ask the developer."
-                )
-                return 1
-            say(f"Loading {folder} into {where}...")
-            loading.load_save(connection, folder, report=say)
-        say(f"Comparing {where} with {folder}...")
+        say(f"Loading {folder} into {where}...")
+        try:
+            _load_with_retries(settings, folder, resume)
+        except loading.LoadRefused as refused:
+            say(str(refused))
+            return 1
+    say(f"Comparing {where} with {folder}...")
+    with psycopg.connect(**settings, **KEEPALIVES, autocommit=True) as connection:
         problems = loading.check_load(connection, folder, report=say)
     for problem in problems:
         say(f"Differs: {problem}")
@@ -116,6 +166,11 @@ def main(argv: list[str] | None = None) -> int:
     move.add_argument("save", type=Path, help="the save's folder, with manifest.json")
     move.add_argument("--database", default=DATABASE)
     move.add_argument("--check-only", action="store_true")
+    move.add_argument(
+        "--resume",
+        action="store_true",
+        help="carry on a load that stopped part-way (tables may hold its first rows)",
+    )
     back = commands.add_parser(
         "restore", help="load a pg_dump file into an empty Postgres"
     )
@@ -127,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "save":
             return save(args.database, args.folder)
         if args.command == "load":
-            return load(args.database, args.save, args.check_only)
+            return load(args.database, args.save, args.check_only, args.resume)
         return restore(args.database, args.file)
     except LoginNotSet as missing:
         say(str(missing))

@@ -13,8 +13,14 @@ numbers are, from -1 to 1: 1 is the same list, give or take its length), the tol
 the developer.
 
 **How the files go in.** Each table's files are read with pyarrow, a batch at a time, and sent
-with Postgres's `COPY ... FROM STDIN` (rows streamed in, far faster than one `INSERT` each), all
-tables in one transaction: a load that fails leaves the tables empty. The values need little
+with Postgres's `COPY ... FROM STDIN` (rows streamed in, far faster than one `INSERT` each).
+The snapshots are gigabytes of text, a long upload over a home connection to RDS, and a
+connection dropped that long into one transaction lost everything (the first load into RDS
+did). So each table goes in `CHUNK_ROWS` rows at a time, each chunk committed on its own, and a
+load that stops part-way carries on where it stopped (`resume`): a table's rows go in the
+save's own order, so the rows already there are the save's first ones, and the load skips that
+many. A vector's numbers go as the shortest text that gives back the same 4-byte number
+(`_short_vector`), about half the size of Snowflake's. The values need little
 work: Snowflake's whole numbers (`NUMBER(38,0)`, saved as decimals) become Python integers; its
 times without a time zone (`TIMESTAMP_NTZ`), which Parquet marks as UTC, keep their clock time
 and lose the mark; its `VARIANT`, `ARRAY` and `VECTOR` columns, saved as JSON text, go in as that
@@ -40,6 +46,8 @@ from pathlib import Path
 LEAST_SIMILARITY = 0.999
 MODEL_CHECK_EPISODES = 5
 BATCH_ROWS = 2_000
+# Rows committed together while loading: a dropped connection loses at most this many.
+CHUNK_ROWS = 10_000
 SNAPSHOTS = ("FEATURES", "SNAPSHOTS")
 # The tables whose rows are read back and compared, and how many of each (None: all).
 SPOT_CHECKS = {
@@ -101,6 +109,15 @@ def read_manifest(folder: Path) -> list[SavedTable]:
     ]
 
 
+def _short_vector(text: str) -> str:
+    """A saved vector's JSON text, each number written with the 9 significant digits that give
+    back the same 4-byte number pgvector keeps (Snowflake wrote 16)."""
+    import numpy as np
+
+    numbers = np.asarray(json.loads(text), dtype=np.float32).tolist()
+    return "[" + ",".join(f"{n:.9g}" for n in numbers) + "]"
+
+
 def _as_postgres(column):
     """A Parquet column as the values Postgres takes: decimals as whole numbers, times with
     their UTC mark dropped (the clock time stays)."""
@@ -115,16 +132,41 @@ def _as_postgres(column):
 
 
 def saved_rows(
-    folder: Path, table: SavedTable, files: tuple[str, ...] | None = None
+    folder: Path,
+    table: SavedTable,
+    files: tuple[str, ...] | None = None,
+    skip: int = 0,
+    short_vectors: bool = False,
 ) -> Iterator[list[tuple]]:
-    """The table's saved rows, a batch at a time, each a tuple in the manifest's column order."""
+    """The table's saved rows, a batch at a time, each a tuple in the manifest's column order,
+    from row `skip` on (whole files before it are not read). `short_vectors` writes vectors as
+    `_short_vector` does, for sending."""
     import pyarrow.parquet as pq
 
     names = table.column_names
+    vectors = [
+        i
+        for i, name in enumerate(names)
+        if table.column_types[name].startswith("VECTOR")
+    ]
     for file in table.files if files is None else files:
         parquet = pq.ParquetFile(table.folder(folder) / file)
+        if skip >= parquet.metadata.num_rows:
+            skip -= parquet.metadata.num_rows
+            continue
         for batch in parquet.iter_batches(batch_size=BATCH_ROWS, columns=names):
-            columns = [_as_postgres(batch.column(name)).to_pylist() for name in names]
+            if skip >= batch.num_rows:
+                skip -= batch.num_rows
+                continue
+            columns = [
+                _as_postgres(batch.column(name)).to_pylist()[skip:] for name in names
+            ]
+            skip = 0
+            if short_vectors:
+                for i in vectors:
+                    columns[i] = [
+                        None if v is None else _short_vector(v) for v in columns[i]
+                    ]
             yield list(zip(*columns))
 
 
@@ -245,32 +287,56 @@ def _refuse_rows(connection, tables: list[SavedTable]) -> None:
         )
 
 
-def check_ready(connection, tables: list[SavedTable]) -> None:
+def _row_counts(connection, tables: list[SavedTable]) -> dict[str, int]:
+    with connection.cursor() as cursor:
+        counts = {}
+        for table in tables:
+            cursor.execute(f"SELECT COUNT(*) FROM {table.postgres_name}")
+            counts[table.postgres_name] = cursor.fetchone()[0]
+    return counts
+
+
+def check_ready(
+    connection, tables: list[SavedTable], resume: bool = False
+) -> dict[str, int]:
     """LoadRefused unless `connection`'s tables are the save's, with the same columns, and
-    empty."""
+    empty; with `resume`, holding at most the save's rows (a load stopped part-way). Returns
+    each table's rows already in."""
     _check_tables_match(connection, tables)
-    _refuse_rows(connection, tables)
+    if not resume:
+        _refuse_rows(connection, tables)
+    counts = _row_counts(connection, tables)
+    over = [
+        f"{t.postgres_name} ({counts[t.postgres_name]} rows, the save {t.rows})"
+        for t in tables
+        if counts[t.postgres_name] > t.rows
+    ]
+    if over:
+        raise LoadRefused(
+            "These tables hold more rows than the save, so they hold something else and "
+            "the load cannot carry on: " + ", ".join(over)
+        )
+    return counts
 
 
 def load_save(
-    connection, folder: Path, report: Callable[[str], None] = lambda line: None
+    connection,
+    folder: Path,
+    report: Callable[[str], None] = lambda line: None,
+    resume: bool = False,
 ) -> list[SavedTable]:
-    """Load every table of the save in `folder` into the empty tables of `connection` (a psycopg
-    connection as the setup login), in one transaction. Returns the tables loaded."""
+    """Load every table of the save in `folder` into the tables of `connection` (a psycopg
+    connection as the setup login), `CHUNK_ROWS` rows per transaction. The tables must be
+    empty; with `resume`, a load that stopped part-way carries on from the rows already in.
+    Returns the tables loaded."""
     tables = read_manifest(folder)
-    check_ready(connection, tables)
+    counts = check_ready(connection, tables, resume)
+    for table in tables:
+        already = counts[table.postgres_name]
+        if already < table.rows:
+            _copy_in_chunks(connection, folder, table, already, report)
+        report(f"{table.postgres_name}: {table.rows} rows")
     with connection.transaction(), connection.cursor() as cursor:
-        for table in tables:
-            copied = 0
-            statement = (
-                f"COPY {table.postgres_name} ({table.postgres_columns}) FROM STDIN"
-            )
-            with cursor.copy(statement) as copy:
-                for batch in saved_rows(folder, table):
-                    for row in batch:
-                        copy.write_row(row)
-                    copied += len(batch)
-            report(f"{table.postgres_name}: {copied} rows")
         for sequence, column in SEQUENCES.items():
             table, _, name = column.rpartition(".")
             # The next ID is one past the highest loaded; 1 for a table loaded empty.
@@ -282,6 +348,34 @@ def load_save(
         # Fresh statistics, so Postgres plans its reads of the new rows well.
         cursor.execute("ANALYZE")
     return tables
+
+
+def _copy_in_chunks(
+    connection, folder: Path, table: SavedTable, already: int, report
+) -> None:
+    """The table's saved rows from row `already` on, `CHUNK_ROWS` per committed `COPY`."""
+    statement = f"COPY {table.postgres_name} ({table.postgres_columns}) FROM STDIN"
+    pending: list[tuple] = []
+    copied = already
+    for batch in saved_rows(folder, table, skip=already, short_vectors=True):
+        pending += batch
+        while len(pending) >= CHUNK_ROWS:
+            chunk, pending = pending[:CHUNK_ROWS], pending[CHUNK_ROWS:]
+            _copy_chunk(connection, statement, chunk)
+            copied += len(chunk)
+            report(f"{table.postgres_name}: {copied} of {table.rows} rows")
+    if pending:
+        _copy_chunk(connection, statement, pending)
+
+
+def _copy_chunk(connection, statement: str, chunk: list[tuple]) -> None:
+    with (
+        connection.transaction(),
+        connection.cursor() as cursor,
+        cursor.copy(statement) as copy,
+    ):
+        for row in chunk:
+            copy.write_row(row)
 
 
 # --- Checking a load -------------------------------------------------------------------------
