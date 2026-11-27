@@ -90,13 +90,6 @@ def test_postgres_has_every_store_with_its_whole_interface(make, kind, interface
             assert inspect.signature(getattr(kind, name)) == inspect.signature(method)
 
 
-def test_an_unbuilt_read_names_the_ticket_that_builds_it():
-    store = open_database("memory", "TRADING_AGENT", env=POSTGRES_ENV).memory_store()
-
-    with pytest.raises(NotBuiltYet, match="#279"):
-        store.sim(1)
-
-
 def test_other_settings_get_their_own_connection():
     moved = {**POSTGRES_ENV, "POSTGRES_HOST": "elsewhere.example.invalid"}
 

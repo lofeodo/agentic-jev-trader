@@ -3,12 +3,13 @@
 
 Memory is a sim's own copy of `MEMORY.DECISIONS` and `MEMORY.OUTCOMES` (rows whose `SIM` is the
 sim), read beside the dataset's snapshots (`FEATURES`, `REF`) and the sim's settings
-(`SIM.SIMS`). The Snowflake version is `snowflake_store.SnowflakeMemoryStore`, logged in with the
-memory server's own role, which can only read; `InMemoryMemoryStore` is the stand-in the tests
+(`SIM.SIMS`). The Snowflake version is `snowflake_store.SnowflakeMemoryStore` and the Postgres one
+`postgres_store.PostgresMemoryStore`, each logged in with the memory server's own role, which can
+only read; `InMemoryMemoryStore` is the stand-in the tests
 use, with made-up embeddings.
 
 **The rule.** Every read takes the current step and returns only what was known by then. Each
-store holds the episode rule once (`_visible`, `_VISIBLE` in Snowflake) and every read of
+store holds the episode rule once (`_visible`, `_VISIBLE` in the database versions) and every read of
 episodes goes through it (the search, reading in full, the track record's closed trades): an
 episode (a full evaluation or position review) of this sim's memory, decided before now, whose
 outcomes were all known by now (`OUTCOMES_KNOWN_FROM`). A traded full evaluation is complete
