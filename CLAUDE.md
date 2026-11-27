@@ -61,29 +61,54 @@ conda run -n agentic-jev-trader python -m ruff check .
 conda run -n agentic-jev-trader python -m ruff format --check .
 ```
 
+The database tests (`tests/postgres`, spec appendix 11, section 1) check that the stores read and write real tables. They run against a Postgres on this computer, in Docker (a throwaway copy of the database program, with `pgvector`, the add-on that compares lists of numbers for memory search; at `127.0.0.1:5433`, its passwords the `local-<login>` ones in `tests/postgres/helpers.py`), never RDS, so they cost nothing; CI runs them the same way. Docker Desktop must be running. Start it, run them, stop it (stopping throws its tables away; the tests make them again with Alembic). `--run-model` adds the text-to-numbers check (downloads the model once, free, about 2 GB):
+
+```
+docker compose -f infra/local-postgres/compose.yaml up --detach --wait
+conda run -n agentic-jev-trader python -m pytest tests/postgres
+docker compose -f infra/local-postgres/compose.yaml down
+```
+
+Alembic is the tool that makes the Postgres tables and later changes them, one numbered file per change in `infra/alembic/versions/` (settings in `alembic.ini`), each applied once, in order. It logs in as the setup login, on the database `.env` points to (`POSTGRES_HOST`): on RDS this changes the developer's database, so ask first. `-x database=TRADING_AGENT_TEST` picks the test database:
+
+```
+conda run -n agentic-jev-trader python -m alembic -x database=TRADING_AGENT_TEST upgrade head
+```
+
+The Postgres database on AWS RDS (`infra/rds.py`; `infra/README.md`, section Postgres on AWS RDS, explains each command). It is billed by the hour while on (about 2.3 cents an hour: 1.8 for the database, about $13 a month if left on, and 0.5 for its internet address) and for its disk even while stopped (about $2.50 a month). AWS is reached with the AWS CLI's login on this computer: when a command says it has run out, ask me to run `aws sso login`. `status` and `plan` are free; the rest cost money or change the AWS account, so ask first, each time, saying what it does and where. `apply` makes or updates the database and what is inside it (the five logins, the two databases, and pgvector, the add-on that compares memory's lists of numbers); a stopped database must be started first. `stop` it at the end of every session that started it. `snapshot-and-delete` (before a pause of more than a few days: AWS starts a stopped database again by itself after 7 days) keeps it as a snapshot, a saved copy of its disk at cents a month, and deletes it; `restore` brings it back from that copy in about 10 to 15 minutes, at the same address:
+
+```
+conda run -n agentic-jev-trader python infra/rds.py status
+conda run -n agentic-jev-trader python infra/rds.py plan
+conda run -n agentic-jev-trader python infra/rds.py apply -auto-approve
+conda run -n agentic-jev-trader python infra/rds.py start
+conda run -n agentic-jev-trader python infra/rds.py stop
+conda run -n agentic-jev-trader python infra/rds.py snapshot-and-delete
+conda run -n agentic-jev-trader python infra/rds.py restore
+```
+
 Hand-run groups (spec appendix 10, section 6):
 
-- `tests/snowflake`: real queries against `TRADING_AGENT_TEST`. Skipped unless the `SNOWFLAKE_*` login in `.env.example` is set. `conda run -n agentic-jev-trader python -m pytest tests/snowflake`
 - `tests/paid`: real LLM or Jev calls. Skipped unless `--run-paid` is given. They cost money: run only with my go-ahead. `conda run -n agentic-jev-trader python -m pytest tests/paid --run-paid`
 
 - Saving fresh answers for `tests/recorded` (spec appendix 10, section 7): real LLM and Jev calls, keys read from `.env`. They cost money: run only with my go-ahead. `--record-mode=once` records only the tests whose file under `cassettes/` is missing, so delete the files (cassettes) to be re-recorded first. `conda run -n agentic-jev-trader python -m pytest tests/recorded --record-mode=once` Then rewrite the expected results (below) and check each re-recorded scenario still takes the path it names. `test_hand_written_answers.py` hands back three recorded scenarios' answers (`answers_at_once_after_hammers_seen_before`, `looks_further_in_a_busy_memory`, `review_ends_in_close`) with the deciding answer written by hand, for the paths the real models would not take on demand: re-recording those three changes its scenarios too.
 
 - Rewriting the recorded-answer scenarios' expected results (kept with `syrupy` in `tests/recorded/__snapshots__/`) after a deliberate change, or after fresh answers are saved. Free: it calls nothing. Read the difference before committing it. `conda run -n agentic-jev-trader python -m pytest tests/recorded --block-network --snapshot-update`
 
-Build a dataset from its settings file in `datasets/` (downloads are free; it writes to Snowflake as the builder login, so ask before running it; `--database TRADING_AGENT_TEST` builds into the test database, `--no-check` publishes past the two limits):
+Build a dataset from its settings file in `datasets/` (downloads are free; it writes to the database as the builder login, so ask before running it; `--database TRADING_AGENT_TEST` builds into the test database, `--no-check` publishes past the two limits):
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.dataset build datasets/first.toml
 ```
 
-Start a sim on a published dataset, or resume one from its last completed step (logs in as the sim login and writes to Snowflake; `start` is for `buy_hold`; `--market "falling market"` runs one test period, `--database TRADING_AGENT_TEST` the test database):
+Start a sim on a published dataset, or resume one from its last completed step (logs in as the sim login and writes to the database; `start` is for `buy_hold`; `--market "falling market"` runs one test period, `--database TRADING_AGENT_TEST` the test database):
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.sim start --dataset 1 --variant buy_hold
 conda run -n agentic-jev-trader python -m jev_trader.sim resume 12
 ```
 
-Run a practice sim of the agent without memory: at most one replayed day and 25 cents (`--spending-cap 0.40` raises the cap for that one sim). It calls Jev, so it costs money: run it only with my go-ahead. It needs `infra/migrations/V5__jev_requests_and_decisions.sql`, `V6__full_evaluation_columns.sql`, `V7__position_review_columns.sql`, `V8__episode_outcomes.sql`, `V9__llm_selection.sql` and `V10__llm_prompts_and_fit_question.sql` applied (every sim writes the columns V9 and V10 add):
+Run a practice sim of the agent without memory: at most one replayed day and 25 cents (`--spending-cap 0.40` raises the cap for that one sim). It calls Jev, so it costs money: run it only with my go-ahead:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.sim practice --dataset 1
@@ -93,7 +118,7 @@ Every sim prints a timing line per step and, at the end of a run, their average:
 
 `--memory-from <sim>` makes it a practice sim of the agent with memory, starting from a copy of the records (past decisions and how they turned out) that a finished sim left behind. This is for the rehearsal: three one-day practice sims before the year-long build-up sim, where the second and third start from the records the first left. Without `--memory-from`, a sim with memory starts from the base memory: the records of the latest finished build-up sim, the one-year sim that only fills memory. The checker refuses a memory holding anything recorded at or after the sim's first step, so the agent never remembers its own future. A sim with memory also calls the LLM (Claude Haiku by default, its key `ANTHROPIC_API_KEY` in `.env`; the checker refuses the sim without it), so it costs more than one without: run it only with my go-ahead. It reads memory through the memory server, which must be running on the same database first, in its own terminal (`python -m jev_trader.memory serve`, below); without it the sim is refused before it is created. Only practice sims of the agent, with or without memory, are built so far.
 
-Start the API (logs in as the API login, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173. The API reads everything; its only writes are a sim's row in `SIM.SIMS` (start, Stop, Resume) and a dataset's row in `REF.DATASETS` (build, Stop). Starting or resuming a sim of the agent starts a job that calls Jev (and, with memory, the LLM, through the memory server, which must be running), so it costs money: ask first. The New trading sim form (`#/sims/new`) starts measurement, build-up and free sims; `GET /sims/check`, which it asks on each change, is free and stores nothing. Unlike the command line, a start from the app is let past the checker's "not built yet" refusal for kinds other than practice: its sims really run and call Jev (and, with memory, the LLM) up to their caps. The first start on a stretch of days also starts the sim holding the five assets over them, which calls nothing paid. A build from the Datasets screen runs `python -m jev_trader.dataset build` as the builder login, writing to Snowflake: ask first, as for the command. `JOB_LAUNCHER` in `.env` picks how jobs start: `local` (the default) runs each as a program here, each sim job printing to `logs/sims/sim-<id>.log`, each build to `logs/datasets/dataset-<id>.log` beside its settings file; `kubernetes` runs each as a Job in the kind cluster (`infra/README.md`), its output read with `kubectl logs job/<name> -n jev-trader`:
+Start the API (logs in as the API login, answers this computer only) and the web app, each in its own terminal, then open http://127.0.0.1:5173. The API reads everything; its only writes are a sim's row in `SIM.SIMS` (start, Stop, Resume) and a dataset's row in `REF.DATASETS` (build, Stop). Starting or resuming a sim of the agent starts a job that calls Jev (and, with memory, the LLM, through the memory server, which must be running), so it costs money: ask first. The New trading sim form (`#/sims/new`) starts measurement, build-up and free sims; `GET /sims/check`, which it asks on each change, is free and stores nothing. Unlike the command line, a start from the app is let past the checker's "not built yet" refusal for kinds other than practice: its sims really run and call Jev (and, with memory, the LLM) up to their caps. The first start on a stretch of days also starts the sim holding the five assets over them, which calls nothing paid. A build from the Datasets screen runs `python -m jev_trader.dataset build` as the builder login, writing to the database: ask first, as for the command. `JOB_LAUNCHER` in `.env` picks how jobs start: `local` (the default) runs each as a program here, each sim job printing to `logs/sims/sim-<id>.log`, each build to `logs/datasets/dataset-<id>.log` beside its settings file; `kubernetes` runs each as a Job in the kind cluster (`infra/README.md`), its output read with `kubectl logs job/<name> -n jev-trader`:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.api serve
@@ -107,10 +132,17 @@ conda run -n agentic-jev-trader python -m jev_trader.api describe web/openapi.js
 npm run types --prefix web
 ```
 
-Save a copy of every table on this computer, so the results survive the Snowflake trial ending about 2026-12-12 (spec appendix 10, section 15). The copy is Parquet files (a common file format for tables) in `saved-tables/` (gitignored), one dated folder per save, with a `manifest.json` listing each table's rows and column types for loading it into a new account later. It logs in as the API login and only reads; run it while no sim or build is writing. The real database is several GB and takes a while; `--database TRADING_AGENT_TEST` saves the test database:
+Save a copy of every table on this computer, in `saved-tables/` (gitignored); run it while no sim or build is writing. It is Postgres's own `pg_dump`: one file, `<database>-<date>-<time>.dump`, read as the setup login, that `restore` (Postgres's `pg_restore`) loads into any Postgres with the logins, the database and pgvector but no tables yet, a new RDS included. Both run from the local Postgres's Docker image, so Docker Desktop must be running. `--database TRADING_AGENT_TEST` saves the test database. A restore writes into the database `.env` points to: on RDS, ask first:
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.storage save
+conda run -n agentic-jev-trader python -m jev_trader.storage restore saved-tables/trading_agent-20261212-090000.dump
+```
+
+Move the last Snowflake save (Parquet files, a common file format for tables, with a `manifest.json` listing each table's rows and column types, taken before the Snowflake code was removed) into Postgres (spec appendix 11, section 2), once, into the empty tables Alembic made: it first checks that the text-to-numbers model on this computer gives the numbers Snowflake saved (stops, loading nothing, if it does not: ask me), loads every table in one go (all or nothing), then counts each table's rows against the manifest and compares every sim and a spread of episodes value by value. It logs in as the setup login, on the database `.env` points to: on RDS it costs money and writes the real database, so ask first. `--check-only` compares without loading (free):
+
+```
+conda run -n agentic-jev-trader python -m jev_trader.storage load saved-tables/TRADING_AGENT-20261126-215918
 ```
 
 Start the memory MCP server, the agent's only MCP server (three read-only lookups at `/mcp`, its health at `/health`). It logs in as the memory login, whose role can only read, and takes its host, port and allowed host names from `config/memory_server.toml`; `--database TRADING_AGENT_TEST` serves the test database:
@@ -125,7 +157,7 @@ Check the episode search's values (spec appendix 9, section 7), once, after the 
 conda run -n agentic-jev-trader python -m jev_trader.memory check-search --sim 12
 ```
 
-Run the LLM benchmark (spec appendix 9, section 8), once, after the build-up sim and the search check: both LLMs get the same 50 moments the build-up sim saved (25 full evaluations, 25 position reviews), three times each, with nothing traded and Jev not asked. A model whose attempts go wrong more than 10 times in 100 is left out of the measurement sims. It calls the LLMs, so it costs money (about $0.75 to $1.20, and it stops itself at `benchmark_cap_usd` in `config/spending.toml`, $1.50): run it only with my go-ahead. It needs the memory server running on the same database first, logs in as the sim login and writes each call to `SIM.CALLS` (purpose "benchmark", no sim), each attempt's exchange to `logs/benchmark/<run>/` (gitignored), and the report to `docs/llm-benchmark.md`, to commit. `--model glm-5.3-flash` re-runs one changed model alone (about 20 cents; its report goes to `docs/llm-benchmark-glm-5.3-flash.md`, leaving the two-model page as it was), `--database TRADING_AGENT_TEST` uses the test database. `--made-up` runs on made-up moments with fake answers instead: free, no Snowflake, no memory server, no model (pass `--report` a file in the gitignored `logs/` so the real report is not overwritten):
+Run the LLM benchmark (spec appendix 9, section 8), once, after the build-up sim and the search check: both LLMs get the same 50 moments the build-up sim saved (25 full evaluations, 25 position reviews), three times each, with nothing traded and Jev not asked. A model whose attempts go wrong more than 10 times in 100 is left out of the measurement sims. It calls the LLMs, so it costs money (about $0.75 to $1.20, and it stops itself at `benchmark_cap_usd` in `config/spending.toml`, $1.50): run it only with my go-ahead. It needs the memory server running on the same database first, logs in as the sim login and writes each call to `SIM.CALLS` (purpose "benchmark", no sim), each attempt's exchange to `logs/benchmark/<run>/` (gitignored), and the report to `docs/llm-benchmark.md`, to commit. `--model glm-5.3-flash` re-runs one changed model alone (about 20 cents; its report goes to `docs/llm-benchmark-glm-5.3-flash.md`, leaving the two-model page as it was), `--database TRADING_AGENT_TEST` uses the test database. `--made-up` runs on made-up moments with fake answers instead: free, no database, no memory server, no model (pass `--report` a file in the gitignored `logs/` so the real report is not overwritten):
 
 ```
 conda run -n agentic-jev-trader python -m jev_trader.benchmark --sim 12
@@ -164,9 +196,11 @@ Gotchas:
 
 - `requirements.txt` installs this package with `-e .`, so `python -m jev_trader...` works. An install run from a git worktree points the shared conda env at that worktree: rerun the install from the main checkout once the worktree is gone. In a worktree, tests need nothing (pytest adds `src` itself), but `python -m jev_trader...` runs the main checkout's code unless `PYTHONPATH` points at the worktree's `src` (in bash: `PYTHONPATH="$(pwd)/src" conda run ...`).
 - The kind cluster runs the images of one commit. After a new commit, rebuild (`infra/images.py build`) and deploy again: the services restart on the new images. A sim Job runs the API's image, not this checkout. After changing a key in `.env`, deploy with `apply -auto-approve -var=secrets_revision=2` (one more than the last), or Terraform does not send the new value. In a worktree, `infra/deploy.py` finds no `.env`: load the main checkout's first, as below.
-- `.env` is gitignored, so it lives only in the main checkout: a git worktree has none. There, `tests/snowflake` skips with "Snowflake login not set" (the login is set; the worktree just can't see it), and anything else that reads `.env` finds nothing. Load the main checkout's `.env` into the environment first, never copy it: a short Python script that calls `dotenv.load_dotenv("<main checkout>/.env")` and then `pytest.main([...])`, run from the worktree.
+- `.env` is gitignored, so it lives only in the main checkout: a git worktree has none. There, anything that reads `.env` finds nothing. Load the main checkout's `.env` into the environment first, never copy it: a short Python script that calls `dotenv.load_dotenv("<main checkout>/.env")` and then `pytest.main([...])`, run from the worktree.
 - A sim job started by the API runs the code of the checkout the API runs from, whichever copy is installed.
 - `tests/conftest.py` holds the folder rules. Tests in `unit` and `recorded` get pytest-recording's `block_network` marker, so they cannot reach the network even without `--block-network`. LangSmith tracing is set off for every test.
+- Every program opens the database through `jev_trader.storage.database.open_database`, which hands out its stores; a process keeps one connection per login and database (`storage/postgres.py`). The setup login's one-off tools (Alembic, `storage load`) open their own connection.
+- `requirements.txt` installs PyTorch for the text-to-numbers model (`dataset/text_to_numbers.py`): on Windows the NVIDIA build, about 3 GB, from PyTorch's own download site; elsewhere (CI, the Docker image) the smaller processor-only build. The model's own files (about 440 MB) download once, on the first `embed` call, into Hugging Face's cache (`~/.cache/huggingface`).
 - `conda run` cannot take a multi-line `python -c` script. Write the script to a file instead.
 - Every refusal before a sim starts or resumes comes from `src/jev_trader/sim/checker.py`; add a new one there, not in the command or the API. `run_sim` keeps its own guards for carrying a sim on (finished, cap already reached, changed wording of Jev's reading or the LLM's prompt), the sim command the two that need a live service (Jev's key works, the memory server answers), and `api/sim_jobs.py` the checks only the API makes (command-line-only kinds, days, a resume's new cap). A start from the app is let past the checker's "not built yet" refusal (`unbuilt_allowed`); the command line is not. So a measurement, build-up or free sim started from the app really runs and calls Jev (and, with memory, the LLM), up to its cap. The money settings (ceiling, caps, estimate figures) live in `config/spending.toml`.
 
@@ -184,9 +218,9 @@ A change to what a model is sent updates its page in the same pull request, so p
 
 The pages share one made-up story and one way of writing a past episode: a change to how an episode is written updates both.
 
-## Snowflake setup
+## Database setup
 
-`infra/README.md` holds the commands (Terraform, the numbered SQL files, the live check). `terraform apply` changes the developer's account: ask before each one. Private keys and Terraform's state live outside the repo, in `SNOWFLAKE_LOCAL_DIR`.
+`infra/README.md` holds the setup: RDS (`infra/rds.py`), the tables (Alembic), the local Postgres and the kind cluster. Each `apply` changes the developer's AWS account or cluster: ask before each one. Terraform's state lives outside the repo, in `~/.agentic-jev-trader/rds` and `~/.agentic-jev-trader/kubernetes`. Snowflake's setup was removed with the move to Postgres (ADR 0018); it is in git history.
 
 Gotcha: `conda run` on Windows crashes when a program prints characters outside the old Windows code page, so scripts run through it print plain ASCII.
 

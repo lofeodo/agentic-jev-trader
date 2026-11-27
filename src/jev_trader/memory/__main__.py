@@ -9,14 +9,13 @@ more often than random ones did. It calls no model. `--shape-share` and `--bar-d
 several values to try instead of the sim's own; `--after` picks when the price is read (`1_bar`,
 `4_bars`, `end_of_day`); `--sample 2000` checks only that many records, for a quicker answer.
 
-It logs in to Snowflake as the memory login (`SNOWFLAKE_ACCOUNT` and
-`SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`, the key `memory.p8` in `SNOWFLAKE_LOCAL_DIR`), whose
-role can only read, and serves its three tools at `/mcp` and its health at `/health`, on the
-host, port and host names in `config/memory_server.toml`. `--database TRADING_AGENT_TEST` serves
-the test database. `--in-cluster` is for its pod in the kind cluster: it listens on every
-address of its container, so the cluster's other pods reach it as `memory`. It logs in to
-Snowflake on the first lookup, not at start. Output is plain ASCII: `conda run` on Windows fails
-on other characters.
+Both log in to Postgres as the memory login, whose role can only read (`POSTGRES_HOST` and
+`POSTGRES_MEMORY_PASSWORD` in `.env`). `serve` serves its three tools at `/mcp` and its health at
+`/health`, on the host, port and host names in `config/memory_server.toml`.
+`--database TRADING_AGENT_TEST` serves the test database. `--in-cluster` is for its pod in the
+kind cluster: it listens on every address of its container, so the cluster's other pods reach
+it as `memory`. It logs in on the first lookup, not at start. Output is plain ASCII:
+`conda run` on Windows fails on other characters.
 """
 
 import argparse
@@ -33,12 +32,8 @@ from jev_trader.memory.search import SearchSettings
 from jev_trader.memory.search_check import AFTER, load_memory, report
 from jev_trader.memory.server import build_server, http_app
 from jev_trader.memory.store import UnknownSim
-from jev_trader.storage.snowflake import (
-    DATABASE,
-    ConnectionOnFirstUse,
-    LoginNotSet,
-    connect,
-)
+from jev_trader.storage import LoginNotSet
+from jev_trader.storage.database import DATABASE, open_database
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 # In its pod: every address of the container, which only the cluster can reach.
@@ -53,34 +48,31 @@ def load_settings(path: Path = CONFIG_DIR / "memory_server.toml") -> dict:
 def serve(database: str, port: int | None, in_cluster: bool = False) -> int:
     import uvicorn
 
-    from jev_trader.memory.snowflake_store import SnowflakeMemoryStore
-
     load_dotenv(REPO_ROOT / ".env")
     try:
-        connection = ConnectionOnFirstUse("memory", database=database)
+        opened = open_database("memory", database)
     except LoginNotSet as missing:
         print(missing)
         return 2
     settings = load_settings()
-    app = http_app(
-        build_server(SnowflakeMemoryStore(connection)), settings["allowed_hosts"]
-    )
+    app = http_app(build_server(opened.memory_store()), settings["allowed_hosts"])
     host = EVERY_ADDRESS if in_cluster else settings["host"]
     try:
         uvicorn.run(app, host=host, port=port or settings["port"])
     finally:
-        connection.close()
+        opened.close()
     return 0
 
 
-def load_from_snowflake(sim: int, after: str, database: str) -> tuple[dict, list]:
-    """The sim's settings and memory, read as the memory login. LoginNotSet if it is not set."""
+def load_from_database(sim: int, after: str, database: str) -> tuple[dict, list]:
+    """The sim's settings and memory, read as the memory login. LoginNotSet if a
+    setting is missing."""
     load_dotenv(REPO_ROOT / ".env")
-    connection = connect("memory", database=database)
+    opened = open_database("memory", database)
     try:
-        return load_memory(connection, sim, after)
+        return load_memory(opened.connection, sim, after)
     finally:
-        connection.close()
+        opened.close()
 
 
 def check_search(args: argparse.Namespace, read_memory: Callable) -> int:
@@ -100,7 +92,7 @@ def check_search(args: argparse.Namespace, read_memory: Callable) -> int:
 
 
 def main(
-    argv: list[str] | None = None, read_memory: Callable = load_from_snowflake
+    argv: list[str] | None = None, read_memory: Callable = load_from_database
 ) -> int:
     parser = argparse.ArgumentParser(prog="python -m jev_trader.memory")
     commands = parser.add_subparsers(dest="command", required=True)

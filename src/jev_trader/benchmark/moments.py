@@ -38,7 +38,6 @@ from jev_trader.memory.episodes import Standing
 from jev_trader.memory.lookups import SearchResult
 from jev_trader.memory.outcomes import EPISODE_KINDS
 from jev_trader.memory.search import FULL_EVALUATION, Job
-from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
 from jev_trader.sim.store import SimStatus
 
 BUILD_UP = "build-up"  # SIM.SIMS.KIND of the build-up sim
@@ -133,13 +132,13 @@ def _order(candidate: Candidate) -> tuple[bool, str, int]:
 
 
 class BuildUpSim:
-    """The build-up sim `sim`, read through `connection` (the sim login): what its moments are
-    drawn from."""
+    """The build-up sim `sim`, read from `database` (`jev_trader.storage.database.Database`, as
+    the sim login): what its moments are drawn from."""
 
-    def __init__(self, connection, sim: int):
-        self.connection, self.sim = connection, sim
+    def __init__(self, database, sim: int):
+        self.connection, self.sim = database.connection, sim
         try:
-            row = SnowflakeSimStore(connection).sim(sim)
+            row = database.sim_store().sim(sim)
         except KeyError:
             raise NoSavedMoments(f"there is no sim {sim}") from None
         if row["KIND"] != BUILD_UP:
@@ -153,7 +152,7 @@ class BuildUpSim:
         self.dataset = row["DATASET"]
         self.seed = row["RANDOM_SEED"]
         self.last_step = row["LAST_COMPLETED_STEP"]
-        self.market = SnowflakeMarket(connection)
+        self.market = database.market()
         self.playbook = self.market.playbook(self.dataset)
 
     def candidates(self) -> list[Candidate]:
@@ -161,11 +160,11 @@ class BuildUpSim:
         with self.connection.cursor() as cur:
             cur.execute(
                 "SELECT ASSET, STEP, KIND, STANDING, END_OF_SESSION FROM MEMORY.DECISIONS "
-                "WHERE SIM = ? AND FIRST_WRITTEN_BY = SIM "
-                f"AND KIND IN ({', '.join('?' for _ in EPISODE_KINDS)}) AND STEP > ?",
+                "WHERE SIM = %s AND FIRST_WRITTEN_BY = SIM "
+                "AND KIND = ANY(%s) AND STEP > %s",
                 (
                     self.sim,
-                    *EPISODE_KINDS,
+                    [str(kind) for kind in EPISODE_KINDS],
                     self.last_step - LAST_DAYS * STEPS_PER_DAY,
                 ),
             )

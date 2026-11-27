@@ -3,17 +3,16 @@
     conda run -n agentic-jev-trader python -m jev_trader.api serve
     conda run -n agentic-jev-trader python -m jev_trader.api describe web/openapi.json
 
-`serve` logs in to Snowflake as the API login (`SNOWFLAKE_ACCOUNT` and
-`SNOWFLAKE_PRIVATE_KEY_FILE_PWD` in `.env`, the key `api.p8` in `SNOWFLAKE_LOCAL_DIR`) and
-listens on this computer only. It starts sims' jobs as `JOB_LAUNCHER` in `.env` says (`local`,
-the default: programs on this computer, each printing to `logs/sims/sim-<id>.log`), on the
-database it serves, and dataset builds the same way (`logs/datasets/dataset-<id>.log`, beside
+`serve` logs in to Postgres as the API login (`POSTGRES_HOST` and `POSTGRES_API_PASSWORD` in
+`.env`) and listens on this computer only. It starts sims' jobs as `JOB_LAUNCHER` in `.env` says
+(`local`, the default: programs on this computer, each printing to `logs/sims/sim-<id>.log`), on
+the database it serves, and dataset builds the same way (`logs/datasets/dataset-<id>.log`, beside
 the build's settings file). `kubernetes` starts each as a Job in the kind cluster instead
-(`jev_trader.jobs`). A build logs in as the builder and needs
-`TWELVE_DATA_API_KEY`. `--in-cluster` is for its pod in the kind cluster: it listens on every
-address of its container and answers the cluster's callers too (`jev_trader.api.app`). It logs
-in to Snowflake on the first request that reads, not at start. `describe` needs no login.
-Output is plain ASCII: `conda run` on Windows fails on other characters.
+(`jev_trader.jobs`). A build logs in as the builder and needs `TWELVE_DATA_API_KEY`.
+`--in-cluster` is for its pod in the kind cluster: it listens on every address of its container
+and answers the cluster's callers too (`jev_trader.api.app`). It logs in on the first request that
+reads, not at start. `describe` needs no login. Output is plain ASCII: `conda run` on Windows
+fails on other characters.
 """
 
 import argparse
@@ -32,7 +31,8 @@ from jev_trader.broker.config import CONFIG_DIR
 from jev_trader.jobs import builds_named, launcher_named
 from jev_trader.sim.spending import load_spending_settings
 from jev_trader.sim.store import InMemorySimStore
-from jev_trader.storage.snowflake import DATABASE, ConnectionOnFirstUse, LoginNotSet
+from jev_trader.storage import LoginNotSet
+from jev_trader.storage.database import DATABASE, open_database
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 JOB_LOGS = REPO_ROOT / "logs" / "sims"
@@ -64,8 +64,6 @@ def describe(path: Path) -> None:
 def serve(database: str, port: int, in_cluster: bool = False) -> int:
     import uvicorn
 
-    from jev_trader.api.snowflake_store import SnowflakeApiStore
-
     load_dotenv(REPO_ROOT / ".env")
     try:
         name = os.environ.get("JOB_LAUNCHER") or "local"
@@ -75,13 +73,13 @@ def serve(database: str, port: int, in_cluster: bool = False) -> int:
         print(refused)
         return 2
     try:
-        connection = ConnectionOnFirstUse("api", database=database)
+        opened = open_database("api", database)
     except LoginNotSet as missing:
         print(missing)
         return 2
     settings = load_settings()
     app = create_app(
-        SnowflakeApiStore(connection),
+        opened.api_store(),
         spending_ceiling=load_spending_settings().ceiling_usd,
         not_responding_after=timedelta(minutes=settings["not_responding_minutes"]),
         moment_window_steps=settings["moment_window_steps"],
@@ -92,7 +90,7 @@ def serve(database: str, port: int, in_cluster: bool = False) -> int:
     try:
         uvicorn.run(app, host=EVERY_ADDRESS if in_cluster else THIS_COMPUTER, port=port)
     finally:
-        connection.close()
+        opened.close()
     return 0
 
 

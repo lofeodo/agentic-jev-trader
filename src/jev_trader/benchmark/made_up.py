@@ -1,5 +1,5 @@
 """Made-up moments and fake answers, for running the benchmark command end to end with no
-Snowflake, no memory server and no model (`--made-up`): it costs nothing and writes no table.
+database, no memory server and no model (`--made-up`): it costs nothing and writes no table.
 
 Four moments (two full evaluations, two position reviews) of one made-up asset; every attempt
 names the same made-up episode with one fake call costing `FAKE_CALL_USD`, so the spend meter's

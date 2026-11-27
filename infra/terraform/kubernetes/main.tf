@@ -1,7 +1,10 @@
 # The project's Kubernetes part: the three long-lived services (the memory server, the API and
 # the web app) in a local kind cluster, the secrets they and the jobs read, and the permission
 # for the API to start and stop Jobs. Spec: issue #82, appendix 10 section 3.
-# Kept apart from the Snowflake part in infra/terraform, which it does not touch.
+# Kept apart from the RDS part in infra/terraform/rds, which it does not touch.
+#
+# The programs log in to Postgres on AWS RDS (spec appendix 11, section 1): the address and the
+# connection settings in the ConfigMap `postgres`, each login's password in its own secret.
 #
 # Everything sits in one namespace. The memory server is reached inside the cluster only, as
 # `memory`; the API (`api`) and the web app (`web`) are also opened to this computer, on
@@ -20,7 +23,7 @@ locals {
   python_image = "jev-trader:${var.image_tag}"
   web_image    = "jev-trader-web:${var.image_tag}"
 
-  # The Python image's plain user (Dockerfile). Its group can read the mounted key.
+  # The Python image's plain user (Dockerfile).
   python_user = 10001
 
   # The cluster's node ports for the API and the web app, and the ports on this computer kind
@@ -30,7 +33,7 @@ locals {
     web = { node_port = 30080, address = "http://127.0.0.1:8080" }
   }
 
-  # The two Python services. Each logs in to Snowflake as its own login and gets that login's
+  # The two Python services. Each logs in to Postgres as its own login and gets that login's
   # secret only.
   python_services = {
     memory = {
@@ -42,14 +45,15 @@ locals {
       port    = 8000
       command = ["python", "-m", "jev_trader.api", "serve", "--in-cluster", "--database", var.database]
       # Sims and dataset builds start as Jobs in this cluster, from the API's own image. Each
-      # Job reads its own login's secret (snowflake-sim or snowflake-builder) and models or
-      # twelve-data, named in src/jev_trader/jobs.py.
+      # Job reads the ConfigMap postgres, its own login's secret (postgres-sim or
+      # postgres-builder) and models or twelve-data, named in src/jev_trader/jobs.py.
       env = { JOB_LAUNCHER = "kubernetes", JOB_IMAGE = local.python_image }
     }
   }
 
-  # Where a pod finds its login's private key: SNOWFLAKE_LOCAL_DIR/keys/<login>.p8.
-  snowflake_dir = "/snowflake"
+  # The logins that run in the cluster: the two services and the two kinds of Job. The setup
+  # login (it makes the tables) stays on the developer's computer.
+  logins = toset(["api", "memory", "sim", "builder"])
 }
 
 resource "kubernetes_namespace_v1" "this" {
@@ -58,25 +62,38 @@ resource "kubernetes_namespace_v1" "this" {
   }
 }
 
-# --- Secrets --------------------------------------------------------------------------------
-# One secret per Snowflake login (the services' memory and api, the jobs' sim and builder),
-# each holding the account, the key passphrase and that login's key only. The sim jobs' model
-# keys and the build jobs' price-data key are secrets of their own. The ZAI key (only the
-# benchmark uses it, on the developer's machine) and the LangSmith key (tracing, optional) do
-# not enter the cluster.
+# --- Where the database is, and the secrets ---------------------------------------------------
+# The ConfigMap `postgres` holds what every program needs to find the database and is no
+# secret: the address, the port and the encryption. One secret per login (the
+# services' memory and api, the jobs' sim and builder) holds that login's password only. The sim
+# jobs' model keys and the build jobs' price-data key are secrets of their own. The ZAI key
+# (only the benchmark uses it, on the developer's machine) and the LangSmith key (tracing,
+# optional) do not enter the cluster.
 
-resource "kubernetes_secret_v1" "snowflake" {
-  for_each = toset(["api", "memory", "sim", "builder"])
-
+resource "kubernetes_config_map_v1" "postgres" {
   metadata {
-    name      = "snowflake-${each.key}"
+    name      = "postgres"
     namespace = kubernetes_namespace_v1.this.metadata[0].name
   }
 
+  data = {
+    POSTGRES_HOST     = var.postgres_host
+    POSTGRES_PORT     = tostring(var.postgres_port)
+    POSTGRES_SSL_MODE = var.postgres_ssl_mode
+  }
+}
+
+resource "kubernetes_secret_v1" "postgres" {
+  for_each = local.logins
+
+  metadata {
+    name      = "postgres-${each.key}"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+  }
+
+  # The name the programs read it by (jev_trader.storage.postgres.password_variable).
   data_wo = {
-    SNOWFLAKE_ACCOUNT              = var.snowflake_account
-    SNOWFLAKE_PRIVATE_KEY_FILE_PWD = var.snowflake_private_key_passphrase
-    "${each.key}.p8"               = file("${var.snowflake_keys_dir}/${each.key}.p8")
+    "POSTGRES_${upper(each.key)}_PASSWORD" = var.postgres_passwords[each.key]
   }
   data_wo_revision = var.secrets_revision
 }
@@ -194,7 +211,6 @@ resource "kubernetes_deployment_v1" "python" {
         security_context {
           run_as_non_root = true
           run_as_user     = local.python_user
-          fs_group        = local.python_user
         }
 
         container {
@@ -207,21 +223,15 @@ resource "kubernetes_deployment_v1" "python" {
             container_port = each.value.port
           }
 
-          env {
-            name  = "SNOWFLAKE_LOCAL_DIR"
-            value = local.snowflake_dir
+          env_from {
+            config_map_ref {
+              name = kubernetes_config_map_v1.postgres.metadata[0].name
+            }
           }
 
-          dynamic "env" {
-            for_each = toset(["SNOWFLAKE_ACCOUNT", "SNOWFLAKE_PRIVATE_KEY_FILE_PWD"])
-            content {
-              name = env.key
-              value_from {
-                secret_key_ref {
-                  name = kubernetes_secret_v1.snowflake[each.key].metadata[0].name
-                  key  = env.key
-                }
-              }
+          env_from {
+            secret_ref {
+              name = kubernetes_secret_v1.postgres[each.key].metadata[0].name
             }
           }
 
@@ -231,12 +241,6 @@ resource "kubernetes_deployment_v1" "python" {
               name  = env.key
               value = env.value
             }
-          }
-
-          volume_mount {
-            name       = "snowflake-key"
-            mount_path = "${local.snowflake_dir}/keys"
-            read_only  = true
           }
 
           # Asked under the service's own name and port: each server refuses an address name
@@ -251,18 +255,6 @@ resource "kubernetes_deployment_v1" "python" {
               }
             }
             period_seconds = 5
-          }
-        }
-
-        volume {
-          name = "snowflake-key"
-          secret {
-            secret_name  = kubernetes_secret_v1.snowflake[each.key].metadata[0].name
-            default_mode = "0440"
-            items {
-              key  = "${each.key}.p8"
-              path = "${each.key}.p8"
-            }
           }
         }
       }

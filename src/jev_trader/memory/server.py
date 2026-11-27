@@ -4,7 +4,8 @@ appendix 10, section 2; ADR 0006).
 MCP (the Model Context Protocol) is the standard way to offer tools to a model: a server lists
 its tools and a client calls them over the network. Memory is the project's only MCP server, and
 it offers exactly three tools, all read-only: `search_episodes`, `read_episodes` and
-`read_track_record`. It logs in to Snowflake with its own role, which can only read.
+`read_track_record`. It logs in with its own role, which can only read, to the Postgres
+database.
 
 Each tool takes, besides what the LLM may set, the inputs code fills in on every call: the sim,
 the step, and what the search serves (the asset looked at, the job, an open position's

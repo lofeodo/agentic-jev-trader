@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 // A screen that changes slowly: read on opening and whenever the developer comes back to the
 // tab, never sending a new request before the last is answered. No timer, so an open tab
-// doesn't keep Snowflake awake.
+// doesn't keep the database busy.
 export function useRead<T>(read: () => Promise<T>): { data: T | null; error: string | null } {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);

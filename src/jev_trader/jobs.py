@@ -30,7 +30,7 @@ from kubernetes import client as k8s
 from kubernetes import config as k8s_config
 from kubernetes.client import ApiException
 
-from jev_trader.storage.snowflake import DATABASE
+from jev_trader.storage.database import DATABASE
 
 SRC = Path(__file__).resolve().parents[1]
 REPO_ROOT = SRC.parent
@@ -257,10 +257,10 @@ class LocalBuilds:
 NAMESPACE = "jev-trader"
 # The cluster's context in this computer's kubeconfig, for an API run outside the cluster.
 KUBE_CONTEXT = "kind-jev-trader"
-# The Python image's plain user (Dockerfile); its group can read the mounted key.
+# The Python image's plain user (Dockerfile); its group can read the mounted settings file.
 PYTHON_USER = 10001
-# Where a pod finds its login's private key: SNOWFLAKE_LOCAL_DIR/keys/<login>.p8.
-SNOWFLAKE_DIR = "/snowflake"
+# The ConfigMap telling every program where the database is (address, port, encryption).
+DATABASE_CONFIG_MAP = "postgres"
 # Where a build's pod finds its settings file, carried in a ConfigMap.
 SETTINGS_DIR = "/settings"
 SETTINGS_KEY = "settings.toml"
@@ -335,9 +335,10 @@ class _ClusterJobs:
     """Starting, watching and stopping Jobs in the namespace, for sims and builds alike.
 
     A Job runs its pod once (no retry: `backoff_limit` 0) and is kept after it ends, so its
-    output stays readable: `kubectl logs job/<name> -n jev-trader`. Each Job gets its own
-    login's Snowflake secret, one more secret of keys (`keys`), and no service account token,
-    so it cannot reach the cluster itself.
+    output stays readable: `kubectl logs job/<name> -n jev-trader`. Each Job gets where the
+    database is (`DATABASE_CONFIG_MAP`), its own login's password (the secret `postgres-<login>`),
+    one more secret of keys (`keys`), and no service account token, so it cannot reach the
+    cluster itself.
     """
 
     def __init__(self, client):
@@ -361,33 +362,17 @@ class _ClusterJobs:
     ) -> None:
         """Start the Job `name` running `command` as `login`. `settings` names a ConfigMap
         to mount at SETTINGS_DIR."""
-        secret = f"snowflake-{login}"
-        variables = [k8s.V1EnvVar(name="SNOWFLAKE_LOCAL_DIR", value=SNOWFLAKE_DIR)]
-        variables += [
-            k8s.V1EnvVar(
-                name=key,
-                value_from=k8s.V1EnvVarSource(
-                    secret_key_ref=k8s.V1SecretKeySelector(name=secret, key=key)
-                ),
-            )
-            for key in ("SNOWFLAKE_ACCOUNT", "SNOWFLAKE_PRIVATE_KEY_FILE_PWD")
+        variables = [k8s.V1EnvVar(name=k, value=v) for k, v in (env or {}).items()]
+        from_settings_and_secrets = [
+            k8s.V1EnvFromSource(
+                config_map_ref=k8s.V1ConfigMapEnvSource(name=DATABASE_CONFIG_MAP)
+            ),
+            k8s.V1EnvFromSource(
+                secret_ref=k8s.V1SecretEnvSource(name=f"postgres-{login}")
+            ),
+            k8s.V1EnvFromSource(secret_ref=k8s.V1SecretEnvSource(name=keys)),
         ]
-        variables += [k8s.V1EnvVar(name=k, value=v) for k, v in (env or {}).items()]
-        mounts = [
-            k8s.V1VolumeMount(
-                name="snowflake-key", mount_path=f"{SNOWFLAKE_DIR}/keys", read_only=True
-            )
-        ]
-        volumes = [
-            k8s.V1Volume(
-                name="snowflake-key",
-                secret=k8s.V1SecretVolumeSource(
-                    secret_name=secret,
-                    default_mode=0o440,
-                    items=[k8s.V1KeyToPath(key=f"{login}.p8", path=f"{login}.p8")],
-                ),
-            )
-        ]
+        mounts, volumes = [], []
         if settings is not None:
             mounts.append(
                 k8s.V1VolumeMount(
@@ -415,9 +400,7 @@ class _ClusterJobs:
                     image_pull_policy="Never",  # loaded into kind, never downloaded
                     command=command,
                     env=variables,
-                    env_from=[
-                        k8s.V1EnvFromSource(secret_ref=k8s.V1SecretEnvSource(name=keys))
-                    ],
+                    env_from=from_settings_and_secrets,
                     volume_mounts=mounts,
                 )
             ],

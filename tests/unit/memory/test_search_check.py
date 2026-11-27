@@ -9,7 +9,7 @@ from jev_trader.memory.__main__ import main
 from jev_trader.memory.lookups import Lookups
 from jev_trader.memory.search import Filters, SearchSettings
 from jev_trader.memory.search_check import Memory, Record, check, ended_as
-from jev_trader.storage.snowflake import DATABASE
+from jev_trader.storage.database import DATABASE
 
 UP, DOWN = (1.0, 0.0), (-1.0, 0.0)
 
@@ -135,7 +135,7 @@ def test_a_sample_checks_records_spread_evenly_over_the_memory():
 
 
 def run(capsys, *argv, memory):
-    """The command, with the memory handed over in place of reading Snowflake."""
+    """The command, with the memory handed over in place of reading the database."""
     asked = {}
 
     def load(sim, after, database):

@@ -102,7 +102,7 @@ function SimsListPage() {
 
   // Asks again only after the last answer: on a timer while a sim is in progress, and whenever
   // the developer comes back to the page (a sim started from the command line then shows up).
-  // With nothing in progress it stays quiet, so an open tab doesn't keep Snowflake awake.
+  // With nothing in progress it stays quiet, so an open tab doesn't keep the database busy.
   useEffect(() => {
     let stopped = false;
     let asking = false;

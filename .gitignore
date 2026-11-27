@@ -1,18 +1,18 @@
 # Secrets: real keys live only in .env (see .env.example)
 .env
 
-# Snowflake private keys never enter the repo
+# Private keys never enter the repo
 *.p8
 *.pem
 
 # Terraform: providers are downloaded per checkout; state lives outside the repo
-# (SNOWFLAKE_LOCAL_DIR, see infra/README.md), and is ignored here in case one lands.
+# (in ~/.agentic-jev-trader, see infra/README.md), and is ignored here in case one lands.
 .terraform/
 *.tfstate
 *.tfstate.*
 *.tfvars
 
-# Tables saved from Snowflake by `python -m jev_trader.storage save`
+# Copies of the database saved by `python -m jev_trader.storage save` (Parquet or pg_dump)
 saved-tables/
 
 # Copies of GitHub issues an agent saves before a large tracker edit (see RESTORE.md inside)

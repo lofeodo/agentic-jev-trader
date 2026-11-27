@@ -1,8 +1,8 @@
 name: Terraform
 
-# Checks both Terraform parts on every pull request: format and validate, with no secrets and
-# no connection to Snowflake or a cluster. infra/terraform is the Snowflake part,
-# infra/terraform/kubernetes the kind cluster part.
+# Checks every Terraform part on every pull request: format and validate, with no secrets and
+# no connection to AWS or a cluster. infra/terraform/kubernetes is the kind cluster part,
+# infra/terraform/rds and its postgres/ the RDS database and what is inside it.
 on:
   pull_request:
   push:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        folder: [infra/terraform, infra/terraform/kubernetes]
+        folder: [infra/terraform/kubernetes, infra/terraform/rds, infra/terraform/rds/postgres]
     defaults:
       run:
         working-directory: ${{ matrix.folder }}
