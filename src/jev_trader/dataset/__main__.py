@@ -5,7 +5,7 @@
 Options: `--no-check` publishes even if an asset is over a limit, marking the dataset
 "published without the check"; `--database TRADING_AGENT_TEST` builds into the test database;
 `--dataset-id N` carries on the row the API added (how the API starts a build).
-Needs `TWELVE_DATA_API_KEY` and the Snowflake settings in `.env`. Output is plain ASCII:
+Needs `TWELVE_DATA_API_KEY` and the database settings in `.env`. Output is plain ASCII:
 `conda run` on Windows fails on other characters.
 """
 
@@ -20,8 +20,9 @@ from dotenv import load_dotenv
 from jev_trader.dataset.build import BuildStopped, build_dataset
 from jev_trader.dataset.providers import BinanceFiles, TwelveData
 from jev_trader.dataset.settings import load_settings
-from jev_trader.dataset.snowflake_store import SnowflakeStore
-from jev_trader.storage.snowflake import DATABASE, LoginNotSet, connect
+from jev_trader.storage import LoginNotSet
+from jev_trader.storage.database import open_database
+from jev_trader.storage.snowflake import DATABASE
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -52,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         print("TWELVE_DATA_API_KEY is not set. Add it to .env (see .env.example).")
         return 2
     try:
-        connection = connect("builder", database=args.database)
+        database = open_database("builder", args.database)
     except LoginNotSet as missing:
         print(missing)
         return 2
@@ -62,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             load_settings(args.settings),
             stocks=TwelveData(api_key),
             crypto=BinanceFiles(),
-            store=SnowflakeStore(connection),
+            store=database.dataset_store(),
             today=datetime.now(UTC).date(),
             check=not args.no_check,
             report=lambda line: print(line, flush=True),
@@ -72,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Build stopped: {stop}")
         return 2
     finally:
-        connection.close()
+        database.close()
     return 0 if result.published else 1
 
 

@@ -65,10 +65,11 @@ from jev_trader.sim.runner import (
     create_sim,
     run_sim,
 )
-from jev_trader.sim.snowflake_store import SnowflakeMarket, SnowflakeSimStore
 from jev_trader.sim.spending import load_spending_settings
 from jev_trader.sim.store import StepAlreadyWritten
-from jev_trader.storage.snowflake import DATABASE, LoginNotSet, connect
+from jev_trader.storage import LoginNotSet
+from jev_trader.storage.database import open_database
+from jev_trader.storage.snowflake import DATABASE
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 # Steps stored per write. The holding sim calls nothing paid, so a redone batch costs nothing;
@@ -287,11 +288,11 @@ def main(argv: list[str] | None = None) -> int:
 
     load_dotenv(REPO_ROOT / ".env")
     try:
-        connection = connect("sim", database=args.database)
+        database = open_database("sim", args.database)
     except LoginNotSet as missing:
         print(missing)
         return 2
-    store, market = SnowflakeSimStore(connection), SnowflakeMarket(connection)
+    store, market = database.sim_store(), database.market()
     jev = None
     held = ExitStack()  # the memory server's connection, for a sim with memory
     memory = None
@@ -370,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
         held.close()
         if jev is not None:
             jev.close()
-        connection.close()
+        database.close()
     if result.stopped_by_cap:
         print(f"Sim {sim_id} stopped at its spending cap.")
         return 0

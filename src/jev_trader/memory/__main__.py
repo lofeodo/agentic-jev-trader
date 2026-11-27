@@ -33,12 +33,9 @@ from jev_trader.memory.search import SearchSettings
 from jev_trader.memory.search_check import AFTER, load_memory, report
 from jev_trader.memory.server import build_server, http_app
 from jev_trader.memory.store import UnknownSim
-from jev_trader.storage.snowflake import (
-    DATABASE,
-    ConnectionOnFirstUse,
-    LoginNotSet,
-    connect,
-)
+from jev_trader.storage import LoginNotSet, NotBuiltYet
+from jev_trader.storage.database import open_database, refuse_postgres_until
+from jev_trader.storage.snowflake import DATABASE, connect
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 # In its pod: every address of the container, which only the cluster can reach.
@@ -53,29 +50,27 @@ def load_settings(path: Path = CONFIG_DIR / "memory_server.toml") -> dict:
 def serve(database: str, port: int | None, in_cluster: bool = False) -> int:
     import uvicorn
 
-    from jev_trader.memory.snowflake_store import SnowflakeMemoryStore
-
     load_dotenv(REPO_ROOT / ".env")
     try:
-        connection = ConnectionOnFirstUse("memory", database=database)
+        opened = open_database("memory", database, on_first_use=True)
     except LoginNotSet as missing:
         print(missing)
         return 2
     settings = load_settings()
-    app = http_app(
-        build_server(SnowflakeMemoryStore(connection)), settings["allowed_hosts"]
-    )
+    app = http_app(build_server(opened.memory_store()), settings["allowed_hosts"])
     host = EVERY_ADDRESS if in_cluster else settings["host"]
     try:
         uvicorn.run(app, host=host, port=port or settings["port"])
     finally:
-        connection.close()
+        opened.close()
     return 0
 
 
 def load_from_snowflake(sim: int, after: str, database: str) -> tuple[dict, list]:
     """The sim's settings and memory, read as the memory login. LoginNotSet if it is not set."""
     load_dotenv(REPO_ROOT / ".env")
+    # The search check reads Snowflake alone until then.
+    refuse_postgres_until(279)
     connection = connect("memory", database=database)
     try:
         return load_memory(connection, sim, after)
@@ -86,7 +81,7 @@ def load_from_snowflake(sim: int, after: str, database: str) -> tuple[dict, list
 def check_search(args: argparse.Namespace, read_memory: Callable) -> int:
     try:
         settings, records = read_memory(args.sim, args.after, args.database)
-    except (LoginNotSet, UnknownSim) as problem:
+    except (LoginNotSet, UnknownSim, NotBuiltYet) as problem:
         print(f"Cannot read sim {args.sim}'s memory: {problem}")
         return 2
     base = SearchSettings.of_sim(settings)

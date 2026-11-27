@@ -399,15 +399,19 @@ def command(monkeypatch, market):
     """The sim command on the in-memory store and market, with no Snowflake."""
     store = InMemorySimStore()
 
-    class NoConnection:
+    class NoDatabase:
+        def sim_store(self):
+            return store
+
+        def market(self):
+            return market
+
         def close(self):
             pass
 
     monkeypatch.setattr(
-        "jev_trader.sim.__main__.connect", lambda *a, **k: NoConnection()
+        "jev_trader.sim.__main__.open_database", lambda *a, **k: NoDatabase()
     )
-    monkeypatch.setattr("jev_trader.sim.__main__.SnowflakeSimStore", lambda c: store)
-    monkeypatch.setattr("jev_trader.sim.__main__.SnowflakeMarket", lambda c: market)
     return store
 
 

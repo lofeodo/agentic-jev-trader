@@ -32,7 +32,9 @@ from jev_trader.broker.config import CONFIG_DIR
 from jev_trader.jobs import builds_named, launcher_named
 from jev_trader.sim.spending import load_spending_settings
 from jev_trader.sim.store import InMemorySimStore
-from jev_trader.storage.snowflake import DATABASE, ConnectionOnFirstUse, LoginNotSet
+from jev_trader.storage import LoginNotSet
+from jev_trader.storage.database import open_database
+from jev_trader.storage.snowflake import DATABASE
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 JOB_LOGS = REPO_ROOT / "logs" / "sims"
@@ -64,8 +66,6 @@ def describe(path: Path) -> None:
 def serve(database: str, port: int, in_cluster: bool = False) -> int:
     import uvicorn
 
-    from jev_trader.api.snowflake_store import SnowflakeApiStore
-
     load_dotenv(REPO_ROOT / ".env")
     try:
         name = os.environ.get("JOB_LAUNCHER") or "local"
@@ -75,13 +75,13 @@ def serve(database: str, port: int, in_cluster: bool = False) -> int:
         print(refused)
         return 2
     try:
-        connection = ConnectionOnFirstUse("api", database=database)
+        opened = open_database("api", database, on_first_use=True)
     except LoginNotSet as missing:
         print(missing)
         return 2
     settings = load_settings()
     app = create_app(
-        SnowflakeApiStore(connection),
+        opened.api_store(),
         spending_ceiling=load_spending_settings().ceiling_usd,
         not_responding_after=timedelta(minutes=settings["not_responding_minutes"]),
         moment_window_steps=settings["moment_window_steps"],
@@ -92,7 +92,7 @@ def serve(database: str, port: int, in_cluster: bool = False) -> int:
     try:
         uvicorn.run(app, host=EVERY_ADDRESS if in_cluster else THIS_COMPUTER, port=port)
     finally:
-        connection.close()
+        opened.close()
     return 0
 
 
