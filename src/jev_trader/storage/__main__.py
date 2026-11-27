@@ -105,9 +105,13 @@ def load(database: str, folder: Path, check_only: bool) -> int:
                 say(str(refused))
                 return 1
             episodes = loading.model_check_episodes(folder, tables)
-            say(f"Text-to-numbers check on {len(episodes)} saved episodes...")
+            if not episodes:
+                say("The save holds no snapshots, so no saved numbers to check.")
+            else:
+                say(f"Text-to-numbers check on {len(episodes)} saved episodes...")
             similarities = loading.model_check(episodes, text_to_numbers.embed)
-            say("Similarities: " + ", ".join(f"{s:.6f}" for s in similarities))
+            if similarities:
+                say("Similarities: " + ", ".join(f"{s:.6f}" for s in similarities))
             if any(s < loading.LEAST_SIMILARITY for s in similarities):
                 say(
                     "The local model's numbers differ from Snowflake's (below "

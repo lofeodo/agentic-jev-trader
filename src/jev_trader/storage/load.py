@@ -8,8 +8,8 @@ refuses a database that already holds rows, so nothing is loaded twice.
 **The text-to-numbers check first.** The saved snapshots carry the 768 numbers Snowflake's model
 gave each situation text, and they load as they are. Before that, the same model on this
 computer (`dataset.text_to_numbers`) turns a handful of the saved texts into numbers again; each
-pair must point the same way to within a cosine similarity of 0.999 (1 is identical), the
-tolerance of `tests/postgres/test_text_to_numbers.py`. Below it, nothing is loaded: stop and ask
+pair must point the same way to within a cosine similarity of 0.999 (how alike two lists of
+numbers are, from -1 to 1: 1 is the same list, give or take its length), the tolerance of `tests/postgres/test_text_to_numbers.py`. Below it, nothing is loaded: stop and ask
 the developer.
 
 **How the files go in.** Each table's files are read with pyarrow, a batch at a time, and sent
@@ -34,6 +34,7 @@ import json
 import math
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 LEAST_SIMILARITY = 0.999
@@ -62,16 +63,28 @@ class SavedTable:
     name: str
     rows: int
     files: tuple[str, ...]
-    columns: tuple[
-        tuple[str, str], ...
-    ]  # (name, Snowflake type), as the manifest has them
+    # (name, Snowflake type), as the manifest has them
+    columns: tuple[tuple[str, str], ...]
 
     @property
     def postgres_name(self) -> str:
         return f"{self.schema.lower()}.{self.name.lower()}"
 
-    def column_type(self, column: str) -> str:
-        return dict(self.columns)[column].upper()
+    @property
+    def column_names(self) -> list[str]:
+        return [name for name, _ in self.columns]
+
+    @property
+    def postgres_columns(self) -> str:
+        """The columns as a statement lists them: `id, name, ...`."""
+        return ", ".join(name.lower() for name in self.column_names)
+
+    @cached_property
+    def column_types(self) -> dict[str, str]:
+        return {name: kind.upper() for name, kind in self.columns}
+
+    def folder(self, save: Path) -> Path:
+        return Path(save) / self.schema / self.name
 
 
 def read_manifest(folder: Path) -> list[SavedTable]:
@@ -107,9 +120,9 @@ def saved_rows(
     """The table's saved rows, a batch at a time, each a tuple in the manifest's column order."""
     import pyarrow.parquet as pq
 
-    names = [name for name, _ in table.columns]
+    names = table.column_names
     for file in table.files if files is None else files:
-        parquet = pq.ParquetFile(Path(folder) / table.schema / table.name / file)
+        parquet = pq.ParquetFile(table.folder(folder) / file)
         for batch in parquet.iter_batches(batch_size=BATCH_ROWS, columns=names):
             columns = [_as_postgres(batch.column(name)).to_pylist() for name in names]
             yield list(zip(*columns))
@@ -133,20 +146,34 @@ def _spread(items, count: int) -> list:
 def model_check_episodes(
     folder: Path, tables: list[SavedTable]
 ) -> list[tuple[str, list]]:
-    """A handful of saved snapshots, `(situation text, Snowflake's numbers)`, one from each of
-    files spread over the save."""
+    """`MODEL_CHECK_EPISODES` saved snapshots spread over the save, `(situation text,
+    Snowflake's numbers)`; fewer only if the save holds fewer, none if it holds no snapshots."""
     snapshots = next(
         (t for t in tables if (t.schema, t.name) == SNAPSHOTS and t.rows), None
     )
     if snapshots is None:
         return []
-    episodes = []
-    for file in _spread(list(snapshots.files), MODEL_CHECK_EPISODES):
-        batch = next(saved_rows(folder, snapshots, (file,)))
-        names = [name for name, _ in snapshots.columns]
-        row = dict(zip(names, batch[0]))
-        episodes.append((row["SITUATION_TEXT"], json.loads(row["EMBEDDING"])))
-    return episodes
+    places = _spread(range(snapshots.rows), MODEL_CHECK_EPISODES)
+    names = snapshots.column_names
+    rows = [dict(zip(names, row)) for row in _picked_rows(folder, snapshots, places)]
+    return [(row["SITUATION_TEXT"], json.loads(row["EMBEDDING"])) for row in rows]
+
+
+def _picked_rows(folder: Path, table: SavedTable, places) -> list[tuple]:
+    """The saved rows at `places` (0 is the first row of the first file), reading only the
+    files that hold them."""
+    import pyarrow.parquet as pq
+
+    wanted, picked, first = set(places), [], 0
+    for file in table.files:
+        rows = pq.ParquetFile(table.folder(folder) / file).metadata.num_rows
+        if any(first <= place < first + rows for place in wanted):
+            place = first
+            for batch in saved_rows(folder, table, (file,)):
+                picked += [row for i, row in enumerate(batch, place) if i in wanted]
+                place += len(batch)
+        first += rows
+    return picked
 
 
 def model_check(
@@ -234,11 +261,11 @@ def load_save(
     check_ready(connection, tables)
     with connection.transaction(), connection.cursor() as cursor:
         for table in tables:
-            columns = ", ".join(name.lower() for name, _ in table.columns)
             copied = 0
-            with cursor.copy(
-                f"COPY {table.postgres_name} ({columns}) FROM STDIN"
-            ) as copy:
+            statement = (
+                f"COPY {table.postgres_name} ({table.postgres_columns}) FROM STDIN"
+            )
+            with cursor.copy(statement) as copy:
                 for batch in saved_rows(folder, table):
                     for row in batch:
                         copy.write_row(row)
@@ -290,15 +317,10 @@ def _spot_check(
     connection, folder: Path, table: SavedTable, count: int | None
 ) -> list[str]:
     key = _primary_key(connection, table.postgres_name)
-    names = [name for name, _ in table.columns]
-    wanted_places = set(
-        range(table.rows) if count is None else _spread(range(table.rows), count)
-    )
-    picked, place = [], 0
-    for batch in saved_rows(folder, table):
-        picked += [row for i, row in enumerate(batch, place) if i in wanted_places]
-        place += len(batch)
-    columns = ", ".join(name.lower() for name in names)
+    names = table.column_names
+    places = range(table.rows) if count is None else _spread(range(table.rows), count)
+    picked = _picked_rows(folder, table, places)
+    columns = table.postgres_columns
     where = " AND ".join(f"{column} = %s" for column in key)
     problems = []
     with connection.cursor() as cursor:
@@ -315,7 +337,7 @@ def _spot_check(
                 )
                 continue
             for name, saved_value, loaded in zip(names, row, found[0]):
-                kind = table.column_type(name)
+                kind = table.column_types[name]
                 if _comparable(saved_value, kind) != _comparable(loaded, kind):
                     problems.append(f"{table.postgres_name} {wanted}: {name} differs")
     return problems

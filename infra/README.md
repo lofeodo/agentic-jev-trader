@@ -259,8 +259,8 @@ First time: fill in `POSTGRES_ADMIN_PASSWORD`, the five `POSTGRES_<LOGIN>_PASSWO
 ### Moving the data in, and copies of it
 
 Once, with the database on and its tables made: a fresh `storage save` of Snowflake, taken while
-no sim or build is writing, goes in with `python -m jev_trader.storage load <save folder>`
-(CLAUDE.md). It checks the text-to-numbers model first, loads every table in one transaction,
+no sim or build is writing, goes in with `conda run -n agentic-jev-trader python -m jev_trader.storage load
+<save folder>` (CLAUDE.md). It checks the text-to-numbers model first, loads every table in one transaction,
 then compares row counts and some rows with the save.
 
 From then on `storage save` (with `DATABASE_ENGINE=postgres`) is `pg_dump`: one file on this
