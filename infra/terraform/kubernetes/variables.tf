@@ -1,4 +1,5 @@
-# Which cluster to deploy to, which images to run, and the secrets the services and jobs read.
+# Which cluster to deploy to, which images to run, where the database is, and the secrets the
+# services and jobs read.
 #
 # The secret values are passed in when Terraform runs (TF_VAR_*), never written in the repo.
 # They are ephemeral and reach the cluster only through write-only attributes, so Terraform
@@ -22,7 +23,7 @@ variable "image_tag" {
 }
 
 variable "database" {
-  description = "The Snowflake database the memory server and the API serve."
+  description = "The database the memory server and the API serve (Postgres's trading_agent or trading_agent_test)."
   type        = string
   default     = "TRADING_AGENT"
 
@@ -32,29 +33,31 @@ variable "database" {
   }
 }
 
-variable "snowflake_keys_dir" {
-  description = "The folder holding the encrypted private key of each login the cluster runs (api.p8, memory.p8, sim.p8, builder.p8): the keys folder in SNOWFLAKE_LOCAL_DIR."
+variable "postgres_host" {
+  description = "POSTGRES_HOST from .env: the database's address, as the programs in the cluster reach it (RDS's address; never 127.0.0.1, which in a pod names the pod itself)."
   type        = string
 
   validation {
-    condition = alltrue([
-      for login in ["api", "memory", "sim", "builder"] :
-      fileexists("${var.snowflake_keys_dir}/${login}.p8")
-    ])
-    error_message = "snowflake_keys_dir must hold api.p8, memory.p8, sim.p8 and builder.p8."
+    condition     = !contains(["127.0.0.1", "localhost", "::1", ""], lower(trimspace(var.postgres_host)))
+    error_message = "postgres_host must be an address the cluster can reach: 127.0.0.1 or localhost in a pod names the pod itself."
   }
 }
 
-variable "snowflake_account" {
-  description = "SNOWFLAKE_ACCOUNT from .env (ORGNAME-ACCOUNTNAME)."
-  type        = string
-  sensitive   = true
-  ephemeral   = true
+variable "postgres_port" {
+  description = "POSTGRES_PORT from .env: the database's port."
+  type        = number
+  default     = 5432
 }
 
-variable "snowflake_private_key_passphrase" {
-  description = "SNOWFLAKE_PRIVATE_KEY_FILE_PWD from .env: the passphrase of every private key."
+variable "postgres_ssl_mode" {
+  description = "POSTGRES_SSL_MODE from .env: require (encrypted, the default) for RDS; disable only for a local Postgres without encryption."
   type        = string
+  default     = "require"
+}
+
+variable "postgres_passwords" {
+  description = "The password of each login that runs in the cluster (api, memory, sim, builder), POSTGRES_<LOGIN>_PASSWORD from .env, by login."
+  type        = map(string)
   sensitive   = true
   ephemeral   = true
 }

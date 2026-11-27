@@ -92,10 +92,10 @@ jobs:
           docker logs web
           exit 1
 
-  # The deployment check (spec appendix 10, sections 3 and 5): in a throwaway kind cluster, with
-  # dummy secrets, the three services report healthy and a job started with
-  # JOB_LAUNCHER=kubernetes runs. It proves the pieces start, not that they reach Snowflake: the
-  # dummy key is not even a key, so every login fails before any network call.
+  # The deployment check (spec appendix 10, sections 3 and 5; appendix 11, section 1): in a
+  # throwaway kind cluster, with dummy keys, the three services report healthy, the API answers
+  # from the database, and a job started with JOB_LAUNCHER=kubernetes reaches it. The database is
+  # the local Postgres the tests use, joined to the cluster's Docker network: never RDS.
   deployment-check:
     runs-on: ubuntu-latest
     # A stuck step (an apply, a wait, a Job) ends the check rather than hanging.
@@ -108,7 +108,7 @@ jobs:
       CLUSTER: jev-trader
       NAMESPACE: jev-trader
       DATABASE: TRADING_AGENT_TEST
-      # A sim number that never existed: its Job has nothing to find, and fails at the login.
+      # A sim number that never existed: its Job asks the database for it and is told there is none.
       NO_SUCH_SIM: "999999"
     steps:
       - uses: actions/checkout@v7
@@ -125,25 +125,37 @@ jobs:
         run: |
           kind load docker-image "jev-trader:$TAG" --name "$CLUSTER"
           kind load docker-image "jev-trader-web:$TAG" --name "$CLUSTER"
+      # The local Postgres, reached from the cluster as `postgres`: kind's nodes sit on the Docker
+      # network `kind`, and the cluster's name lookups go on to Docker's, which knows the alias.
+      - name: Start the local Postgres and join it to the cluster's network
+        run: |
+          docker compose -f infra/local-postgres/compose.yaml up --detach --wait
+          docker network connect --alias postgres kind "$(docker compose -f infra/local-postgres/compose.yaml ps -q postgres)"
+      # Alembic from the Python image (it holds the package and Alembic), with the checkout's
+      # alembic.ini and infra/alembic mounted, on the cluster's network.
+      - name: Tables from nothing (Alembic)
+        run: |
+          docker run --rm --network kind -v "$PWD:/repo:ro" -w /repo \
+            -e POSTGRES_HOST=postgres -e POSTGRES_SSL_MODE=disable -e POSTGRES_SETUP_PASSWORD=local-setup \
+            "jev-trader:$TAG" python -m alembic -x "database=$DATABASE" upgrade head
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.5
           terraform_wrapper: false
-      # Plain placeholders: no real key exists anywhere in CI. The key files are not keys at all.
-      - name: Apply Terraform's Kubernetes part with dummy secrets
+      # Plain placeholders: no real key exists anywhere in CI. The passwords are the local
+      # Postgres's own (infra/local-postgres/init.sql).
+      - name: Apply Terraform's Kubernetes part with dummy keys
         working-directory: infra/terraform/kubernetes
         env:
-          TF_VAR_snowflake_account: dummy-account
-          TF_VAR_snowflake_private_key_passphrase: dummy-passphrase
           TF_VAR_twelve_data_api_key: dummy-twelve-data-key
           TF_VAR_typesafe_api_key: dummy-typesafe-key
           TF_VAR_anthropic_api_key: dummy-anthropic-key
+          TF_VAR_postgres_host: postgres
+          TF_VAR_postgres_ssl_mode: disable
+          TF_VAR_postgres_passwords: '{"api":"local-api","memory":"local-memory","sim":"local-sim","builder":"local-builder"}'
         run: |
-          mkdir -p "$RUNNER_TEMP/keys"
-          for login in api memory sim builder; do echo "dummy-key-$login" > "$RUNNER_TEMP/keys/$login.p8"; done
           terraform init -input=false -backend-config="path=$RUNNER_TEMP/k8s.tfstate"
-          terraform apply -input=false -auto-approve -var "image_tag=$TAG" \
-            -var "snowflake_keys_dir=$RUNNER_TEMP/keys" -var "database=$DATABASE"
+          terraform apply -input=false -auto-approve -var "image_tag=$TAG" -var "database=$DATABASE"
       # Asked from a pod inside the cluster, where the services' names are known. The Python
       # image has no infra/ folder, so the script comes in on standard input.
       - name: Wait until the memory server, API and web app report healthy
@@ -152,12 +164,16 @@ jobs:
             --image="jev-trader:$TAG" --image-pull-policy=Never \
             -- python - "$MEMORY_HEALTH" "$API_HEALTH" "$WEB_HEALTH" --timeout 180 \
             < infra/wait_healthy.py
+      # The API reads the sims from the database (none: the tables are new), asked inside its pod
+      # under its own name, as the readiness probe asks.
+      - name: The API answers from the database
+        run: |
+          kubectl exec -n "$NAMESPACE" deploy/api -- python -c \
+            'import urllib.request as u; print(u.urlopen(u.Request("http://127.0.0.1:8000/sims", headers={"Host": "api:8000"})).read().decode())'
       # The API's own launcher starts a sim's Job, with the API's own permissions. The sim never
-      # existed and the key is a dummy, so the Job's program fails at its login, before any
-      # network call: the sign it started and ran is that message in its output. The message is
-      # the `cryptography` library's, raised as `connect` reads the key file; reworded in an
-      # upgrade, it is what to change here. The launcher answers `job <name>` (JOB_MARK in
-      # src/jev_trader/jobs.py).
+      # existed, so the Job's program logs in, asks the database for it and is refused: the sign
+      # it reached the database is that refusal in its output (`no sim <id>`, from the sim
+      # store). The launcher answers `job <name>` (JOB_MARK in src/jev_trader/jobs.py).
       - name: Start a job with JOB_LAUNCHER=kubernetes and see it run
         run: |
           mark=$(kubectl exec -n "$NAMESPACE" deploy/api -- env DATABASE="$DATABASE" NO_SUCH_SIM="$NO_SUCH_SIM" python -c \
@@ -166,7 +182,7 @@ jobs:
           echo "started: $job"
           kubectl wait -n "$NAMESPACE" "job/$job" --for=condition=Failed --timeout=180s
           kubectl logs -n "$NAMESPACE" "job/$job" | tee job.log
-          grep -q "Unable to load PEM file" job.log
+          grep -q "no sim $NO_SUCH_SIM" job.log
       - name: Print the pods' logs
         if: failure()
         run: |
@@ -174,3 +190,4 @@ jobs:
           kubectl describe pods -n "$NAMESPACE" || true
           for app in memory api web; do kubectl logs -n "$NAMESPACE" "deploy/$app" --all-containers || true; done
           kubectl logs -n "$NAMESPACE" -l app=sim-job --all-containers --prefix || true
+          docker compose -f infra/local-postgres/compose.yaml logs || true
