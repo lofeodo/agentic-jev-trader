@@ -1,0 +1,28 @@
+# The local Postgres the database tests use (tests/postgres), on this computer and in CI: never
+# RDS, so they cost nothing. Postgres 17 with pgvector, listening at 127.0.0.1:5433 without
+# encryption. Its first start runs init.sql (the five logins, the two databases, pgvector).
+# The data lives in memory: stopping it throws every table away, and the next start is fresh.
+#
+#   docker compose -f infra/local-postgres/compose.yaml up --detach --wait
+#   docker compose -f infra/local-postgres/compose.yaml down
+name: jev-trader-postgres
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.3-pg17
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      # The container's own superuser, used only by init.sql on the first start.
+      POSTGRES_PASSWORD: local-postgres
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    tmpfs:
+      - /var/lib/postgresql/data
+    # Asked over the network, not the socket: during the first start Postgres runs init.sql on
+    # a socket-only server, so this answers only once the real server is up.
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "trading_agent_setup", "-d", "trading_agent_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 60

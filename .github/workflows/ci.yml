@@ -26,6 +26,22 @@ jobs:
           python -m ruff format --check .
       - name: Tests (unit and recorded, network blocked)
         run: python -m pytest tests/unit tests/recorded --block-network
+      # The database tests (spec appendix 11, section 1) run against a throwaway local Postgres
+      # with pgvector, started by the same command as on the developer's computer: never RDS.
+      - name: Start the local Postgres
+        run: docker compose -f infra/local-postgres/compose.yaml up --detach --wait
+      # Every table made from nothing by Alembic, as the setup login with its local password.
+      - name: Tables from nothing (Alembic)
+        env:
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: "5433"
+          POSTGRES_SSL_MODE: disable
+          POSTGRES_SETUP_PASSWORD: local-setup
+        run: python -m alembic -x database=TRADING_AGENT_TEST upgrade head
+      # The tests take the local Postgres's settings from tests/postgres/helpers.py. Until the
+      # slice's closing ticket switches them on, they are dormant and skipped here.
+      - name: Database tests (local Postgres)
+        run: python -m pytest tests/postgres
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
