@@ -60,6 +60,22 @@ psycopg[binary]==3.3.9
 alembic==1.20.1
 SQLAlchemy==2.1.9
 
+# The text-to-numbers model on this computer (spec appendix 11, section 2). PyTorch comes from
+# its own download site: the NVIDIA (CUDA 13.0) build on Windows, the developer's computer; the
+# smaller processor-only build elsewhere (CI, the Docker image). The two download sites are
+# there for torch only; pip reads them for the whole file, and every other pin here still holds.
+--extra-index-url https://download.pytorch.org/whl/cu130
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1+cu130; sys_platform == "win32"
+torch==2.14.1+cpu; sys_platform != "win32"
+sentence-transformers==6.3.0
+# The model's code, its text splitter, and the download and cache of its files (installed with
+# sentence-transformers, pinned here: an upgrade could change the numbers or where they are kept)
+transformers==5.24.1
+tokenizers==0.23.3
+safetensors==0.8.0
+huggingface-hub==2.5.0
+
 # Snowflake: table changes (infra/), the connector (infra/ and the commands), key pairs
 schemachange==4.4.0
 snowflake-connector-python==4.8.1
