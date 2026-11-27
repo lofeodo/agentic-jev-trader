@@ -15,12 +15,17 @@ can swap in made-up numbers.
 """
 
 from functools import cache
+from typing import TYPE_CHECKING
 
 from jev_trader.dataset.snapshots import EMBEDDING_MODEL, EMBEDDING_SIZE
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 MODEL_ID = f"Snowflake/{EMBEDDING_MODEL}"
 # The model's files at a fixed point, so a later upload cannot change the numbers.
 MODEL_REVISION = "e58a8f756156a1293d763f17e3aae643474e9b8a"
+# Texts sent to the card at once: a few hundred words each, so 64 fit easily in its memory.
 BATCH_SIZE = 64
 
 
@@ -29,10 +34,9 @@ def embed(texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
     vectors = _model().encode(
-        list(texts),
+        texts,
         batch_size=BATCH_SIZE,
         normalize_embeddings=True,
-        convert_to_numpy=True,
         show_progress_bar=False,
     )
     numbers = vectors.tolist()
@@ -44,7 +48,7 @@ def embed(texts: list[str]) -> list[list[float]]:
 
 
 @cache
-def _model():
+def _model() -> "SentenceTransformer":
     import torch
     from sentence_transformers import SentenceTransformer
 
