@@ -112,22 +112,29 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
   state, kept outside the repo like the Snowflake part's (`-backend-config=path=...`). One
   apply puts the memory server, the API and the web app in the namespace `jev-trader` (a
   named compartment of the cluster that permissions can be limited to), each
-  from the images tagged `image_tag`, and waits until each answers its health address. It also
-  makes what the jobs need: one secret (a value the cluster stores and hands only to the
-  programs named to receive it) per Snowflake login (`snowflake-api`, `snowflake-memory`,
-  `snowflake-sim`, `snowflake-builder`, each holding the account, the passphrase and that
-  login's key only), `models` (the Jev and LLM keys, for sims) and `twelve-data` (for builds),
-  and the API's permission (a Role) to create, read and delete Jobs (and the ConfigMaps, small
-  stored files, that carry a build's settings) in that namespace only. Each service reads its own login's secret only.
-  The values come in as environment variables named `TF_VAR_<variable>` (the names in
-  `terraform/kubernetes/variables.tf`) plus the keys folder (`snowflake_keys_dir`), and are
-  sent to the cluster without Terraform keeping a copy (write-only attributes), so its state
-  file never holds them. After changing a secret's value, raise
-  `secrets_revision` by one, or Terraform does not send it. The ZAI key (the benchmark, on this
-  computer only) and the LangSmith key (optional tracing) do not enter the cluster. `deploy.py`
-  runs this part with the real values from `.env`, the images of the current commit and the
-  keys folder, keeping the state as `kubernetes.tfstate` in `SNOWFLAKE_LOCAL_DIR` (`apply` puts
-  real keys into the cluster):
+  from the images tagged `image_tag`, and waits until each answers its health address. Every
+  program in the cluster reads Postgres on AWS RDS (section "Postgres on AWS RDS" below): the
+  ConfigMap (a small stored file the cluster hands to programs) `postgres` holds where it is
+  (`DATABASE_ENGINE`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_SSL_MODE`; no secret), and
+  one secret (a value the cluster stores and hands only to the programs named to receive it)
+  per login that runs there (`postgres-api`, `postgres-memory`, `postgres-sim`,
+  `postgres-builder`) holds that login's password only. The setup login, which makes the
+  tables, stays on this computer. The part also makes `models` (the Jev and LLM keys, for
+  sims) and `twelve-data` (for builds), and the API's permission (a Role) to create, read and
+  delete Jobs (and the ConfigMaps that carry a build's settings) in that namespace only. Each
+  service reads its own login's secret only. The secret values come in as environment
+  variables named `TF_VAR_<variable>` (the names in `terraform/kubernetes/variables.tf`) and
+  are sent to the cluster without Terraform keeping a copy (write-only attributes), so its
+  state file never holds them. After changing a secret's value, raise `secrets_revision` by
+  one, or Terraform does not send it. The ZAI key (the benchmark, on this computer only) and
+  the LangSmith key (optional tracing) do not enter the cluster. `deploy.py` runs this part
+  with the real values from `.env` (the address, the four passwords and the keys, all as
+  `TF_VAR_*`, none on its command line) and the images of the current commit, keeping the
+  state as `kubernetes.tfstate` in `~/.agentic-jev-trader/kubernetes` (`apply` puts real keys
+  into the cluster). It refuses a `POSTGRES_HOST` of `127.0.0.1` or `localhost`: inside a pod
+  that names the pod itself. Before the move to Postgres the state was kept in
+  `SNOWFLAKE_LOCAL_DIR`; a cluster deployed then is not known to the new state, so remove it
+  (`kind delete cluster --name jev-trader`) and make it again before the first deploy.
 
   ```
   conda run -n agentic-jev-trader python infra/deploy.py plan
@@ -152,8 +159,8 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
   `/api/...` requests to the API at `API_URL` (`http://api:8000`, the cluster's API service,
   which must exist when the web app starts). In the cluster both servers run with
   `--in-cluster`: they listen on every address of their container, the API answers any caller
-  on the cluster's private network (not only this computer), and both log in to Snowflake on
-  first use rather than at start, so they report healthy even with dummy logins.
+  on the cluster's private network (not only this computer), and both log in to the database on
+  first use rather than at start, so they report healthy before the database is reached.
 - `wait_healthy.py` waits until the memory server, the API and the web app each answer their
   health address, and names any that never did (the deployment check's wait; the docstring
   has the command to run it by hand against your own cluster).
@@ -161,8 +168,8 @@ which runs and restarts programs). Its pieces sit beside the Snowflake setup, ap
 The API in the cluster starts each sim or dataset build as a Kubernetes Job (a one-off run
 inside the cluster, `JOB_LAUNCHER=kubernetes`), from its own image, running the same command
 as on this computer. A sim's Job is named `sim-<id>-<6 random characters>` (a fresh one each time the sim
-starts or resumes) and reads the `snowflake-sim` and `models` secrets; a build's Job is
-`dataset-<id>-<database>` (such as `dataset-3-trading-agent`) and reads `snowflake-builder` and `twelve-data`, with its settings file in the
+starts or resumes) and reads the `postgres` ConfigMap and the `postgres-sim` and `models` secrets; a build's Job is
+`dataset-<id>-<database>` (such as `dataset-3-trading-agent`) and reads the `postgres` ConfigMap and the `postgres-builder` and `twelve-data` secrets, with its settings file in the
 ConfigMap of the same name. Neither gets a way to reach the cluster itself. A Job that ended
 is kept, so its output stays readable (Stop removes the Job and its output with it):
 
@@ -174,13 +181,26 @@ An API run on this computer with `JOB_LAUNCHER=kubernetes` in `.env` starts Jobs
 cluster (the entry `kind-jev-trader` in this computer's cluster settings, `~/.kube/config`),
 from the image of the checkout's commit.
 
+**How the cluster reaches RDS.** RDS lets in only this computer's home internet address. The
+kind cluster runs inside Docker on this computer, so what a pod sends to RDS leaves through
+Docker and then through the home connection like anything else this computer sends: RDS sees
+the same home address and lets it in. Nothing in the cluster or in RDS's rule changes for it.
+It stops working only when the home address changes (re-run `rds.py apply`, which moves the
+rule) or when this computer goes out through something else (a VPN, a phone's hotspot, another
+network): the programs then fail at their login, timing out, until `rds.py apply` is run from
+there. The database must also be on (`rds.py start`). A cluster anywhere other than this
+computer would need its own address added to the rule.
+
 CI's `deployment-check` job does all of this in a throwaway kind cluster on every pull request,
-with dummy secrets (placeholders, no real key): it builds and loads both images, applies
-Terraform's Kubernetes part, runs `wait_healthy.py` from a pod (one running container in the
-cluster) inside the cluster, then has the API's launcher start a sim's Job and checks the Job
-ran. The Job fails at its Snowflake login, as expected, because the dummy key is not a key:
-its output says `Unable to load PEM file` (PEM is the text format a private key is saved in),
-before any network call. When a step fails, the job prints the pods' logs.
+with dummy keys (placeholders, no real key) and the local Postgres in place of RDS: it starts
+the local Postgres, joins it to the cluster's Docker network under the name `postgres`, makes
+the tables with Alembic, builds and loads both images, applies Terraform's Kubernetes part with
+the local passwords, runs `wait_healthy.py` from a pod (one running container in the cluster)
+inside the cluster, asks the API for its sims (an empty list read from the database) and the
+memory server for a sim's episodes (refused: no such sim, also read from the database), then has
+the API's launcher start a sim's Job for a sim that never existed and checks the Job's output
+says `no sim <id>`: the Job logged in and asked the database. When a step fails, the job
+prints the pods' logs.
 
 ## Postgres on AWS RDS
 
