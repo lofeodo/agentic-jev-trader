@@ -1,7 +1,7 @@
 -- The local Postgres's first start (compose.yaml): what Terraform makes on RDS, with the local
 -- passwords the database tests use (tests/postgres/helpers.py, LOCAL_ENV). Run once, as the
 -- container's own superuser, before the tables exist; Alembic then makes the tables as the
--- setup login (CLAUDE.md, "Local Postgres").
+-- setup login (CLAUDE.md, the database tests under Commands).
 
 -- The five logins (spec appendix 11, section 1). What each may read and write is granted by
 -- Alembic's first file, as it makes the tables.

@@ -20,7 +20,7 @@ from jev_trader.storage import postgres
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _env():
+def _connection_env():
     given = context.config.attributes.get("env")
     if given is not None:
         return given
@@ -36,7 +36,7 @@ def _database() -> str:
 
 
 def run_migrations_online() -> None:
-    settings = postgres.settings("setup", _database(), _env())
+    settings = postgres.settings("setup", _database(), _connection_env())
     engine = create_engine(
         "postgresql+psycopg://", connect_args=settings, poolclass=NullPool
     )
